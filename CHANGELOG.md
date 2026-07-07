@@ -8,9 +8,10 @@ This project follows a lightweight changelog format before the first stable rele
 
 ### Release Status
 
-- Phase F9 final acceptance completed: MVP Demo Ready, P0/P1 cleared, and ready for a demo tag.
+- Phase F9 final acceptance completed: MVP Demo Ready, P0/P1 cleared, and the demo tag is deferred for Post-F9 enhancement.
 - Production Ready and gray release remain blocked by environment, public storage, and real Douyin credentials.
 - Douyin Shop remains Release Candidate until real read/write E2E and gray observation complete.
+- Phase H1.1 adds URL-based state restoration for key operation workbenches.
 
 ### Added
 

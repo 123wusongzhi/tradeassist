@@ -39,7 +39,8 @@ Add-Issue "Admin route uses /ops/task-center/failures" ($wrongRouteHits.Count -e
 
 $readme = Get-Content (Join-Path $repoRoot "README.md") -Raw
 Add-Issue "README states MVP Demo Ready" ($readme -match 'MVP Demo Ready') "README.md release line"
-Add-Issue "README v0.1.0-demo tag pending" ($readme -match 'v0\.1\.0-demo.*pending|tag.*pending|Tag pending') "tag status"
+Add-Issue "README states Post-F9 Enhancement" ($readme -match 'Post-F9 Enhancement') "README.md stage line"
+Add-Issue "README states Tag deferred" ($readme -match 'Tag deferred') "tag status"
 Add-Issue "README Douyin Release Candidate" ($readme -match 'Release Candidate') "douyin status"
 
 $prodReadyBad = @()
@@ -79,8 +80,9 @@ $md += @(
     "",
     "## Required release status",
     "",
+    "- Post-F9 Enhancement In Progress",
     "- MVP Demo Ready",
-    "- Tag pending (v0.1.0-demo)",
+    "- Tag deferred",
     "- Not Production Ready",
     "- Douyin Release Candidate",
     "",
@@ -93,7 +95,7 @@ $md += @(
 
 $dir = Split-Path -Parent $OutFile
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-$md -join "`n" | Set-Content -Path $OutFile -Encoding UTF8
+($md -join "`n").TrimEnd() | Set-Content -Path $OutFile -Encoding UTF8
 Write-Host ""
 Write-Host "Wrote $OutFile ($passed passed, $failed failed)"
 if ($failed -gt 0) { exit 1 }

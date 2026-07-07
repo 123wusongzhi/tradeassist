@@ -1,8 +1,8 @@
 # TradeMind 全项目功能地图
 
 > **Phase F9**（2026-07-07）— **F1–F9 已完成**；最终总体验收结论为 **final_acceptance_passed_ready_for_demo_tag**。
-> **当前策略**：功能冻结基线保持；仅允许 demo tag / 文档收口 / P0-P1 修复，不进入灰度或 Production Ready。
-> **当前状态**：**Phase F9 Passed** · **MVP Demo Ready** · **Ready for demo tag** · **非 Production Ready** · 抖店 **Release Candidate**
+> **当前策略**：功能冻结基线保持；暂不打 tag，继续做低风险高收益体验收口，不进入灰度或 Production Ready。
+> **当前状态**：**Post-F9 Enhancement** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · 抖店 **Release Candidate**
 
 ## Phase F9 更新（2026-07-07）
 

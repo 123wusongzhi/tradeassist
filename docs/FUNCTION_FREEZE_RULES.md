@@ -1,7 +1,7 @@
 # TradeMind 功能冻结规则（Phase F8 / Post-F9）
 
 > **生效**：Phase F8 完成后至生产决策前；F9 已于 2026-07-07 通过。
-> **状态**：Phase F9 Passed · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 抖店 Release Candidate
+> **状态**：Post-F9 Enhancement · MVP Demo Ready · Tag deferred · 非 Production Ready · 抖店 Release Candidate
 
 ## 冻结原则
 
@@ -12,7 +12,7 @@
 5. **只允许修 P0 / P1**（安全、越权、主链路断点、误导发布、无法恢复）。
 6. **P2 仅允许**文案 / 样式 / 文档级低风险修复。
 7. **P3 全部延后**至冻结解除或生产路线图评审。
-8. **禁止**自动直接上架、Production Ready 标记和生产灰度；demo tag 仅按 F9 正式决策执行。
+8. **禁止**自动直接上架、Production Ready 标记、生产灰度和本阶段打 tag。
 
 ## 冻结范围
 

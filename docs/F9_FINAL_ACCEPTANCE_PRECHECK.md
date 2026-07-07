@@ -1,6 +1,7 @@
 # F9 最终总体验收准备清单
 
 > **用途**：F9 启动前环境与人肉准备；**F9 已于 2026-07-07 完成**，见 [`F9_FINAL_ACCEPTANCE_REPORT.md`](F9_FINAL_ACCEPTANCE_REPORT.md)。
+> **Post-F9**：H1 当前策略为 **Tag deferred**，继续体验收口；本清单仅作为历史准备记录与后续真实预发参考。
 
 ## 基础设施
 

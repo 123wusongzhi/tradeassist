@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-07T04:37:29.8113704Z
+> Generated: 2026-07-07T07:13:31.6558934Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
@@ -64,15 +64,16 @@
 - [ ] Douyin readonly E2E
 - [ ] Douyin write E2E
 - [ ] 48-72h gray observation
-- [ ] v0.1.0-demo tag final confirmation
+- [ ] Tag deferred review
 
 ## Final status
 
 ```text
+Post-F9 Enhancement In Progress
 MVP Demo Ready
-Tag pending
+Tag deferred
 Not Production Ready
 Douyin Release Candidate
 ```
 
-No v0.1.0-demo tag in this phase. No real Douyin E2E. No production gray release.
+Tag remains deferred in this phase. No real Douyin E2E. No production gray release.

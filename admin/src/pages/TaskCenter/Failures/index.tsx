@@ -1,4 +1,4 @@
-import { ProCard, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { ProCard, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
 import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
@@ -57,6 +57,42 @@ import {
 import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/services/collectAuth';
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
 import { resolveTaobaoTmallLoginTargetUrl } from '@/utils/taobaoTmallUrl';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+
+const FAILURE_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'taskType',
+  'normalizedStatus',
+  'failureCategory',
+  'recoveryStatus',
+  'severity',
+  'platform',
+  'shopId',
+  'keyword',
+  'start',
+  'end',
+  'includeResolved',
+  'includeMarked',
+  'drawer',
+  'id',
+  'detailTaskType',
+  'source',
+  'jumpId',
+] as const;
+
+function parsePositiveInt(value?: string, fallback = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function queryTimeRange(start?: string, end?: string) {
+  if (!start || !end) return undefined;
+  const s = dayjs(start);
+  const e = dayjs(end);
+  if (!s.isValid() || !e.isValid()) return undefined;
+  return [s, e];
+}
 
 function normTag(norm: string) {
   const m = TASK_NORMALIZED_STATUS[norm];
@@ -122,10 +158,17 @@ function detailLinkLabel(detailUrl?: string | null): string {
 export default function TaskCenterFailuresPage() {
   const emptyLocale = useListEmptyLocale('taskFailures');
   const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof FAILURE_QUERY_KEYS)[number], string | undefined>>(
+      FAILURE_QUERY_KEYS,
+    );
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const listFilterRef = useRef({ includeResolved: false, includeMarked: false });
   const [includeResolved, setIncludeResolved] = useState(false);
   const [includeMarked, setIncludeMarked] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const [failureCatOpts, setFailureCatOpts] = useState<{ label: string; value: string }[]>([]);
   const [summary, setSummary] = useState<FailuresSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -135,6 +178,45 @@ export default function TaskCenterFailuresPage() {
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
   const [recovering, setRecovering] = useState(false);
+
+  useEffect(() => {
+    const nextIncludeResolved = urlState.includeResolved === 'true';
+    const nextIncludeMarked = urlState.includeMarked === 'true';
+    listFilterRef.current = {
+      includeResolved: nextIncludeResolved,
+      includeMarked: nextIncludeMarked,
+    };
+    setIncludeResolved(nextIncludeResolved);
+    setIncludeMarked(nextIncludeMarked);
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      taskType: urlState.taskType,
+      normalizedStatus: urlState.normalizedStatus,
+      failureCategory: urlState.failureCategory,
+      recoveryStatus: urlState.recoveryStatus,
+      severity: urlState.severity,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      keyword: urlState.keyword,
+      timeRange: queryTimeRange(urlState.start, urlState.end),
+    });
+  }, [
+    urlState.end,
+    urlState.failureCategory,
+    urlState.includeMarked,
+    urlState.includeResolved,
+    urlState.keyword,
+    urlState.normalizedStatus,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.recoveryStatus,
+    urlState.severity,
+    urlState.shopId,
+    urlState.start,
+    urlState.taskType,
+  ]);
 
   const isTbLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
     if (!row || row.taskType !== 'collect') return false;
@@ -191,8 +273,10 @@ export default function TaskCenterFailuresPage() {
 
   useEffect(() => {
     const sp = new URLSearchParams(location.search || '');
-    const jumpId = sp.get('jumpId');
-    const taskType = sp.get('taskType');
+    const drawerId = sp.get('drawer') === 'failure' ? sp.get('id') : '';
+    const drawerTaskType = sp.get('drawer') === 'failure' ? sp.get('detailTaskType') : '';
+    const jumpId = drawerId || sp.get('jumpId');
+    const taskType = drawerTaskType || sp.get('taskType');
     if (!jumpId || !taskType) {
       return;
     }
@@ -205,16 +289,23 @@ export default function TaskCenterFailuresPage() {
       if (isPlatformAlertTaskType(taskType)) {
         message.info('该平台级告警无对应失败任务详情，请在告警中心查看');
         sp.delete('jumpId');
-        sp.delete('taskType');
+        sp.delete('drawer');
+        sp.delete('id');
+        sp.delete('detailTaskType');
         const qs = sp.toString();
         history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
         return;
       }
       message.warning('链接中的任务类型或 ID 无效，无法打开失败详情');
       sp.delete('jumpId');
-      sp.delete('taskType');
+      sp.delete('drawer');
+      sp.delete('id');
+      sp.delete('detailTaskType');
       const qs = sp.toString();
       history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+      return;
+    }
+    if (detailOpen && detail?.id === jumpId && detail?.taskType === taskType) {
       return;
     }
     void (async () => {
@@ -231,7 +322,7 @@ export default function TaskCenterFailuresPage() {
         setDetailLoading(false);
       }
     })();
-  }, [location.pathname, location.search]);
+  }, [detail?.id, detail?.taskType, detailOpen, location.pathname, location.search]);
 
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
@@ -488,6 +579,7 @@ export default function TaskCenterFailuresPage() {
   }
 
   async function openDetail(row: UnifiedTaskDTO) {
+    setUrlState({ drawer: 'failure', id: row.id, detailTaskType: row.taskType });
     setDetail(null);
     setDetailOpen(true);
     setDetailLoading(true);
@@ -692,6 +784,8 @@ export default function TaskCenterFailuresPage() {
                         onChange={(checked) => {
                           listFilterRef.current.includeResolved = checked;
                           setIncludeResolved(checked);
+                          setUrlState({ includeResolved: checked, page: undefined });
+                          setTablePage(1);
                           actionRef.current?.reload?.();
                         }}
                       />
@@ -705,6 +799,8 @@ export default function TaskCenterFailuresPage() {
                         onChange={(checked) => {
                           listFilterRef.current.includeMarked = checked;
                           setIncludeMarked(checked);
+                          setUrlState({ includeMarked: checked, page: undefined });
+                          setTablePage(1);
                           actionRef.current?.reload?.();
                         }}
                       />
@@ -725,6 +821,7 @@ export default function TaskCenterFailuresPage() {
           rowKey={(r) => `${r.taskType}:${r.id}`}
           columns={columns}
           actionRef={actionRef}
+          formRef={formRef}
           search={{
             labelWidth: 'auto',
           }}
@@ -732,12 +829,27 @@ export default function TaskCenterFailuresPage() {
             listFilterRef.current = { includeResolved: false, includeMarked: false };
             setIncludeResolved(false);
             setIncludeMarked(false);
+            setTablePage(1);
+            setTablePageSize(20);
+            clearUrlState(FAILURE_QUERY_KEYS, { replace: true });
           }}
           rowSelection={{
             selections: true,
             onChange: (_, rows) => setSel(rows),
           }}
-          pagination={{ pageSize: 20, showSizeChanger: true }}
+          pagination={{
+            current: tablePage,
+            pageSize: tablePageSize,
+            showSizeChanger: true,
+            onChange: (page, pageSize) => {
+              setTablePage(page);
+              setTablePageSize(pageSize);
+              setUrlState({
+                page: page > 1 ? page : undefined,
+                pageSize: pageSize !== 20 ? pageSize : undefined,
+              });
+            },
+          }}
           scroll={{ x: 1680 }}
           tableAlertRender={false}
           locale={emptyLocale}
@@ -745,8 +857,8 @@ export default function TaskCenterFailuresPage() {
             const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
             try {
               const qp: Record<string, string | number | undefined> = {
-                page: params.current ?? 1,
-                pageSize: params.pageSize ?? 20,
+                page: params.current ?? tablePage,
+                pageSize: params.pageSize ?? tablePageSize,
                 taskType: (params.taskType as string | undefined)?.trim(),
                 normalizedStatus: (params.normalizedStatus as string | undefined)?.trim(),
                 platform: (params.platform as string | undefined)?.trim(),
@@ -764,6 +876,25 @@ export default function TaskCenterFailuresPage() {
               }
               if (typeof params.start === 'string' && params.start) qp.start = params.start;
               if (typeof params.end === 'string' && params.end) qp.end = params.end;
+              setUrlState(
+                {
+                  page: Number(qp.page) > 1 ? qp.page : undefined,
+                  pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                  taskType: qp.taskType,
+                  normalizedStatus: qp.normalizedStatus,
+                  platform: qp.platform,
+                  shopId: qp.shopId,
+                  keyword: qp.keyword,
+                  failureCategory: qp.failureCategory,
+                  severity: qp.severity,
+                  recoveryStatus: qp.recoveryStatus,
+                  start: qp.start,
+                  end: qp.end,
+                  includeResolved: listFilterRef.current.includeResolved,
+                  includeMarked: listFilterRef.current.includeMarked,
+                },
+                { replace: true },
+              );
               const data = await queryTaskFailures(qp);
               setSummary(data.summary);
               return { data: data.list, total: data.total, success: true };
@@ -778,7 +909,11 @@ export default function TaskCenterFailuresPage() {
       <Drawer
         width={640}
         open={detailOpen}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetail(null);
+          setUrlState({ drawer: undefined, id: undefined, detailTaskType: undefined }, { replace: true });
+        }}
         title="失败任务详情（摘要）"
       >
         {detailLoading ? <Typography.Paragraph type="secondary">载入中...</Typography.Paragraph> : null}

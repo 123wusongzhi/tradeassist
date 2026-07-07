@@ -1,7 +1,7 @@
 # Demo 数据种子指南（Phase F7）
 
 > **用途**：在本地或预发环境导入全链路演示数据，支撑 16 步 MVP 主链路走查。  
-> **状态**：Phase F9 Passed · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 抖店 Release Candidate
+> **状态**：Post-F9 Enhancement · MVP Demo Ready · Tag deferred · 非 Production Ready · 抖店 Release Candidate
 
 ## 前置条件
 

@@ -1,7 +1,7 @@
 # Demo 自动化验收指南
 
 > **用途**：本地 / CI 可运行的自动化回归，支撑 F7-F9 与 Post-F9 发布前复扫。
-> **状态**：Phase F9 Passed · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 无真实抖店 E2E
+> **状态**：Post-F9 Enhancement · MVP Demo Ready · Tag deferred · 非 Production Ready · 无真实抖店 E2E
 
 ## 总控脚本
 

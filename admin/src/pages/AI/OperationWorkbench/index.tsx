@@ -45,8 +45,21 @@ import {
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlDrawerState, useUrlQueryState } from '@/hooks/useUrlState';
 
 const { RangePicker } = DatePicker;
+
+const WORKBENCH_QUERY_KEYS = [
+  'type',
+  'priority',
+  'platform',
+  'shopId',
+  'keyword',
+  'start',
+  'end',
+  'page',
+  'pageSize',
+] as const;
 
 const CARD_ICONS: Record<string, React.ReactNode> = {
   aiTextReviewCount: <FileTextOutlined />,
@@ -65,7 +78,25 @@ function priorityTag(priority?: string) {
   );
 }
 
+function parseRange(start?: string, end?: string): [Dayjs | null, Dayjs | null] | null {
+  if (!start && !end) return null;
+  const s = start ? dayjs(start) : null;
+  const e = end ? dayjs(end) : null;
+  return [s?.isValid() ? s : null, e?.isValid() ? e : null];
+}
+
+function parsePositiveInt(value?: string, fallback = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
 export default function AIOperationWorkbenchPage() {
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof WORKBENCH_QUERY_KEYS)[number], string | undefined>>(
+      WORKBENCH_QUERY_KEYS,
+    );
+  const todoDrawer = useUrlDrawerState('todo');
+  const { id: drawerTodoId, openDrawer: openTodoDrawer, closeDrawer: closeTodoDrawer } = todoDrawer;
   const [summary, setSummary] = useState<WorkbenchSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +109,8 @@ export default function AIOperationWorkbenchPage() {
   const [filterShopId, setFilterShopId] = useState<string>();
   const [filterKeyword, setFilterKeyword] = useState<string>();
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(50);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerItem, setDrawerItem] = useState<WorkbenchTodoItem | null>(null);
@@ -85,6 +118,54 @@ export default function AIOperationWorkbenchPage() {
 
   const tableRef = useRef<{ reload: () => void } | null>(null);
   const emptyLocale = useListEmptyLocale('aiOperationWorkbench');
+
+  useEffect(() => {
+    setFilterType(urlState.type);
+    setFilterPriority(urlState.priority);
+    setFilterPlatform(urlState.platform);
+    setFilterShopId(urlState.shopId);
+    setFilterKeyword(urlState.keyword);
+    setDateRange(parseRange(urlState.start, urlState.end));
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 50));
+  }, [
+    urlState.end,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.priority,
+    urlState.shopId,
+    urlState.start,
+    urlState.type,
+  ]);
+
+  useEffect(() => {
+    setUrlState(
+      {
+        type: filterType,
+        priority: filterPriority,
+        platform: filterPlatform,
+        shopId: filterShopId,
+        keyword: filterKeyword?.trim() || undefined,
+        start: dateRange?.[0] ? dateRange[0].startOf('day').toISOString() : undefined,
+        end: dateRange?.[1] ? dateRange[1].endOf('day').toISOString() : undefined,
+        page: tablePage > 1 ? tablePage : undefined,
+        pageSize: tablePageSize !== 50 ? tablePageSize : undefined,
+      },
+      { replace: true },
+    );
+  }, [
+    dateRange,
+    filterKeyword,
+    filterPlatform,
+    filterPriority,
+    filterShopId,
+    filterType,
+    setUrlState,
+    tablePage,
+    tablePageSize,
+  ]);
 
   const queryParams = useMemo(() => {
     const params: Record<string, string | undefined> = {
@@ -139,6 +220,7 @@ export default function AIOperationWorkbenchPage() {
   };
 
   const openDrawer = async (row: WorkbenchTodoItem) => {
+    openTodoDrawer(row.id);
     setDrawerOpen(true);
     setDrawerLoading(true);
     setDrawerItem(row);
@@ -151,6 +233,25 @@ export default function AIOperationWorkbenchPage() {
       setDrawerLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!drawerTodoId) return;
+    if (drawerItem?.id === drawerTodoId && drawerOpen) return;
+    void (async () => {
+      setDrawerOpen(true);
+      setDrawerLoading(true);
+      try {
+        const detail = await getWorkbenchTodo(drawerTodoId, queryParams);
+        setDrawerItem(detail);
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '加载待办详情失败');
+        closeTodoDrawer();
+        setDrawerOpen(false);
+      } finally {
+        setDrawerLoading(false);
+      }
+    })();
+  }, [closeTodoDrawer, drawerItem?.id, drawerOpen, drawerTodoId, queryParams]);
 
   const columns: ProColumns<WorkbenchTodoItem>[] = [
     {
@@ -278,6 +379,7 @@ export default function AIOperationWorkbenchPage() {
                       onClick={() => {
                         if ('filterType' in card && card.filterType) {
                           setFilterType(card.filterType);
+                          setTablePage(1);
                           tableRef.current?.reload();
                         }
                         if (card.link) history.push(card.link);
@@ -306,7 +408,10 @@ export default function AIOperationWorkbenchPage() {
               style={{ width: '100%' }}
               options={WORKBENCH_TODO_TYPES.map((x) => ({ label: x.label, value: x.value }))}
               value={filterType}
-              onChange={setFilterType}
+              onChange={(v) => {
+                setFilterType(v);
+                setTablePage(1);
+              }}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={6}>
@@ -316,7 +421,10 @@ export default function AIOperationWorkbenchPage() {
               style={{ width: '100%' }}
               options={WORKBENCH_PRIORITY_OPTIONS.map((x) => ({ label: x.label, value: x.value }))}
               value={filterPriority}
-              onChange={setFilterPriority}
+              onChange={(v) => {
+                setFilterPriority(v);
+                setTablePage(1);
+              }}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={6}>
@@ -326,7 +434,10 @@ export default function AIOperationWorkbenchPage() {
               style={{ width: '100%' }}
               options={PLATFORM_OPTIONS}
               value={filterPlatform}
-              onChange={setFilterPlatform}
+              onChange={(v) => {
+                setFilterPlatform(v);
+                setTablePage(1);
+              }}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={6}>
@@ -338,15 +449,21 @@ export default function AIOperationWorkbenchPage() {
               optionFilterProp="label"
               options={shops.map((s) => ({ label: s.shopName, value: s.id }))}
               value={filterShopId}
-              onChange={setFilterShopId}
+              onChange={(v) => {
+                setFilterShopId(v);
+                setTablePage(1);
+              }}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={6}>
             <Input.Search
               allowClear
+              value={filterKeyword}
               placeholder="商品关键词"
+              onChange={(e) => setFilterKeyword(e.target.value)}
               onSearch={(v) => {
                 setFilterKeyword(v);
+                setTablePage(1);
                 tableRef.current?.reload();
               }}
             />
@@ -355,7 +472,10 @@ export default function AIOperationWorkbenchPage() {
             <RangePicker
               style={{ width: '100%' }}
               value={dateRange}
-              onChange={(v) => setDateRange(v)}
+              onChange={(v) => {
+                setDateRange(v);
+                setTablePage(1);
+              }}
             />
           </Col>
           <Col xs={24} sm={12} md={8} lg={4}>
@@ -367,6 +487,9 @@ export default function AIOperationWorkbenchPage() {
                 setFilterShopId(undefined);
                 setFilterKeyword(undefined);
                 setDateRange(null);
+                setTablePage(1);
+                setTablePageSize(50);
+                clearUrlState(WORKBENCH_QUERY_KEYS, { replace: true });
                 tableRef.current?.reload();
               }}
             >
@@ -381,7 +504,16 @@ export default function AIOperationWorkbenchPage() {
         rowKey="id"
         search={false}
         options={false}
-        pagination={{ defaultPageSize: 50, showSizeChanger: true, pageSizeOptions: ['20', '50'] }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          pageSizeOptions: ['20', '50'],
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+          },
+        }}
         columns={columns}
         onRow={(row) => ({
           onClick: () => void openDrawer(row),
@@ -391,8 +523,8 @@ export default function AIOperationWorkbenchPage() {
           try {
             const res = await queryWorkbenchTodos({
               ...queryParams,
-              page: params.current,
-              pageSize: params.pageSize,
+              page: params.current || tablePage,
+              pageSize: params.pageSize || tablePageSize,
             });
             return {
               data: res.items,
@@ -411,7 +543,11 @@ export default function AIOperationWorkbenchPage() {
         title="待办详情"
         width={480}
         open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => {
+          setDrawerOpen(false);
+          setDrawerItem(null);
+          closeTodoDrawer();
+        }}
         loading={drawerLoading}
         extra={
           drawerItem?.actionUrl ? (

@@ -1,7 +1,7 @@
-# 部署前检查清单（Phase R1 Demo Release）
+﻿# 部署前检查清单（Phase R1 Demo Release）
 
 > **目标状态**：`MVP Demo Ready`（非 Production Ready）
-> **Post-F9 更新**：Phase F9 已于 2026-07-07 通过，允许 demo tag；真实预发、Storage 公网、抖店真实 E2E 与灰度仍需外部环境，禁止标记 Production Ready。
+> **Post-F9 更新**：Phase F9 已于 2026-07-07 通过；H1 当前策略为 **Tag deferred**。真实预发、Storage 公网、抖店真实 E2E 与灰度仍需外部环境，禁止标记 Production Ready。
 
 ## 1. 环境变量
 
@@ -91,7 +91,7 @@ git diff --check
 
 ## 10. Release 标签建议
 
-- Demo：F9 决策允许 demo tag；当前仓库已有 `v0.1.0` / `v0.2.0`，建议打 tag 前先确认最终命名，避免版本号语义倒挂。
+- Demo：H1 当前策略为 **Tag deferred**；当前仓库已有 `v0.1.0` / `v0.2.0`，后续如恢复 tag 流程需先确认最终命名，避免版本号语义倒挂。
 - **不要**标记 Production Ready，直至抖店真实 E2E + 灰度观察通过（见 [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md)）
 
 ## Phase R1.1 预发部署验收（2026-06-27）
@@ -109,7 +109,7 @@ git diff --check
 | 路由 smoke | ✅ | `docs/demo-route-smoke.json` passed=true，8 路由无 404 |
 | Demo 数据 | ✅ | `seed-demo-data.ps1` → 20 slot + 7 task samples |
 | go test / build | ✅ | `go test ./...` + `pnpm build:admin` 通过 |
-| Git tag | Tag pending | 建议 `v0.1.0-demo`；待预发 Nginx/HTTPS 人工勾选后打 tag |
+| Git tag | Tag deferred | 建议 `v0.1.0-demo`；待预发 Nginx/HTTPS 人工勾选后打 tag |
 
 ## Phase R1.2 真实预发部署验收（2026-06-27）
 
@@ -135,7 +135,7 @@ git diff --check
 | Admin / 二进制 / Nginx 备份 | ⏭️ | 产物已本地构建；预发机备份待 SSH |
 | systemd 回滚 | ⏭️ | 见 Phase R1.1 命令模板 |
 | go test / build | ✅ | 全量 + 抖店 / 刊登 / 工作台回归通过 |
-| Git tag `v0.1.0-demo` | **Tag pending** | 待真实预发 HTTPS + Storage 公网 / 备份勾选后打 tag |
+| Git tag `v0.1.0-demo` | **Tag deferred** | 待真实预发 HTTPS + Storage 公网 / 备份勾选后打 tag |
 
 ### Phase R1.2 部署产物（待上传预发机）
 

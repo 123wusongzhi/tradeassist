@@ -269,7 +269,7 @@ $manualItems = @(
     "Douyin readonly E2E",
     "Douyin write E2E",
     "48-72h gray observation",
-    "v0.1.0-demo tag final confirmation"
+    "Tag deferred review"
 )
 
 $automatableConclusion = if ($overallFailed -eq 0) {
@@ -277,8 +277,9 @@ $automatableConclusion = if ($overallFailed -eq 0) {
 } else { "failed" }
 
 $finalStatus = @{
+    stage      = "Post-F9 Enhancement In Progress"
     release    = "MVP Demo Ready"
-    tag        = "Tag pending"
+    tag        = "Tag deferred"
     production = "Not Production Ready"
     douyin     = "Douyin Release Candidate"
 }
@@ -368,19 +369,20 @@ $mdLines.Add("")
 $mdLines.Add("## Final status")
 $mdLines.Add("")
 $mdLines.Add('```text')
+$mdLines.Add("Post-F9 Enhancement In Progress")
 $mdLines.Add("MVP Demo Ready")
-$mdLines.Add("Tag pending")
+$mdLines.Add("Tag deferred")
 $mdLines.Add("Not Production Ready")
 $mdLines.Add("Douyin Release Candidate")
 $mdLines.Add('```')
 $mdLines.Add("")
-$mdLines.Add("No v0.1.0-demo tag in this phase. No real Douyin E2E. No production gray release.")
+$mdLines.Add("Tag remains deferred in this phase. No real Douyin E2E. No production gray release.")
 
 $mdDir = Split-Path -Parent $ReportMd
 if ($mdDir -and -not (Test-Path $mdDir)) { New-Item -ItemType Directory -Path $mdDir -Force | Out-Null }
-$mdLines -join "`n" | Set-Content -Path $ReportMd -Encoding UTF8
+($mdLines -join "`n").TrimEnd() | Set-Content -Path $ReportMd -Encoding UTF8
 $fullProjectMd = Join-Path $repoRoot "docs/DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md"
-$mdLines -join "`n" | Set-Content -Path $fullProjectMd -Encoding UTF8
+($mdLines -join "`n").TrimEnd() | Set-Content -Path $fullProjectMd -Encoding UTF8
 
 Write-Host ""
 Write-Host "=== Summary ==="

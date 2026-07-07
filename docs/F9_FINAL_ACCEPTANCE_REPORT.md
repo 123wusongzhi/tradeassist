@@ -31,7 +31,7 @@
 
 | 决策 | 允许 |
 | --- | --- |
-| `v0.1.0-demo` tag | **是** |
+| demo tag | **F9 允许；H1 当前 deferred** |
 | 进入灰度 | **否** |
 | Production Ready | **否** |
 | 抖店 RC 标识 | **保留** |
@@ -41,10 +41,14 @@
 ```text
 Phase F9 Passed
 Final Acceptance Passed
-Ready for v0.1.0-demo Tag
+Tag deferred in Phase H1
 非 Production Ready
 抖店 Release Candidate
 ```
+
+## Post-F9 更新
+
+2026-07-07 Phase H1 决策：保留 F9 Passed、P0/P1 清零和自动化通过结论；暂不打 tag，继续在 `dev` 上进行 Post-F9 Enhancement。真实预发、Storage 公网、抖店真实 E2E 与生产灰度仍未完成，项目不标记 Production Ready。
 
 ## 报告索引
 
@@ -62,4 +66,5 @@ Ready for v0.1.0-demo Tag
 
 | 日期 | 说明 |
 | --- | --- |
-| 2026-07-07 | Phase F9 最终总体验收完成；允许 v0.1.0-demo tag；不允许灰度与 Production Ready |
+| 2026-07-07 | Phase H1 决策：F9 通过结论保留；tag deferred；不允许灰度与 Production Ready |
+| 2026-07-07 | Phase F9 最终总体验收完成；demo tag 条件已评估；H1 当前 deferred；不允许灰度与 Production Ready |

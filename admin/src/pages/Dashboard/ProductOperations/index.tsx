@@ -62,6 +62,8 @@ import {
   type ProductOperationDashboard,
 } from '@/services/dashboard';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
 
@@ -113,9 +115,9 @@ function RecentActivityRow({
     <div
       role="button"
       tabIndex={0}
-      onClick={() => history.push(item.link)}
+      onClick={() => history.push(appendSourceToUrl(item.link))}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') history.push(item.link);
+        if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(item.link));
       }}
       style={{
         display: 'flex',
@@ -185,7 +187,7 @@ function RecentActivityRow({
         icon={<ArrowRightOutlined />}
         onClick={(e) => {
           e.stopPropagation();
-          history.push(item.link);
+          history.push(appendSourceToUrl(item.link));
         }}
       >
         查看
@@ -227,6 +229,16 @@ type FilterState = {
   source?: string;
 };
 
+const DASHBOARD_QUERY_KEYS = ['start', 'end', 'platform', 'shopId', 'source'] as const;
+
+function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
+  if (!start || !end) return undefined;
+  const s = dayjs(start);
+  const e = dayjs(end);
+  if (!s.isValid() || !e.isValid()) return undefined;
+  return [s, e];
+}
+
 function KpiCard(props: {
   title: string;
   value: number;
@@ -266,7 +278,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
             {item.count ?? 0}
           </Typography.Title>
         </Space>
-        <Button type="primary" block onClick={() => history.push(item.link)}>
+        <Button type="primary" block onClick={() => history.push(appendSourceToUrl(item.link))}>
           {actionLabel}
         </Button>
       </Space>
@@ -281,7 +293,7 @@ function ExceptionRow({ item }: { item: DashboardException }) {
       bodyStyle={{ padding: '16px 18px' }}
       style={{ margin: 0 }}
       hoverable
-      onClick={() => history.push(item.link)}
+      onClick={() => history.push(appendSourceToUrl(item.link))}
     >
       <Row align="middle" gutter={16} wrap={false}>
         <Col flex="auto">
@@ -360,9 +372,9 @@ function QuickLinkCard(props: { title: string; link: string }) {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => history.push(props.link)}
+      onClick={() => history.push(appendSourceToUrl(props.link))}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') history.push(props.link);
+        if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(props.link));
       }}
       style={{
         display: 'flex',
@@ -617,9 +629,9 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
             <div
               role="button"
               tabIndex={0}
-              onClick={() => history.push(step.link)}
+              onClick={() => history.push(appendSourceToUrl(step.link))}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') history.push(step.link);
+                if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(step.link));
               }}
               style={{
                 flex: 1,
@@ -719,6 +731,10 @@ function DashboardSkeleton() {
 
 export default function ProductOperationsDashboardPage() {
   const dashboardEmptyLocale = useListEmptyLocale('dashboard');
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
+      DASHBOARD_QUERY_KEYS,
+    );
   const [filters, setFilters] = useState<FilterState>({});
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -731,6 +747,29 @@ export default function ProductOperationsDashboardPage() {
       .then((res) => setShops(res?.list ?? []))
       .catch(() => setShops([]));
   }, []);
+
+  useEffect(() => {
+    setFilters({
+      range: parseRange(urlState.start, urlState.end),
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      source: urlState.source,
+    });
+  }, [urlState.end, urlState.platform, urlState.shopId, urlState.source, urlState.start]);
+
+  useEffect(() => {
+    const [start, end] = filters.range ?? [];
+    setUrlState(
+      {
+        start: start ? start.startOf('day').toISOString() : undefined,
+        end: end ? end.endOf('day').toISOString() : undefined,
+        platform: filters.platform,
+        shopId: filters.shopId,
+        source: filters.source,
+      },
+      { replace: true },
+    );
+  }, [filters, setUrlState]);
 
   const queryParams = useMemo(() => {
     const [start, end] = filters.range ?? [];
@@ -850,14 +889,15 @@ export default function ProductOperationsDashboardPage() {
             onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
           />
           <Button
-            onClick={() =>
+            onClick={() => {
               setFilters({
                 range: undefined,
                 platform: undefined,
                 shopId: undefined,
                 source: undefined,
-              })
-            }
+              });
+              clearUrlState(DASHBOARD_QUERY_KEYS, { replace: true });
+            }}
           >
             重置筛选
           </Button>
@@ -890,7 +930,7 @@ export default function ProductOperationsDashboardPage() {
               <Col>
                 <Space wrap>
                   {welcomeActions.map((a) => (
-                    <Button key={a.link} icon={a.icon} onClick={() => history.push(a.link)}>
+                    <Button key={a.link} icon={a.icon} onClick={() => history.push(appendSourceToUrl(a.link))}>
                       {a.label}
                     </Button>
                   ))}
@@ -904,7 +944,7 @@ export default function ProductOperationsDashboardPage() {
                     title={card.title}
                     value={card.value}
                     tone={card.tone}
-                    onClick={() => history.push(card.link)}
+                    onClick={() => history.push(appendSourceToUrl(card.link))}
                   />
                 </Col>
               ))}

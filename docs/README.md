@@ -31,6 +31,8 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [open-source-presentation-checklist.md](open-source-presentation-checklist.md) | 开源展示发布前自检：README、About、Topics、头图与文档入口一致性 | 维护者 / 开源协作者 |
 | [AI_PRODUCT_OPERATION_UX_AUDIT.md](AI_PRODUCT_OPERATION_UX_AUDIT.md) / [AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md](AI_PRODUCT_OPERATION_UX_ACCEPTANCE.md) | AI 商品运营体验审计、A1.1 稳定性补强与验收状态 | 产品 / 前后端 / AI Agent |
 | [CODEX_MANUAL_SIMULATION_REPORT.md](CODEX_MANUAL_SIMULATION_REPORT.md) | Phase R1.3-Codex 模拟人工测试与体验问题扫描报告 | 产品 / 前后端 / AI Agent |
+| [POST_F9_ENHANCEMENT_PLAN.md](POST_F9_ENHANCEMENT_PLAN.md) | Phase H1 Post-F9 增强计划、Tag deferred 策略与边界 | 产品 / 开发者 / AI Agent |
+| [WORKBENCH_URL_STATE_DESIGN.md](WORKBENCH_URL_STATE_DESIGN.md) | H1.1 工作台 URL 状态保持设计与已接入页面 | 前端 / AI Agent |
 | [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) | Phase F1 全项目 34 模块功能地图与完成度 | 产品 / 开发者 / AI Agent |
 | [FULL_PROJECT_MVP_MAIN_FLOW.md](FULL_PROJECT_MVP_MAIN_FLOW.md) | Phase F1 MVP 主链路 16 步定义 | 产品 / 开发者 |
 | [FULL_PROJECT_DEVELOPMENT_PLAN.md](FULL_PROJECT_DEVELOPMENT_PLAN.md) | Phase F2–F9 后续开发计划 | 产品 / 开发者 |

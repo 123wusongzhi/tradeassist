@@ -1,6 +1,6 @@
-# Documentation Consistency Check (Post-F9)
+﻿# Documentation Consistency Check (Phase R1.2-Auto)
 
-> Generated: 2026-07-07T05:00:00Z
+> Generated: 2026-07-07T07:05:59.2415190Z
 
 ## Result: PASS
 
@@ -8,8 +8,8 @@
 | --- | --- | --- |
 | Admin route uses /ops/task-center/failures | PASS | ok |
 | README states MVP Demo Ready | PASS | README.md release line |
-| README states F9 passed | PASS | README.md release line |
-| README states demo tag ready | PASS | tag status |
+| README states Post-F9 Enhancement | PASS | README.md stage line |
+| README states Tag deferred | PASS | tag status |
 | README Douyin Release Candidate | PASS | douyin status |
 | No unqualified Production Ready in docs/ | PASS | ok |
 | docs/api.md documents task-center failures API | PASS | api.md |
@@ -17,8 +17,9 @@
 
 ## Required release status
 
+- Post-F9 Enhancement In Progress
 - MVP Demo Ready
-- Ready for demo tag
+- Tag deferred
 - Not Production Ready
 - Douyin Release Candidate
 

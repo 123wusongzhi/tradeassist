@@ -1,6 +1,6 @@
 # 全项目 Demo 数据集（Phase F7）
 
-> **状态**：F7 完成 · F9 通过 · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 抖店 Release Candidate
+> **状态**：F7 完成 · F9 通过 · MVP Demo Ready · Tag deferred · 非 Production Ready · 抖店 Release Candidate
 
 ## 脚本
 

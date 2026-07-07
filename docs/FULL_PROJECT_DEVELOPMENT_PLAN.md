@@ -2,8 +2,8 @@
 
 > **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。
 > **Phase F8**（2026-06-30）功能冻结与 P0/P1 清零完成。
-> **Phase F9**（2026-07-07）最终总体验收完成。**F1–F9 ✅** · **Ready for demo tag**。
-> **当前状态**：**Phase F9 Passed** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许**
+> **Phase F9**（2026-07-07）最终总体验收完成。**F1–F9 ✅** · **Tag deferred**。
+> **当前状态**：**Post-F9 Enhancement** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许**
 
 ## 阶段总览
 
@@ -17,7 +17,7 @@ F6  总 Dashboard 与全局体验完善      ✅
 F7  全项目 Demo 数据升级              ✅
 F8  全项目功能冻结（P0/P1 清零）      ✅
 F9  最终总体验收                      ✅
-Post-F9  Demo tag / 发布文档收口       ← 当前
+H1  Post-F9 Enhancement / URL 状态保持 ← 当前
 ```
 
 ---
@@ -160,7 +160,7 @@ Post-F9  Demo tag / 发布文档收口       ← 当前
 | **完成结果** | `final_acceptance_passed_ready_for_demo_tag`；P0/P1 = 0；`pnpm demo:auto-acceptance` passed |
 | **环境阻塞** | 真实预发、Storage 公网、抖店真实凭证 E2E、灰度实跑仍需外部环境 |
 
-**发布决策**：允许 demo tag；不允许灰度；不标记 Production Ready；抖店保持 Release Candidate。
+**发布决策**：F9 已完成 demo tag 条件评估；H1 当前策略为 **Tag deferred**。不允许灰度；不标记 Production Ready；抖店保持 Release Candidate。
 
 ---
 

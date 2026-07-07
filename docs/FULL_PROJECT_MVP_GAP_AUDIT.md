@@ -1,7 +1,8 @@
 # TradeMind 全项目 MVP 缺口审计（P0–P3）
 
 > **Phase F1**（2026-06-29）— 基于代码与文档的事实审计，按优先级分级。  
-> **Phase F8 更新**（2026-06-30）— F8 功能冻结；**P0/P1 代码层面已清零**；P0-02/P0-03 为 F9 环境项；**F9** 最终验收 / tag / E2E。
+> **Phase F8 更新**（2026-06-30）— F8 功能冻结；**P0/P1 代码层面已清零**；P0-02/P0-03 为 F9 环境项。
+> **Phase H1 更新**（2026-07-07）— F9 已通过；当前进入 **Post-F9 Enhancement**；**Tag deferred**；P2-06 工作台 URL 状态保持进入 H1.1。
 
 ## F8 后审计摘要
 
@@ -11,7 +12,7 @@
 | P1 open | 14 | 0 | **0** |
 | 主链路 Demo | 部分 | 16 步 | **16 步 + edge-case seed** |
 
-**结论**：**Function Freeze Ready**；抖店真实 E2E / 预发 / tag **留 F9**。详见 [`FUNCTION_FREEZE_P0_P1_AUDIT.md`](FUNCTION_FREEZE_P0_P1_AUDIT.md)。
+**结论**：F9 已通过，P0/P1 仍为 0；抖店真实 E2E / 真实预发 / Storage 公网 / 灰度仍为环境项；tag 当前 deferred。详见 [`F9_FINAL_ACCEPTANCE_REPORT.md`](F9_FINAL_ACCEPTANCE_REPORT.md)。
 
 ## F7 后审计摘要
 
@@ -88,7 +89,7 @@
 | P2-03 | 刊登批次 | 大批次（>100 商品）同步编排耗时提示 | F6 |
 | P2-04 | 采集 | 1688/PDD/淘宝需手动浏览器登录，首次引导可加强 | F6 |
 | P2-05 | AI 图片 | 14/16 试跑 `passed_with_warning`，白底图 Provider 依赖 | F7 |
-| P2-06 | 工作台 | 浏览器后退/刷新状态保持 `manual_required` | F9 |
+| P2-06 | 工作台 | 浏览器后退/刷新状态保持 | H1.1 |
 | P2-07 | 多分辨率 | 真实截图验收 `manual_required` | F9 |
 | P2-08 | 文档 | 无 Admin 内嵌帮助/文档中心 | deferred |
 | P2-09 | 空状态 | 部分订单/库存/客服列表空态引导可统一 | F6 |
@@ -134,7 +135,7 @@
 2. 真实预发部署验收  
 3. 抖店真实 E2E  
 4. 生产灰度  
-5. 打 `v0.1.0-demo` tag  
+5. 打 tag（H1 当前策略为 Tag deferred）
 6. 标记 **Production Ready**  
 7. 新增真实平台 OpenAPI（非规划阶段）  
 8. 自动直接上架  
@@ -144,7 +145,7 @@
 
 ## 下一阶段建议
 
-**当前进入 Phase F9（最终总体验收准备）**；功能冻结规则见 [`FUNCTION_FREEZE_RULES.md`](FUNCTION_FREEZE_RULES.md)。
+**当前进入 Phase H1（Post-F9 Enhancement）**；功能冻结规则见 [`FUNCTION_FREEZE_RULES.md`](FUNCTION_FREEZE_RULES.md)。
 
 ---
 
