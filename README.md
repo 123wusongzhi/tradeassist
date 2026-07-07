@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**Function Freeze Ready** · **MVP Demo Ready**（2026-06-30 Phase F8 完成）。**F1–F8 ✅** · **当前 F9 总体验收待启动**。本阶段**不**打 tag、**不**进入抖店真实 E2E、**不**标记 Production Ready。**`v0.1.0-demo` tag 仍 pending**。Douyin Shop 仍为 **Release Candidate**。F8 要点：P0/P1 清零、dev edge-case seed、功能冻结规则 — [`docs/FUNCTION_FREEZE_P0_P1_AUDIT.md`](docs/FUNCTION_FREEZE_P0_P1_AUDIT.md)。详见 [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md)、[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)。
+> 当前状态：**Phase F9 Passed** · **MVP Demo Ready**（2026-07-07 最终总体验收完成）。**F1–F9 ✅** · **Ready for demo tag**。项目仍**非 Production Ready**，不允许灰度；抖店真实 E2E 仍受真实凭证阻塞，Douyin Shop 保持 **Release Candidate**。F9 要点：P0/P1 清零、自动化回归通过、允许 demo tag、不进入生产灰度 — [`docs/F9_FINAL_ACCEPTANCE_REPORT.md`](docs/F9_FINAL_ACCEPTANCE_REPORT.md)。详见 [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md)、[`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)。
 
 ## 项目定位
 

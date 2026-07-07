@@ -283,8 +283,8 @@
 
 | 维度 | 状态 |
 |------|------|
-| **全项目 F 阶段** | **F1–F7 ✅**（2026-06-30）· **当前 F8 功能冻结** · **F9 总体验收待启动** |
-| **发布状态** | **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · **`v0.1.0-demo` Tag pending** |
+| **全项目 F 阶段** | **F1–F9 ✅**（2026-07-07）· **Phase F9 Passed** · **Post-F9 发布状态收口** |
+| **发布状态** | **MVP Demo Ready** · **Ready for demo tag** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许** |
 | **路线图阶段** | **第 5 阶段（采集）**保持；**第 6 阶段（AI 图片）**保持（见 §3.2）；**AI 客服 MVP**：手工 / **平台拉取** 会话 + **AI 建议**；**仅人工**可 **发送到平台**（**不自动外发**） |
 | **当前阶段定位（2026-05-19）** | **非**完整 ERP 扩展阶段；**只收口**：**① AI 商品运营工具**、**② 多平台跨境 ERP MVP**。**完整 ERP 增强**（多仓、采购、售后财务、WMS/OMS 等）**后置**，见上文 **《当前产品路线》** |
 | **优先级** | **1）第一优先级：AI 商品运营工具** → **2）第二优先级：多平台跨境 ERP** → **3）后续迭代：完整 ERP 增强（暂时不做）**；供应链深能力**刻意不在当前排期** |
@@ -553,15 +553,15 @@ trademind-ai/
 
 ## 8. 下一步开发计划（建议顺序）
 
-**全项目 F 阶段（2026-06-30）**：**F1–F7 ✅** · **当前 F8（功能冻结，只修 P0/P1）** · **F9（最终总体验收）待启动**。策略见 [`FULL_PROJECT_DEVELOPMENT_PLAN.md`](FULL_PROJECT_DEVELOPMENT_PLAN.md)。
+**全项目 F 阶段（2026-07-07）**：**F1–F9 ✅** · **Phase F9 Passed** · **Ready for demo tag**。策略见 [`FULL_PROJECT_DEVELOPMENT_PLAN.md`](FULL_PROJECT_DEVELOPMENT_PLAN.md)。
 
-**F8 当前排期**
+**Post-F9 当前排期**
 
-1. **功能冻结**：不新增功能 / Provider / 平台；清零或 documented defer **GAP_AUDIT P0/P1**。
-2. **回归脚本全绿**：`demo-auto-acceptance.ps1`（Phase F7-Auto）+ 构建 / 文案扫描。
-3. **文档与 Demo 种子对齐**：[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)、[`DEMO_CHECKLIST.md`](../DEMO_CHECKLIST.md)。
+1. **发布状态收口**：README / 计划 / 冻结规则 / changelog 与 F9 结论一致。
+2. **Demo tag 决策执行**：F9 允许 demo tag；真实灰度与 Production Ready 仍不允许。
+3. **P2 评审**：tag 前逐条判断 P2 是否升为 P1，P3 继续 deferred。
 
-**F9 明确不做于 F8**（留最终阶段）：最终人工走查、真实预发、抖店真实 E2E、生产灰度、**`v0.1.0-demo` tag**、Production Ready 判定。
+**生产决策前仍不做**：真实生产灰度、Production Ready 标记、自动直接上架、无凭证伪造抖店 E2E 通过。
 
 与文件顶部 **《当前产品路线》§四** 对齐；**不新增完整 ERP 高级模块**。
 

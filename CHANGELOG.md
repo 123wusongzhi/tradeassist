@@ -6,6 +6,18 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Release Status
+
+- Phase F9 final acceptance completed: MVP Demo Ready, P0/P1 cleared, and ready for a demo tag.
+- Production Ready and gray release remain blocked by environment, public storage, and real Douyin credentials.
+- Douyin Shop remains Release Candidate until real read/write E2E and gray observation complete.
+
+### Added
+
+- Full-project Demo dataset, RBAC demo accounts, route/API smoke scripts, and `pnpm demo:auto-acceptance`.
+- AI product operations workbench, batch AI text/image review flows, multi-product publishing drafts, and full-chain dashboard coverage.
+- Order, inventory, customer service, RBAC, configuration status, and failure task center completion for the MVP demo loop.
+
 ### Initial Foundation
 
 - Open-source governance configuration: CODEOWNERS, Dependabot, PR labeler, and Docker Compose config CI.

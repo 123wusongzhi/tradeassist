@@ -1,6 +1,7 @@
 # 部署前检查清单（Phase R1 Demo Release）
 
 > **目标状态**：`MVP Demo Ready`（非 Production Ready）
+> **Post-F9 更新**：Phase F9 已于 2026-07-07 通过，允许 demo tag；真实预发、Storage 公网、抖店真实 E2E 与灰度仍需外部环境，禁止标记 Production Ready。
 
 ## 1. 环境变量
 
@@ -90,7 +91,7 @@ git diff --check
 
 ## 10. Release 标签建议
 
-- Demo：`v0.9.0-mvp-demo-ready`
+- Demo：F9 决策允许 demo tag；当前仓库已有 `v0.1.0` / `v0.2.0`，建议打 tag 前先确认最终命名，避免版本号语义倒挂。
 - **不要**标记 Production Ready，直至抖店真实 E2E + 灰度观察通过（见 [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md)）
 
 ## Phase R1.1 预发部署验收（2026-06-27）

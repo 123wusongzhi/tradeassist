@@ -1,7 +1,7 @@
-# TradeMind 功能冻结规则（Phase F8）
+# TradeMind 功能冻结规则（Phase F8 / Post-F9）
 
-> **生效**：Phase F8 完成后至 F9 总体验收 / 生产决策前。  
-> **状态**：MVP Demo Ready · 非 Production Ready · 抖店 Release Candidate · Tag pending
+> **生效**：Phase F8 完成后至生产决策前；F9 已于 2026-07-07 通过。
+> **状态**：Phase F9 Passed · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 抖店 Release Candidate
 
 ## 冻结原则
 
@@ -12,7 +12,7 @@
 5. **只允许修 P0 / P1**（安全、越权、主链路断点、误导发布、无法恢复）。
 6. **P2 仅允许**文案 / 样式 / 文档级低风险修复。
 7. **P3 全部延后**至冻结解除或生产路线图评审。
-8. **禁止**自动直接上架、Production Ready 标记、`v0.1.0-demo` tag（除非 F9 正式决策）。
+8. **禁止**自动直接上架、Production Ready 标记和生产灰度；demo tag 仅按 F9 正式决策执行。
 
 ## 冻结范围
 
@@ -38,16 +38,16 @@
 - P0 / P1 bugfix
 - Demo / 文档 / 文案 / 权限 / sensitiveConfirm 漏接
 - go test / build / 静态扫描维护
-- F9 环境准备清单更新
+- F9 / Post-F9 发布状态文档更新
 
-## 明确不做（冻结期）
+## 明确不做（生产决策前）
 
-- 最终人工总体验收（F9）
-- 真实预发部署验收（F9）
-- 抖店真实 E2E（F9）
-- 生产灰度（F9+）
-- 打 tag（F9 决策）
+- 新增业务模块或重型 ERP 能力
+- 真实生产灰度
+- Production Ready 标记
+- 自动直接上架
+- 无真实凭证时伪造抖店 E2E 通过
 
 ## 解冻条件
 
-F9 总体验收通过且项目组正式批准进入预发/灰度/tag 流程时，由 [`PROGRESS.md`](PROGRESS.md) 与路线图更新解冻范围。
+项目组正式批准进入预发 / 灰度 / Production Ready 流程时，由 [`PROGRESS.md`](PROGRESS.md) 与路线图更新解冻范围。

@@ -1,7 +1,7 @@
-# Demo 自动化验收指南（Phase F7-Auto）
+# Demo 自动化验收指南
 
-> **用途**：本地 / CI 可运行的自动化回归，**不替代** Phase F9 最终人工总体验收。  
-> **状态**：MVP Demo Ready · 非 Production Ready · Tag pending · 无真实抖店 E2E
+> **用途**：本地 / CI 可运行的自动化回归，支撑 F7-F9 与 Post-F9 发布前复扫。
+> **状态**：Phase F9 Passed · MVP Demo Ready · Ready for demo tag · 非 Production Ready · 无真实抖店 E2E
 
 ## 总控脚本
 
@@ -21,7 +21,7 @@
 | `-SkipApiTests` | 跳过需 API 的步骤（仅静态检查） |
 | `-SkipBuild` | 跳过 go test / build / admin build |
 
-## Phase F7-Auto 步骤概览
+## 自动化步骤概览
 
 | 类别 | 步骤 |
 | --- | --- |
@@ -41,18 +41,17 @@
 | `docs/*.auto.json` / `*.auto.md` | 各子步骤分项报告 |
 | `docs/global-status-copywriting-scan.json` | F7 全局状态文案扫描 |
 
-## 通过标准（F7）
+## 通过标准
 
 - 总控结论 `passed` 或 AI 试跑 `passed_with_warning`（已知图片 Provider 限制）
 - `seed-demo-data` validation `passed`
 - `check-ui-copy --strict` + `global-status-copywriting-scan.json` → `passed: true`
 
-## 明确不在 F7-Auto 范围（留 F9）
+## 自动化无法替代
 
-- 最终人工完整走查与多分辨率截图
 - 真实预发 HTTPS / Nginx / Storage 公网
 - 抖店真实凭证 E2E
-- 生产灰度与 **`v0.1.0-demo` tag**
+- 生产灰度
 - Production Ready 判定
 
 ## 相关

@@ -1,16 +1,16 @@
 # TradeMind 全项目功能地图
 
-> **Phase F7**（2026-06-30）— **F2–F7 已完成**；**当前 F8 功能冻结**；**F9 总体验收待启动**。
-> **当前策略**：功能按 F2–F7 规划已补齐 Demo 数据与 smoke；F8 只修 P0/P1 → F9 统一总体验收。
-> **当前状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · `v0.1.0-demo` **Tag pending**
+> **Phase F9**（2026-07-07）— **F1–F9 已完成**；最终总体验收结论为 **final_acceptance_passed_ready_for_demo_tag**。
+> **当前策略**：功能冻结基线保持；仅允许 demo tag / 文档收口 / P0-P1 修复，不进入灰度或 Production Ready。
+> **当前状态**：**Phase F9 Passed** · **MVP Demo Ready** · **Ready for demo tag** · **非 Production Ready** · 抖店 **Release Candidate**
 
-## Phase F7 更新（2026-06-30）
+## Phase F9 更新（2026-07-07）
 
 | 模块 | F7 变化 |
 | --- | --- |
 | **32. Demo 数据** | `done` — 全链路样本：商品 20 slot + 订单 / 库存 / 客服 / Dashboard KPI；`demo-dataset.full-project.json` |
-| **33. 自动化脚本** | `partial` → smoke 补齐：`demo-dashboard-smoke`、`demo-order-inventory-customer-smoke`、`demo-rbac-smoke` 等 |
-| **31. 总 Dashboard** | F6 已 `done`；F7 Demo 种子覆盖 10 KPI 聚合探测 |
+| **33. 自动化脚本** | `done` — `pnpm demo:auto-acceptance` passed；AI 图片 14/16 `passed_with_warning` |
+| **34. 最终验收** | `done` — F9 总体验收完成；真实预发 / 抖店 E2E / 灰度仍按环境项阻塞 |
 
 详见 [`FULL_PROJECT_DEMO_DATASET.md`](FULL_PROJECT_DEMO_DATASET.md)、[`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)。
 

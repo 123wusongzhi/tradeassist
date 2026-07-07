@@ -1,8 +1,9 @@
 # TradeMind 全项目后续开发计划（Phase F2–F9）
 
 > **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。
-> **Phase F8**（2026-06-30）功能冻结与 P0/P1 清零完成。**F2–F8 ✅** · **当前 F9** 总体验收待启动。
-> **当前状态**：**Full Project Functionality In Progress** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · Tag **pending**
+> **Phase F8**（2026-06-30）功能冻结与 P0/P1 清零完成。
+> **Phase F9**（2026-07-07）最终总体验收完成。**F1–F9 ✅** · **Ready for demo tag**。
+> **当前状态**：**Phase F9 Passed** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许**
 
 ## 阶段总览
 
@@ -15,8 +16,8 @@ F5  系统配置状态中心与权限角色完善    ✅
 F6  总 Dashboard 与全局体验完善      ✅
 F7  全项目 Demo 数据升级              ✅
 F8  全项目功能冻结（P0/P1 清零）      ✅
-F9  最终总体验收                      ← 当前
-F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
+F9  最终总体验收                      ✅
+Post-F9  Demo tag / 发布文档收口       ← 当前
 ```
 
 ---
@@ -149,17 +150,17 @@ F9  最终总体验收（人工 + 真实预发 + 抖店 E2E + 灰度）
 
 ---
 
-## Phase F9：最终总体验收 ← 当前
+## Phase F9：最终总体验收 ✅
 
 | 项 | 内容 |
 | --- | --- |
 | **目标** | 人工完整走查；真实预发；真实 Storage；抖店真实 E2E；灰度观察；Production Ready 决策 |
 | **输入** | F8 冻结版、真实凭证、预发环境 |
-| **输出** | 总体验收报告；可选 `v0.1.0-demo` tag；Production Ready 判定 |
-| **完成标准** | DEMO_CHECKLIST 全勾；抖店 E2E 非 `blocked_by_real_credentials`；48–72h 灰度无 P0 |
-| **人工必须** | 多分辨率截图；浏览器后退/刷新；备份回滚实跑 |
+| **输出** | [`F9_FINAL_ACCEPTANCE_REPORT.md`](F9_FINAL_ACCEPTANCE_REPORT.md)；[`f9-final-acceptance.json`](f9-final-acceptance.json)；demo tag 决策；Production Ready 判定 |
+| **完成结果** | `final_acceptance_passed_ready_for_demo_tag`；P0/P1 = 0；`pnpm demo:auto-acceptance` passed |
+| **环境阻塞** | 真实预发、Storage 公网、抖店真实凭证 E2E、灰度实跑仍需外部环境 |
 
-**本阶段（F1）明确不做 F9 内容。**
+**发布决策**：允许 demo tag；不允许灰度；不标记 Production Ready；抖店保持 Release Candidate。
 
 ---
 
