@@ -21,10 +21,10 @@
 | 自动化验收指南 | `docs/DEMO_AUTO_ACCEPTANCE_GUIDE.md` | [x] |
 | 全局状态文案复扫 | `check-ui-copy` + `global-status-copywriting-scan.json` | [x] passed |
 | go test / build / admin build | — | [x] |
-| 最终人工测试 | — | [ ] **留 Phase F9** |
-| 真实预发部署 | — | [ ] **留 Phase F9** |
-| 抖店真实 E2E | — | [ ] **Release Candidate** |
-| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| 最终人工测试 | F9 报告 | [x] **passed_with_warning** |
+| 真实预发部署 | F9.2 | [ ] **blocked_by_environment** |
+| 抖店真实 E2E | F9.4 | [ ] **blocked_by_real_credentials** |
+| Git tag `v0.1.0-demo` | F9.5 | [ ] **Ready to tag** |
 | Production Ready | — | [ ] **否** |
 
 ## Phase F1 全项目功能缺口审计与路线规划（2026-06-29）

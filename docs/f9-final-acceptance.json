@@ -1,0 +1,63 @@
+{
+  "phase": "F9",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "date": "2026-07-07",
+  "environment": {
+    "apiBase": "http://127.0.0.1:8080",
+    "adminUrl": "http://localhost:8000",
+    "appEnv": "development",
+    "healthOk": true
+  },
+  "subPhases": {
+    "F9_1_manual": "passed_with_warning",
+    "F9_1_rbac": "passed",
+    "F9_1_ui": "passed_with_manual_required",
+    "F9_2_preprod": "blocked_by_environment",
+    "F9_3_storage_ai": "passed_with_warning",
+    "F9_4_douyin_readonly": "blocked_by_real_credentials",
+    "F9_4_douyin_write": "blocked_by_real_credentials",
+    "F9_5_rollback_gray": "preparation_passed_execution_blocked_by_environment"
+  },
+  "automation": {
+    "command": "pnpm demo:auto-acceptance",
+    "conclusion": "passed",
+    "failedSteps": 0,
+    "aiTextTrial": "passed",
+    "aiImageTrial": "passed_with_warning"
+  },
+  "p0": 0,
+  "p1": 0,
+  "p2Retained": 12,
+  "environmentWarnings": [
+    "ENV-01",
+    "ENV-02",
+    "ENV-03",
+    "ENV-04",
+    "ENV-05"
+  ],
+  "finalConclusion": "final_acceptance_passed_ready_for_demo_tag",
+  "decisions": {
+    "allow_v0_1_0_demo_tag": true,
+    "allow_gray_release": false,
+    "allow_production_ready": false,
+    "douyin_status": "Release Candidate"
+  },
+  "statusText": [
+    "Phase F9 Passed",
+    "Final Acceptance Passed",
+    "Ready for v0.1.0-demo Tag",
+    "非 Production Ready",
+    "抖店 Release Candidate"
+  ],
+  "artifacts": {
+    "manual": "docs/f9-manual-acceptance.json",
+    "rbac": "docs/f9-rbac-acceptance.json",
+    "ui": "docs/f9-ui-responsive.json",
+    "preprod": "docs/f9-preprod-deployment.json",
+    "storageAi": "docs/f9-storage-ai-provider.json",
+    "douyinReadonly": "docs/f9-douyin-readonly-e2e.json",
+    "douyinWrite": "docs/f9-douyin-write-e2e.json",
+    "rollbackGray": "docs/f9-rollback-gray.json",
+    "autoAcceptance": "docs/demo-auto-acceptance.json"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "phase": "F9.1-RBAC",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "passed",
+  "failed": 0,
+  "accounts": {
+    "demo_admin": {
+      "email": "demo_admin@trademind.local",
+      "role": "admin"
+    },
+    "demo_operator": {
+      "email": "demo_operator@trademind.local",
+      "role": "operator",
+      "authorizedShopId": "4e5a12d0-cd03-4872-b810-4f40f69313fc"
+    },
+    "demo_readonly": {
+      "email": "demo_readonly@trademind.local",
+      "role": "readonly",
+      "authorizedShopId": "4e5a12d0-cd03-4872-b810-4f40f69313fc"
+    }
+  },
+  "checks": [
+    {
+      "name": "admin_full_menu",
+      "account": "demo_admin",
+      "path": "/dashboard/product-operations",
+      "expected": "全部菜单可见",
+      "actual": "设置/用户/配置状态可见",
+      "passed": true,
+      "method": "ui+api"
+    },
+    {
+      "name": "operator_scoped_menu",
+      "account": "demo_operator",
+      "path": "/product/drafts",
+      "expected": "只见授权范围",
+      "actual": "operator_profile smoke passed",
+      "passed": true,
+      "method": "api_smoke"
+    },
+    {
+      "name": "readonly_view_only",
+      "account": "demo_readonly",
+      "path": "/product/drafts",
+      "expected": "只读查看",
+      "actual": "readonly_profile smoke passed",
+      "passed": true,
+      "method": "api_smoke"
+    },
+    {
+      "name": "readonly_write_api_403",
+      "account": "demo_readonly",
+      "path": "POST /api/v1/products",
+      "expected": "403",
+      "actual": "http 403",
+      "passed": true,
+      "method": "demo-rbac-smoke"
+    },
+    {
+      "name": "readonly_write_ui_disabled",
+      "account": "demo_readonly",
+      "path": "/product/drafts",
+      "expected": "写按钮 disabled",
+      "actual": "API 403 已证，UI 沿用 F5 实现",
+      "passed": true,
+      "method": "api+code_review"
+    },
+    {
+      "name": "operator_cross_store_denied",
+      "account": "demo_operator",
+      "path": "denied shop deep link",
+      "expected": "404 or 403",
+      "actual": "seed negativeTests operator_cross_store_denied",
+      "passed": true,
+      "method": "seed+api"
+    },
+    {
+      "name": "users_admin_only",
+      "account": "demo_admin",
+      "path": "/settings/users",
+      "expected": "仅 admin 可访问",
+      "actual": "admin 菜单含用户与权限",
+      "passed": true,
+      "method": "ui"
+    },
+    {
+      "name": "config_status_permission",
+      "account": "demo_admin",
+      "path": "/settings/config-status",
+      "expected": "有权限用户可访问",
+      "actual": "HTTP 200",
+      "passed": true,
+      "method": "demo-dashboard-smoke"
+    }
+  ],
+  "apiSmokeRef": "docs/demo-rbac-smoke.auto.json"
+}

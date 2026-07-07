@@ -1,23 +1,23 @@
 ﻿{
-    "generatedAt":  "2026-06-30T10:36:54.2139780Z",
+    "generatedAt":  "2026-07-07T04:29:38.4300557Z",
     "note":  "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev",
     "orders":  [
                    {
-                       "orderId":  "718c86e4-0afa-4662-add0-6ffe2e32cb91",
+                       "orderId":  "e1b8834a-be4f-4791-a396-0bf87cb132df",
                        "tag":  "normal_order",
-                       "orderNo":  "F2-DEMO-NORMAL-61878"
+                       "orderNo":  "F2-DEMO-NORMAL-91698"
                    },
                    {
-                       "orderId":  "718c86e4-0afa-4662-add0-6ffe2e32cb91",
+                       "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",
                        "note":  "reused existing demo order",
                        "tag":  "sku_unmatched_order",
-                       "orderNo":  "F2-DEMO-NORMAL-61878"
+                       "orderNo":  "F2-DEMO-UNMATCH-84908"
                    },
                    {
-                       "orderId":  "718c86e4-0afa-4662-add0-6ffe2e32cb91",
+                       "orderId":  "e375b0a3-1457-473b-8c83-250da4663a92",
                        "note":  "reused existing demo order",
                        "tag":  "sku_ambiguous_order",
-                       "orderNo":  "F2-DEMO-NORMAL-61878"
+                       "orderNo":  "F2-DEMO-AMBIG-30419"
                    }
                ]
 }

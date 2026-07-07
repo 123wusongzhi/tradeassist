@@ -1,0 +1,27 @@
+{
+  "phase": "F9.2",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "blocked_by_environment",
+  "localEquivalent": {
+    "apiBase": "http://127.0.0.1:8080",
+    "adminUrl": "http://localhost:8000",
+    "healthOk": true,
+    "database": "ok",
+    "redis": "ok",
+    "workers": 9
+  },
+  "checks": [
+    { "item": "SSH", "status": "blocked_by_environment", "detail": "No preprod server credentials" },
+    { "item": "API HTTPS domain", "status": "blocked_by_environment", "detail": "No preprod domain configured" },
+    { "item": "Admin HTTPS domain", "status": "blocked_by_environment", "detail": "No preprod domain configured" },
+    { "item": "TLS certificate", "status": "blocked_by_environment", "detail": "Not available" },
+    { "item": "Nginx", "status": "blocked_by_environment", "detail": "Local dev uses Umi proxy" },
+    { "item": "PostgreSQL", "status": "passed_local", "detail": "/health database=ok" },
+    { "item": "Redis", "status": "passed_local", "detail": "/health redis=ok" },
+    { "item": "Backend process manager", "status": "blocked_by_environment", "detail": "Windows dev, systemd on Linux preprod" },
+    { "item": "Admin dist deploy", "status": "passed_local", "detail": "pnpm build:admin ok" },
+    { "item": "Log directory", "status": "passed_local", "detail": "stdout in dev" },
+    { "item": "Backup directory", "status": "blocked_by_environment", "detail": "Requires preprod SSH" },
+    { "item": "Rollback command", "status": "documented", "detail": "DEPLOYMENT_PRECHECK + DOUYIN_ROLLBACK_RUNBOOK" }
+  ]
+}
