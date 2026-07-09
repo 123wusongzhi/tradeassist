@@ -1,0 +1,204 @@
+{
+  "phase": "H1.2.1",
+  "status": "passed_with_warning",
+  "checkedAt": "2026-07-09T05:44:01.961Z",
+  "accounts": [
+    "demo_admin",
+    "demo_operator",
+    "demo_readonly"
+  ],
+  "summary": {
+    "total": 14,
+    "passed": 14,
+    "warning": 0,
+    "failed": 0
+  },
+  "pages": [
+    {
+      "page": "/dashboard/product-operations",
+      "cases": [
+        {
+          "name": "filter_refresh_restore",
+          "status": "passed",
+          "note": ""
+        },
+        {
+          "name": "source_dashboard_outbound",
+          "status": "passed",
+          "note": "nav source must not map to productSource filter"
+        }
+      ]
+    },
+    {
+      "page": "/ai/operation-workbench",
+      "cases": [
+        {
+          "name": "filter_pagination_drawer_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/ops/task-center/failures",
+      "cases": [
+        {
+          "name": "filter_drawer_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/orders/list",
+      "cases": [
+        {
+          "name": "filter_refresh_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/orders/exceptions",
+      "cases": [
+        {
+          "name": "filter_source_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/product/drafts",
+      "cases": [
+        {
+          "name": "filter_refresh_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/inventory",
+      "cases": [
+        {
+          "name": "filter_deeplink_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/inventory/alerts",
+      "cases": [
+        {
+          "name": "filter_source_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/inventory/sync-tasks",
+      "cases": [
+        {
+          "name": "filter_drawer_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/customer/hub",
+      "cases": [
+        {
+          "name": "filter_source_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "page": "/customer/conversations",
+      "cases": [
+        {
+          "name": "filter_deeplink_restore",
+          "status": "passed",
+          "note": ""
+        }
+      ]
+    }
+  ],
+  "issues": [
+    {
+      "id": "H121-001",
+      "level": "P0",
+      "description": "Dashboard product source filter shared `source` query key with navigation provenance; inbound `source=dashboard` could affect dashboard API filter.",
+      "status": "fixed",
+      "note": "Split to `productSource` with `resolveProductSourceFromQuery()`; nav `source` preserved separately."
+    },
+    {
+      "id": "H121-002",
+      "level": "P1",
+      "description": "AI 工作台 / 失败任务中心 / 库存同步任务 reset 后 Drawer 仍打开或 URL drawer 键未同步关闭。",
+      "status": "fixed",
+      "note": "Reset handlers now call closeTodoDrawer / setDetailOpen(false) / closeTaskDetail()."
+    },
+    {
+      "id": "H121-003",
+      "level": "P1",
+      "description": "商品草稿列表 URL 未写入用户选择的 source 商品来源筛选。",
+      "status": "fixed",
+      "note": "setUrlState now writes qp.source while preserving nav source when filter empty."
+    },
+    {
+      "id": "H121-007",
+      "level": "P1",
+      "description": "Dashboard 挂载时空 filters 写回 URL，导致带 query 刷新后筛选参数被清空。",
+      "status": "fixed",
+      "note": "Lazy init filters from URL + compare-before-write before setUrlState."
+    },
+    {
+      "id": "H121-004",
+      "level": "P2",
+      "description": "订单列表 status / fulfillmentStatus / hasException / date range 未纳入 URL 状态（H1.2 范围外次要筛选项）。",
+      "status": "deferred",
+      "note": "Does not block F9 baseline; tracked in POST_FREEZE_BACKLOG."
+    },
+    {
+      "id": "H121-005",
+      "level": "P2",
+      "description": "订单异常工作台 severity / date range 未纳入 URL 状态。",
+      "status": "deferred",
+      "note": "H1.3 candidate."
+    },
+    {
+      "id": "H121-006",
+      "level": "P2",
+      "description": "keyword 参数可能携带买家/客户检索词进入浏览器历史（非密钥，但属 PII 暴露面）。",
+      "status": "deferred",
+      "note": "Accepted MVP trade-off; no buyerName/phone/email in URL keys verified."
+    }
+  ],
+  "urlSecurity": {
+    "status": "passed",
+    "forbiddenTokensChecked": [
+      "buyerName",
+      "phone",
+      "email",
+      "address",
+      "accessToken",
+      "refreshToken",
+      "token",
+      "secret",
+      "appSecret",
+      "prompt",
+      "raw",
+      "platformRaw",
+      "fullMessage"
+    ],
+    "note": "No forbidden token keys observed in constructed test URLs."
+  },
+  "finalConclusion": "H1.2.1 passed with warnings — core URL state paths OK; minor deferred items documented."
+}

@@ -1,4 +1,6 @@
 ﻿# TradeMind 开发进度记录
+**Stage update**: 2026-07-09 — **Phase H1.2.1 Post-F9 Enhancement URL 状态浏览器点检完成**。对 H1.1 + H1.2 已接入页面做浏览器/API 点检；修复 Dashboard `productSource` 与导航 `source` 冲突、Dashboard 挂载丢参、三页 reset Drawer 未关、商品草稿 source 筛选未写 URL 等 P0/P1 项；输出 [`H1_2_URL_STATE_BROWSER_CHECK.md`](H1_2_URL_STATE_BROWSER_CHECK.md) / [`h1-2-url-state-browser-check.json`](h1-2-url-state-browser-check.json)。策略不变：**Tag deferred**、**Post-F9 Enhancement**、**MVP Demo Ready**、**非 Production Ready**、**抖店 Release Candidate**；不进入真实预发、抖店真实 E2E、生产灰度。
+
 **Stage update**: 2026-07-09 — **Phase H1.2 Post-F9 Enhancement 第二批页面 URL 状态保持完成**。在 H1.1 基础上扩展 `urlState` allowlist，接入 `/orders/list`、`/orders/exceptions`、`/product/drafts`、`/inventory`、`/inventory/alerts`、`/inventory/sync-tasks`、`/customer/hub`、`/customer/conversations` 筛选 / 分页 / Drawer / 深链恢复；Dashboard `source=dashboard` 与失败任务中心 `source=taskcenter` 出站链接保留；兼容 `jumpOrder`、`orderId`、`productSkuId`、`skuId`、`batchId`、`suggestionId` 等旧深链。策略不变：**Tag deferred**、**Post-F9 Enhancement**、**MVP Demo Ready**、**非 Production Ready**、**抖店 Release Candidate**；不进入真实预发、抖店真实 E2E、生产灰度。设计见 [`WORKBENCH_URL_STATE_DESIGN.md`](WORKBENCH_URL_STATE_DESIGN.md)。
 
 **Stage update**: 2026-07-07 — **Phase H1.1 Post-F9 Enhancement 启动并完成首批工作台 URL 状态保持**。

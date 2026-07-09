@@ -534,7 +534,7 @@ export default function ProductDraftsPage() {
               shopId: urlState.shopId || urlFilters.shopId,
               publishStatus: nextPublishStatus,
               aiStatus: nextAiStatus,
-              source: urlState.source || urlFilters.navSource,
+              source: qp.source || urlFilters.navSource || undefined,
               missingAiTitle: urlFilters.missingAiTitle ? '1' : undefined,
               missingAiDescription: urlFilters.missingAiDescription ? '1' : undefined,
               readiness: urlFilters.readinessBlocked ? 'blocked' : undefined,

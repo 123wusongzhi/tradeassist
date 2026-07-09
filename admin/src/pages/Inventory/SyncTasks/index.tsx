@@ -297,6 +297,7 @@ export default function InventorySyncTasksPage() {
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);
+          closeTaskDetail();
           clearUrlState(SYNC_TASK_QUERY_KEYS, { replace: true });
         }}
         pagination={{

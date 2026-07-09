@@ -489,6 +489,9 @@ export default function AIOperationWorkbenchPage() {
                 setDateRange(null);
                 setTablePage(1);
                 setTablePageSize(50);
+                closeTodoDrawer();
+                setDrawerOpen(false);
+                setDrawerItem(null);
                 clearUrlState(WORKBENCH_QUERY_KEYS, { replace: true });
                 tableRef.current?.reload();
               }}

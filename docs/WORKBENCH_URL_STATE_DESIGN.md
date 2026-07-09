@@ -55,6 +55,7 @@ aiSuggestionStatus
 sendStatus
 conversationId
 suggestionId
+productSource
 ```
 
 Legacy deep-link keys (read + write when explicitly set):
@@ -103,7 +104,7 @@ manual
 
 ### `/dashboard/product-operations`
 
-Persisted: date range, platform, shop, product source. Outbound links append `source=dashboard` when missing.
+Persisted: date range, platform, shop, **product source (`productSource`)**. Navigation provenance uses separate `source` (e.g. inbound `source=dashboard` from linked pages). Product origin filter reads legacy `source` only when the value is not a known nav source. Outbound links append `source=dashboard` when missing.
 
 ### `/ai/operation-workbench`
 

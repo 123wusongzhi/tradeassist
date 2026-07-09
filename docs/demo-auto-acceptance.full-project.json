@@ -1,155 +1,155 @@
 ﻿{
-    "automatableConclusion":  "failed",
+    "automatableConclusion":  "passed",
     "steps":  [
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "go test regression",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:10.4319813Z"
+                      "finishedAt":  "2026-07-09T05:31:56.8533088Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "go build backend",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:13.0848319Z"
+                      "finishedAt":  "2026-07-09T05:32:01.0688667Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "pnpm build:admin",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:43.0325627Z"
+                      "finishedAt":  "2026-07-09T05:32:59.9415891Z"
                   },
                   {
                       "detail":  "",
-                      "status":  "failed",
+                      "status":  "passed",
                       "name":  "git diff --check",
-                      "exitCode":  2,
-                      "finishedAt":  "2026-07-09T05:00:43.0736506Z"
+                      "exitCode":  0,
+                      "finishedAt":  "2026-07-09T05:32:59.9945879Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "check-ui-copy",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:43.2493650Z"
+                      "finishedAt":  "2026-07-09T05:33:00.2264782Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-empty-state-scan",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:43.3130426Z"
+                      "finishedAt":  "2026-07-09T05:33:00.3136289Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-sensitive-confirm-scan",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:43.3370168Z"
+                      "finishedAt":  "2026-07-09T05:33:00.3386310Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "security-release-check",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:00:45.6631870Z"
+                      "finishedAt":  "2026-07-09T05:33:05.4281170Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "check-doc-links",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:42.2351160Z"
+                      "finishedAt":  "2026-07-09T05:34:46.2906501Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:42.7516298Z"
+                      "finishedAt":  "2026-07-09T05:34:47.0807984Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "seed-demo-data",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:48.7166552Z"
+                      "finishedAt":  "2026-07-09T05:34:52.9488595Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "seed-demo-permissions",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:48.8369018Z"
+                      "finishedAt":  "2026-07-09T05:34:53.1262804Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-dashboard-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:49.3939144Z"
+                      "finishedAt":  "2026-07-09T05:34:53.9218956Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-rbac-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:49.6276941Z"
+                      "finishedAt":  "2026-07-09T05:34:54.1530432Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "demo-order-inventory-customer-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:49.7577698Z"
+                      "finishedAt":  "2026-07-09T05:34:54.3118715Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-text-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:01:49.8988646Z"
+                      "finishedAt":  "2026-07-09T05:34:54.5098473Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-text-trial-run",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:03:30.3349641Z"
+                      "finishedAt":  "2026-07-09T05:36:40.0603768Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-image-route-smoke",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:03:30.4577331Z"
+                      "finishedAt":  "2026-07-09T05:36:40.1902736Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-image-trial-run",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:09:28.2500755Z"
+                      "finishedAt":  "2026-07-09T05:42:43.2183600Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "publish-batch-perf",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:09:29.2589525Z"
+                      "finishedAt":  "2026-07-09T05:42:44.2028112Z"
                   },
                   {
                       "detail":  "",
                       "status":  "passed",
                       "name":  "ai-operation-workbench-perf",
                       "exitCode":  0,
-                      "finishedAt":  "2026-07-09T05:09:30.6244114Z"
+                      "finishedAt":  "2026-07-09T05:42:45.4923455Z"
                   }
               ],
-    "finishedAt":  "2026-07-09T05:09:30.6244114Z",
+    "finishedAt":  "2026-07-09T05:42:45.4933453Z",
     "finalStatus":  {
                         "release":  "MVP Demo Ready",
                         "douyin":  "Douyin Release Candidate",
@@ -157,7 +157,7 @@
                         "tag":  "Tag deferred",
                         "stage":  "Post-F9 Enhancement In Progress"
                     },
-    "startedAt":  "2026-07-09T05:00:04.8559023Z",
+    "startedAt":  "2026-07-09T05:30:14.2027849Z",
     "manualTestItems":  [
                             "Real preprod SSH deployment",
                             "Nginx / HTTPS",
@@ -170,7 +170,7 @@
                             "48-72h gray observation",
                             "Tag deferred review"
                         ],
-    "failedStepCount":  1,
+    "failedStepCount":  0,
     "phase":  "Phase F8.1-Auto",
     "artifacts":  {
                       "aiTextTrial":  "docs/ai-text-trial-run.auto.json",
@@ -195,7 +195,7 @@
                             "apiBase":  "http://127.0.0.1:8080",
                             "hostname":  "SK-20250814VKAY",
                             "appEnv":  "development",
-                            "startedAt":  "2026-07-09T05:00:04.8559023Z",
+                            "startedAt":  "2026-07-09T05:30:14.2027849Z",
                             "phase":  "Phase F8.1-Auto"
                         },
     "blockedStepCount":  0

@@ -45,6 +45,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   'sendStatus',
   'conversationId',
   'suggestionId',
+  'productSource',
   // legacy deep links (read + write when explicitly set)
   'jumpOrder',
   'orderId',
@@ -80,6 +81,19 @@ export function normalizeSource(value?: string) {
   const v = (value || '').trim();
   if (!v || !URL_SOURCE_VALUES.has(v)) return undefined;
   return v;
+}
+
+export function isNavSourceValue(value?: string) {
+  const v = (value || '').trim();
+  return !!v && URL_SOURCE_VALUES.has(v);
+}
+
+/** Product-origin filter; ignores navigation `source` values like dashboard / taskcenter. */
+export function resolveProductSourceFromQuery(productSource?: string, legacySource?: string) {
+  if (productSource?.trim()) return productSource.trim();
+  const legacy = legacySource?.trim();
+  if (legacy && !isNavSourceValue(legacy)) return legacy;
+  return undefined;
 }
 
 function normalizeValue(value: UrlStateValue): string | undefined {

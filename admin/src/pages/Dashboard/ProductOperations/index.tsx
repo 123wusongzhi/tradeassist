@@ -63,7 +63,7 @@ import {
 } from '@/services/dashboard';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import { useUrlQueryState } from '@/hooks/useUrlState';
-import { appendSourceToUrl } from '@/utils/urlState';
+import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
 
@@ -229,7 +229,42 @@ type FilterState = {
   source?: string;
 };
 
-const DASHBOARD_QUERY_KEYS = ['start', 'end', 'platform', 'shopId', 'source'] as const;
+const DASHBOARD_QUERY_KEYS = ['start', 'end', 'platform', 'shopId', 'productSource', 'source'] as const;
+
+function buildDashboardFiltersFromUrl(
+  urlState: Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>,
+): FilterState {
+  return {
+    range: parseRange(urlState.start, urlState.end),
+    platform: urlState.platform,
+    shopId: urlState.shopId,
+    source: resolveProductSourceFromQuery(urlState.productSource, urlState.source),
+  };
+}
+
+function dashboardFiltersToUrlPatch(filters: FilterState) {
+  const [start, end] = filters.range ?? [];
+  return {
+    start: start ? start.startOf('day').toISOString() : undefined,
+    end: end ? end.endOf('day').toISOString() : undefined,
+    platform: filters.platform,
+    shopId: filters.shopId,
+    productSource: filters.source,
+  };
+}
+
+function sameDashboardUrlPatch(
+  a: ReturnType<typeof dashboardFiltersToUrlPatch>,
+  urlState: Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>,
+) {
+  return (
+    (a.start || undefined) === (urlState.start || undefined) &&
+    (a.end || undefined) === (urlState.end || undefined) &&
+    (a.platform || undefined) === (urlState.platform || undefined) &&
+    (a.shopId || undefined) === (urlState.shopId || undefined) &&
+    (a.productSource || undefined) === (urlState.productSource || undefined)
+  );
+}
 
 function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
   if (!start || !end) return undefined;
@@ -735,7 +770,7 @@ export default function ProductOperationsDashboardPage() {
     useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
       DASHBOARD_QUERY_KEYS,
     );
-  const [filters, setFilters] = useState<FilterState>({});
+  const [filters, setFilters] = useState<FilterState>(() => buildDashboardFiltersFromUrl(urlState));
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [board, setBoard] = useState<ProductOperationDashboard | null>(null);
@@ -749,27 +784,21 @@ export default function ProductOperationsDashboardPage() {
   }, []);
 
   useEffect(() => {
-    setFilters({
-      range: parseRange(urlState.start, urlState.end),
-      platform: urlState.platform,
-      shopId: urlState.shopId,
-      source: urlState.source,
-    });
-  }, [urlState.end, urlState.platform, urlState.shopId, urlState.source, urlState.start]);
+    setFilters(buildDashboardFiltersFromUrl(urlState));
+  }, [
+    urlState.end,
+    urlState.platform,
+    urlState.productSource,
+    urlState.shopId,
+    urlState.source,
+    urlState.start,
+  ]);
 
   useEffect(() => {
-    const [start, end] = filters.range ?? [];
-    setUrlState(
-      {
-        start: start ? start.startOf('day').toISOString() : undefined,
-        end: end ? end.endOf('day').toISOString() : undefined,
-        platform: filters.platform,
-        shopId: filters.shopId,
-        source: filters.source,
-      },
-      { replace: true },
-    );
-  }, [filters, setUrlState]);
+    const next = dashboardFiltersToUrlPatch(filters);
+    if (sameDashboardUrlPatch(next, urlState)) return;
+    setUrlState(next, { replace: true });
+  }, [filters, setUrlState, urlState]);
 
   const queryParams = useMemo(() => {
     const [start, end] = filters.range ?? [];

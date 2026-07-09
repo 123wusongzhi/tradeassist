@@ -58,6 +58,16 @@ Second batch (**completed**):
 
 Deferred to later H1 batches: publish batches, collect tasks, order sync tasks, and other secondary lists.
 
+## H1.2.1 URL State Browser Check
+
+Third batch (**completed**):
+
+| Scope | Result |
+| --- | --- |
+| Browser/API spot-check on all H1.1 + H1.2 pages | passed_with_warning |
+| P0/P1 fixes | Dashboard `productSource` split, mount URL hydration, drawer reset on three pages, drafts source sync |
+| Reports | [`H1_2_URL_STATE_BROWSER_CHECK.md`](H1_2_URL_STATE_BROWSER_CHECK.md), [`h1-2-url-state-browser-check.json`](h1-2-url-state-browser-check.json) |
+
 ## Completion Rules
 
 - URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.

@@ -832,6 +832,8 @@ export default function TaskCenterFailuresPage() {
             setIncludeMarked(false);
             setTablePage(1);
             setTablePageSize(20);
+            setDetailOpen(false);
+            setDetail(null);
             clearUrlState(FAILURE_QUERY_KEYS, { replace: true });
           }}
           rowSelection={{
