@@ -1,3 +1,5 @@
+import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
+import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import {
   publishBatchStatusLabel,
@@ -106,6 +108,8 @@ export default function PublishBatchDetailPage() {
     >
       {detail && (
         <>
+          <DouyinE2EPrecheckBanner blockedByCredentials compact />
+          <PublishBoundaryBanner capability="real_draft_create" blockedByCredentials />
           {detail.status === 'partial_success' && (
             <Alert
               type="warning"

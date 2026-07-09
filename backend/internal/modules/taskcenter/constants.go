@@ -53,11 +53,16 @@ const (
 )
 
 const (
-	CategoryAIImageProcessFailed = "ai_image_process_failed"
-	CategoryAIImageApplyConflict = "ai_image_apply_conflict"
-	CategoryAIImageApplyFailed   = "ai_image_apply_failed"
-	CategoryAIImageUndoFailed    = "ai_image_undo_failed"
-	CategoryAIImageQualityWarn   = "ai_image_quality_warning"
+	CategoryAIImageProcessFailed         = "ai_image_process_failed"
+	CategoryAIImageApplyConflict         = "ai_image_apply_conflict"
+	CategoryAIImageApplyFailed           = "ai_image_apply_failed"
+	CategoryAIImageUndoFailed            = "ai_image_undo_failed"
+	CategoryAIImageQualityWarn           = "ai_image_quality_warning"
+	CategoryAIImageProviderConfigMissing = "ai_image_provider_config_missing"
+	CategoryAIImageDashscopeKeyMissing   = "ai_image_dashscope_key_missing"
+	CategoryAIImageStoragePublicMissing  = "ai_image_storage_public_url_missing"
+	CategoryAIImageDownloadFailed        = "ai_image_download_failed"
+	CategoryAIImageUnsupportedOperation  = "ai_image_unsupported_operation"
 )
 
 const (

@@ -1,4 +1,5 @@
 import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
+import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
@@ -353,6 +354,7 @@ export default function ProductDraftsPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.productDrafts.title} subTitle={PAGE_COPY.productDrafts.description}>
+      <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
         urlFilters.readinessBlocked ||

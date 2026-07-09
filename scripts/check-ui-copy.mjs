@@ -20,7 +20,7 @@ const INTERNAL_SCAN_DIRS = [
 
 /** 代码逻辑 / 映射层 — 不算 UI 主文案直出 */
 const INTERNAL_CODE_ALLOW =
-  /===|!==|dataIndex:|rowKey=|rowKey:|operationTypes|operationType:|filter\(|includes\(|\.status|value:\s*['"`]|label:\s*['"`]|text:\s*['"`]|color:|OP_LABEL|statusTag|getStatus|publishLabels|aiProductText|aiProductImage|TechnicalDetails|TaskJsonBlock|copywriting|\/\*\*|\/\/|params\.|detail\.batch|bulkOp|selectedOps|opChoice|form\.|API|ConvertToJson|type\s+\w+|来源类型|来源编号|问题代码|内容快照|qualityWarnings\?|qualityWarnings\.|qualityWarnings\[|expectedUpdatedAt:|sourceType:|sourceId:|postOrderException|deleteOrderException|relatedResource|partial_success:|partial_success,|\['partial_success'|StatusTag\.tsx|addList\(|undoProduct|undoAiDescription|await\s+/i;
+  /===|!==|dataIndex:|rowKey=|rowKey:|operationTypes|operationType:|filter\(|includes\(|\.status|value:\s*['"`]|label:\s*['"`]|text:\s*['"`]|color:|OP_LABEL|statusTag|getStatus|publishLabels|publishCapabilityLabel|aiProductText|aiProductImage|TechnicalDetails|TaskJsonBlock|copywriting|commonStatusLabel|PublishBoundaryBanner|publishBoundaryCapability|capability=|as const|\/\*\*|\/\/|params\.|detail\.batch|bulkOp|selectedOps|opChoice|form\.|API|ConvertToJson|type\s+\w+|来源类型|来源编号|问题代码|内容快照|qualityWarnings\?|qualityWarnings\.|qualityWarnings\[|expectedUpdatedAt:|sourceType:|sourceId:|postOrderException|deleteOrderException|relatedResource|partial_success:|partial_success,|\['partial_success'|StatusTag\.tsx|addList\(|undoProduct|undoAiDescription|await\s+/i;
 
 /** @type {{ pattern: RegExp; hint: string; allow?: RegExp }[]} */
 const RULES = [

@@ -63,6 +63,11 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   ai_image_apply_failed: 'AI 图片应用失败',
   ai_image_undo_failed: 'AI 图片撤销失败',
   ai_image_quality_warning: 'AI 图片质量提醒',
+  ai_image_provider_config_missing: 'AI 图片接入服务未配置',
+  ai_image_dashscope_key_missing: '通义万相 Key 未配置',
+  ai_image_storage_public_url_missing: '存储公网地址未配置',
+  ai_image_download_failed: 'AI 图片源图下载失败',
+  ai_image_unsupported_operation: 'AI 图片能力不支持',
   // 抖店平台级站内告警（douyinruntime/alert.go）
   douyin_token_refresh_failed: '访问令牌刷新失败',
   douyin_auth_expiring: '店铺授权即将过期',

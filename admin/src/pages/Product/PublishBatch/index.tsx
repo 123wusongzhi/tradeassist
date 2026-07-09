@@ -1,5 +1,6 @@
-import TechnicalDetails from '@/components/ui/TechnicalDetails';
-import { TmPageContainer } from '@/components/ui';
+import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
+import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
+import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { validatePublishConfigClient } from '@/constants/publishConfig';
 import {
@@ -127,6 +128,17 @@ export default function PublishBatchWizardPage() {
     [userId, productIds],
   );
   const selectedTargetList = useMemo(() => Object.values(selectedTargets), [selectedTargets]);
+  const publishBoundaryCapability = useMemo((): 'local_draft_only' | 'real_draft_create' | undefined => {
+    const items = checkResult?.items ?? [];
+    const creatable = items.filter((i) => i.canCreateDraft);
+    if (creatable.length > 0 && creatable.every((i) => i.capability === 'local_draft_only')) {
+      return 'local_draft_only' as const;
+    }
+    if (selectedTargetList.some((t) => t.platform === 'douyin_shop')) {
+      return 'real_draft_create' as const;
+    }
+    return undefined;
+  }, [checkResult?.items, selectedTargetList]);
   const expectedTasks = productIds.length * selectedTargetList.length;
   const matrixLimitError = useMemo(
     () => validatePublishBatchMatrix(productIds.length, selectedTargetList.length),
@@ -452,6 +464,8 @@ export default function PublishBatchWizardPage() {
       onBack={handleBack}
     >
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />
+      <DouyinE2EPrecheckBanner blockedByCredentials />
+      <PublishBoundaryBanner capability={publishBoundaryCapability} blockedByCredentials />
 
       {step === 0 && (
         <Card title="第 1 步：确认商品">

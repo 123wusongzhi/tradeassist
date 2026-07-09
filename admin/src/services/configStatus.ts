@@ -5,6 +5,7 @@ export type ConfigStatusItem = {
   title: string;
   status: string;
   summary?: string;
+  impactScope?: string;
   nextAction?: string;
   settingsUrl?: string;
 };

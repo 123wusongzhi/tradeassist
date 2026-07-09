@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/storagepublic"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/image"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -28,6 +29,7 @@ const (
 	StatusConfigError        = "配置异常"
 	StatusAwaitingCredential = "待真实凭证"
 	StatusAwaitingPublicURL  = "待公网 Storage"
+	StatusDegraded           = "当前能力降级"
 	StatusUnsupported        = "当前服务暂不支持"
 	StatusDisabled           = "已关闭"
 	StatusRunning            = "运行中"
@@ -40,6 +42,7 @@ type Item struct {
 	Title       string `json:"title"`
 	Status      string `json:"status"`
 	Summary     string `json:"summary,omitempty"`
+	ImpactScope string `json:"impactScope,omitempty"`
 	NextAction  string `json:"nextAction,omitempty"`
 	SettingsURL string `json:"settingsUrl,omitempty"`
 }
@@ -97,6 +100,7 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	}
 	out.Items = append(out.Items, s.aiTextItem(ctx))
 	out.Items = append(out.Items, s.aiImageItem(ctx))
+	out.Items = append(out.Items, s.dashscopeWhiteBgItem(ctx))
 	out.Items = append(out.Items, s.ocrItem(ctx))
 	out.Items = append(out.Items, s.storageItem(ctx))
 	out.Items = append(out.Items, s.storagePublicItem(ctx))
@@ -144,6 +148,7 @@ func (s *Service) aiImageItem(ctx context.Context) Item {
 		Title:       "AI 图片 Provider",
 		SettingsURL: "/settings/image",
 		NextAction:  "前往图片 AI 设置选择 Provider 并填写密钥",
+		ImpactScope: "影响去背景、白底图、去水印、图片翻译等批量处理能力",
 	}
 	img, err := s.Settings.PlainByGroup(ctx, 0, "image")
 	if err != nil {
@@ -163,9 +168,38 @@ func (s *Service) aiImageItem(ctx context.Context) Item {
 		it.Status = StatusConfigured
 		it.Summary = fmt.Sprintf("Provider=%s", prov)
 	default:
-		it.Status = StatusAwaitingCredential
-		it.Summary = fmt.Sprintf("Provider=%s 待补全凭证", prov)
+		it.Status = StatusDegraded
+		it.Summary = fmt.Sprintf("Provider=%s 凭证待补全，部分能力将降级", prov)
 	}
+	return it
+}
+
+func (s *Service) dashscopeWhiteBgItem(ctx context.Context) Item {
+	it := Item{
+		Key:         "dashscope_white_bg",
+		Title:       "通义万相白底图 Key",
+		SettingsURL: "/settings/image",
+		NextAction:  "在图片 AI 设置中填写 dashscope_image_api_key",
+		ImpactScope: "影响白底图、背景优化；缺失时相关批次项将标记为配置阻断",
+	}
+	img, err := s.Settings.PlainByGroup(ctx, 0, "image")
+	if err != nil {
+		it.Status = StatusConfigError
+		return it
+	}
+	prov := strings.TrimSpace(strings.ToLower(img["provider"]))
+	if prov != "dashscope_image" {
+		it.Status = StatusUnsupported
+		it.Summary = "当前未使用通义万相作为图片 Provider"
+		return it
+	}
+	if strings.TrimSpace(img["dashscope_image_api_key"]) == "" {
+		it.Status = StatusAwaitingCredential
+		it.Summary = "通义万相 API Key 未配置"
+		return it
+	}
+	it.Status = StatusConfigured
+	it.Summary = "通义万相白底图能力可用"
 	return it
 }
 
@@ -253,21 +287,36 @@ func (s *Service) storagePublicItem(ctx context.Context) Item {
 		Key:         "storage_public_access",
 		Title:       "Storage 公网访问",
 		SettingsURL: "/settings/storage",
-		NextAction:  "在存储设置填写 public_base_url 或手动测试公网访问",
+		NextAction:  "在存储设置填写 public_base 并执行公网访问测试",
+		ImpactScope: "抖店图片上传、平台刊登外链图片需公网 HTTPS 可访问",
 	}
 	st, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		it.Status = StatusConfigError
 		return it
 	}
-	pub := strings.TrimSpace(st["public_base_url"])
+	pub := storagepublic.ResolvePublicBase(st)
+	kind := strings.TrimSpace(st["kind"])
+	if kind == "" {
+		kind = "local"
+	}
 	if pub == "" {
 		it.Status = StatusAwaitingPublicURL
-		it.Summary = "未配置 public_base_url"
+		it.Summary = "未配置 public_base"
+		return it
+	}
+	if kind == "local" && (strings.HasPrefix(pub, "/") || strings.Contains(pub, "localhost")) {
+		it.Status = StatusAwaitingPublicURL
+		it.Summary = "本地存储默认路径不可用于抖店等外网平台，需配置公网 HTTPS 地址"
+		return it
+	}
+	if strings.HasPrefix(pub, "/") {
+		it.Status = StatusAwaitingPublicURL
+		it.Summary = "当前为相对路径，外网平台无法访问"
 		return it
 	}
 	it.Status = StatusConfigured
-	it.Summary = "已配置公网访问前缀（需人工点击测试确认）"
+	it.Summary = "已配置公网访问前缀（建议点击「测试公网访问」确认）"
 	return it
 }
 
@@ -322,8 +371,9 @@ func (s *Service) douyinCredentialItem(ctx context.Context) Item {
 	it := Item{
 		Key:         "douyin_credential",
 		Title:       "抖店凭证",
-		SettingsURL: "/settings/platforms",
+		SettingsURL: "/settings/platforms?platform=douyin_shop",
 		NextAction:  "配置抖店开放平台应用并完成店铺 OAuth 授权",
+		ImpactScope: "真实抖店 E2E、平台草稿创建、订单/库存同步；缺失时仅可本地 Demo 与前置检查",
 	}
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "platform_douyinshop")
 	if err != nil {

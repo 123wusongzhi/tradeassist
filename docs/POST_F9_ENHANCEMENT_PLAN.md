@@ -68,6 +68,19 @@ Third batch (**completed**):
 | P0/P1 fixes | Dashboard `productSource` split, mount URL hydration, drawer reset on three pages, drafts source sync |
 | Reports | [`H1_2_URL_STATE_BROWSER_CHECK.md`](H1_2_URL_STATE_BROWSER_CHECK.md), [`h1-2-url-state-browser-check.json`](h1-2-url-state-browser-check.json) |
 
+## H1.3 AI 图片 Warning 收敛 + 抖店 E2E 前置提示（Completed）
+
+| Scope | Result |
+| --- | --- |
+| AI 图片结构化 warning 码 | `aiproductimage/warning_codes.go` + 前端 `aiImageWarnings.ts` |
+| 批次详情概览 | `/product/ai-image-batches/:id` overview + Provider 状态 |
+| 失败任务分类 | `ai_image_*` 配置/下载/Storage 等分类 + 跳转配置 |
+| 配置状态中心 | 通义万相 Key、Storage `public_base` 修复、影响范围 |
+| 抖店前置提示 | Platforms / ConfigStatus / Drafts / Publish 边界 Banner |
+| 文档 | `AI_IMAGE_WARNING_RECOVERY_GUIDE.md`, `DOUYIN_E2E_PRECHECK_GUIDE.md`, `STORAGE_PUBLIC_URL_GUIDE.md` |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
 ## Completion Rules
 
 - URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.

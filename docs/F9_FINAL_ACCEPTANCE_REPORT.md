@@ -66,5 +66,6 @@ Tag deferred in Phase H1
 
 | 日期 | 说明 |
 | --- | --- |
+| 2026-07-09 | Phase H1.3：AI 图片 warning 结构化收敛；抖店 E2E 前置提示增强；F9 基线不变 |
 | 2026-07-07 | Phase H1 决策：F9 通过结论保留；tag deferred；不允许灰度与 Production Ready |
 | 2026-07-07 | Phase F9 最终总体验收完成；demo tag 条件已评估；H1 当前 deferred；不允许灰度与 Production Ready |

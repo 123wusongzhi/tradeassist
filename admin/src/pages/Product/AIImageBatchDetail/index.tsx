@@ -7,6 +7,7 @@ import {
   aiImageBatchStatusTag,
   aiImageItemStatusTag,
 } from '@/constants/aiProductImage';
+import { aiImageWarningMessage, aiImageWarningSettingsUrl } from '@/constants/aiImageWarnings';
 import {
   applyAiProductImageSelected,
   fetchAiProductImageBatchDetail,
@@ -123,12 +124,49 @@ export default function AIImageBatchDetailPage() {
               <Descriptions.Item label="商品数">{detail.productCount}</Descriptions.Item>
               <Descriptions.Item label="图片数">{detail.imageCount}</Descriptions.Item>
               <Descriptions.Item label="子项">
-                待复核 {detail.successCount} / 失败 {detail.failedCount} / 已应用 {detail.appliedCount}
+                待复核 {detail.overview?.successCount ?? detail.successCount} / 质量提醒{' '}
+                {detail.overview?.warningCount ?? 0} / 失败 {detail.failedCount} / 已应用{' '}
+                {detail.appliedCount}
+              </Descriptions.Item>
+              <Descriptions.Item label="可恢复">
+                {detail.overview?.recoverableCount ?? 0} / 不可恢复 {detail.overview?.nonRecoverableCount ?? 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="接入服务状态">
+                <Tag
+                  color={
+                    detail.overview?.providerReadiness?.status === 'ready'
+                      ? 'success'
+                      : detail.overview?.providerReadiness?.status === 'degraded'
+                        ? 'warning'
+                        : 'default'
+                  }
+                >
+                  {detail.overview?.providerReadiness?.statusLabel || '—'}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
+            {detail.overview?.summaryMessage ? (
+              <Alert
+                type={detail.failedCount > 0 ? 'warning' : 'info'}
+                showIcon
+                style={{ marginTop: 12 }}
+                message={detail.overview.summaryMessage}
+                description={
+                  detail.overview.nextActions?.length ? (
+                    <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+                      {detail.overview.nextActions.map((a) => (
+                        <li key={a}>{a}</li>
+                      ))}
+                    </ul>
+                  ) : undefined
+                }
+              />
+            ) : null}
             <Space wrap style={{ marginTop: 12 }}>
               <Button onClick={() => history.push('/product/drafts')}>返回商品列表</Button>
+              <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
+              <Button onClick={() => history.push('/settings/image')}>图片 AI 设置</Button>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -231,18 +269,65 @@ export default function AIImageBatchDetailPage() {
                 width: 100,
                 render: (_, row) => {
                   const meta = aiImageItemStatusTag(row.status, row.statusLabel);
-                  return <Tag color={meta.color}>{meta.text}</Tag>;
+                  const isWarnOnly =
+                    row.status !== 'failed' && (row.qualityWarnings?.length ?? 0) > 0;
+                  return (
+                    <Space direction="vertical" size={0}>
+                      <Tag color={meta.color}>{meta.text}</Tag>
+                      {isWarnOnly ? <Tag color="gold">质量提醒</Tag> : null}
+                    </Space>
+                  );
                 },
               },
               {
-                title: '质量提醒',
-                width: 140,
-                render: (_, row) =>
-                  row.qualityWarnings?.length ? (
-                    <Typography.Text type="warning">{row.qualityWarnings[0].message}</Typography.Text>
-                  ) : (
-                    '—'
-                  ),
+                title: '原因 / 提醒',
+                width: 200,
+                render: (_, row) => {
+                  if (row.status === 'failed') {
+                    const code = row.warningCode || row.errorCode;
+                    return (
+                      <Space direction="vertical" size={0}>
+                        <Typography.Text type="danger">
+                          {row.warningMessage || row.errorMessage || aiImageWarningMessage(code)}
+                        </Typography.Text>
+                        {code ? (
+                          <TechnicalDetails label="内部码">
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              {code}
+                            </Typography.Text>
+                          </TechnicalDetails>
+                        ) : null}
+                      </Space>
+                    );
+                  }
+                  if (row.qualityWarnings?.length) {
+                    return (
+                      <Typography.Text type="warning">{row.qualityWarnings[0].message}</Typography.Text>
+                    );
+                  }
+                  return '—';
+                },
+              },
+              {
+                title: '恢复',
+                width: 120,
+                render: (_, row) => {
+                  if (row.status !== 'failed') return '—';
+                  const code = row.warningCode || row.errorCode;
+                  const url = row.settingsUrl || aiImageWarningSettingsUrl(code);
+                  return (
+                    <Space direction="vertical" size={0}>
+                      <Typography.Text type="secondary">
+                        {row.needsConfig ? '需配置' : row.recoverable === false ? '不可重试' : '可重试'}
+                      </Typography.Text>
+                      {url ? (
+                        <Button type="link" size="small" onClick={() => history.push(url)}>
+                          去配置
+                        </Button>
+                      ) : null}
+                    </Space>
+                  );
+                },
               },
               {
                 title: '操作',

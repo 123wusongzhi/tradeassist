@@ -1,11 +1,11 @@
 ﻿{
-    "generatedAt":  "2026-07-09T05:34:48.6448947Z",
+    "generatedAt":  "2026-07-09T06:07:25.5910576Z",
     "note":  "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev",
     "orders":  [
                    {
-                       "orderId":  "966bb2ed-2f3e-4f52-a55d-ec022249709b",
+                       "orderId":  "35800d04-7af4-4a12-a336-93d3f56c2229",
                        "tag":  "normal_order",
-                       "orderNo":  "F2-DEMO-NORMAL-82420"
+                       "orderNo":  "F2-DEMO-NORMAL-27186"
                    },
                    {
                        "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",

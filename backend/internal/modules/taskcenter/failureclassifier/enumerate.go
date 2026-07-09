@@ -31,6 +31,17 @@ func AllCategories() []string {
 		"ai_text_apply_failed",
 		"ai_text_undo_failed",
 		"ai_text_quality_warning",
+		// AI product image batch review (aiproductimage module)
+		"ai_image_process_failed",
+		"ai_image_apply_conflict",
+		"ai_image_apply_failed",
+		"ai_image_undo_failed",
+		"ai_image_quality_warning",
+		"ai_image_provider_config_missing",
+		"ai_image_dashscope_key_missing",
+		"ai_image_storage_public_url_missing",
+		"ai_image_download_failed",
+		"ai_image_unsupported_operation",
 	}
 }
 

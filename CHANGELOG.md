@@ -14,9 +14,12 @@ This project follows a lightweight changelog format before the first stable rele
 - Phase H1.1 adds URL-based state restoration for key operation workbenches.
 - Phase H1.2 extends URL state to orders, product drafts, inventory, and customer service list pages (filters, pagination, drawers, legacy deep links).
 - Phase H1.2.1 browser spot-check on H1.1 + H1.2 pages; fixes Dashboard `productSource` split, mount URL hydration, drawer reset, and drafts source sync.
+- Phase H1.3 AI image warning codes (explainable/locatable/recoverable), batch overview, failure-task categories, config-status linkage, Douyin/Storage precheck banners; no real Douyin E2E.
 
 ### Added
 
+- H1.3 guides: `docs/AI_IMAGE_WARNING_RECOVERY_GUIDE.md`, `docs/DOUYIN_E2E_PRECHECK_GUIDE.md`, `docs/STORAGE_PUBLIC_URL_GUIDE.md`.
+- H1.3 backend `aiproductimage/warning_codes.go`; frontend `aiImageWarnings.ts`, platform precheck banners.
 - H1.2.1 reports: `docs/H1_2_URL_STATE_BROWSER_CHECK.md`, `docs/h1-2-url-state-browser-check.json`, `scripts/h1-2-url-state-browser-check.mjs`.
 - H1.2 URL query state for `/orders/list`, `/orders/exceptions`, `/product/drafts`, `/inventory`, `/inventory/alerts`, `/inventory/sync-tasks`, `/customer/hub`, `/customer/conversations`.
 

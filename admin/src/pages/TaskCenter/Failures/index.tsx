@@ -1112,6 +1112,15 @@ export default function TaskCenterFailuresPage() {
                   {detailLinkLabel(detail.detailUrl)}
                 </Button>
               ) : null}
+              {detail.taskType === 'ai_image' ? (
+                <>
+                  <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
+                  <Button onClick={() => history.push('/settings/image')}>查看图片 AI 设置</Button>
+                  {(detail.failureCategory || '').includes('storage') ? (
+                    <Button onClick={() => history.push('/settings/storage')}>查看存储设置</Button>
+                  ) : null}
+                </>
+              ) : null}
             </Space>
             {detail.extra?.urlTypeLabel ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>

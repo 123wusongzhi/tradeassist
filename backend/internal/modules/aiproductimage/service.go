@@ -216,7 +216,7 @@ func (s *Service) validateImageURL(ctx context.Context, rawURL string) (accessib
 	return true, nil
 }
 
-func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op string, imageOK bool) CheckBatchItem {
+func (s *Service) checkOneImage(ctx context.Context, p *product.Product, img product.ProductImage, op string, readiness ProviderReadiness) CheckBatchItem {
 	pubURL := strings.TrimSpace(img.PublicURL)
 	if pubURL == "" {
 		pubURL = strings.TrimSpace(img.OriginURL)
@@ -232,6 +232,7 @@ func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op
 		Status:         "ready",
 		StatusLabel:    checkStatusLabel("ready"),
 		Issues:         []string{},
+		IssueCodes:     []string{},
 	}
 	if p != nil {
 		item.ProductTitle = strings.TrimSpace(p.Title)
@@ -240,17 +241,46 @@ func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op
 		item.Status = "blocked"
 		item.StatusLabel = checkStatusLabel("blocked")
 		item.Issues = append(item.Issues, "图片缺少有效链接")
+		item.IssueCodes = append(item.IssueCodes, CodeImageDownloadFailed)
 	}
 	if op == OpSelectBestMain && img.ImageType != product.ImageTypeMain {
 		item.Status = "warning"
 		item.StatusLabel = checkStatusLabel("warning")
 		item.Issues = append(item.Issues, "主图优选建议通常针对主图")
 	}
-	if !imageOK {
+	if readiness.Status == "missing" {
 		item.Status = "blocked"
 		item.StatusLabel = checkStatusLabel("blocked")
-		item.Issues = append(item.Issues, "AI 图片服务未配置")
+		item.Issues = append(item.Issues, WarningCodeMessage(CodeProviderConfigMissing))
+		item.IssueCodes = append(item.IssueCodes, CodeProviderConfigMissing)
+	} else if readiness.Status == "degraded" {
+		for _, dop := range readiness.DegradedOps {
+			if dop == op {
+				item.Status = "blocked"
+				item.StatusLabel = checkStatusLabel("blocked")
+				code := CodeUnsupportedOperation
+				if op == OpWhiteBackground {
+					code = CodeWhiteBackgroundProviderMissing
+				}
+				if op == OpRemoveLogo {
+					code = CodeLogoRemoveUnsupported
+				}
+				item.Issues = append(item.Issues, WarningCodeMessage(code))
+				item.IssueCodes = append(item.IssueCodes, code)
+			}
+		}
+		if len(readiness.MissingCodes) > 0 && item.Status != "blocked" {
+			for _, mc := range readiness.MissingCodes {
+				if op == OpWhiteBackground || op == OpOptimizeBackground {
+					item.Status = "blocked"
+					item.StatusLabel = checkStatusLabel("blocked")
+					item.Issues = append(item.Issues, WarningCodeMessage(mc))
+					item.IssueCodes = append(item.IssueCodes, mc)
+				}
+			}
+		}
 	}
+	_ = ctx
 	return item
 }
 
@@ -291,6 +321,16 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 		return nil, fmt.Errorf("本次选择的图片较多，请分批处理（最多 %d 张）", maxI)
 	}
 	imageOK := s.imageConfigured(ctx)
+	readiness := ProviderReadiness{Status: "missing", StatusLabel: "未配置"}
+	if s.Settings != nil {
+		if img, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+			readiness = EvaluateProviderReadiness(s.configuredImageProvider(ctx), img)
+		}
+	}
+	if !imageOK {
+		readiness.Status = "missing"
+		readiness.StatusLabel = "未配置"
+	}
 	resp := &CheckBatchResponse{
 		Summary: CheckBatchSummary{
 			ProductCount: len(productIDs),
@@ -308,13 +348,14 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 			accessible, urlIssues = s.validateImageURL(ctx, sel.Image.OriginURL)
 		}
 		for _, op := range ops {
-			cell := s.checkOneImage(p, sel.Image, op, imageOK)
+			cell := s.checkOneImage(ctx, p, sel.Image, op, readiness)
 			if len(urlIssues) > 0 {
 				if cell.Status == "ready" {
 					cell.Status = "warning"
 					cell.StatusLabel = checkStatusLabel("warning")
 				}
 				cell.Issues = append(cell.Issues, urlIssues...)
+				cell.IssueCodes = append(cell.IssueCodes, ClassifyErrorMessage(urlIssues[0]))
 			}
 			for _, w := range checkImageQualityWarnings(cell.SourceImageURL, accessible) {
 				if cell.Status == "ready" {
@@ -683,10 +724,15 @@ func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeou
 }
 
 func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg string) {
+	norm := NormalizeItemErrorCode(code, msg)
+	userMsg := msg
+	if m := WarningCodeMessage(norm); m != "" {
+		userMsg = m
+	}
 	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", itemID).Updates(map[string]any{
 		"status":        ItemFailed,
-		"error_code":    code,
-		"error_message": msg,
+		"error_code":    norm,
+		"error_message": userMsg,
 	}).Error
 }
 

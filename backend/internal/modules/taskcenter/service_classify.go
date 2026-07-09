@@ -24,6 +24,9 @@ func applyClassification(d *UnifiedTaskDTO) failureclassifier.Result {
 	if d != nil && strings.EqualFold(strings.TrimSpace(d.TaskType), TaskTypeAIText) {
 		return applyAITextClassification(d)
 	}
+	if d != nil && strings.EqualFold(strings.TrimSpace(d.TaskType), TaskTypeAIImage) {
+		return applyAIImageClassification(d)
+	}
 	in := classificationInput(*d)
 	r := failureclassifier.Classify(in)
 	d.FailureCategory = r.Category
