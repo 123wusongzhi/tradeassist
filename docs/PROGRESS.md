@@ -1,5 +1,7 @@
 ﻿# TradeMind 开发进度记录
-**Stage update**: 2026-07-07 — **Phase H1.1 Post-F9 Enhancement 启动并完成首批工作台 URL 状态保持**。当前策略：**Tag deferred**，继续在 `dev` 上做低风险高收益体验收口；保留 F9 Passed / P0=0 / P1=0 / 自动化 passed 结论；仍为 **MVP Demo Ready**、**非 Production Ready**、**抖店 Release Candidate**，不进入真实预发、抖店真实 E2E 或生产灰度。H1.1 首批接入：`/dashboard/product-operations` 筛选与 `source=dashboard` 出站链接；`/ai/operation-workbench` 筛选、分页、Drawer URL 恢复；`/ops/task-center/failures` 筛选、分页、include 开关、Drawer URL 恢复并兼容旧 `jumpId` 深链。新增 [`POST_F9_ENHANCEMENT_PLAN.md`](POST_F9_ENHANCEMENT_PLAN.md) 与 [`WORKBENCH_URL_STATE_DESIGN.md`](WORKBENCH_URL_STATE_DESIGN.md)。
+**Stage update**: 2026-07-09 — **Phase H1.2 Post-F9 Enhancement 第二批页面 URL 状态保持完成**。在 H1.1 基础上扩展 `urlState` allowlist，接入 `/orders/list`、`/orders/exceptions`、`/product/drafts`、`/inventory`、`/inventory/alerts`、`/inventory/sync-tasks`、`/customer/hub`、`/customer/conversations` 筛选 / 分页 / Drawer / 深链恢复；Dashboard `source=dashboard` 与失败任务中心 `source=taskcenter` 出站链接保留；兼容 `jumpOrder`、`orderId`、`productSkuId`、`skuId`、`batchId`、`suggestionId` 等旧深链。策略不变：**Tag deferred**、**Post-F9 Enhancement**、**MVP Demo Ready**、**非 Production Ready**、**抖店 Release Candidate**；不进入真实预发、抖店真实 E2E、生产灰度。设计见 [`WORKBENCH_URL_STATE_DESIGN.md`](WORKBENCH_URL_STATE_DESIGN.md)。
+
+**Stage update**: 2026-07-07 — **Phase H1.1 Post-F9 Enhancement 启动并完成首批工作台 URL 状态保持**。
 
 **Stage update**: 2026-07-07 — **Phase F9 最终总体验收完成**。复跑 `pnpm demo:auto-acceptance`（**passed**，AI 图片 14/16 warning）；F9.1 16 步主链路浏览器/API 走查 **passed_with_warning**；RBAC **passed**；1366/1024 响应式 **passed_with_manual_required**；F9.2 预发 **blocked_by_environment**；F9.3 Storage/AI **passed_with_warning**；F9.4 抖店 E2E **blocked_by_real_credentials**；F9.5 回滚文档就绪、灰度 **未允许**。P0/P1 **0**。总报告 [`F9_FINAL_ACCEPTANCE_REPORT.md`](F9_FINAL_ACCEPTANCE_REPORT.md) / [`f9-final-acceptance.json`](f9-final-acceptance.json)。**状态**：**Phase F9 Passed** · **Tag deferred** · **MVP Demo Ready** · **非 Production Ready** · **抖店 Release Candidate** · **不允许灰度**。
 
@@ -285,7 +287,7 @@
 
 | 维度 | 状态 |
 |------|------|
-| **全项目阶段** | **F1–F9 ✅**（2026-07-07）· **Phase H1.1 Post-F9 Enhancement** |
+| **全项目阶段** | **F1–F9 ✅**（2026-07-07）· **Phase H1.2 Post-F9 Enhancement** |
 | **发布状态** | **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许** |
 | **路线图阶段** | **第 5 阶段（采集）**保持；**第 6 阶段（AI 图片）**保持（见 §3.2）；**AI 客服 MVP**：手工 / **平台拉取** 会话 + **AI 建议**；**仅人工**可 **发送到平台**（**不自动外发**） |
 | **当前阶段定位（2026-05-19）** | **非**完整 ERP 扩展阶段；**只收口**：**① AI 商品运营工具**、**② 多平台跨境 ERP MVP**。**完整 ERP 增强**（多仓、采购、售后财务、WMS/OMS 等）**后置**，见上文 **《当前产品路线》** |

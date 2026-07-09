@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**Post-F9 Enhancement** · **MVP Demo Ready**（2026-07-07 最终总体验收完成）。**F1–F9 ✅** · **Tag deferred**。项目仍**非 Production Ready**，不允许灰度；抖店真实 E2E 仍受真实凭证阻塞，Douyin Shop 保持 **Release Candidate**。H1 要点：保留 F9 Passed 结论，暂不打 tag，继续在 `dev` 上做低风险高收益体验收口 — [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。详见 [`docs/F9_FINAL_ACCEPTANCE_REPORT.md`](docs/F9_FINAL_ACCEPTANCE_REPORT.md)、[`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md)。
+> 当前状态：**Post-F9 Enhancement** · **MVP Demo Ready**（2026-07-07 最终总体验收完成）。**F1–F9 ✅** · **Tag deferred**。项目仍**非 Production Ready**，不允许灰度；抖店真实 E2E 仍受真实凭证阻塞，Douyin Shop 保持 **Release Candidate**。H1 要点：H1.2 已完成订单 / 商品草稿 / 库存 / 客服第二批 URL 状态保持；暂不打 tag，继续在 `dev` 上做低风险高收益体验收口 — [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。详见 [`docs/F9_FINAL_ACCEPTANCE_REPORT.md`](docs/F9_FINAL_ACCEPTANCE_REPORT.md)、[`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md)。
 
 ## 项目定位
 

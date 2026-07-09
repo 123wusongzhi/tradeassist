@@ -1,15 +1,24 @@
 import { TmPageContainer } from '@/components/ui';
 import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
+import { PLATFORM_OPTIONS } from '@/constants/userFriendly';
 import { getCustomerDashboard, type CustomerDashboardSummary } from '@/services/customer';
+import { queryShops } from '@/services/shops';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl } from '@/utils/urlState';
 import { history } from '@umijs/max';
-import { Alert, Button, Card, Col, Row, Spin, Statistic, Tag } from 'antd';
+import { Alert, Button, Card, Col, Row, Select, Space, Spin, Statistic, Tag } from 'antd';
 import { useEffect, useState } from 'react';
+
+const HUB_QUERY_KEYS = ['platform', 'shopId', 'source'] as const;
 
 export default function CustomerHubPage() {
   const emptyLocale = useListEmptyLocale('customerHub', { permissionScoped: true });
+  const { state: urlState, setState: setUrlState } =
+    useUrlQueryState<Record<(typeof HUB_QUERY_KEYS)[number], string | undefined>>(HUB_QUERY_KEYS);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CustomerDashboardSummary | null>(null);
+  const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
     void (async () => {
@@ -21,6 +30,30 @@ export default function CustomerHubPage() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await queryShops({ page: 1, pageSize: 500 });
+        setShopOptions(
+          res.list.map((s) => ({
+            label: `${s.shopName} (${s.platform})`,
+            value: s.id,
+          })),
+        );
+      } catch {
+        setShopOptions([]);
+      }
+    })();
+  }, []);
+
+  const buildConversationLink = (extraQuery: string) => {
+    const sp = new URLSearchParams(extraQuery);
+    if (urlState.platform) sp.set('platform', urlState.platform);
+    if (urlState.shopId) sp.set('shopId', urlState.shopId);
+    const qs = sp.toString();
+    return appendSourceToUrl(qs ? `/customer/conversations?${qs}` : '/customer/conversations');
+  };
 
   return (
     <TmPageContainer
@@ -34,12 +67,34 @@ export default function CustomerHubPage() {
         message="人工确认发送"
         description="AI 仅提供回复建议；确认后将把回复发送给客户，不会自动外发。"
       />
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Space wrap>
+          <Select
+            allowClear
+            placeholder="平台"
+            style={{ width: 160 }}
+            options={PLATFORM_OPTIONS}
+            value={urlState.platform}
+            onChange={(v) => setUrlState({ platform: v || undefined }, { replace: true })}
+          />
+          <Select
+            allowClear
+            placeholder="店铺"
+            style={{ width: 220 }}
+            showSearch
+            optionFilterProp="label"
+            options={shopOptions}
+            value={urlState.shopId}
+            onChange={(v) => setUrlState({ shopId: v || undefined }, { replace: true })}
+          />
+        </Space>
+      </Card>
       <Spin spinning={loading}>
         {data ? (
           <>
             <Row gutter={[16, 16]}>
               <Col xs={24} sm={12} md={8} lg={6}>
-                <Card hoverable onClick={() => history.push('/customer/conversations?pendingReply=1')}>
+                <Card hoverable onClick={() => history.push(buildConversationLink('replyStatus=pending'))}>
                   <Statistic title="待回复会话" value={data.pendingReplyCount} />
                 </Card>
               </Col>
@@ -49,12 +104,12 @@ export default function CustomerHubPage() {
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={8} lg={6}>
-                <Card hoverable onClick={() => history.push('/customer/conversations?hasAiSuggestion=1')}>
+                <Card hoverable onClick={() => history.push(buildConversationLink('aiSuggestionStatus=pending'))}>
                   <Statistic title="AI 建议待确认" value={data.aiSuggestionPendingCount} />
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={8} lg={6}>
-                <Card hoverable onClick={() => history.push('/customer/conversations?sendFailed=1')}>
+                <Card hoverable onClick={() => history.push(buildConversationLink('sendStatus=failed'))}>
                   <Statistic title="发送失败" value={data.sendFailureCount} valueStyle={{ color: data.sendFailureCount ? '#cf1322' : undefined }} />
                 </Card>
               </Col>
@@ -69,7 +124,7 @@ export default function CustomerHubPage() {
                 </Card>
               </Col>
               <Col xs={24} sm={12} md={8} lg={6}>
-                <Card hoverable onClick={() => history.push('/customer/message-sync-tasks')}>
+                <Card hoverable onClick={() => history.push(appendSourceToUrl('/customer/message-sync-tasks'))}>
                   <Statistic title="同步任务异常(7日)" value={data.syncTaskFailureCount} />
                 </Card>
               </Col>
@@ -77,7 +132,7 @@ export default function CustomerHubPage() {
             <Card title="快捷入口" style={{ marginTop: 16 }}>
               <Row gutter={[8, 8]}>
                 <Col>
-                  <Button type="primary" onClick={() => history.push('/customer/conversations')}>
+                  <Button type="primary" onClick={() => history.push(buildConversationLink(''))}>
                     会话列表
                   </Button>
                 </Col>
@@ -85,7 +140,7 @@ export default function CustomerHubPage() {
                   <Button onClick={() => history.push('/customer/message-sync-tasks')}>消息同步任务</Button>
                 </Col>
                 <Col>
-                  <Button onClick={() => history.push('/ops/task-center/failures?taskType=customer_failure')}>
+                  <Button onClick={() => history.push(appendSourceToUrl('/ops/task-center/failures?taskType=customer_failure', 'taskcenter'))}>
                     失败任务中心
                   </Button>
                 </Col>

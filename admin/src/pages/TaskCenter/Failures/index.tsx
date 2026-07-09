@@ -58,6 +58,7 @@ import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/servic
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
 import { resolveTaobaoTmallLoginTargetUrl } from '@/utils/taobaoTmallUrl';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl } from '@/utils/urlState';
 
 const FAILURE_QUERY_KEYS = [
   'page',
@@ -453,7 +454,7 @@ export default function TaskCenterFailuresPage() {
           const href = relatedHref(r);
           if (!href) return r.relatedResourceTitle || '—';
           return (
-            <Typography.Link onClick={() => history.push(href)}>
+            <Typography.Link onClick={() => history.push(appendSourceToUrl(href, 'taskcenter'))}>
               {(r.relatedResourceTitle || '').slice(0, 32) || r.relatedResourceId}
             </Typography.Link>
           );
@@ -518,7 +519,7 @@ export default function TaskCenterFailuresPage() {
               告警列表
             </Button>
             {r.detailUrl ? (
-              <Button size="small" type="link" onClick={() => history.push(r.detailUrl!)}>
+              <Button size="small" type="link" onClick={() => history.push(appendSourceToUrl(r.detailUrl!, 'taskcenter'))}>
                 {detailLinkLabel(r.detailUrl)}
               </Button>
             ) : null}
@@ -1105,7 +1106,7 @@ export default function TaskCenterFailuresPage() {
                 </Button>
               ) : null}
               {detail.detailUrl ? (
-                <Button onClick={() => history.push(detail.detailUrl!)}>
+                <Button onClick={() => history.push(appendSourceToUrl(detail.detailUrl!, 'taskcenter'))}>
                   {detailLinkLabel(detail.detailUrl)}
                 </Button>
               ) : null}

@@ -1,6 +1,6 @@
 # Workbench URL State Design
 
-> **Phase**: H1.1  
+> **Phase**: H1.1 + H1.2
 > **Goal**: make key workbench pages recover filters, pagination, tabs, and drawers after refresh/back navigation.
 
 ## Shared Utilities
@@ -10,7 +10,7 @@ Implementation entry points:
 - `admin/src/utils/urlState.ts`
 - `admin/src/hooks/useUrlState.ts`
 
-The shared utility uses a query-key allowlist. Unsupported keys are ignored.
+The shared utility uses a query-key allowlist. Unsupported keys are ignored on write; unknown keys already in the URL are preserved.
 
 Allowed state keys include:
 
@@ -37,61 +37,123 @@ recoveryStatus
 normalizedStatus
 includeResolved
 includeMarked
+timeRange
+payStatus
+skuStatus
+inventoryStatus
+exceptionType
+publishStatus
+aiStatus
+stockStatus
+syncStatus
+skuBindStatus
+productSkuId
+batchId
+alertType
+replyStatus
+aiSuggestionStatus
+sendStatus
+conversationId
+suggestionId
+```
+
+Legacy deep-link keys (read + write when explicitly set):
+
+```text
+jumpOrder
+orderId
+itemId
+jumpId
+skuId
+missingAiTitle
+missingAiDescription
+readiness
+publishable
+pendingReply
+hasAiSuggestion
+sendFailed
+hasOrder
 ```
 
 ## Security Rules
 
-- Do not write secrets, API keys, tokens, cookies, full prompts, raw responses, or platform credentials into URLs.
+- Do not write secrets, API keys, tokens, cookies, full prompts, raw responses, buyer PII (name / phone / email / address), or platform credentials into URLs.
 - Only stable identifiers and non-sensitive filter values may be stored.
 - User-facing labels still come from copywriting/status mapping constants; URL values may be internal stable codes.
 
-## Implemented Pages
+## Source Parameter
+
+Supported `source` values (navigation context only; **not** used for RBAC):
+
+```text
+dashboard
+taskcenter
+order_detail
+inventory
+customer
+collect
+manual
+```
+
+- Dashboard outbound links use `appendSourceToUrl(..., 'dashboard')`.
+- Failure task center detail links use `appendSourceToUrl(..., 'taskcenter')`.
+- Invalid `source` values are ignored for display logic; pages work without `source`.
+
+## Implemented Pages (H1.1)
 
 ### `/dashboard/product-operations`
 
-Persisted:
-
-- date range
-- platform
-- shop
-- product source
-
-Outbound links from the dashboard append `source=dashboard` when missing.
+Persisted: date range, platform, shop, product source. Outbound links append `source=dashboard` when missing.
 
 ### `/ai/operation-workbench`
 
-Persisted:
-
-- todo type
-- priority
-- platform
-- shop
-- keyword
-- date range
-- page / pageSize
-- detail drawer: `drawer=todo&id=...`
-
-Refreshing a URL with drawer parameters reopens the todo detail.
+Persisted: todo type, priority, platform, shop, keyword, date range, page / pageSize, detail drawer `drawer=todo&id=...`.
 
 ### `/ops/task-center/failures`
 
-Persisted:
+Persisted: task type, normalized status, failure category, recovery status, severity, platform, shop, keyword, date range, include resolved / marked switches, page / pageSize, detail drawer `drawer=failure&id=...&detailTaskType=...`. Legacy `jumpId` + `taskType` deep link remains supported.
 
-- task type
-- normalized status
-- failure category
-- recovery status
-- severity
-- platform
-- shop
-- keyword
-- date range
-- include resolved / marked switches
-- page / pageSize
-- detail drawer: `drawer=failure&id=...&detailTaskType=...`
+## Implemented Pages (H1.2)
 
-The legacy `jumpId` + `taskType` deep link remains supported.
+### `/orders/list` (`/orders` redirect)
+
+Persisted: `keyword`, `payStatus`, `skuStatus`, `inventoryStatus`, `platform`, `shopId`, `page`, `pageSize`, `source`. Legacy `jumpOrder` redirects to order detail. Form fields map: `paymentStatus` ↔ `payStatus`, `skuMatchStatus` ↔ `skuStatus`, `inventoryDeductStatus` ↔ `inventoryStatus`.
+
+### `/orders/exceptions`
+
+Persisted: `keyword`, `exceptionType`, `platform`, `shopId`, `status`, `page`, `pageSize`, `source`. Legacy `orderId` deep link from order detail (with `source=order_detail`) remains supported.
+
+### `/product/drafts`
+
+Persisted: `keyword`, `status`, `platform`, `shopId`, `publishStatus`, `aiStatus`, `page`, `pageSize`, `source`. Legacy params `missingAiTitle`, `missingAiDescription`, `readiness`, `publishable` remain compatible and map to `aiStatus` / `publishStatus` aliases.
+
+### `/inventory`
+
+Persisted: `keyword`, `stockStatus`, `syncStatus`, `skuBindStatus`, `platform`, `shopId`, `productSkuId`, `page`, `pageSize`, `source`. Legacy `skuId` alias maps to `productSkuId`.
+
+### `/inventory/alerts`
+
+Persisted: `keyword`, `alertType`, `stockStatus`, `platform`, `shopId`, `page`, `pageSize`, `source`.
+
+### `/inventory/sync-tasks`
+
+Persisted: `keyword`, `status`, `syncStatus`, `platform`, `shopId`, `productSkuId`, `batchId`, `drawer`, `id`, `page`, `pageSize`, `source`. `?id=` reopens task detail drawer on refresh; `syncStatus` aliases `status`.
+
+### `/customer/hub`
+
+Lightweight: `platform`, `shopId`, `source`. Hub cards pass filters into conversation list links.
+
+### `/customer/conversations`
+
+Persisted: `keyword`, `replyStatus`, `aiSuggestionStatus`, `sendStatus`, `platform`, `shopId`, `page`, `pageSize`, `conversationId`, `suggestionId`, `drawer`, `source`. Legacy `pendingReply`, `hasAiSuggestion`, `sendFailed`, `hasOrder`, `status=pending_reply` remain compatible. `conversationId` redirects to `/customer/conversations/:id`; `suggestionId` is honored on conversation detail.
 
 ## Deferred Pages
 
-Orders, inventory, customer, and product draft lists already have partial deep-link behavior in places. They are planned for a follow-up H1 batch to avoid mixing wide UI churn into the first URL-state pass.
+Other list pages (publish batches, collect tasks, order sync tasks, etc.) may adopt the same utilities in a later H1 batch.
+
+## Compatibility Strategy
+
+1. On init, read legacy deep-link params first (`jumpOrder`, `orderId`, `itemId`, `productSkuId`, `skuId`, `batchId`, `suggestionId`, `jumpId`, `tab`).
+2. New URL state writes use canonical H1.2 keys; legacy aliases are translated on read, not removed from inbound links.
+3. Clearing filters via ProTable reset clears page-specific query keys via `clearUrlState`.
+4. Default pagination (page 1, pageSize 20) and empty filters are omitted from the URL.

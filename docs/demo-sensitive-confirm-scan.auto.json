@@ -1,7 +1,7 @@
 ﻿{
     "phase":  "F7",
     "failed":  0,
-    "generatedAt":  "2026-07-07T07:05:05.2219833Z",
+    "generatedAt":  "2026-07-09T05:00:43.3360161Z",
     "results":  [
                     {
                         "file":  "admin/src/pages/Product/DraftDetail/index.tsx",

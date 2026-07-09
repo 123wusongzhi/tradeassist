@@ -12,8 +12,11 @@ This project follows a lightweight changelog format before the first stable rele
 - Production Ready and gray release remain blocked by environment, public storage, and real Douyin credentials.
 - Douyin Shop remains Release Candidate until real read/write E2E and gray observation complete.
 - Phase H1.1 adds URL-based state restoration for key operation workbenches.
+- Phase H1.2 extends URL state to orders, product drafts, inventory, and customer service list pages (filters, pagination, drawers, legacy deep links).
 
 ### Added
+
+- H1.2 URL query state for `/orders/list`, `/orders/exceptions`, `/product/drafts`, `/inventory`, `/inventory/alerts`, `/inventory/sync-tasks`, `/customer/hub`, `/customer/conversations`.
 
 - Full-project Demo dataset, RBAC demo accounts, route/API smoke scripts, and `pnpm demo:auto-acceptance`.
 - AI product operations workbench, batch AI text/image review flows, multi-product publishing drafts, and full-chain dashboard coverage.

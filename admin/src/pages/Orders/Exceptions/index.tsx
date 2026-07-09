@@ -2,7 +2,7 @@ import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-des
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
-import { history, useLocation } from '@umijs/max';
+import { history } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -39,6 +39,20 @@ import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuC
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl, parsePositiveInt } from '@/utils/urlState';
+
+const EXCEPTION_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'exceptionType',
+  'platform',
+  'shopId',
+  'status',
+  'source',
+  'orderId',
+] as const;
 
 const EX_TYPES: Record<string, { text: string }> = {
   sku_unmatched: { text: '规格未匹配' },
@@ -125,7 +139,12 @@ export default function OrderExceptionsPage() {
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const { search: locSearch } = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof EXCEPTION_QUERY_KEYS)[number], string | undefined>>(
+      EXCEPTION_QUERY_KEYS,
+    );
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const [summary, setSummary] = useState<OrderExceptionSummary | null>(null);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
 
@@ -157,16 +176,27 @@ export default function OrderExceptionsPage() {
   }, []);
 
   useEffect(() => {
-    const sp = new URLSearchParams(locSearch);
-    const oid = sp.get('orderId')?.trim();
-    const et = sp.get('exceptionType')?.trim();
-    if (!oid && !et) return;
-    formRef.current?.setFieldsValue({
-      ...(oid ? { orderId: oid } : {}),
-      ...(et ? { exceptionType: et } : {}),
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      exceptionType: urlState.exceptionType,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      status: urlState.status,
+      orderId: urlState.orderId,
     });
     actionRef.current?.reload();
-  }, [locSearch]);
+  }, [
+    urlState.exceptionType,
+    urlState.keyword,
+    urlState.orderId,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+    urlState.status,
+  ]);
 
   const reload = useCallback(() => {
     actionRef.current?.reload();
@@ -575,7 +605,24 @@ export default function OrderExceptionsPage() {
         formRef={formRef}
         columns={columns}
         search={{ layout: 'vertical', defaultCollapsed: false }}
-        pagination={{ pageSize: 20 }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(EXCEPTION_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         locale={emptyLocale}
         request={async (params) => {
           let handled: boolean | undefined;
@@ -584,19 +631,45 @@ export default function OrderExceptionsPage() {
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
 
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            exceptionType: (params.exceptionType as string | undefined)?.trim(),
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            orderId: (params.orderId as string | undefined)?.trim(),
+            keyword: (params.keyword as string | undefined)?.trim(),
+            start: typeof params.start === 'string' ? params.start : undefined,
+            end: typeof params.end === 'string' ? params.end : undefined,
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              exceptionType: qp.exceptionType,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              status: st,
+              orderId: qp.orderId,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
+
           const res = await queryOrderExceptions({
-            page: params.current,
-            pageSize: params.pageSize,
-            exceptionType: params.exceptionType as string | undefined,
+            page: qp.page,
+            pageSize: qp.pageSize,
+            exceptionType: qp.exceptionType,
             severity: params.severity as string | undefined,
-            platform: params.platform as string | undefined,
-            shopId: params.shopId as string | undefined,
-            orderId: params.orderId as string | undefined,
-            keyword: params.keyword as string | undefined,
+            platform: qp.platform,
+            shopId: qp.shopId,
+            orderId: qp.orderId,
+            keyword: qp.keyword,
             handled,
             ignored,
-            start: params.start as string | undefined,
-            end: params.end as string | undefined,
+            start: qp.start,
+            end: qp.end,
           });
           setSummary(res.summary);
           return { data: res.list, total: res.total, success: true };

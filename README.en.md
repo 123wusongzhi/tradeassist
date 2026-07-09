@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Post-F9 Enhancement** · **MVP Demo Ready** (final acceptance completed on 2026-07-07). **F1–F9 done** · **Tag deferred**. The project is still **not Production Ready** and gray release is not allowed; real Douyin E2E remains blocked by real credentials, so Douyin Shop stays **Release Candidate**. H1 keeps the F9 Passed conclusion, defers the tag, and continues low-risk product experience improvements on `dev` — [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md). See [`docs/F9_FINAL_ACCEPTANCE_REPORT.md`](docs/F9_FINAL_ACCEPTANCE_REPORT.md), [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md).
+> Current status: **Post-F9 Enhancement** · **MVP Demo Ready** (final acceptance completed on 2026-07-07). **F1–F9 done** · **Tag deferred**. The project is still **not Production Ready** and gray release is not allowed; real Douyin E2E remains blocked by real credentials, so Douyin Shop stays **Release Candidate**. H1.2 completed URL state restoration for orders, product drafts, inventory, and customer service list pages; the tag remains deferred while low-risk polish continues on `dev` — [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md). See [`docs/F9_FINAL_ACCEPTANCE_REPORT.md`](docs/F9_FINAL_ACCEPTANCE_REPORT.md), [`docs/FULL_PROJECT_DEVELOPMENT_PLAN.md`](docs/FULL_PROJECT_DEVELOPMENT_PLAN.md).
 
 ## Positioning
 

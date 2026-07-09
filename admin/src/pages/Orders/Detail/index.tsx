@@ -15,6 +15,7 @@ import {
   message,
 } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
+import { appendSourceToUrl } from '@/utils/urlState';
 import { history, useModel, useParams, useSearchParams } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -134,19 +135,40 @@ export default function OrderDetailPage() {
     <TmPageContainer
       title={detail ? `订单 ${detail.orderNo}` : '订单详情'}
       loading={loading}
-      onBack={() => history.push('/orders/list')}
+      onBack={() => {
+        if (window.history.length > 1) {
+          history.goBack();
+          return;
+        }
+        history.push('/orders/list');
+      }}
       extra={
         <Space wrap>
-          <Button onClick={() => history.push(`/orders/exceptions?orderId=${encodeURIComponent(id)}`)}>
+          <Button
+            onClick={() =>
+              history.push(
+                appendSourceToUrl(`/orders/exceptions?orderId=${encodeURIComponent(id!)}`, 'order_detail'),
+              )
+            }
+          >
             异常工作台
           </Button>
           <Button onClick={() => history.push('/ops/task-center/failures?taskType=inventory_sync')}>
             失败任务中心
           </Button>
-          <Button onClick={() => history.push(`/inventory/deductions?orderId=${encodeURIComponent(id)}`)}>
+          <Button
+            onClick={() =>
+              history.push(
+                appendSourceToUrl(
+                  `/inventory/deductions?orderId=${encodeURIComponent(id!)}`,
+                  'order_detail',
+                ),
+              )
+            }
+          >
             扣减记录
           </Button>
-          <Button type="link" onClick={() => history.push('/orders/list')}>
+          <Button type="link" onClick={() => history.goBack()}>
             返回列表
           </Button>
         </Space>
@@ -398,7 +420,17 @@ export default function OrderDetailPage() {
                   <Typography.Paragraph type="secondary">
                     订单相关异常统一在异常工作台处理；此处提供快捷入口。
                   </Typography.Paragraph>
-                  <Button type="primary" onClick={() => history.push(`/orders/exceptions?orderId=${encodeURIComponent(id)}`)}>
+                  <Button
+                    type="primary"
+                    onClick={() =>
+                      history.push(
+                        appendSourceToUrl(
+                          `/orders/exceptions?orderId=${encodeURIComponent(id!)}`,
+                          'order_detail',
+                        ),
+                      )
+                    }
+                  >
                     打开该订单的异常工作台
                   </Button>
                 </Space>

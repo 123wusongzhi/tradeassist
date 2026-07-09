@@ -33,7 +33,7 @@ F9 conclusions remain valid:
 
 Primary target: P2-06 工作台后退 / 刷新状态保持.
 
-First batch:
+First batch (**completed**):
 
 | Page | Scope |
 | --- | --- |
@@ -41,14 +41,22 @@ First batch:
 | `/ai/operation-workbench` | filters, pagination, drawer detail |
 | `/ops/task-center/failures` | filters, pagination, include switches, drawer detail |
 
-Second batch candidates:
+## H1.2 Second-Batch URL State
+
+Second batch (**completed**):
 
 | Page | Scope |
 | --- | --- |
-| `/orders` / `/orders/exceptions` | list filters and pagination |
-| `/inventory` / `/inventory/sync-tasks` | list filters, deep links, pagination |
-| `/customer/hub` / `/customer/conversations` | conversation filters and source retention |
-| `/products/drafts` | draft filters and pagination |
+| `/orders/list` | keyword, pay/sku/inventory status, platform, shop, pagination, source |
+| `/orders/exceptions` | keyword, exception type, platform, shop, status, pagination, source |
+| `/product/drafts` | keyword, status, platform, shop, publish/ai status, pagination, source |
+| `/inventory` | keyword, stock/sync/bind filters, productSkuId deep link, pagination, source |
+| `/inventory/alerts` | keyword, alert type, stock status, platform, shop, pagination, source |
+| `/inventory/sync-tasks` | filters, batchId/productSkuId/id drawer deep links, pagination, source |
+| `/customer/hub` | lightweight platform / shop / source |
+| `/customer/conversations` | reply/AI/send filters, conversationId/suggestionId deep links, pagination, source |
+
+Deferred to later H1 batches: publish batches, collect tasks, order sync tasks, and other secondary lists.
 
 ## Completion Rules
 

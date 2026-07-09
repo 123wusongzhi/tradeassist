@@ -20,6 +20,19 @@ import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { parsePositiveInt } from '@/utils/urlState';
+
+const ALERT_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'alertType',
+  'stockStatus',
+  'platform',
+  'shopId',
+  'source',
+] as const;
 import {
   INVENTORY_SKU_AMBIGUOUS_MESSAGE,
   INVENTORY_SKU_NOT_BOUND_MESSAGE,
@@ -88,6 +101,10 @@ export default function InventoryAlertsPage() {
   const emptyLocale = useListEmptyLocale('inventoryAlerts', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const searchFormRef = useRef<ProFormInstance>();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof ALERT_QUERY_KEYS)[number], string | undefined>>(ALERT_QUERY_KEYS);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkIncludeLocalAlerts, setBulkIncludeLocalAlerts] = useState(false);
@@ -105,6 +122,26 @@ export default function InventoryAlertsPage() {
   const [batchPreviewLoading, setBatchPreviewLoading] = useState(false);
   const [batchStockSubmitting, setBatchStockSubmitting] = useState(false);
   const [batchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
+
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    searchFormRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      alertType: urlState.alertType,
+      stockStatus: urlState.stockStatus,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+    });
+  }, [
+    urlState.alertType,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+    urlState.stockStatus,
+  ]);
 
   const buildStockBatchPayload = (): BatchStockSettingsPreviewPayload => {
     const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
@@ -406,7 +443,24 @@ export default function InventoryAlertsPage() {
         columns={columns}
         scroll={{ x: 1500 }}
         search={{ labelWidth: 100 }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(ALERT_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         rowSelection={{
           selectedRowKeys: selectedSkuIds,
           onChange: (keys) => setSelectedSkuIds(keys.map(String)),
@@ -493,16 +547,38 @@ export default function InventoryAlertsPage() {
           void sort;
           void filter;
           try {
+            const qp = {
+              keyword: (params.keyword as string | undefined)?.trim(),
+              platform: (params.platform as string | undefined)?.trim(),
+              shopId: (params.shopId as string | undefined)?.trim(),
+              alertType: (params.alertType as string | undefined)?.trim(),
+              stockStatus: (params.stockStatus as string | undefined)?.trim(),
+              page: params.current ?? tablePage,
+              pageSize: params.pageSize ?? tablePageSize,
+            };
+            setUrlState(
+              {
+                page: Number(qp.page) > 1 ? qp.page : undefined,
+                pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                keyword: qp.keyword,
+                alertType: qp.alertType,
+                stockStatus: qp.stockStatus,
+                platform: qp.platform,
+                shopId: qp.shopId,
+                source: urlState.source,
+              },
+              { replace: true },
+            );
             const res = await queryInventoryAlerts({
-              keyword: (params.keyword as string) || undefined,
-              platform: (params.platform as string) || undefined,
-              shopId: (params.shopId as string) || undefined,
-              alertType: (params.alertType as string) || undefined,
-              stockStatus: (params.stockStatus as string) || undefined,
+              keyword: qp.keyword,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              alertType: qp.alertType,
+              stockStatus: qp.stockStatus,
               onlyPublished: Boolean(params.onlyPublished),
               includeNormal: Boolean(params.includeNormal),
-              page: params.current,
-              pageSize: params.pageSize,
+              page: qp.page,
+              pageSize: qp.pageSize,
             });
             return {
               data: res.list ?? [],

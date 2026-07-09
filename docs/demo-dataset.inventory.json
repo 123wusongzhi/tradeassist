@@ -1,29 +1,29 @@
 ﻿{
     "samples":  [
                     {
-                        "productId":  "272e226f-2d58-4613-a22e-b4e35f35afad",
+                        "productId":  "5f44a7ba-e471-4600-86f2-f56eab9d7ce9",
                         "note":  "local stock 120",
                         "tag":  "normal_stock_sku"
                     },
                     {
-                        "productId":  "51defb78-5759-46be-84cb-e66b203be146",
+                        "productId":  "98ff504e-7d55-4388-86c9-e959efa9354e",
                         "note":  "stock below warning line",
                         "tag":  "low_stock_sku"
                     },
                     {
-                        "productId":  "21c8baee-61a4-43c8-8fbc-ef6725315432",
+                        "productId":  "bbbb1589-e02d-4b1e-90cc-3cd2b8ae1a7e",
                         "note":  "stock is 0",
                         "tag":  "zero_stock_sku"
                     },
                     {
-                        "orderId":  "d33997c0-f2ce-4936-8254-7134e240344a",
-                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
+                        "orderId":  "adce1ff8-fe49-4c3f-9172-5f28f006841f",
+                        "deductResult":  "远程服务器返回错误: (400) 错误的请求。",
                         "note":  "manual deduct attempt on F2 normal order",
                         "tag":  "deduct_success_order"
                     },
                     {
                         "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",
-                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
+                        "deductResult":  "远程服务器返回错误: (400) 错误的请求。",
                         "note":  "SKU not matched blocks deduct",
                         "tag":  "deduct_blocked_unmatched_order"
                     },
@@ -43,6 +43,6 @@
                         "centerCount":  5
                     }
                 ],
-    "generatedAt":  "2026-07-07T07:06:00.7019853Z",
+    "generatedAt":  "2026-07-09T05:01:43.8244900Z",
     "note":  "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
 }

@@ -1,4 +1,4 @@
-import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import {
   Badge,
@@ -58,6 +58,21 @@ import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl, parsePositiveInt } from '@/utils/urlState';
+
+const ORDER_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'payStatus',
+  'skuStatus',
+  'inventoryStatus',
+  'platform',
+  'shopId',
+  'source',
+  'jumpOrder',
+] as const;
 
 function truthyInventorySetting(v: string | undefined): boolean {
   const s = String(v ?? '')
@@ -101,6 +116,11 @@ function statusTag(raw: string, map: StatusTagMap) {
 export default function OrdersPage() {
   const emptyLocale = useListEmptyLocale('orderList', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof ORDER_QUERY_KEYS)[number], string | undefined>>(ORDER_QUERY_KEYS);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [editForm] = Form.useForm();
@@ -186,6 +206,28 @@ export default function OrdersPage() {
       message.error((e as Error)?.message || '加载库存影响失败');
     }
   }, []);
+
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      paymentStatus: urlState.payStatus,
+      skuMatchStatus: urlState.skuStatus,
+      inventoryDeductStatus: urlState.inventoryStatus,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+    });
+  }, [
+    urlState.inventoryStatus,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.payStatus,
+    urlState.platform,
+    urlState.shopId,
+    urlState.skuStatus,
+  ]);
 
   useEffect(() => {
     const q = new URLSearchParams(ordersSearch);
@@ -397,7 +439,12 @@ export default function OrdersPage() {
             {(r.openExceptionCount ?? 0) > 0 ? (
               <a
                 onClick={() =>
-                  history.push(`/orders/exceptions?orderId=${encodeURIComponent(r.id)}`)
+                  history.push(
+                    appendSourceToUrl(
+                      `/orders/exceptions?orderId=${encodeURIComponent(r.id)}`,
+                      'order_detail',
+                    ),
+                  )
                 }
               >
                 异常
@@ -527,8 +574,14 @@ export default function OrdersPage() {
         rowKey="id"
         locale={emptyLocale}
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(ORDER_QUERY_KEYS, { replace: true });
+        }}
         toolBarRender={() => [
           <ModalForm
             key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
@@ -574,28 +627,67 @@ export default function OrdersPage() {
           </ModalForm>,
         ]}
         request={async (params) => {
-          const res = await queryOrders({
-            page: params.current,
-            pageSize: params.pageSize,
-            platform: params.platform as string | undefined,
-            shopId: params.shopId as string | undefined,
-            orderNo: params.orderNo as string | undefined,
-            customerName: params.customerName as string | undefined,
-            keyword: params.keyword as string | undefined,
-            status: params.status as string | undefined,
-            paymentStatus: params.paymentStatus as string | undefined,
-            fulfillmentStatus: params.fulfillmentStatus as string | undefined,
-            skuMatchStatus: params.skuMatchStatus as string | undefined,
-            inventoryDeductStatus: params.inventoryDeductStatus as string | undefined,
-            syncStatus: params.syncStatus as string | undefined,
+          const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            keyword: kw || undefined,
+            paymentStatus: (params.paymentStatus as string | undefined)?.trim(),
+            skuMatchStatus: (params.skuMatchStatus as string | undefined)?.trim(),
+            inventoryDeductStatus: (params.inventoryDeductStatus as string | undefined)?.trim(),
+            status: (params.status as string | undefined)?.trim(),
+            fulfillmentStatus: (params.fulfillmentStatus as string | undefined)?.trim(),
             hasException:
               params.hasException === 'true' || params.hasException === true ? true : undefined,
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              payStatus: qp.paymentStatus,
+              skuStatus: qp.skuMatchStatus,
+              inventoryStatus: qp.inventoryDeductStatus,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
+          const res = await queryOrders({
+            page: qp.page,
+            pageSize: qp.pageSize,
+            platform: qp.platform,
+            shopId: qp.shopId,
+            keyword: qp.keyword,
+            status: qp.status,
+            paymentStatus: qp.paymentStatus,
+            fulfillmentStatus: qp.fulfillmentStatus,
+            skuMatchStatus: qp.skuMatchStatus,
+            inventoryDeductStatus: qp.inventoryDeductStatus,
+            hasException: qp.hasException,
+            start: qp.start,
+            end: qp.end,
           });
           return { data: res.list, total: res.pagination.total, success: true };
         }}
-        pagination={{ pageSize: 20 }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
       />
 
       <Drawer

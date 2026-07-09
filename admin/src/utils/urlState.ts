@@ -27,7 +27,60 @@ const ALLOWED_QUERY_KEYS = new Set([
   'includeResolved',
   'includeMarked',
   'timeRange',
+  // H1.2 — orders / products / inventory / customer
+  'payStatus',
+  'skuStatus',
+  'inventoryStatus',
+  'exceptionType',
+  'publishStatus',
+  'aiStatus',
+  'stockStatus',
+  'syncStatus',
+  'skuBindStatus',
+  'productSkuId',
+  'batchId',
+  'alertType',
+  'replyStatus',
+  'aiSuggestionStatus',
+  'sendStatus',
+  'conversationId',
+  'suggestionId',
+  // legacy deep links (read + write when explicitly set)
+  'jumpOrder',
+  'orderId',
+  'itemId',
+  'jumpId',
+  'skuId',
+  'missingAiTitle',
+  'missingAiDescription',
+  'readiness',
+  'publishable',
+  'pendingReply',
+  'hasAiSuggestion',
+  'sendFailed',
+  'hasOrder',
 ]);
+
+export const URL_SOURCE_VALUES = new Set([
+  'dashboard',
+  'taskcenter',
+  'order_detail',
+  'inventory',
+  'customer',
+  'collect',
+  'manual',
+]);
+
+export function parsePositiveInt(value?: string, fallback = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+export function normalizeSource(value?: string) {
+  const v = (value || '').trim();
+  if (!v || !URL_SOURCE_VALUES.has(v)) return undefined;
+  return v;
+}
 
 function normalizeValue(value: UrlStateValue): string | undefined {
   if (value === undefined || value === null || value === '') return undefined;
@@ -107,9 +160,10 @@ export function clearQueryState(keys: readonly string[], options?: { replace?: b
 }
 
 export function appendSourceToUrl(url: string, source = 'dashboard') {
+  const normalized = normalizeSource(source) || 'dashboard';
   const [path, query = ''] = url.split('?');
   const sp = new URLSearchParams(query);
-  if (!sp.has('source')) sp.set('source', source);
+  if (!sp.has('source')) sp.set('source', normalized);
   const qs = sp.toString();
   return qs ? `${path}?${qs}` : path;
 }

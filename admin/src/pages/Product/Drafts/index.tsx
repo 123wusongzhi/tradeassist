@@ -20,6 +20,45 @@ import { createProduct, fetchProducts, type ProductListRow } from '@/services/pr
 import { batchCheckProductReadiness, type ProductReadinessResult } from '@/services/productReadiness';
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { normalizeSource, parsePositiveInt } from '@/utils/urlState';
+
+const DRAFT_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'status',
+  'platform',
+  'shopId',
+  'publishStatus',
+  'aiStatus',
+  'source',
+  'missingAiTitle',
+  'missingAiDescription',
+  'readiness',
+  'publishable',
+] as const;
+
+function readDraftLegacyFilters(search: string) {
+  const sp = new URLSearchParams(search);
+  const aiStatus = sp.get('aiStatus')?.trim();
+  const publishStatus = sp.get('publishStatus')?.trim();
+  return {
+    missingAiTitle:
+      sp.get('missingAiTitle') === '1' || aiStatus === 'missing_title',
+    missingAiDescription:
+      sp.get('missingAiDescription') === '1' || aiStatus === 'missing_description',
+    readinessBlocked: sp.get('readiness') === 'blocked' || publishStatus === 'blocked',
+    publishable: sp.get('publishable') === '1' || publishStatus === 'publishable',
+    status:
+      sp.get('status')?.trim() ||
+      (publishStatus === 'published' ? 'published' : undefined),
+    keyword: sp.get('keyword')?.trim() || undefined,
+    platform: sp.get('platform')?.trim() || undefined,
+    shopId: sp.get('shopId')?.trim() || undefined,
+    navSource: normalizeSource(sp.get('source') || undefined),
+  };
+}
 
 const OPERATION_STEP_OPTIONS = [
   { label: '全部', value: '' },
@@ -41,16 +80,11 @@ function operationStepColor(step?: string) {
 
 export default function ProductDraftsPage() {
   const location = useLocation();
-  const urlFilters = useMemo(() => {
-    const sp = new URLSearchParams(location.search);
-    return {
-      missingAiTitle: sp.get('missingAiTitle') === '1',
-      missingAiDescription: sp.get('missingAiDescription') === '1',
-      readinessBlocked: sp.get('readiness') === 'blocked',
-      publishable: sp.get('publishable') === '1',
-      status: sp.get('status')?.trim() || undefined,
-    };
-  }, [location.search]);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof DRAFT_QUERY_KEYS)[number], string | undefined>>(DRAFT_QUERY_KEYS);
+  const urlFilters = useMemo(() => readDraftLegacyFilters(location.search), [location.search]);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
 
   const emptyLocale = useListEmptyLocale('productDrafts', { permissionScoped: true });
 
@@ -73,11 +107,22 @@ export default function ProductDraftsPage() {
   const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
 
   useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword || urlFilters.keyword,
+      status: urlState.status || urlFilters.status,
+    });
     actionRef.current?.reload();
-    if (urlFilters.status) {
-      formRef.current?.setFieldsValue?.({ status: urlFilters.status });
-    }
-  }, [location.search]);
+  }, [
+    location.search,
+    urlFilters.keyword,
+    urlFilters.status,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.status,
+  ]);
 
   const columns: ProColumns<ProductListRow>[] = [
     {
@@ -312,12 +357,13 @@ export default function ProductDraftsPage() {
         urlFilters.missingAiDescription ||
         urlFilters.readinessBlocked ||
         urlFilters.publishable ||
-        urlFilters.status) && (
+        urlFilters.status ||
+        urlFilters.navSource) && (
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 12 }}
-          message="已从运营看板带入列表筛选（只影响本页查询，不写库）。"
+          message="已从运营看板或深链带入列表筛选（只影响本页查询，不写库）。"
         />
       )}
       <ProTable<ProductListRow>
@@ -325,6 +371,11 @@ export default function ProductDraftsPage() {
         locale={emptyLocale}
         actionRef={actionRef}
         formRef={formRef}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(DRAFT_QUERY_KEYS, { replace: true });
+        }}
         rowSelection={{
           type: 'checkbox',
           selectedRowKeys,
@@ -344,7 +395,19 @@ export default function ProductDraftsPage() {
         )}
         columns={columns}
         search={{ labelWidth: 'auto' }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         options={{ reload: true, density: true, setting: true }}
         headerTitle={false}
         toolBarRender={() => [
@@ -441,13 +504,51 @@ export default function ProductDraftsPage() {
             source: params.source as string | undefined,
             operationStep: params.operationStep as string | undefined,
           });
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            keyword: (params.keyword as string | undefined)?.trim(),
+            status: urlFilters.status || (params.status as string | undefined)?.trim(),
+            source: (params.source as string | undefined)?.trim(),
+            operationStep: (params.operationStep as string | undefined)?.trim(),
+          };
+          const nextAiStatus = urlFilters.missingAiTitle
+            ? 'missing_title'
+            : urlFilters.missingAiDescription
+              ? 'missing_description'
+              : undefined;
+          const nextPublishStatus = urlFilters.readinessBlocked
+            ? 'blocked'
+            : urlFilters.publishable
+              ? 'publishable'
+              : qp.status === 'published'
+                ? 'published'
+                : undefined;
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              status: qp.status,
+              platform: urlState.platform || urlFilters.platform,
+              shopId: urlState.shopId || urlFilters.shopId,
+              publishStatus: nextPublishStatus,
+              aiStatus: nextAiStatus,
+              source: urlState.source || urlFilters.navSource,
+              missingAiTitle: urlFilters.missingAiTitle ? '1' : undefined,
+              missingAiDescription: urlFilters.missingAiDescription ? '1' : undefined,
+              readiness: urlFilters.readinessBlocked ? 'blocked' : undefined,
+              publishable: urlFilters.publishable ? '1' : undefined,
+            },
+            { replace: true },
+          );
           const res = await fetchProducts({
-            page: params.current,
-            pageSize: params.pageSize,
-            status: urlFilters.status || (params.status as string | undefined),
-            source: params.source as string | undefined,
-            keyword: params.keyword as string | undefined,
-            operationStep: params.operationStep as string | undefined,
+            page: qp.page,
+            pageSize: qp.pageSize,
+            status: qp.status,
+            source: qp.source,
+            keyword: qp.keyword,
+            operationStep: qp.operationStep,
             missingAiTitle: urlFilters.missingAiTitle || undefined,
             missingAiDescription: urlFilters.missingAiDescription || undefined,
             readinessBlocked: urlFilters.readinessBlocked || undefined,

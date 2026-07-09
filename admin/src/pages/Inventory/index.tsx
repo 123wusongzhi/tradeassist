@@ -14,8 +14,24 @@ import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { queryInventoryCenter, type InventoryCenterRow } from '@/services/inventory';
 import { Space, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useLocation } from '@umijs/max';
-import { useEffect, useMemo, useRef } from 'react';
+import { Link } from '@umijs/max';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { parsePositiveInt } from '@/utils/urlState';
+
+const INVENTORY_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'stockStatus',
+  'syncStatus',
+  'skuBindStatus',
+  'platform',
+  'shopId',
+  'productSkuId',
+  'source',
+  'skuId',
+] as const;
 
 function tagFrom(raw: string, map: Record<string, { text: string; color: string }>) {
   const cfg = inventoryTagFromMap(raw, map);
@@ -26,19 +42,43 @@ export default function InventoryCenterPage() {
   const emptyLocale = useListEmptyLocale('inventoryCenter', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof INVENTORY_QUERY_KEYS)[number], string | undefined>>(
+      INVENTORY_QUERY_KEYS,
+    );
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
 
   const skuIdFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('skuId')?.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [location.search]);
+    return urlState.productSkuId || urlState.skuId;
+  }, [urlState.productSkuId, urlState.skuId]);
+
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      stockStatus: urlState.stockStatus,
+      syncStatus: urlState.syncStatus,
+      skuBindStatus: urlState.skuBindStatus,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      productSkuId: skuIdFromUrl,
+    });
+  }, [
+    skuIdFromUrl,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+    urlState.skuBindStatus,
+    urlState.stockStatus,
+    urlState.syncStatus,
+  ]);
 
   useEffect(() => {
     if (!skuIdFromUrl) return;
-    formRef.current?.setFieldsValue?.({ productSkuId: skuIdFromUrl });
     actionRef.current?.reload?.();
   }, [skuIdFromUrl]);
 
@@ -194,21 +234,65 @@ export default function InventoryCenterPage() {
         columns={columns}
         scroll={{ x: 1500 }}
         search={{ labelWidth: 100, defaultCollapsed: false }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(INVENTORY_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         locale={emptyLocale}
         request={async (params) => {
           try {
+            const qp = {
+              keyword: (params.keyword as string | undefined)?.trim(),
+              productSkuId:
+                (params.productSkuId as string | undefined)?.trim() || skuIdFromUrl,
+              shopId: (params.shopId as string | undefined)?.trim(),
+              platform: (params.platform as string | undefined)?.trim(),
+              stockStatus: (params.stockStatus as string | undefined)?.trim(),
+              skuBindStatus: (params.skuBindStatus as string | undefined)?.trim(),
+              syncStatus: (params.syncStatus as string | undefined)?.trim(),
+              page: params.current ?? tablePage,
+              pageSize: params.pageSize ?? tablePageSize,
+            };
+            setUrlState(
+              {
+                page: Number(qp.page) > 1 ? qp.page : undefined,
+                pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                keyword: qp.keyword,
+                productSkuId: qp.productSkuId,
+                shopId: qp.shopId,
+                platform: qp.platform,
+                stockStatus: qp.stockStatus,
+                skuBindStatus: qp.skuBindStatus,
+                syncStatus: qp.syncStatus,
+                source: urlState.source,
+              },
+              { replace: true },
+            );
             const res = await queryInventoryCenter({
-              keyword: (params.keyword as string) || undefined,
-              productSkuId: (params.productSkuId as string) || skuIdFromUrl,
-              shopId: (params.shopId as string) || undefined,
-              platform: (params.platform as string) || undefined,
-              stockStatus: (params.stockStatus as string) || undefined,
-              skuBindStatus: (params.skuBindStatus as string) || undefined,
-              syncStatus: (params.syncStatus as string) || undefined,
+              keyword: qp.keyword,
+              productSkuId: qp.productSkuId,
+              shopId: qp.shopId,
+              platform: qp.platform,
+              stockStatus: qp.stockStatus,
+              skuBindStatus: qp.skuBindStatus,
+              syncStatus: qp.syncStatus,
               hasException: params.hasException === 'true' || params.hasException === true,
-              page: params.current,
-              pageSize: params.pageSize,
+              page: qp.page,
+              pageSize: qp.pageSize,
             });
             return { data: res.list ?? [], success: true, total: res.pagination?.total ?? 0 };
           } catch (e: unknown) {

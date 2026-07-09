@@ -1,12 +1,14 @@
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
 import { history, useLocation } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { parsePositiveInt } from '@/utils/urlState';
 import {
   CUSTOMER_CONVERSATION_STATUS,
   CUSTOMER_SEND_STATUS,
@@ -21,6 +23,46 @@ import {
 } from '@/services/customer';
 import { queryShops } from '@/services/shops';
 
+const CONVERSATION_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'replyStatus',
+  'aiSuggestionStatus',
+  'sendStatus',
+  'platform',
+  'shopId',
+  'conversationId',
+  'suggestionId',
+  'drawer',
+  'source',
+  'pendingReply',
+  'hasAiSuggestion',
+  'sendFailed',
+  'hasOrder',
+  'status',
+] as const;
+
+function readConversationLegacyFilters(search: string) {
+  const sp = new URLSearchParams(search);
+  const replyStatus = sp.get('replyStatus')?.trim();
+  const aiSuggestionStatus = sp.get('aiSuggestionStatus')?.trim();
+  const sendStatus = sp.get('sendStatus')?.trim();
+  return {
+    pendingReply:
+      sp.get('pendingReply') === '1' ||
+      replyStatus === 'pending' ||
+      sp.get('status') === 'pending_reply',
+    hasAiSuggestion:
+      sp.get('hasAiSuggestion') === '1' ||
+      aiSuggestionStatus === 'pending',
+    sendFailed: sp.get('sendFailed') === '1' || sendStatus === 'failed',
+    hasOrder: sp.get('hasOrder') === '1',
+    conversationId: sp.get('conversationId')?.trim(),
+    suggestionId: sp.get('suggestionId')?.trim(),
+  };
+}
+
 function tagFrom(raw: string | undefined, map: Record<string, { text: string; color: string }>) {
   const k = (raw || '').trim();
   if (!k) return '—';
@@ -30,7 +72,18 @@ function tagFrom(raw: string | undefined, map: Record<string, { text: string; co
 
 export default function CustomerConversationsPage() {
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof CONVERSATION_QUERY_KEYS)[number], string | undefined>>(
+      CONVERSATION_QUERY_KEYS,
+    );
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const legacyFilters = useMemo(
+    () => readConversationLegacyFilters(location.search),
+    [location.search],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const emptyLocale = useListEmptyLocale('customerConversations', {
     permissionScoped: true,
@@ -40,15 +93,40 @@ export default function CustomerConversationsPage() {
   const [pullOpen, setPullOpen] = useState(false);
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
 
-  const urlFilters = useMemo(() => {
-    const q = new URLSearchParams(location.search || '');
-    return {
-      pendingReply: q.get('pendingReply') === '1',
-      hasAiSuggestion: q.get('hasAiSuggestion') === '1',
-      sendFailed: q.get('sendFailed') === '1',
-      hasOrder: q.get('hasOrder') === '1',
-    };
-  }, [location.search]);
+  const urlFilters = legacyFilters;
+
+  useEffect(() => {
+    const cid = legacyFilters.conversationId;
+    if (!cid) return;
+    const sp = new URLSearchParams(location.search);
+    sp.delete('conversationId');
+    const qs = sp.toString();
+    history.replace(qs ? `/customer/conversations/${cid}?${qs}` : `/customer/conversations/${cid}`);
+  }, [legacyFilters.conversationId, location.search]);
+
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      pendingReply: urlFilters.pendingReply ? 'true' : undefined,
+      hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
+      sendFailed: urlFilters.sendFailed ? 'true' : undefined,
+      hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+    });
+  }, [
+    urlFilters.hasAiSuggestion,
+    urlFilters.hasOrder,
+    urlFilters.pendingReply,
+    urlFilters.sendFailed,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -203,7 +281,19 @@ export default function CustomerConversationsPage() {
       valueType: 'option',
       width: 160,
       render: (_, row) => [
-        <Typography.Link key="open" onClick={() => history.push(`/customer/conversations/${row.id}`)}>
+        <Typography.Link
+          key="open"
+          onClick={() => {
+            const sp = new URLSearchParams(location.search);
+            sp.delete('conversationId');
+            const qs = sp.toString();
+            history.push(
+              qs
+                ? `/customer/conversations/${row.id}?${qs}`
+                : `/customer/conversations/${row.id}`,
+            );
+          }}
+        >
           查看会话
         </Typography.Link>,
         row.openFailureCount ? (
@@ -223,9 +313,27 @@ export default function CustomerConversationsPage() {
       <ProTable<ConversationRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto' }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(CONVERSATION_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         form={{
           initialValues: {
             pendingReply: urlFilters.pendingReply ? 'true' : undefined,
@@ -247,18 +355,55 @@ export default function CustomerConversationsPage() {
           </Button>,
         ]}
         request={async (params) => {
-          const res = await queryConversations({
-            page: params.current,
-            pageSize: params.pageSize,
-            platform: params.platform as string | undefined,
-            status: params.status as string | undefined,
-            shopId: params.shopId as string | undefined,
-            customerName: params.customerName as string | undefined,
-            keyword: params.keyword as string | undefined,
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            keyword: (params.keyword as string | undefined)?.trim(),
             pendingReply: params.pendingReply as boolean | string | undefined,
             hasAiSuggestion: params.hasAiSuggestion as boolean | string | undefined,
             sendFailed: params.sendFailed as boolean | string | undefined,
             hasOrder: params.hasOrder as boolean | string | undefined,
+          };
+          const replyStatus =
+            qp.pendingReply === 'true' || qp.pendingReply === true ? 'pending' : undefined;
+          const aiSuggestionStatus =
+            qp.hasAiSuggestion === 'true' || qp.hasAiSuggestion === true ? 'pending' : undefined;
+          const sendStatus =
+            qp.sendFailed === 'true' || qp.sendFailed === true ? 'failed' : undefined;
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              replyStatus,
+              aiSuggestionStatus,
+              sendStatus,
+              pendingReply: replyStatus ? '1' : undefined,
+              hasAiSuggestion: aiSuggestionStatus ? '1' : undefined,
+              sendFailed: sendStatus ? '1' : undefined,
+              hasOrder:
+                qp.hasOrder === 'true' || qp.hasOrder === true ? '1' : undefined,
+              suggestionId: urlState.suggestionId || legacyFilters.suggestionId,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
+          const res = await queryConversations({
+            page: qp.page,
+            pageSize: qp.pageSize,
+            platform: qp.platform,
+            status: params.status as string | undefined,
+            shopId: qp.shopId,
+            customerName: params.customerName as string | undefined,
+            keyword: qp.keyword,
+            pendingReply: qp.pendingReply,
+            hasAiSuggestion: qp.hasAiSuggestion,
+            sendFailed: qp.sendFailed,
+            hasOrder: qp.hasOrder,
           });
           return {
             data: res.list,

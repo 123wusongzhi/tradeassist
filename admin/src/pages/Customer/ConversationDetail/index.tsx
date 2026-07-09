@@ -181,6 +181,11 @@ export default function CustomerConversationDetailPage() {
     loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    const sid = searchParams.get('suggestionId')?.trim();
+    if (sid) setSuggestionId(sid);
+  }, [searchParams]);
+
   const customerMessageOptions = useMemo(() => {
     return msgs.filter((x) => x.role === 'customer').map((m) => ({ label: m.content.slice(0, 48) + (m.content.length > 48 ? '…' : ''), value: m.id }));
   }, [msgs]);
@@ -317,7 +322,7 @@ export default function CustomerConversationDetailPage() {
   const readOnly = conv?.canWrite === false;
 
   return (
-    <TmPageContainer title="AI 客服工作台" onBack={() => history.push('/customer/conversations')}>
+    <TmPageContainer title="AI 客服工作台" onBack={() => history.goBack()}>
       <Spin spinning={loading}>
         {conv && (
           <>
