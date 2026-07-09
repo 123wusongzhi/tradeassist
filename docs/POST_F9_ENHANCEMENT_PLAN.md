@@ -81,6 +81,19 @@ Third batch (**completed**):
 
 **未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
 
+## H1.4 订单/异常 URL 补漏 + Keyword UX（Completed）
+
+| Scope | Result |
+| --- | --- |
+| `/orders/list` URL | `status`, `fulfillmentStatus`, `start`/`end` (created range) |
+| `/orders/exceptions` URL | `severity`, `start`/`end` (created range) |
+| Keyword UX | max 80 chars, sensitive hint, clear → URL cleanup |
+| Browser back/forward | passed_with_warning (real browser manual review) |
+| Responsive 1366/1024 | passed / passed_with_warning |
+| Reports | [`H1_4_URL_KEYWORD_RESPONSIVE_CHECK.md`](H1_4_URL_KEYWORD_RESPONSIVE_CHECK.md), [`h1-4-url-keyword-responsive-check.json`](h1-4-url-keyword-responsive-check.json) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
 ## Completion Rules
 
 - URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.

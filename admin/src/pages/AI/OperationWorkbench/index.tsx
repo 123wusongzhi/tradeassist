@@ -46,6 +46,13 @@ import { queryShops, type ShopListRow } from '@/services/shops';
 import { formatDateTime } from '@/utils/formatTime';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlDrawerState, useUrlQueryState } from '@/hooks/useUrlState';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import {
+  KEYWORD_MAX_LENGTH,
+  KEYWORD_TOO_LONG_MESSAGE,
+  looksLikeSensitiveKeyword,
+  normalizeSearchKeyword,
+} from '@/utils/keywordSafety';
 
 const { RangePicker } = DatePicker;
 
@@ -108,6 +115,7 @@ export default function AIOperationWorkbenchPage() {
   const [filterPlatform, setFilterPlatform] = useState<string>();
   const [filterShopId, setFilterShopId] = useState<string>();
   const [filterKeyword, setFilterKeyword] = useState<string>();
+  const [keywordSensitive, setKeywordSensitive] = useState(false);
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(50);
@@ -125,6 +133,7 @@ export default function AIOperationWorkbenchPage() {
     setFilterPlatform(urlState.platform);
     setFilterShopId(urlState.shopId);
     setFilterKeyword(urlState.keyword);
+    setKeywordSensitive(looksLikeSensitiveKeyword(urlState.keyword));
     setDateRange(parseRange(urlState.start, urlState.end));
     setTablePage(parsePositiveInt(urlState.page, 1));
     setTablePageSize(parsePositiveInt(urlState.pageSize, 50));
@@ -147,7 +156,11 @@ export default function AIOperationWorkbenchPage() {
         priority: filterPriority,
         platform: filterPlatform,
         shopId: filterShopId,
-        keyword: filterKeyword?.trim() || undefined,
+        keyword: (() => {
+          const { value, truncated } = normalizeSearchKeyword(filterKeyword);
+          if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+          return value;
+        })(),
         start: dateRange?.[0] ? dateRange[0].startOf('day').toISOString() : undefined,
         end: dateRange?.[1] ? dateRange[1].endOf('day').toISOString() : undefined,
         page: tablePage > 1 ? tablePage : undefined,
@@ -173,7 +186,11 @@ export default function AIOperationWorkbenchPage() {
       priority: filterPriority,
       platform: filterPlatform,
       shopId: filterShopId,
-      keyword: filterKeyword?.trim() || undefined,
+      keyword: (() => {
+        const { value, truncated } = normalizeSearchKeyword(filterKeyword);
+        if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+        return value;
+      })(),
     };
     if (dateRange?.[0]) {
       params.start = dateRange[0].startOf('day').toISOString();
@@ -344,6 +361,7 @@ export default function AIOperationWorkbenchPage() {
         </Space>
       }
     >
+      <KeywordSafetyHint visible={keywordSensitive} />
       <Row gutter={[16, 16]} style={{ marginBottom: layoutTokens.sectionGap }}>
         {WORKBENCH_SUMMARY_CARDS.map((card) => {
           const count = summary ? Number(summary[card.key as keyof WorkbenchSummary] ?? 0) : 0;
@@ -458,11 +476,25 @@ export default function AIOperationWorkbenchPage() {
           <Col xs={24} sm={12} md={8} lg={6}>
             <Input.Search
               allowClear
+              maxLength={KEYWORD_MAX_LENGTH}
               value={filterKeyword}
               placeholder="商品关键词"
-              onChange={(e) => setFilterKeyword(e.target.value)}
+              onChange={(e) => {
+                setFilterKeyword(e.target.value);
+                setKeywordSensitive(looksLikeSensitiveKeyword(e.target.value));
+              }}
+              onClear={() => {
+                setFilterKeyword(undefined);
+                setKeywordSensitive(false);
+                setTablePage(1);
+                setUrlState({ keyword: undefined, page: undefined }, { replace: true });
+                tableRef.current?.reload();
+              }}
               onSearch={(v) => {
-                setFilterKeyword(v);
+                const { value, truncated } = normalizeSearchKeyword(v);
+                if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+                setFilterKeyword(value);
+                setKeywordSensitive(looksLikeSensitiveKeyword(value));
                 setTablePage(1);
                 tableRef.current?.reload();
               }}

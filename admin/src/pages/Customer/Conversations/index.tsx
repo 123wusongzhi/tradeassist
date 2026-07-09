@@ -8,6 +8,8 @@ import { Button, Tag, Typography, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { parsePositiveInt } from '@/utils/urlState';
 import {
   CUSTOMER_CONVERSATION_STATUS,
@@ -80,6 +82,16 @@ export default function CustomerConversationsPage() {
     );
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const legacyFilters = useMemo(
     () => readConversationLegacyFilters(location.search),
     [location.search],
@@ -144,12 +156,13 @@ export default function CustomerConversationsPage() {
     })();
   }, []);
 
-  const columns: ProColumns<ConversationRow>[] = [
+  const columns: ProColumns<ConversationRow>[] = useMemo(
+    () => [
     {
       title: '关键词',
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '买家 / 会话 ID / 订单' },
+      fieldProps: { placeholder: '买家 / 会话 ID / 订单', ...keywordFieldProps },
     },
     {
       title: '待回复',
@@ -306,10 +319,13 @@ export default function CustomerConversationsPage() {
         ) : null,
       ],
     },
-  ];
+  ],
+    [keywordFieldProps, location.search],
+  );
 
   return (
     <TmPageContainer title="会话列表" subTitle="所有回复需人工确认；系统不会自动发送消息。">
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<ConversationRow>
         rowKey="id"
         actionRef={actionRef}
@@ -360,7 +376,7 @@ export default function CustomerConversationsPage() {
             pageSize: params.pageSize ?? tablePageSize,
             platform: (params.platform as string | undefined)?.trim(),
             shopId: (params.shopId as string | undefined)?.trim(),
-            keyword: (params.keyword as string | undefined)?.trim(),
+            keyword: prepareKeyword(params.keyword),
             pendingReply: params.pendingReply as boolean | string | undefined,
             hasAiSuggestion: params.hasAiSuggestion as boolean | string | undefined,
             sendFailed: params.sendFailed as boolean | string | undefined,

@@ -41,6 +41,13 @@ timeRange
 payStatus
 skuStatus
 inventoryStatus
+fulfillmentStatus
+dateFrom
+dateTo
+createdFrom
+createdTo
+updatedFrom
+updatedTo
 exceptionType
 publishStatus
 aiStatus
@@ -118,11 +125,27 @@ Persisted: task type, normalized status, failure category, recovery status, seve
 
 ### `/orders/list` (`/orders` redirect)
 
-Persisted: `keyword`, `payStatus`, `skuStatus`, `inventoryStatus`, `platform`, `shopId`, `page`, `pageSize`, `source`. Legacy `jumpOrder` redirects to order detail. Form fields map: `paymentStatus` ↔ `payStatus`, `skuMatchStatus` ↔ `skuStatus`, `inventoryDeductStatus` ↔ `inventoryStatus`.
+Persisted: `keyword`, `payStatus`, `skuStatus`, `inventoryStatus`, **`status`**, **`fulfillmentStatus`**, **`start` / `end`** (created date range; semantic alias `dateFrom` / `dateTo`), `platform`, `shopId`, `page`, `pageSize`, `source`. Legacy `jumpOrder` redirects to order detail. Form fields map: `paymentStatus` ↔ `payStatus`, `skuMatchStatus` ↔ `skuStatus`, `inventoryDeductStatus` ↔ `inventoryStatus`, `createdAt` range ↔ `start` / `end`.
 
 ### `/orders/exceptions`
 
-Persisted: `keyword`, `exceptionType`, `platform`, `shopId`, `status`, `page`, `pageSize`, `source`. Legacy `orderId` deep link from order detail (with `source=order_detail`) remains supported.
+Persisted: `keyword`, `exceptionType`, **`severity`**, `platform`, `shopId`, `status`, **`start` / `end`** (created date range), `page`, `pageSize`, `source`. Legacy `orderId` deep link from order detail (with `source=order_detail`) remains supported.
+
+## Keyword UX (H1.4)
+
+Shared utilities:
+
+- `admin/src/utils/keywordSafety.ts` — max length 80, sensitive-pattern hint (no logging)
+- `admin/src/components/common/KeywordSafetyHint.tsx`
+- `admin/src/hooks/useKeywordSearchField.ts` — `allowClear` + URL `keyword` / `page` cleanup
+
+Applied on: orders, order exceptions, product drafts, inventory, inventory alerts, customer conversations, task-center failures, AI operation workbench.
+
+Rules:
+
+- Truncate or warn when keyword exceeds 80 characters.
+- Show lightweight Alert when keyword resembles phone / email / ID / token / secret; do not block search.
+- Clearing keyword removes `keyword` from URL and resets `page` to 1; other filters remain.
 
 ### `/product/drafts`
 

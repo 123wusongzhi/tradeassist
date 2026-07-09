@@ -22,6 +22,8 @@ import { batchCheckProductReadiness, type ProductReadinessResult } from '@/servi
 import { queryShops, type ShopListRow } from '@/services/shops';
 import PricingApplyModal from '@/components/PricingApplyModal';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { normalizeSource, parsePositiveInt } from '@/utils/urlState';
 
 const DRAFT_QUERY_KEYS = [
@@ -91,6 +93,16 @@ export default function ProductDraftsPage() {
 
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -125,7 +137,8 @@ export default function ProductDraftsPage() {
     urlState.status,
   ]);
 
-  const columns: ProColumns<ProductListRow>[] = [
+  const columns: ProColumns<ProductListRow>[] = useMemo(
+    () => [
     {
       title: '商品图',
       dataIndex: 'coverUrl',
@@ -142,7 +155,7 @@ export default function ProductDraftsPage() {
       title: '标题',
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '搜索标题' },
+      fieldProps: { placeholder: '搜索标题', ...keywordFieldProps },
       search: {
         transform: (v) => ({ keyword: v }),
       },
@@ -235,7 +248,9 @@ export default function ProductDraftsPage() {
         </Typography.Link>,
       ],
     },
-  ];
+  ],
+    [keywordFieldProps],
+  );
 
   const eligibleBatchPlatforms = ['tiktok', 'shopee', 'lazada', 'amazon', 'mock'];
 
@@ -368,6 +383,7 @@ export default function ProductDraftsPage() {
           message="已从运营看板或深链带入列表筛选（只影响本页查询，不写库）。"
         />
       )}
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<ProductListRow>
         rowKey="id"
         locale={emptyLocale}
@@ -509,7 +525,7 @@ export default function ProductDraftsPage() {
           const qp = {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
-            keyword: (params.keyword as string | undefined)?.trim(),
+            keyword: prepareKeyword(params.keyword),
             status: urlFilters.status || (params.status as string | undefined)?.trim(),
             source: (params.source as string | undefined)?.trim(),
             operationStep: (params.operationStep as string | undefined)?.trim(),

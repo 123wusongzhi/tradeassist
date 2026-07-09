@@ -17,6 +17,8 @@ import { formatDateTime } from '@/utils/formatTime';
 import { Link } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { parsePositiveInt } from '@/utils/urlState';
 
 const INVENTORY_QUERY_KEYS = [
@@ -48,6 +50,16 @@ export default function InventoryCenterPage() {
     );
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
 
   const skuIdFromUrl = useMemo(() => {
     return urlState.productSkuId || urlState.skuId;
@@ -88,7 +100,7 @@ export default function InventoryCenterPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '商品标题 / 规格编码 / 名称' },
+        fieldProps: { placeholder: '商品标题 / 规格编码 / 名称', ...keywordFieldProps },
       },
       { title: '规格 ID', dataIndex: 'productSkuId', hideInTable: true },
       { title: '店铺 ID', dataIndex: 'shopId', hideInTable: true },
@@ -214,7 +226,7 @@ export default function InventoryCenterPage() {
         ),
       },
     ],
-    [],
+    [keywordFieldProps],
   );
 
   return (
@@ -223,6 +235,7 @@ export default function InventoryCenterPage() {
       subTitle="查看本地库存、SKU 绑定与平台同步状态；不自动同步、不自动补货。"
     >
       <InventorySyncDisabledBanner />
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <Typography.Paragraph type="secondary">
         {INVENTORY_SKU_NOT_BOUND_MESSAGE}{' '}
         {INVENTORY_SKU_AMBIGUOUS_MESSAGE}
@@ -256,7 +269,7 @@ export default function InventoryCenterPage() {
         request={async (params) => {
           try {
             const qp = {
-              keyword: (params.keyword as string | undefined)?.trim(),
+              keyword: prepareKeyword(params.keyword),
               productSkuId:
                 (params.productSkuId as string | undefined)?.trim() || skuIdFromUrl,
               shopId: (params.shopId as string | undefined)?.trim(),

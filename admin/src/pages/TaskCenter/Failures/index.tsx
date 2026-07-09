@@ -58,6 +58,8 @@ import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/servic
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
 import { resolveTaobaoTmallLoginTargetUrl } from '@/utils/taobaoTmallUrl';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { appendSourceToUrl } from '@/utils/urlState';
 
 const FAILURE_QUERY_KEYS = [
@@ -170,6 +172,16 @@ export default function TaskCenterFailuresPage() {
   const [includeMarked, setIncludeMarked] = useState(false);
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [failureCatOpts, setFailureCatOpts] = useState<{ label: string; value: string }[]>([]);
   const [summary, setSummary] = useState<FailuresSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -432,6 +444,7 @@ export default function TaskCenterFailuresPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
+        fieldProps: keywordFieldProps,
       },
       {
         title: '创建时间',
@@ -561,7 +574,7 @@ export default function TaskCenterFailuresPage() {
         ),
       },
     ],
-    [failureCatOpts],
+    [failureCatOpts, keywordFieldProps],
   );
 
   async function doGenerateAlert(row: UnifiedTaskDTO) {
@@ -661,6 +674,7 @@ export default function TaskCenterFailuresPage() {
           message="抖店相关失败"
           description="刊登、图片上传、创建草稿、订单同步、库存同步、规格绑定失败会聚合到本页。错误信息已脱敏，不含授权凭证或应用密钥。抖店授权/类目/图片/规格未绑定类问题请按提示回到对应页面处理后再重试。"
         />
+        <KeywordSafetyHint visible={showSensitiveHint} />
         <ProCard variant="outlined" size="small">
           {summary ? (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -857,7 +871,7 @@ export default function TaskCenterFailuresPage() {
           tableAlertRender={false}
           locale={emptyLocale}
           request={async (params, sort, filter) => {
-            const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
+            const kw = prepareKeyword(params.keyword) ?? '';
             try {
               const qp: Record<string, string | number | undefined> = {
                 page: params.current ?? tablePage,

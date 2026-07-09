@@ -1,4 +1,5 @@
 import { history } from '@umijs/max';
+import dayjs, { type Dayjs } from 'dayjs';
 
 export type UrlStateValue = string | number | boolean | null | undefined;
 export type UrlState = Record<string, UrlStateValue>;
@@ -31,6 +32,13 @@ const ALLOWED_QUERY_KEYS = new Set([
   'payStatus',
   'skuStatus',
   'inventoryStatus',
+  'fulfillmentStatus',
+  'dateFrom',
+  'dateTo',
+  'createdFrom',
+  'createdTo',
+  'updatedFrom',
+  'updatedTo',
   'exceptionType',
   'publishStatus',
   'aiStatus',
@@ -75,6 +83,22 @@ export const URL_SOURCE_VALUES = new Set([
 export function parsePositiveInt(value?: string, fallback = 1) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+/** Parse ISO date range from URL `start`/`end` (or legacy `dateFrom`/`dateTo`) for ProTable dateTimeRange fields. */
+export function queryTimeRange(
+  start?: string,
+  end?: string,
+  dateFrom?: string,
+  dateTo?: string,
+): [Dayjs, Dayjs] | undefined {
+  const sRaw = start || dateFrom;
+  const eRaw = end || dateTo;
+  if (!sRaw || !eRaw) return undefined;
+  const s = dayjs(sRaw);
+  const e = dayjs(eRaw);
+  if (!s.isValid() || !e.isValid()) return undefined;
+  return [s, e];
 }
 
 export function normalizeSource(value?: string) {

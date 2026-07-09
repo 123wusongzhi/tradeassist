@@ -40,7 +40,9 @@ import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products
 import { queryShops } from '@/services/shops';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
-import { appendSourceToUrl, parsePositiveInt } from '@/utils/urlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
 
 const EXCEPTION_QUERY_KEYS = [
   'page',
@@ -50,8 +52,11 @@ const EXCEPTION_QUERY_KEYS = [
   'platform',
   'shopId',
   'status',
+  'severity',
   'source',
   'orderId',
+  'start',
+  'end',
 ] as const;
 
 const EX_TYPES: Record<string, { text: string }> = {
@@ -139,12 +144,22 @@ export default function OrderExceptionsPage() {
   const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof EXCEPTION_QUERY_KEYS)[number], string | undefined>>(
       EXCEPTION_QUERY_KEYS,
     );
-  const [tablePage, setTablePage] = useState(1);
-  const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [summary, setSummary] = useState<OrderExceptionSummary | null>(null);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
 
@@ -184,17 +199,22 @@ export default function OrderExceptionsPage() {
       platform: urlState.platform,
       shopId: urlState.shopId,
       status: urlState.status,
+      severity: urlState.severity,
       orderId: urlState.orderId,
+      createdAt: queryTimeRange(urlState.start, urlState.end),
     });
     actionRef.current?.reload();
   }, [
+    urlState.end,
     urlState.exceptionType,
     urlState.keyword,
     urlState.orderId,
     urlState.page,
     urlState.pageSize,
     urlState.platform,
+    urlState.severity,
     urlState.shopId,
+    urlState.start,
     urlState.status,
   ]);
 
@@ -337,6 +357,7 @@ export default function OrderExceptionsPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
+        fieldProps: keywordFieldProps,
       },
       {
         title: '店铺',
@@ -552,7 +573,7 @@ export default function OrderExceptionsPage() {
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind],
+    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
   );
 
   return (
@@ -564,6 +585,7 @@ export default function OrderExceptionsPage() {
         聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
         抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。
       </Typography.Paragraph>
+      <KeywordSafetyHint visible={showSensitiveHint} />
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={12} md={8} lg={4}>
@@ -635,10 +657,11 @@ export default function OrderExceptionsPage() {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
             exceptionType: (params.exceptionType as string | undefined)?.trim(),
+            severity: (params.severity as string | undefined)?.trim(),
             platform: (params.platform as string | undefined)?.trim(),
             shopId: (params.shopId as string | undefined)?.trim(),
             orderId: (params.orderId as string | undefined)?.trim(),
-            keyword: (params.keyword as string | undefined)?.trim(),
+            keyword: prepareKeyword(params.keyword),
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
           };
@@ -648,10 +671,13 @@ export default function OrderExceptionsPage() {
               pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
               keyword: qp.keyword,
               exceptionType: qp.exceptionType,
+              severity: qp.severity,
               platform: qp.platform,
               shopId: qp.shopId,
               status: st,
               orderId: qp.orderId,
+              start: qp.start,
+              end: qp.end,
               source: urlState.source,
             },
             { replace: true },
@@ -661,7 +687,7 @@ export default function OrderExceptionsPage() {
             page: qp.page,
             pageSize: qp.pageSize,
             exceptionType: qp.exceptionType,
-            severity: params.severity as string | undefined,
+            severity: qp.severity,
             platform: qp.platform,
             shopId: qp.shopId,
             orderId: qp.orderId,

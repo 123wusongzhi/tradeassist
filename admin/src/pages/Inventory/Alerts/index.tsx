@@ -21,6 +21,8 @@ import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { parsePositiveInt } from '@/utils/urlState';
 
 const ALERT_QUERY_KEYS = [
@@ -105,6 +107,16 @@ export default function InventoryAlertsPage() {
     useUrlQueryState<Record<(typeof ALERT_QUERY_KEYS)[number], string | undefined>>(ALERT_QUERY_KEYS);
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef: searchFormRef,
+    actionRef,
+    setTablePage,
+  });
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkIncludeLocalAlerts, setBulkIncludeLocalAlerts] = useState(false);
@@ -192,7 +204,7 @@ export default function InventoryAlertsPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '标题 / 规格编码 / 名称' },
+        fieldProps: { placeholder: '标题 / 规格编码 / 名称', ...keywordFieldProps },
       },
       {
         title: '平台',
@@ -424,11 +436,12 @@ export default function InventoryAlertsPage() {
         ),
       },
     ],
-    [adjustForm, settingsForm],
+    [adjustForm, settingsForm, keywordFieldProps],
   );
 
   return (
     <TmPageContainer title="库存预警" subTitle="查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。">
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
@@ -548,7 +561,7 @@ export default function InventoryAlertsPage() {
           void filter;
           try {
             const qp = {
-              keyword: (params.keyword as string | undefined)?.trim(),
+              keyword: prepareKeyword(params.keyword),
               platform: (params.platform as string | undefined)?.trim(),
               shopId: (params.shopId as string | undefined)?.trim(),
               alertType: (params.alertType as string | undefined)?.trim(),

@@ -12,8 +12,8 @@
 | P2-03 | 大批次刊登耗时提示 | 刊登 | |
 | P2-04 | 采集首次登录引导加强 | 采集 | |
 | P2-05 | AI 图片试跑 warning 收敛 | AI 图片 | H1.3 结构化码 + 批次/失败任务/配置状态联动 |
-| P2-06 | 工作台后退/刷新状态保持 | 工作台 | H1.2.1 browser check done |
-| P2-07 | 多分辨率截图验收 | 全局 | F9 manual |
+| P2-06 | 工作台后退/刷新状态保持 | 工作台 | H1.2.1 + **H1.4** orders/exceptions URL + keyword UX |
+| P2-07 | 多分辨率截图验收 | 全局 | H1.4 1366/1024 spot-check; F9 manual deferred |
 | P2-08 | Admin 内嵌文档中心 | 文档 | deferred |
 | P2-09 | 空状态进一步统一 | 全局 | F7 已大部分完成 |
 | P2-10 | Integrations 总览可读性 | 设置 | |

@@ -59,7 +59,9 @@ import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
 import { useUrlQueryState } from '@/hooks/useUrlState';
-import { appendSourceToUrl, parsePositiveInt } from '@/utils/urlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
 
 const ORDER_QUERY_KEYS = [
   'page',
@@ -68,9 +70,13 @@ const ORDER_QUERY_KEYS = [
   'payStatus',
   'skuStatus',
   'inventoryStatus',
+  'status',
+  'fulfillmentStatus',
   'platform',
   'shopId',
   'source',
+  'start',
+  'end',
   'jumpOrder',
 ] as const;
 
@@ -117,10 +123,20 @@ export default function OrdersPage() {
   const emptyLocale = useListEmptyLocale('orderList', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
-    useUrlQueryState<Record<(typeof ORDER_QUERY_KEYS)[number], string | undefined>>(ORDER_QUERY_KEYS);
   const [tablePage, setTablePage] = useState(1);
   const [tablePageSize, setTablePageSize] = useState(20);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof ORDER_QUERY_KEYS)[number], string | undefined>>(ORDER_QUERY_KEYS);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [editForm] = Form.useForm();
@@ -215,10 +231,14 @@ export default function OrdersPage() {
       paymentStatus: urlState.payStatus,
       skuMatchStatus: urlState.skuStatus,
       inventoryDeductStatus: urlState.inventoryStatus,
+      status: urlState.status,
+      fulfillmentStatus: urlState.fulfillmentStatus,
       platform: urlState.platform,
       shopId: urlState.shopId,
+      createdAt: queryTimeRange(urlState.start, urlState.end),
     });
   }, [
+    urlState.fulfillmentStatus,
     urlState.inventoryStatus,
     urlState.keyword,
     urlState.page,
@@ -227,6 +247,9 @@ export default function OrdersPage() {
     urlState.platform,
     urlState.shopId,
     urlState.skuStatus,
+    urlState.start,
+    urlState.end,
+    urlState.status,
   ]);
 
   useEffect(() => {
@@ -249,7 +272,7 @@ export default function OrdersPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '订单号 / 买家 / 平台单号' },
+        fieldProps: { placeholder: '订单号 / 买家 / 平台单号', ...keywordFieldProps },
       },
       { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 148 },
       {
@@ -457,7 +480,7 @@ export default function OrdersPage() {
         ),
       },
     ],
-    [shopOptions],
+    [shopOptions, keywordFieldProps],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -570,6 +593,7 @@ export default function OrdersPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.orderList.title} subTitle={PAGE_COPY.orderList.description}>
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<OrderListRow>
         rowKey="id"
         locale={emptyLocale}
@@ -627,13 +651,13 @@ export default function OrdersPage() {
           </ModalForm>,
         ]}
         request={async (params) => {
-          const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
+          const kw = prepareKeyword(params.keyword);
           const qp = {
             page: params.current ?? tablePage,
             pageSize: params.pageSize ?? tablePageSize,
             platform: (params.platform as string | undefined)?.trim(),
             shopId: (params.shopId as string | undefined)?.trim(),
-            keyword: kw || undefined,
+            keyword: kw,
             paymentStatus: (params.paymentStatus as string | undefined)?.trim(),
             skuMatchStatus: (params.skuMatchStatus as string | undefined)?.trim(),
             inventoryDeductStatus: (params.inventoryDeductStatus as string | undefined)?.trim(),
@@ -652,8 +676,12 @@ export default function OrdersPage() {
               payStatus: qp.paymentStatus,
               skuStatus: qp.skuMatchStatus,
               inventoryStatus: qp.inventoryDeductStatus,
+              status: qp.status,
+              fulfillmentStatus: qp.fulfillmentStatus,
               platform: qp.platform,
               shopId: qp.shopId,
+              start: qp.start,
+              end: qp.end,
               source: urlState.source,
             },
             { replace: true },
