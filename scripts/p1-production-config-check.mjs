@@ -54,6 +54,9 @@ else fail('config-demo-seed', 'production ENABLE_DEMO_SEED validation missing');
 if (validate.includes('CONFIG_INSECURE_DEFAULT')) pass('config-insecure-default', 'insecure default error code present');
 else fail('config-insecure-default', 'missing CONFIG_INSECURE_DEFAULT');
 
+if (validate.includes('validateStorageProvider')) pass('storage-validate-failfast', 'STORAGE_PROVIDER fail-fast in Validate()');
+else fail('storage-validate-failfast', 'validateStorageProvider missing in validate.go');
+
 // Storage local production
 const prodStatus = read('backend/internal/modules/configstatus/production_status.go');
 if (prodStatus.includes('AllowsLocalStorage')) pass('storage-local-boundary', 'local storage production boundary');

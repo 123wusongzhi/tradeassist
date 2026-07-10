@@ -136,6 +136,22 @@ type Config struct {
 	TaskAlertScanIntervalSeconds int
 	TaskAlertScanLookbackMinutes int
 	TaskAlertScanLockTTLSeconds  int
+
+	// StorageProvider is the fail-fast storage kind (STORAGE_PROVIDER env).
+	// Allowed: local, cos, oss, s3, r2, minio. staging/production must not use local.
+	StorageProvider string
+
+	// CORS production settings.
+	CORSAllowedOrigins   []string
+	CORSAllowedMethods   []string
+	CORSAllowedHeaders   []string
+	CORSExposedHeaders   []string
+	CORSAllowCredentials bool
+	CORSMaxAge           int
+
+	// Migration lock settings.
+	MigrationRunOnStartup       bool
+	MigrationLockTimeoutSeconds int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -278,6 +294,18 @@ func Load() (*Config, error) {
 		TaskAlertScanIntervalSeconds: atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_INTERVAL_SECONDS"), 60),
 		TaskAlertScanLookbackMinutes: atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_LOOKBACK_MINUTES"), 120),
 		TaskAlertScanLockTTLSeconds:  atoiOrDefault(os.Getenv("TASK_ALERT_SCAN_LOCK_TTL_SECONDS"), 120),
+
+		StorageProvider: strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("STORAGE_PROVIDER"), "local"))),
+
+		CORSAllowedOrigins:   splitCSV(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		CORSAllowedMethods:   splitCSV(os.Getenv("CORS_ALLOWED_METHODS")),
+		CORSAllowedHeaders:   splitCSV(os.Getenv("CORS_ALLOWED_HEADERS")),
+		CORSExposedHeaders:   splitCSV(os.Getenv("CORS_EXPOSED_HEADERS")),
+		CORSAllowCredentials: envBool(os.Getenv("CORS_ALLOW_CREDENTIALS"), true),
+		CORSMaxAge:           atoiOrDefault(os.Getenv("CORS_MAX_AGE"), 43200),
+
+		MigrationRunOnStartup:       envBool(os.Getenv("MIGRATION_RUN_ON_STARTUP"), true),
+		MigrationLockTimeoutSeconds: atoiOrDefault(os.Getenv("MIGRATION_LOCK_TIMEOUT_SECONDS"), 120),
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
@@ -399,4 +427,20 @@ func atoiOrError(s string, def int) (int, error) {
 		return 0, err
 	}
 	return n, nil
+}
+
+func splitCSV(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }

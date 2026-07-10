@@ -86,7 +86,14 @@ func main() {
 	}
 	defer func() { _ = database.Close(db) }()
 
-	if err := database.AutoMigrate(db); err != nil {
+	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second)
+	defer migrateCancel()
+	if cfg.MigrationRunOnStartup {
+		if err := database.RunMigrateWithLock(migrateCtx, db, time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second, database.AutoMigrate); err != nil {
+			log.Error("database_migrate_failed", "error", err)
+			os.Exit(1)
+		}
+	} else if err := database.AutoMigrate(db); err != nil {
 		log.Error("database_migrate_failed", "error", err)
 		os.Exit(1)
 	}
@@ -195,7 +202,7 @@ func main() {
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
-	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
+	engine.Use(middleware.CORS(cfg), middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc := api.Register(engine, &api.Deps{

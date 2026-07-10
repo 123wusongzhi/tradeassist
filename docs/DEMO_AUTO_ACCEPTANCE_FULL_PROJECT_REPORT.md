@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-10T07:53:34.9908394Z
+> Generated: 2026-07-10T13:42:19.6013597Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
@@ -13,21 +13,21 @@
 | --- | --- |
 | Conclusion | **failed** |
 | Failed steps | 1 |
-| Blocked steps | 0 |
+| Blocked steps | 1 |
 
 ## Step results
 
 | Step | Status | Exit | Detail |
 | --- | --- | --- | --- |
-| go test regression | passed | 0 |  |
-| go build backend | passed | 0 |  |
-| pnpm build:admin | passed | 0 |  |
-| git diff --check | passed | 0 |  |
+| go test regression | failed | 1 |  |
+| go build backend | skipped | 0 | -SkipBuild |
+| pnpm build:admin | skipped | 0 | -SkipBuild |
+| git diff --check | skipped | 0 | -SkipBuild |
 | check-ui-copy | passed | 0 |  |
 | demo-empty-state-scan | passed | 0 |  |
 | demo-sensitive-confirm-scan | passed | 0 |  |
 | security-release-check | passed | 0 |  |
-| check-doc-links | failed | 1 |  |
+| check-doc-links | passed | 0 |  |
 | demo-route-smoke | passed | 0 |  |
 | seed-demo-data | passed | 0 |  |
 | seed-demo-permissions | passed | 0 |  |
@@ -35,7 +35,7 @@
 | demo-rbac-smoke | passed | 0 |  |
 | demo-order-inventory-customer-smoke | passed | 0 |  |
 | ai-text-route-smoke | passed | 0 |  |
-| ai-text-trial-run | passed | 0 |  |
+| ai-text-trial-run | blocked | 3 | blocked_by_config_or_credentials |
 | ai-image-route-smoke | passed | 0 |  |
 | ai-image-trial-run | passed | 0 |  |
 | publish-batch-perf | passed | 0 |  |
@@ -69,7 +69,7 @@
 ## Final status
 
 ```text
-Post-F9 Enhancement In Progress
+Production Capability Development In Progress
 MVP Demo Ready
 Tag deferred
 Not Production Ready

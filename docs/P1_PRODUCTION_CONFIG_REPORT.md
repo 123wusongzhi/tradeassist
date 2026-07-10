@@ -1,8 +1,8 @@
 # P1 Production Config Scan Report
 
-Generated: 2026-07-10T07:55:26.270Z
+Generated: 2026-07-10T13:20:59.370Z
 
-**Overall:** passed_with_warning (16 passed, 1 warnings, 0 failed)
+**Overall:** passed (18 passed, 0 warnings, 0 failed)
 
 | ID | Status | Message |
 | --- | --- | --- |
@@ -13,6 +13,7 @@ Generated: 2026-07-10T07:55:26.270Z
 | demo-seed-guard | passed | Demo seed gated by EnableDemoSeed + !production |
 | config-demo-seed | passed | production validates ENABLE_DEMO_SEED |
 | config-insecure-default | passed | insecure default error code present |
+| storage-validate-failfast | passed | STORAGE_PROVIDER fail-fast in Validate() |
 | storage-local-boundary | passed | local storage production boundary |
 | public-base-validate | passed | ValidatePublicBase exists |
 | deploy-deploy/nginx/trademind.conf | passed | deploy/nginx/trademind.conf exists |
@@ -21,5 +22,5 @@ Generated: 2026-07-10T07:55:26.270Z
 | deploy-.env.production.example | passed | .env.production.example exists |
 | nginx-fallback | passed | Admin history fallback present |
 | health-live | passed | liveness route |
-| gitignore-env | warning | .gitignore env patterns incomplete |
+| gitignore-env | passed | .gitignore covers production env |
 | admin-sourcemap | passed | admin build source map policy set |

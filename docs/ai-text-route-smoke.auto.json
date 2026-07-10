@@ -1,9 +1,9 @@
 ﻿{
-    "healthTimestamp":  "2026-07-10T07:46:08Z",
+    "healthTimestamp":  "2026-07-10T13:40:53Z",
     "appEnv":  "development",
     "routeCount":  13,
     "failed404Count":  0,
-    "generatedAt":  "2026-07-10T07:46:08.6587537Z",
+    "generatedAt":  "2026-07-10T13:40:54.1084429Z",
     "passed":  true,
     "healthStatus":  "up",
     "apiBase":  "http://127.0.0.1:8080",

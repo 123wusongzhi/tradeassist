@@ -19,9 +19,10 @@ import (
 
 // SendPlatformMessageBody POST /customer/conversations/:id/send-platform-message
 type SendPlatformMessageBody struct {
-	Reply          string `json:"reply"`
-	SuggestionID   string `json:"suggestionId"`
-	IdempotencyKey string `json:"idempotencyKey"`
+	Reply           string `json:"reply"`
+	SuggestionID    string `json:"suggestionId"`
+	IdempotencyKey  string `json:"idempotencyKey"`
+	ClientMessageID string `json:"clientMessageId"`
 }
 
 // SendPlatformMessage delivers a human-approved reply via the platform Provider.
@@ -35,6 +36,19 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	reply := strings.TrimSpace(body.Reply)
 	if reply == "" {
 		return nil, fmt.Errorf("reply is required")
+	}
+
+	clientMsgID := strings.TrimSpace(body.ClientMessageID)
+	if clientMsgID == "" {
+		clientMsgID = strings.TrimSpace(body.IdempotencyKey)
+	}
+	if clientMsgID != "" {
+		var existing CustomerMessage
+		if err := s.DB.WithContext(c.Request.Context()).
+			Where("conversation_id = ? AND client_message_id = ?", conversationID, clientMsgID).
+			First(&existing).Error; err == nil {
+			return &existing, nil
+		}
 	}
 
 	var conv CustomerConversation
@@ -139,6 +153,7 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		msg := &CustomerMessage{
 			ConversationID:    conv.ID,
+			ClientMessageID:   clientMsgID,
 			Role:              RoleAgent,
 			Content:           reply,
 			Language:          conv.CustomerLanguage,

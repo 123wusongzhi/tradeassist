@@ -32,6 +32,7 @@ func (CustomerConversation) TableName() string { return "customer_conversations"
 type CustomerMessage struct {
 	ID                uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
 	ConversationID    uuid.UUID      `gorm:"type:char(36);index;not null" json:"conversationId"`
+	ClientMessageID   string         `gorm:"size:128;index" json:"clientMessageId,omitempty"`
 	Role              string         `gorm:"size:32;index;not null" json:"role"`
 	Content           string         `gorm:"type:text;not null" json:"content"`
 	Language          string         `gorm:"size:32;not null" json:"language"`

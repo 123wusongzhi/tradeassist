@@ -16,6 +16,8 @@ func TestValidate_productionBlocksDefaults(t *testing.T) {
 		AdminPublicURL:  "",
 		EnableDemoSeed:  true,
 		EnableDevRoutes: true,
+		StorageProvider: "cos",
+		CORSAllowedOrigins: []string{"https://admin.example.com"},
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",
@@ -60,6 +62,8 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 		APIPublicURL:           "https://api.example.com",
 		AdminPublicURL:         "https://admin.example.com",
 		BootstrapAdminPassword: "StrongPass!2026",
+		StorageProvider:        "cos",
+		CORSAllowedOrigins:     []string{"https://admin.example.com"},
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",
@@ -107,6 +111,8 @@ func TestLoad_productionFromEnv(t *testing.T) {
 	t.Setenv("DB_NAME", "db")
 	t.Setenv("ENABLE_DEMO_SEED", "false")
 	t.Setenv("ENABLE_DEV_ROUTES", "false")
+	t.Setenv("STORAGE_PROVIDER", "cos")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://admin.example.com")
 
 	cfg, err := Load()
 	if err != nil {

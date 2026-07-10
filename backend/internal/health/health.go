@@ -83,6 +83,12 @@ func readyHandler(dep *Deps) gin.HandlerFunc {
 
 		if dep != nil && dep.Config != nil {
 			checks["appEnv"] = dep.Config.AppEnv
+			if !dep.Config.AllowsLocalStorageProvider() {
+				checks["storage"] = "local_forbidden"
+				ready = false
+			} else {
+				checks["storage"] = "ok"
+			}
 			if config.IsProduction(dep.Config.AppEnv) {
 				if strings.TrimSpace(dep.Config.MasterKey) == "" {
 					checks["masterKey"] = "missing"

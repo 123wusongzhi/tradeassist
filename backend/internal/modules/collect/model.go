@@ -10,12 +10,13 @@ import (
 
 // Task status values (aligned with rules).
 const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusSuccess   = "success"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
-	StatusRetrying  = "retrying"
+	StatusPending    = "pending"
+	StatusRunning    = "running"
+	StatusSuccess    = "success"
+	StatusFailed     = "failed"
+	StatusCancelled  = "cancelled"
+	StatusRetrying   = "retrying"
+	StatusDeadLetter = "dead_letter"
 )
 
 // Batch aggregate status (derived from child tasks via reconciliation).

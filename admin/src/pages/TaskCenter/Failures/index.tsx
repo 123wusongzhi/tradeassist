@@ -990,6 +990,27 @@ export default function TaskCenterFailuresPage() {
                 )}
               </Typography.Paragraph>
             ) : null}
+            {detail.deadLetter ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Tag color="error">死信任务</Tag>
+                {detail.safeRetry === false ? (
+                  <Typography.Text type="secondary"> · 不建议自动重试</Typography.Text>
+                ) : null}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.nextRunAt ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>下次执行：</Typography.Text> {formatDateTime(detail.nextRunAt)}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.idempotencyStatus ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>幂等状态：</Typography.Text> {detail.idempotencyStatus}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.manualReviewRequired ? (
+              <Alert type="warning" showIcon message="需人工确认后再重试（平台写操作结果未知）" style={{ marginBottom: 8 }} />
+            ) : null}
             {typeof detail.extra?.userMessage === 'string' && detail.extra.userMessage ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
                 <Typography.Text strong>恢复说明：</Typography.Text> {detail.extra.userMessage}

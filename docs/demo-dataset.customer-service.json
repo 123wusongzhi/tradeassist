@@ -3,21 +3,21 @@
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "e8568801-dbed-43ef-bc57-5eaf037b39ed",
+                        "conversationId":  "07839bf0-6328-4198-8499-5bfb01929756",
                         "note":  "customer conversation",
                         "tag":  "pending_reply_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "deb2ba43-26e5-4a11-9811-ff77789a0e43",
+                        "conversationId":  "d472a15d-f472-42fe-9ded-a0b97705e4d2",
                         "note":  "customer conversation",
                         "tag":  "order_linked_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "2c58d4dc-453d-4c65-b787-1aac1f6702cc",
+                        "conversationId":  "f61d039d-afa5-4025-99c1-0e2bc0520c1c",
                         "note":  "customer conversation",
                         "tag":  "inventory_consult_conversation"
                     },
@@ -32,11 +32,11 @@
                         "tag":  "send_failure_requires_platform"
                     },
                     {
-                        "note":  "AI reply suggestion pending confirm",
-                        "tag":  "ai_suggestion_generated",
-                        "suggestionId":  "405ebbef-1877-4cef-882d-d352b62a3c74"
+                        "error":  "远程服务器返回错误: (400) 错误的请求。",
+                        "note":  "AI provider not configured or generate failed",
+                        "tag":  "ai_suggestion_skipped"
                     }
                 ],
-    "generatedAt":  "2026-07-10T07:46:07.4999373Z",
+    "generatedAt":  "2026-07-10T13:40:53.0226759Z",
     "note":  "F4+F7 customer service demo samples"
 }

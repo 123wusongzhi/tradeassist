@@ -1,0 +1,123 @@
+{
+  "generatedAt": "2026-07-10T13:20:59.411Z",
+  "phase": "P2",
+  "overall": "passed",
+  "summary": {
+    "passed": 22,
+    "warnings": 0,
+    "failed": 0,
+    "total": 22
+  },
+  "checks": [
+    {
+      "id": "idempotency-module",
+      "status": "passed",
+      "message": "idempotency module exists"
+    },
+    {
+      "id": "idempotency-unique",
+      "status": "passed",
+      "message": "idempotency unique constraint"
+    },
+    {
+      "id": "p1-storage-failfast",
+      "status": "passed",
+      "message": "P1 local storage fail-fast in Validate()"
+    },
+    {
+      "id": "task-lease-collect/model.go",
+      "status": "passed",
+      "message": "collect/model.go has lease fields"
+    },
+    {
+      "id": "task-lease-ordersync/model.go",
+      "status": "passed",
+      "message": "ordersync/model.go has lease fields"
+    },
+    {
+      "id": "task-lease-inventory/model.go",
+      "status": "passed",
+      "message": "inventory/model.go has lease fields"
+    },
+    {
+      "id": "dead-letter-status",
+      "status": "passed",
+      "message": "dead_letter status exists"
+    },
+    {
+      "id": "retry-classify",
+      "status": "passed",
+      "message": "retryable error classification"
+    },
+    {
+      "id": "retry-after",
+      "status": "passed",
+      "message": "Retry-After parsing"
+    },
+    {
+      "id": "circuit-breaker",
+      "status": "passed",
+      "message": "circuit breaker implementation"
+    },
+    {
+      "id": "cors-middleware",
+      "status": "passed",
+      "message": "CORS middleware with wildcard guard"
+    },
+    {
+      "id": "migration-lock",
+      "status": "passed",
+      "message": "PostgreSQL migration advisory lock"
+    },
+    {
+      "id": "provider-health",
+      "status": "passed",
+      "message": "Provider HealthCheck registry"
+    },
+    {
+      "id": "customer-client-msg-id",
+      "status": "passed",
+      "message": "customer clientMessageId field"
+    },
+    {
+      "id": "inventory-event-key",
+      "status": "passed",
+      "message": "inventory business event key"
+    },
+    {
+      "id": "webhook-idempotency",
+      "status": "passed",
+      "message": "webhook idempotency base"
+    },
+    {
+      "id": "doc-docs/IDEMPOTENCY_DESIGN.md",
+      "status": "passed",
+      "message": "docs/IDEMPOTENCY_DESIGN.md exists"
+    },
+    {
+      "id": "doc-docs/TASK_RELIABILITY_DESIGN.md",
+      "status": "passed",
+      "message": "docs/TASK_RELIABILITY_DESIGN.md exists"
+    },
+    {
+      "id": "doc-docs/PROVIDER_RESILIENCE_DESIGN.md",
+      "status": "passed",
+      "message": "docs/PROVIDER_RESILIENCE_DESIGN.md exists"
+    },
+    {
+      "id": "doc-docs/CORS_PRODUCTION_GUIDE.md",
+      "status": "passed",
+      "message": "docs/CORS_PRODUCTION_GUIDE.md exists"
+    },
+    {
+      "id": "doc-docs/MIGRATION_LOCK_DESIGN.md",
+      "status": "passed",
+      "message": "docs/MIGRATION_LOCK_DESIGN.md exists"
+    },
+    {
+      "id": "log-redact",
+      "status": "passed",
+      "message": "URL redaction in httpclient"
+    }
+  ]
+}

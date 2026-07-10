@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-07-10T07:55:26.270Z",
+  "generatedAt": "2026-07-10T13:20:59.370Z",
   "phase": "P1",
-  "overall": "passed_with_warning",
+  "overall": "passed",
   "summary": {
-    "passed": 16,
-    "warnings": 1,
+    "passed": 18,
+    "warnings": 0,
     "failed": 0,
-    "total": 17
+    "total": 18
   },
   "checks": [
     {
@@ -43,6 +43,11 @@
       "id": "config-insecure-default",
       "status": "passed",
       "message": "insecure default error code present"
+    },
+    {
+      "id": "storage-validate-failfast",
+      "status": "passed",
+      "message": "STORAGE_PROVIDER fail-fast in Validate()"
     },
     {
       "id": "storage-local-boundary",
@@ -86,8 +91,8 @@
     },
     {
       "id": "gitignore-env",
-      "status": "warning",
-      "message": ".gitignore env patterns incomplete"
+      "status": "passed",
+      "message": ".gitignore covers production env"
     },
     {
       "id": "admin-sourcemap",

@@ -123,21 +123,12 @@ $goPackages = @(
 )
 
 Run-Step "go test regression" {
-    Push-Location $backendDir
-    $failures = @()
-    foreach ($pkg in $goPackages) {
-        Write-Host "  go test $pkg"
-        $out = & go test $pkg 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $failures += @{ package = $pkg; output = ($out | Select-Object -Last 5) -join "`n" }
-        }
+    $p = Start-Process -FilePath "go" -ArgumentList @("test", "./...") -WorkingDirectory $backendDir -Wait -PassThru -NoNewWindow
+    $code = if ($null -ne $p) { $p.ExitCode } else { 1 }
+    if ($code -ne 0) {
+        Write-Host "go test ./... failed with exit $code"
     }
-    Pop-Location
-    if ($failures.Count -gt 0) {
-        Write-Host ($failures | ConvertTo-Json -Depth 4)
-        return 1
-    }
-    return 0
+    return $code
 }
 
 if (-not $SkipBuild) {

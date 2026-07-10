@@ -116,6 +116,10 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	out.Items = append(out.Items, s.orderSyncItem(ctx))
 	out.Items = append(out.Items, s.inventorySyncItem(ctx))
 	out.Items = append(out.Items, s.customerSyncItem(ctx))
+	out.Items = append(out.Items, s.reliabilityFoundationItem(ctx))
+	out.Items = append(out.Items, s.idempotencyServiceItem(ctx))
+	out.Items = append(out.Items, s.providerHealthItem(ctx))
+	out.Items = append(out.Items, s.circuitBreakerItem(ctx))
 	out.DemoData = s.demoDataItem(ctx)
 	return out, nil
 }

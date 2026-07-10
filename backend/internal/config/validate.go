@@ -20,6 +20,8 @@ const (
 
 const defaultJWTSecret = "change-me-in-development"
 
+const storageLocalForbiddenMsg = "staging/production 环境禁止使用 local storage，请配置 COS、OSS、S3、R2 或其他生产对象存储。"
+
 var insecureJWTSecrets = map[string]struct{}{
 	defaultJWTSecret:          {},
 	"change-me-in-production": {},
@@ -42,10 +44,54 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("%s: DB_USER and DB_NAME are required", ErrCodeConfigRequired)
 	}
 
+	if err := c.validateStorageProvider(); err != nil {
+		return err
+	}
+	if err := c.validateCORS(); err != nil {
+		return err
+	}
+
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()
 	}
 	return c.validateProduction()
+}
+
+func (c *Config) validateStorageProvider() error {
+	env := NormalizeEnv(c.AppEnv)
+	provider := strings.ToLower(strings.TrimSpace(c.StorageProvider))
+	if provider == "" {
+		provider = "local"
+	}
+	if !AllowsLocalStorage(env) && provider == "local" {
+		return fmt.Errorf("%s: %s", ErrCodeStorageProviderInvalid, storageLocalForbiddenMsg)
+	}
+	allowed := map[string]struct{}{
+		"local": {}, "cos": {}, "oss": {}, "s3": {}, "r2": {}, "minio": {},
+	}
+	if _, ok := allowed[provider]; !ok {
+		return fmt.Errorf("%s: unknown storage provider %q", ErrCodeStorageProviderInvalid, provider)
+	}
+	return nil
+}
+
+func (c *Config) validateCORS() error {
+	if !IsStagingOrProduction(c.AppEnv) {
+		return nil
+	}
+	if len(c.CORSAllowedOrigins) == 0 {
+		return fmt.Errorf("%s: CORS_ALLOWED_ORIGINS is required in staging/production", ErrCodeConfigRequired)
+	}
+	for _, o := range c.CORSAllowedOrigins {
+		o = strings.TrimSpace(o)
+		if o == "*" {
+			if c.CORSAllowCredentials {
+				return CORSError("wildcard origin not allowed with credentials")
+			}
+			return CORSError("wildcard origin not allowed in staging/production")
+		}
+	}
+	return nil
 }
 
 func (c *Config) validateNonProduction() error {
@@ -131,4 +177,19 @@ func (c *Config) ProductionDangerousRoutesAllowed() bool {
 	}
 	// Legacy: dev routes registered when not production (existing behavior).
 	return !IsProduction(c.AppEnv)
+}
+
+// AllowsLocalStorageProvider reports whether the configured STORAGE_PROVIDER is permitted for APP_ENV.
+func (c *Config) AllowsLocalStorageProvider() bool {
+	if c == nil {
+		return true
+	}
+	provider := strings.ToLower(strings.TrimSpace(c.StorageProvider))
+	if provider == "" {
+		provider = "local"
+	}
+	if provider != "local" {
+		return true
+	}
+	return AllowsLocalStorage(c.AppEnv)
 }

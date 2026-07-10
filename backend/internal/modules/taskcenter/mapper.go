@@ -119,6 +119,11 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	dto.NextRunAt = row.NextRetryAt
+	if row.Status == collect.StatusDeadLetter {
+		dto.DeadLetter = true
+	}
+	dto.SafeRetry = dto.Retryable && !dto.DeadLetter
 	if row.ResultProductID != nil {
 		pid := *row.ResultProductID
 		dto.RelatedResourceType = "product"

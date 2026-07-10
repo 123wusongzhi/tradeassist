@@ -3,7 +3,7 @@
     "douyinStatus":  "Release Candidate",
     "productSlots":  [
                          {
-                             "productId":  "c99706ff-67bb-4e7d-b700-19c726307a75",
+                             "productId":  "c69aee2a-eb09-4481-a253-0d84fad795a0",
                              "slot":  1,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -13,7 +13,7 @@
                              "note":  "title complete"
                          },
                          {
-                             "productId":  "89d83007-5f05-408f-8935-83803917bfdc",
+                             "productId":  "58cbc514-6d0f-46e6-afb0-35ca54e84a7c",
                              "slot":  2,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -23,7 +23,7 @@
                              "note":  "title pending optimize"
                          },
                          {
-                             "productId":  "15a602a6-829b-4c06-814a-f90c7918f415",
+                             "productId":  "fec1a87c-91e0-4a47-8df8-db0d9c28a0ce",
                              "slot":  3,
                              "actualStep":  "collect_review",
                              "blockerCount":  6,
@@ -33,7 +33,7 @@
                              "note":  "description empty"
                          },
                          {
-                             "productId":  "6a493b79-bd91-4440-8a6c-505f9ac36871",
+                             "productId":  "7a6b174a-b784-43f6-a9e7-e4b0e28f84a9",
                              "slot":  4,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -43,7 +43,7 @@
                              "note":  "description pending"
                          },
                          {
-                             "productId":  "c7cad740-e3c9-402b-b5a1-844e4d942325",
+                             "productId":  "430d07b0-5a24-4ca3-ad3c-83931391931e",
                              "slot":  5,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -53,7 +53,7 @@
                              "note":  "main images complete"
                          },
                          {
-                             "productId":  "6cc079cc-e0bd-4923-86c8-764b4936d1f2",
+                             "productId":  "1567bc8c-4bcd-4162-9c38-37bb48576a33",
                              "slot":  6,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -63,7 +63,7 @@
                              "note":  "main images missing"
                          },
                          {
-                             "productId":  "6542eba4-d53d-4b73-b3e5-9bc579bc1cd3",
+                             "productId":  "9d04c50d-5693-4a5b-a166-d3057efb3aa4",
                              "slot":  7,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -73,7 +73,7 @@
                              "note":  "detail images low"
                          },
                          {
-                             "productId":  "d358d840-2630-48c8-b0c3-0c1b4458b40d",
+                             "productId":  "2659a15d-29bb-4153-b38a-88c9205b6130",
                              "slot":  8,
                              "actualStep":  "collect_review",
                              "blockerCount":  2,
@@ -83,7 +83,7 @@
                              "note":  "multi SKU"
                          },
                          {
-                             "productId":  "d8dd388a-7d22-44b3-93be-b9920aaea8ff",
+                             "productId":  "64b68e9b-7acb-4ad7-a972-b8d647b26e5c",
                              "slot":  9,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -93,7 +93,7 @@
                              "note":  "stock unknown"
                          },
                          {
-                             "productId":  "0bb075fc-5240-4610-9a7c-096e6156e7d5",
+                             "productId":  "ce197802-21cb-4201-b3bb-40ffd4510f33",
                              "slot":  10,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -103,7 +103,7 @@
                              "note":  "price anomaly"
                          },
                          {
-                             "productId":  "3a54d2d6-7d48-4f18-b327-51dc807eee83",
+                             "productId":  "b44ab410-5e73-4f37-b1bb-2126cc20215b",
                              "slot":  11,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -113,7 +113,7 @@
                              "note":  "attributes missing"
                          },
                          {
-                             "productId":  "9442c65a-c402-424f-9b7e-7511bd870ca4",
+                             "productId":  "b1cb05b2-1d15-413d-877a-766f20179000",
                              "slot":  12,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -123,7 +123,7 @@
                              "note":  "publish check passed"
                          },
                          {
-                             "productId":  "6ba747ef-db2b-47cf-94fd-c6ff3273a279",
+                             "productId":  "9b1f61f1-14e6-4436-bf2c-6f7217816557",
                              "slot":  13,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -133,7 +133,7 @@
                              "note":  "publish check warning"
                          },
                          {
-                             "productId":  "854093cf-8252-465f-a105-91268409da10",
+                             "productId":  "f94e0997-ce85-441b-a89b-ef6dfd7bb4e8",
                              "slot":  14,
                              "actualStep":  "collect_review",
                              "blockerCount":  6,
@@ -143,7 +143,7 @@
                              "note":  "publish check failed"
                          },
                          {
-                             "productId":  "48394016-f214-4d0e-a033-87b61d9dd13b",
+                             "productId":  "cb36e86b-f79b-484d-a5c6-729cfa2b7d0f",
                              "slot":  15,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -153,7 +153,7 @@
                              "note":  "AI text pending review"
                          },
                          {
-                             "productId":  "8ef4ede3-39fc-459a-9fae-89d80804b4f0",
+                             "productId":  "194a587d-d07e-4e9c-8408-05eff1c6295d",
                              "slot":  16,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -163,7 +163,7 @@
                              "note":  "AI image pending review"
                          },
                          {
-                             "productId":  "ed6d90ac-c9a2-462e-8b0d-d98b6ebf240d",
+                             "productId":  "19c820db-7cb8-4c76-a21c-522a3bf84349",
                              "slot":  17,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -173,7 +173,7 @@
                              "note":  "AI conflict"
                          },
                          {
-                             "productId":  "9442c65a-c402-424f-9b7e-7511bd870ca4",
+                             "productId":  "b1cb05b2-1d15-413d-877a-766f20179000",
                              "slot":  18,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -183,7 +183,7 @@
                              "note":  "local publish draft"
                          },
                          {
-                             "productId":  "48394016-f214-4d0e-a033-87b61d9dd13b",
+                             "productId":  "cb36e86b-f79b-484d-a5c6-729cfa2b7d0f",
                              "slot":  19,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -193,7 +193,7 @@
                              "note":  "douyin blocked_by_real_credentials"
                          },
                          {
-                             "productId":  "9442c65a-c402-424f-9b7e-7511bd870ca4",
+                             "productId":  "b1cb05b2-1d15-413d-877a-766f20179000",
                              "slot":  20,
                              "actualStep":  "collect_review",
                              "blockerCount":  5,
@@ -205,9 +205,9 @@
                      ],
     "orders":  [
                    {
-                       "orderId":  "5b43d1df-8fbb-4211-ae25-7a8eacd1384c",
+                       "orderId":  "526ddb67-876a-4a3e-9e24-eebb30e7fd42",
                        "tag":  "normal_order",
-                       "orderNo":  "F2-DEMO-NORMAL-96918"
+                       "orderNo":  "F2-DEMO-NORMAL-55470"
                    },
                    {
                        "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",
@@ -225,55 +225,61 @@
     "taskSamples":  [
                         {
                             "status":  "success",
-                            "batchId":  "ea29f27e-e2fb-4f3a-b6ea-412709cc2aa3",
+                            "batchId":  "d7f5380e-cd98-4cd0-a086-fc0bb9d01e0d",
+                            "note":  "existing batch",
+                            "type":  "ai_text_batch"
+                        },
+                        {
+                            "status":  "partial_success",
+                            "batchId":  "c885e977-c781-404b-bd31-dc447d1c5fd4",
                             "note":  "existing batch",
                             "type":  "ai_text_batch"
                         },
                         {
                             "status":  "success",
-                            "batchId":  "271a98ea-0c8e-4398-8fb7-96d92e28607d",
+                            "batchId":  "f2a2bf15-bec1-4fb5-8c6e-7b53d1358a82",
                             "note":  "existing batch",
                             "type":  "ai_image_batch"
                         },
                         {
                             "status":  "partial_success",
-                            "batchId":  "30350345-64f1-49ef-aedb-278318241af5",
+                            "batchId":  "329e1b6c-5ab8-4475-a221-500d9f1abbaf",
                             "note":  "existing batch",
                             "type":  "ai_image_batch"
                         },
                         {
                             "status":  "success",
-                            "batchId":  "c767dbe1-46af-4e57-8bbb-7b674a02ecb6",
+                            "batchId":  "eab339a0-38a7-418d-bc89-5addbab85b00",
                             "note":  "existing batch",
                             "type":  "publish_batch"
                         },
                         {
-                            "count":  269,
+                            "count":  323,
                             "taskType":  "ai_image",
                             "note":  "existing failure task",
                             "type":  "taskcenter_failure",
-                            "sampleId":  "b3310a69-a896-4f80-9d46-8574565725d5"
+                            "sampleId":  "63e2fdd0-9334-4ea7-abef-8389dff8d578"
                         },
                         {
-                            "summaryTodoSum":  1183,
+                            "summaryTodoSum":  1335,
                             "sampleTodoIds":  [
-                                                  "todo:publish_check:ae396d6d-400e-4c62-bfb5-4254593fb1f5:image.main_missing",
-                                                  "todo:publish_check:ae396d6d-400e-4c62-bfb5-4254593fb1f5:sku.none",
-                                                  "todo:publish_check:e9c6be1c-66d9-4d11-ad4a-d5dd7425c6bf:image.main_missing"
+                                                  "todo:publish_check:0ed436fe-664d-4818-8717-9ea79e35c591:image.main_missing",
+                                                  "todo:publish_check:0ed436fe-664d-4818-8717-9ea79e35c591:sku.none",
+                                                  "todo:publish_check:3ea1e651-f7c0-4429-9896-f05c59ff78ed:image.main_missing"
                                               ],
                             "note":  "aggregated todos from workbench",
                             "type":  "operation_workbench_todos",
-                            "todosTotal":  1218
+                            "todosTotal":  1409
                         },
                         {
                             "status":  "seeded",
-                            "batchId":  "17add041-12b9-47e6-a007-94977c41f9d9",
+                            "batchId":  "7046dafa-0fe0-42a6-941a-b22e4736c091",
                             "note":  "requires AI provider to complete",
                             "type":  "ai_text_batch"
                         }
                     ],
-    "taskSampleCount":  7,
-    "generatedAt":  "2026-07-10T07:46:07.5139365Z",
+    "taskSampleCount":  8,
+    "generatedAt":  "2026-07-10T13:40:53.0390794Z",
     "productSlotCount":  20,
     "apiBase":  "http://127.0.0.1:8080",
     "releaseStatus":  "MVP Demo Ready",
