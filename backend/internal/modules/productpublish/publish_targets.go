@@ -678,6 +678,7 @@ func (s *Service) createDouyinDraftForTarget(c *gin.Context, productID, shopID, 
 		ShopID:      shopID.String(),
 		PublishMode: PublishModeSaveAsPlatformDraft,
 		Force:       force,
+		BatchID:     &batchID,
 	}, adminID)
 	if err != nil {
 		base.Status = TaskFailed

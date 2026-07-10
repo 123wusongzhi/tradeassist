@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"gorm.io/gorm"
@@ -22,14 +23,15 @@ import (
 
 // Service orchestrates customer chat MVP (manual inbox + AI suggestions).
 type Service struct {
-	DB        *gorm.DB
-	Settings  *settings.Service
-	Prompts   *aiprompt.Service
-	AITasks   *aitask.Service
-	AIGateway *aigate.Gateway
-	OpLog     *operationlog.Service
-	Orders    *order.Service
-	Shops     *shop.Service
+	DB          *gorm.DB
+	Settings    *settings.Service
+	Prompts     *aiprompt.Service
+	AITasks     *aitask.Service
+	AIGateway   *aigate.Gateway
+	OpLog       *operationlog.Service
+	Orders      *order.Service
+	Shops       *shop.Service
+	Idempotency *idempotency.Service
 }
 
 // --- list ---

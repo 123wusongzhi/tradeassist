@@ -1003,6 +1003,36 @@ export default function TaskCenterFailuresPage() {
                 <Typography.Text strong>下次执行：</Typography.Text> {formatDateTime(detail.nextRunAt)}
               </Typography.Paragraph>
             ) : null}
+            {detail.idempotencyScope ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>幂等作用域：</Typography.Text> {detail.idempotencyScope}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.unknownResult ? (
+              <Alert type="error" showIcon message="平台写操作结果未知，禁止盲目重试" style={{ marginBottom: 8 }} />
+            ) : null}
+            {(detail.heartbeatAt || detail.leaseVersion || detail.executionId) ? (
+              <TechnicalDetails>
+                {detail.heartbeatAt ? (
+                  <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
+                    <Typography.Text strong>最近心跳：</Typography.Text> {formatDateTime(detail.heartbeatAt)}
+                  </Typography.Paragraph>
+                ) : null}
+                {detail.leaseVersion != null ? (
+                  <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
+                    <Typography.Text strong>租约版本：</Typography.Text> {detail.leaseVersion}
+                  </Typography.Paragraph>
+                ) : null}
+                {detail.executionId ? (
+                  <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                    <Typography.Text strong>执行标识：</Typography.Text>{' '}
+                    <Typography.Text code copyable={{ text: detail.executionId }}>
+                      {detail.executionId.slice(0, 8)}…
+                    </Typography.Text>
+                  </Typography.Paragraph>
+                ) : null}
+              </TechnicalDetails>
+            ) : null}
             {detail.idempotencyStatus ? (
               <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
                 <Typography.Text strong>幂等状态：</Typography.Text> {detail.idempotencyStatus}

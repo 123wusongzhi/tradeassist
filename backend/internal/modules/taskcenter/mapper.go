@@ -230,6 +230,8 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "order_sync"
 	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
 	applyMarks(&dto, TaskTypeOrderSync, row.ID.String(), marks)
 	return dto
@@ -328,7 +330,10 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "publish"
 	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
+	applyUnknownResult(&dto, row.ErrorCode)
 	applyMarks(&dto, TaskTypeProductPublish, row.ID.String(), marks)
 	return dto
 }
@@ -400,6 +405,8 @@ func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.U
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "inventory_push"
 	dto.RelatedResourceType = "product_sku"
 	if row.ProductSKUID != nil {
 		dto.RelatedResourceID = row.ProductSKUID.String()

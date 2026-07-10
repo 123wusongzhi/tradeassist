@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -22,10 +23,11 @@ var ErrNotFound = errors.New("order not found")
 
 // Service orchestrates internal orders manually entered from admin (no marketplace sync).
 type Service struct {
-	DB       *gorm.DB
-	OpLog    *operationlog.Service
-	Shops    *shop.Service
-	Settings *settings.Service
+	DB          *gorm.DB
+	OpLog       *operationlog.Service
+	Shops       *shop.Service
+	Settings    *settings.Service
+	Idempotency *idempotency.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).

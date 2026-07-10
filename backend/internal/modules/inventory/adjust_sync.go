@@ -131,6 +131,13 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 		if dup {
 			continue
 		}
+		pushJob, _, pushErr := s.acquireInventoryPush(ctx, pl, pub.ShopID, skuID, psku.ID, target, admin)
+		if pushErr != nil {
+			return n, pushErr
+		}
+		if pushJob == nil && s.Idempotency != nil {
+			continue
+		}
 		extPID := strings.TrimSpace(pub.ExternalProductID)
 		if extPID == "" && pl != "amazon" {
 			continue
@@ -163,6 +170,10 @@ func (s *Service) enqueueSKUPublicationSyncTasks(ctx context.Context, productID 
 			CreatedBy:        admin,
 		}
 		if err := s.persistTaskAndMaybeRun(ctx, t, admin); err != nil {
+			s.failInventoryPush(ctx, pushJob, err.Error(), true)
+			return n, err
+		}
+		if err := s.completeInventoryPush(ctx, pushJob, t.ID); err != nil {
 			return n, err
 		}
 		n++

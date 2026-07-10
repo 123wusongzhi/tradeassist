@@ -26,6 +26,13 @@ type UnifiedTaskDTO struct {
 	MaxRetries           int        `json:"maxRetries,omitempty"`
 	LockedBy             string     `json:"lockedBy,omitempty"`
 	LockedUntil          *time.Time `json:"lockedUntil,omitempty"`
+	HeartbeatAt          *time.Time `json:"heartbeatAt,omitempty"`
+	ExecutionID          string     `json:"executionId,omitempty"`
+	LeaseVersion         int        `json:"leaseVersion,omitempty"`
+	Attempt              int        `json:"attempt,omitempty"`
+	MaxAttempts          int        `json:"maxAttempts,omitempty"`
+	IdempotencyScope     string     `json:"idempotencyScope,omitempty"`
+	UnknownResult        bool       `json:"unknownResult,omitempty"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 	StartedAt            *time.Time `json:"startedAt,omitempty"`

@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -34,12 +35,18 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 
 // Service orchestrates AI product image batch operations with human review.
 type Service struct {
-	DB       *gorm.DB
-	Settings *settings.Service
-	Products *product.Service
-	Image    *imagetask.Service
-	OpLog    *operationlog.Service
+	DB          *gorm.DB
+	Settings    *settings.Service
+	Products    *product.Service
+	Image       *imagetask.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
 }
+
+const (
+	errAIImageBatchInProgress  = "AI_IMAGE_BATCH_IN_PROGRESS"
+	errAIImageBatchKeyConflict = "AI_IMAGE_BATCH_KEY_CONFLICT"
+)
 
 func (s *Service) batchMaxProducts(ctx context.Context) int {
 	return settingInt(ctx, s.Settings, "ai_image_batch_max_products", defaultMaxProducts, 500)
@@ -436,6 +443,101 @@ func summarizeInput(ops []string, opts ImageGenerationOptions) map[string]any {
 	}
 }
 
+func imageBatchRequestHashPayload(req CreateBatchRequest, adminID *uuid.UUID, productIDs, imageIDs []uuid.UUID, ops []string) []byte {
+	payload := map[string]any{
+		"productIds":     uuidStrings(productIDs),
+		"imageIds":       uuidStrings(imageIDs),
+		"operationTypes": ops,
+		"options":        req.Options,
+	}
+	if adminID != nil {
+		payload["adminId"] = adminID.String()
+	}
+	if k := strings.TrimSpace(req.IdempotencyKey); k != "" {
+		payload["idempotencyKey"] = k
+	}
+	b, _ := json.Marshal(payload)
+	return b
+}
+
+type imageBatchAcquire struct {
+	RecordID uuid.UUID
+	Owner    string
+}
+
+func (s *Service) acquireImageBatch(c *gin.Context, ctx context.Context, idemKey string, reqHash []byte) (*imageBatchAcquire, *idempotency.AcquireResult, error) {
+	if s == nil || s.Idempotency == nil || idemKey == "" {
+		return nil, nil, nil
+	}
+	owner := "ai-image-batch-create"
+	if c != nil {
+		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
+	}
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIImage, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	decision, rec, _ := idempotency.Classify(res, err)
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		return nil, res, nil
+	case idempotency.DecisionInProgress:
+		return nil, res, fmt.Errorf("%s", errAIImageBatchInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		return nil, res, fmt.Errorf("%s", errAIImageBatchKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if rec == nil && res != nil {
+			rec = res.Record
+		}
+		if rec == nil {
+			return nil, res, fmt.Errorf("idempotency: missing record")
+		}
+		return &imageBatchAcquire{RecordID: rec.ID, Owner: owner}, res, nil
+	default:
+		return nil, res, err
+	}
+}
+
+func (s *Service) completeImageBatchCreate(ctx context.Context, job *imageBatchAcquire, batchID uuid.UUID) error {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return nil
+	}
+	summary, _ := json.Marshal(map[string]string{"batchId": batchID.String()})
+	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+		ResponseCode:    "AI_IMAGE_BATCH_CREATED",
+		ResponseSummary: string(summary),
+		ResourceType:    "ai_product_image_batch",
+		ResourceID:      batchID.String(),
+	})
+}
+
+func (s *Service) failImageBatchCreate(ctx context.Context, job *imageBatchAcquire, code string, retryable bool) {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return
+	}
+	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+}
+
+func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string) (*AIProductImageBatch, error) {
+	rid := ""
+	if res != nil {
+		rid = res.ResourceID
+		if rid == "" && res.Record != nil {
+			rid = res.Record.ResourceID
+		}
+	}
+	if rid != "" {
+		if bid, err := uuid.Parse(rid); err == nil {
+			var batch AIProductImageBatch
+			if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err == nil {
+				return &batch, nil
+			}
+		}
+	}
+	var existing AIProductImageBatch
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+		return &existing, nil
+	}
+	return nil, fmt.Errorf("%s", errAIImageBatchInProgress)
+}
+
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
@@ -480,6 +582,14 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if idemKey == "" {
 		idemKey = buildIdempotencyKey(adminID, productIDs, imageIDs, ops, req.Options)
 	}
+	reqHash := imageBatchRequestHashPayload(req, adminID, productIDs, imageIDs, ops)
+	idemJob, replayRes, acqErr := s.acquireImageBatch(c, ctx, idemKey, reqHash)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingImageBatch(ctx, replayRes, idemKey)
+	}
 	var existing AIProductImageBatch
 	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
 		return &existing, nil
@@ -489,6 +599,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 	inJSON, _ := json.Marshal(summarizeInput(ops, req.Options))
@@ -510,6 +621,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		StartedAt:      &now,
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 
@@ -537,6 +649,11 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		}
 	}
 	if err := s.DB.WithContext(ctx).CreateInBatches(&items, 50).Error; err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
+		return nil, err
+	}
+
+	if err := s.completeImageBatchCreate(ctx, idemJob, batch.ID); err != nil {
 		return nil, err
 	}
 

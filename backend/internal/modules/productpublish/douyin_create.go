@@ -25,9 +25,10 @@ import (
 
 // DouyinCreateDraftBody POST create-draft request.
 type DouyinCreateDraftBody struct {
-	ShopID      string `json:"shopId"`
-	PublishMode string `json:"publishMode"`
-	Force       bool   `json:"force"`
+	ShopID      string     `json:"shopId"`
+	PublishMode string     `json:"publishMode"`
+	Force       bool       `json:"force"`
+	BatchID     *uuid.UUID `json:"-"`
 }
 
 type douyinDraftSnapshot struct {
@@ -190,8 +191,14 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		return s.ProcessDouyinDraftTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
 	}
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
-		if err := s.enqueue(ctx, task.ID); err != nil {
-			slog.Warn("douyin_draft_enqueue_failed_run_inline", "taskId", task.ID.String(), "error", err)
+		var enqueueErr error
+		if body.BatchID != nil && *body.BatchID != uuid.Nil {
+			enqueueErr = s.enqueuePublishTaskIdempotent(ctx, c, *body.BatchID, task.ID, task.TaskType)
+		} else {
+			enqueueErr = s.enqueue(ctx, task.ID)
+		}
+		if enqueueErr != nil {
+			slog.Warn("douyin_draft_enqueue_failed_run_inline", "taskId", task.ID.String(), "error", enqueueErr)
 			if err := runInline(); err != nil {
 				return nil, err
 			}
@@ -215,14 +222,14 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("productpublish: no db")
 	}
-	taskRow, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, s.publishLeaseTTL())
+	taskRow, claim, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, s.publishLeaseTTL())
 	if err != nil || !claimed || taskRow == nil {
 		return err
 	}
 	if err := s.guardDouyinWorker(ctx, taskID, taskRow.ShopID, platformdouyin.FeatureProductDraft, false, taskRow.CreatedBy); err != nil {
 		return err
 	}
-	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, s.publishLeaseTTL())
+	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, claim, s.publishLeaseTTL())
 	defer cancelRen()
 
 	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).

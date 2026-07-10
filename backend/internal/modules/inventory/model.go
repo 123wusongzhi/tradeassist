@@ -75,7 +75,9 @@ type InventorySyncTask struct {
 	CreatedBy        *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	LockedBy         *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
 	LockedUntil      *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
-	LockVersion      int            `gorm:"default:0;not null" json:"lockVersion"`
+	LockVersion      int            `gorm:"column:lock_version;default:0;not null" json:"leaseVersion"`
+	HeartbeatAt      *time.Time     `gorm:"index" json:"heartbeatAt,omitempty"`
+	ExecutionID      *string        `gorm:"size:36;index" json:"executionId,omitempty"`
 }
 
 func (InventorySyncTask) TableName() string { return "inventory_sync_tasks" }

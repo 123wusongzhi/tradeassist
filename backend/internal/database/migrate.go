@@ -170,5 +170,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migratePublishBatchA21(db); err != nil {
 		return err
 	}
-	return migrateP2Reliability(db)
+	if err := migrateP2Reliability(db); err != nil {
+		return err
+	}
+	return migrateP21Reliability(db)
 }

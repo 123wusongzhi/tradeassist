@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -26,6 +27,7 @@ type Service struct {
 	Shops        *shop.Service
 	Settings     *settings.Service
 	OpLog        *operationlog.Service
+	Idempotency  *idempotency.Service
 	QueueEnabled bool
 	QueueName    string
 	TaskTimeout  time.Duration

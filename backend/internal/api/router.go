@@ -33,6 +33,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
@@ -173,6 +174,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	if opLogSvc == nil {
 		opLogSvc = &operationlog.Service{DB: dep.DB}
 	}
+	idempotencySvc := &idempotency.Service{DB: dep.DB}
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 
@@ -261,19 +263,21 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aiBatchH := &aioperationbatch.Handler{Svc: aiBatchSvc}
 
 	aiProductTextSvc := &aiproducttext.Service{
-		DB:       dep.DB,
-		Settings: settingsSvc,
-		Products: productSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Products:    productSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
 	}
 	aiProductTextH := &aiproducttext.Handler{Svc: aiProductTextSvc}
 
 	aiProductImageSvc := &aiproductimage.Service{
-		DB:       dep.DB,
-		Settings: settingsSvc,
-		Products: productSvc,
-		Image:    imageTaskSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Products:    productSvc,
+		Image:       imageTaskSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
 	}
 	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
@@ -352,11 +356,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	inventorySvc := &inventory.Service{
-		DB:       dep.DB,
-		Redis:    dep.Redis,
-		Shops:    shopSvc,
-		Settings: settingsSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Settings:    settingsSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
 		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
@@ -371,16 +376,17 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{
-		DB:        dep.DB,
-		Redis:     dep.Redis,
-		Shops:     shopSvc,
-		Orders:    orderSvc,
-		Inventory: inventorySvc,
-		OpLog:     opLogSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Orders:      orderSvc,
+		Inventory:   inventorySvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
 		orderSyncSvc.QueueEnabled = dep.Config.OrderSyncQueueEnabled
@@ -412,14 +418,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	customerChatSvc := &customerchat.Service{
-		DB:        dep.DB,
-		Settings:  settingsSvc,
-		Prompts:   promptSvc,
-		AITasks:   aiTaskSvc,
-		AIGateway: aiGateway,
-		OpLog:     opLogSvc,
-		Orders:    orderSvc,
-		Shops:     shopSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AITasks:     aiTaskSvc,
+		AIGateway:   aiGateway,
+		OpLog:       opLogSvc,
+		Orders:      orderSvc,
+		Shops:       shopSvc,
+		Idempotency: idempotencySvc,
 	}
 	customerChatH := &customerchat.Handler{Svc: customerChatSvc}
 
@@ -479,12 +486,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	productPublishSvc := &productpublish.Service{
-		DB:        dep.DB,
-		Redis:     dep.Redis,
-		Shops:     shopSvc,
-		Settings:  settingsSvc,
-		OpLog:     opLogSvc,
-		Readiness: readinessSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Settings:    settingsSvc,
+		OpLog:       opLogSvc,
+		Readiness:   readinessSvc,
+		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
 		productPublishSvc.QueueEnabled = dep.Config.ProductPublishQueueEnabled

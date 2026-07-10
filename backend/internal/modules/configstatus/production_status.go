@@ -26,6 +26,8 @@ func defaultProjectPhase() ProjectPhase {
 		StatusLines: []string{
 			"Production Capability Development In Progress",
 			"Core Reliability Foundation Ready",
+			"Critical Domain Idempotency Integrated",
+			"Task Lease Protection Ready",
 			"Infrastructure Foundation Ready",
 			"MVP Demo Ready",
 			"Tag deferred",

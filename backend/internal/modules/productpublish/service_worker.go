@@ -49,7 +49,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	}()
 
 	lease := s.publishLeaseTTL()
-	taskRow, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, lease)
+	taskRow, claim, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		return nil
 	}
 
-	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, lease)
+	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer cancelRen()
 
 	if s.OpLog != nil {

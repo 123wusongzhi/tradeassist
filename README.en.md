@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Phase P1 Completed** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/PRODUCTION_CONFIGURATION_DESIGN.md`](docs/PRODUCTION_CONFIGURATION_DESIGN.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
+> Current status: **Phase P2.1 Completed** (unified idempotency on critical write paths + task heartbeat leases) · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
 
 ## Positioning
 

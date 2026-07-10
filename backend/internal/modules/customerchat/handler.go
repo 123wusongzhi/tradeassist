@@ -412,6 +412,14 @@ func (h *Handler) SendPlatformMessage(c *gin.Context) {
 		case errors.Is(err, platformp.ErrPlatformCustomerMessagePermissionDenied):
 			response.Fail(c, 403, response.CodeBadRequest, "平台客服权限不足，请确认已在对应电商平台开放后台申请客服消息权限并重新授权店铺。（Amazon：Seller Central / SP-API 申请 Buyer-Seller Messaging / Messaging API 权限）")
 		default:
+			if pe, ok := asPlatformSendError(err); ok {
+				httpStatus := http.StatusConflict
+				if pe.ManualReviewRequired {
+					httpStatus = http.StatusBadRequest
+				}
+				response.Fail(c, httpStatus, response.CodeBadRequest, pe.Error())
+				return
+			}
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		}
 		return

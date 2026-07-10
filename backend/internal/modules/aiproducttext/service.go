@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
@@ -22,7 +23,11 @@ import (
 	"gorm.io/gorm"
 )
 
-const defaultBatchMax = 100
+const (
+	defaultBatchMax           = 100
+	errAITextBatchInProgress  = "AI_TEXT_BATCH_IN_PROGRESS"
+	errAITextBatchKeyConflict = "AI_TEXT_BATCH_KEY_CONFLICT"
+)
 
 // detachedGinContext returns a gin copy whose request context survives after the HTTP handler returns.
 func detachedGinContext(c *gin.Context) *gin.Context {
@@ -36,10 +41,11 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 
 // Service orchestrates AI product text batch operations with human review.
 type Service struct {
-	DB       *gorm.DB
-	Settings *settings.Service
-	Products *product.Service
-	OpLog    *operationlog.Service
+	DB          *gorm.DB
+	Settings    *settings.Service
+	Products    *product.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
 }
 
 func (s *Service) batchMaxSize(ctx context.Context) int {
@@ -291,6 +297,104 @@ func (s *Service) nextBatchNo(ctx context.Context) (string, error) {
 	return prefix + fmt.Sprintf("%04d", x+1), nil
 }
 
+func batchRequestHashPayload(req CreateBatchRequest, adminID *uuid.UUID, ids []uuid.UUID, ops []string) []byte {
+	idStrs := make([]string, len(ids))
+	for i, id := range ids {
+		idStrs[i] = id.String()
+	}
+	sort.Strings(idStrs)
+	payload := map[string]any{
+		"productIds":     idStrs,
+		"operationTypes": ops,
+		"options":        req.Options,
+	}
+	if adminID != nil {
+		payload["adminId"] = adminID.String()
+	}
+	if k := strings.TrimSpace(req.IdempotencyKey); k != "" {
+		payload["idempotencyKey"] = k
+	}
+	b, _ := json.Marshal(payload)
+	return b
+}
+
+type textBatchAcquire struct {
+	RecordID uuid.UUID
+	Owner    string
+}
+
+func (s *Service) acquireTextBatch(c *gin.Context, ctx context.Context, idemKey string, reqHash []byte) (*textBatchAcquire, *idempotency.AcquireResult, error) {
+	if s == nil || s.Idempotency == nil || idemKey == "" {
+		return nil, nil, nil
+	}
+	owner := "ai-text-batch-create"
+	if c != nil {
+		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
+	}
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIText, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	decision, rec, _ := idempotency.Classify(res, err)
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		return nil, res, nil
+	case idempotency.DecisionInProgress:
+		return nil, res, fmt.Errorf("%s", errAITextBatchInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		return nil, res, fmt.Errorf("%s", errAITextBatchKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if rec == nil && res != nil {
+			rec = res.Record
+		}
+		if rec == nil {
+			return nil, res, fmt.Errorf("idempotency: missing record")
+		}
+		return &textBatchAcquire{RecordID: rec.ID, Owner: owner}, res, nil
+	default:
+		return nil, res, err
+	}
+}
+
+func (s *Service) completeTextBatchCreate(ctx context.Context, job *textBatchAcquire, batchID uuid.UUID) error {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return nil
+	}
+	summary, _ := json.Marshal(map[string]string{"batchId": batchID.String()})
+	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+		ResponseCode:    "AI_TEXT_BATCH_CREATED",
+		ResponseSummary: string(summary),
+		ResourceType:    "ai_product_text_batch",
+		ResourceID:      batchID.String(),
+	})
+}
+
+func (s *Service) failTextBatchCreate(ctx context.Context, job *textBatchAcquire, code string, retryable bool) {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return
+	}
+	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+}
+
+func (s *Service) resolveExistingTextBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string) (*AIProductTextBatch, error) {
+	rid := ""
+	if res != nil {
+		rid = res.ResourceID
+		if rid == "" && res.Record != nil {
+			rid = res.Record.ResourceID
+		}
+	}
+	if rid != "" {
+		if bid, err := uuid.Parse(rid); err == nil {
+			if batch, err := s.GetBatchByID(ctx, bid); err == nil {
+				return batch, nil
+			}
+		}
+	}
+	var existing AIProductTextBatch
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+		return &existing, nil
+	}
+	return nil, fmt.Errorf("%s", errAITextBatchInProgress)
+}
+
 func summarizeInput(ops []string, opts TextGenerationOptions) map[string]any {
 	return map[string]any{
 		"batchType":      BatchTypeAIText,
@@ -369,6 +473,14 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if idemKey == "" {
 		idemKey = buildIdempotencyKey(adminID, ids, ops, req.Options)
 	}
+	reqHash := batchRequestHashPayload(req, adminID, ids, ops)
+	idemJob, replayRes, acqErr := s.acquireTextBatch(c, ctx, idemKey, reqHash)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingTextBatch(ctx, replayRes, idemKey)
+	}
 	var existing AIProductTextBatch
 	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
 		return &existing, nil
@@ -378,6 +490,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 	inJSON, _ := json.Marshal(summarizeInput(ops, req.Options))
@@ -395,6 +508,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		StartedAt:      &now,
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 
@@ -419,6 +533,11 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		}
 	}
 	if err := s.DB.WithContext(ctx).CreateInBatches(&items, 50).Error; err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
+		return nil, err
+	}
+
+	if err := s.completeTextBatchCreate(ctx, idemJob, batch.ID); err != nil {
 		return nil, err
 	}
 

@@ -47,7 +47,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		}
 	}()
 	lease := s.inventoryLeaseTTL()
-	taskRow, ok, err := s.tryClaimInventorySyncTask(ctx, taskID, workerID, lease)
+	taskRow, claim, ok, err := s.tryClaimInventorySyncTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return err
 	}
 	s.InventoryRateObserveStarted(ctx, taskRow.Platform)
-	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, lease)
+	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stop()
 
 	if s.OpLog != nil {
@@ -84,15 +84,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": clampStr(msg, 4000),
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
-			}).Error
+		_ = s.finishInventorySyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": clampStr(msg, 4000),
+			"finished_at":   &fin,
+		})
 		if taskRow.ProductSKUID != nil && *taskRow.ProductSKUID != uuid.Nil {
 			pskuSnap := snapshotPublicationSKUStock(ctx, s, taskRow)
 			beforePL := derefStock(pskuSnap.stockPtr)
@@ -243,16 +239,12 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 	outJSON, _ := json.Marshal(payload)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        StatusSuccess,
-			"finished_at":   &fin,
-			"output":        datatypes.JSON(outJSON),
-			"error_message": "",
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	_ = s.finishInventorySyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        StatusSuccess,
+		"finished_at":   &fin,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	})
 
 	delta := stockOut - beforeMirror
 	s.appendChange(ctx, taskRow.ProductID, skuUUID, ChangeSyncSuccess, beforeMirror, stockOut, delta, "inventory_sync_success", fmt.Sprintf("task=%s platform=%s", taskID.String(), pl), taskRow.CreatedBy)

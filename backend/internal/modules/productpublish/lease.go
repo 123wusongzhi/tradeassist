@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
-	"gorm.io/gorm"
 )
 
 func (s *Service) publishLeaseTTL() time.Duration {
@@ -19,63 +19,29 @@ func (s *Service) publishLeaseTTL() time.Duration {
 	return 180 * time.Second
 }
 
-func (s *Service) tryClaimProductPublishTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*ProductPublishTask, bool, error) {
+func (s *Service) tryClaimProductPublishTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*ProductPublishTask, *tasklease.ClaimResult, bool, error) {
 	if s == nil || s.DB == nil {
-		return nil, false, fmt.Errorf("productpublish: no db")
+		return nil, nil, false, fmt.Errorf("productpublish: no db")
 	}
-	now := time.Now().UTC()
-	until := now.Add(lease)
-	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
-		Where(`id = ? AND status = ? AND (locked_by IS NULL OR locked_until < ?)`, taskID, TaskPending, now).
-		Updates(map[string]any{
-			"status":       TaskRunning,
-			"locked_by":    workerID,
-			"locked_until": &until,
-			"lock_version": gorm.Expr("lock_version + 1"),
-			"started_at":   gorm.Expr("COALESCE(started_at, ?)", now),
-			"updated_at":   now,
-		})
-	if res.Error != nil {
-		return nil, false, res.Error
+	claim, ok, err := tasklease.TryClaim(ctx, s.DB, ProductPublishTask{}.TableName(), TaskPending, TaskRunning, taskID, workerID, lease)
+	if err != nil {
+		return nil, nil, false, err
 	}
-	if res.RowsAffected == 0 {
-		return nil, false, nil
+	if !ok {
+		return nil, nil, false, nil
 	}
 	var task ProductPublishTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	return &task, true, nil
+	return &task, &claim, true, nil
 }
 
-func (s *Service) startPublishLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, leaseTTL time.Duration) func() {
-	if s == nil || s.DB == nil {
+func (s *Service) startPublishLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, leaseTTL time.Duration) func() {
+	if s == nil || s.DB == nil || claim == nil {
 		return func() {}
 	}
-	interval := leaseTTL / 3
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
-	}
-	runCtx, cancel := context.WithCancel(ctx)
-	go func() {
-		tick := time.NewTicker(interval)
-		defer tick.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-tick.C:
-				until := time.Now().UTC().Add(leaseTTL)
-				_ = s.DB.WithContext(context.Background()).Model(&ProductPublishTask{}).
-					Where("id = ? AND status = ? AND locked_by = ?", taskID, TaskRunning, workerID).
-					Updates(map[string]any{
-						"locked_until": &until,
-						"updated_at":   time.Now().UTC(),
-					}).Error
-			}
-		}
-	}()
-	return cancel
+	return tasklease.StartRenewal(ctx, s.DB, ProductPublishTask{}.TableName(), TaskRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion, leaseTTL)
 }
 
 func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) error {

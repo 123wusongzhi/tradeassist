@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -35,6 +36,7 @@ type SyncOrdersBody struct {
 	Cursor   string `json:"cursor"`
 	Limit    int    `json:"limit"`
 	MaxPages int    `json:"maxPages"`
+	ForceNew bool   `json:"forceNew"`
 }
 
 type syncInputSnapshot struct {
@@ -106,12 +108,13 @@ func pagesOf(total int64, ps int) int {
 
 // Service orchestrates order_sync_tasks + Platform Provider SyncOrders + order upserts.
 type Service struct {
-	DB        *gorm.DB
-	Redis     *rdb.Client
-	Shops     *shop.Service
-	Orders    *order.Service
-	Inventory *inventory.Service
-	OpLog     *operationlog.Service
+	DB          *gorm.DB
+	Redis       *rdb.Client
+	Shops       *shop.Service
+	Orders      *order.Service
+	Inventory   *inventory.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
 
 	QueueEnabled bool
 	QueueName    string
@@ -254,6 +257,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 		return nil, err
 	}
 
+	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "order-sync-create")
+	jobAcquire, replayRes, acqErr := s.acquireSyncJob(c.Request.Context(), strings.TrimSpace(row.Platform), shopID, snap, inputJSON, body.ForceNew, owner)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if jobAcquire == nil && replayRes != nil {
+		return s.resolveExistingSyncTask(c.Request.Context(), replayRes)
+	}
+
 	task := OrderSyncTask{
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
@@ -265,7 +277,13 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 		CreatedBy: adminID,
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(&task).Error; err != nil {
+		s.failSyncJobCreate(c.Request.Context(), jobAcquire, "ORDER_SYNC_CREATE_FAILED", true)
 		return nil, err
+	}
+	if jobAcquire != nil {
+		if err := s.completeSyncJobCreate(c.Request.Context(), jobAcquire, task.ID); err != nil {
+			return nil, err
+		}
 	}
 
 	if s.OpLog != nil {
@@ -325,7 +343,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}()
 
 	lease := s.orderSyncLeaseTTL()
-	task, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
+	task, claim, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -337,7 +355,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return err
 	}
 
-	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, lease)
+	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stopRen()
 
 	if s.OpLog != nil {
@@ -363,15 +381,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": msg,
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
-			}).Error
+		_ = s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": msg,
+			"finished_at":   &fin,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 				AdminUserID: task.CreatedBy,
@@ -565,20 +579,19 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fin := time.Now().UTC()
 	finalStatus := resolveFinalSyncStatus(res, failedN)
-	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        finalStatus,
-			"finished_at":   &fin,
-			"total_count":   len(res.Orders),
-			"success_count": successN,
-			"failed_count":  failedN,
-			"cursor":        nextCur,
-			"output":        datatypes.JSON(outJSON),
-			"error_message": "",
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	if err := s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        finalStatus,
+		"finished_at":   &fin,
+		"total_count":   len(res.Orders),
+		"success_count": successN,
+		"failed_count":  failedN,
+		"cursor":        nextCur,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	}); err != nil {
+		slog.Warn("order_sync_success_lease_lost", "taskId", taskID.String(), "error", err.Error())
+		return err
+	}
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{

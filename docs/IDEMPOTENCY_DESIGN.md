@@ -1,6 +1,7 @@
-# 统一幂等设计（P2）
+# 统一幂等设计（P2 / P2.1）
 
 > Phase P2 引入跨模块幂等基础设施，避免重复执行产生副作用。实现位于 `backend/internal/modules/idempotency`。
+> **Phase P2.1**：关键生产写路径已通过共享 `idempotency.Service` 完成接入（订单同步/导入、库存扣减/推送、刊登、客服外发、AI 批次、Webhook）；接入矩阵见 [`P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)，集成指南见 [`DOMAIN_IDEMPOTENCY_INTEGRATION.md`](DOMAIN_IDEMPOTENCY_INTEGRATION.md)。
 
 ## 数据模型：`idempotency_records`
 
@@ -38,20 +39,31 @@ processing（租约过期）→ expired（ReleaseExpired 清扫）
 | `Get(ctx, scope, key)` | 查询最新记录 |
 | `ReleaseExpired(ctx, limit)` | 将过期 processing / 超 TTL 记录标为 `expired` |
 
+## P2.1 接入状态
+
+| 状态 | 说明 |
+| --- | --- |
+| **已接入** | 订单同步任务、订单导入、库存扣减/推送、刊登批次/入队、客服外发、AI 文案/图片批次创建、Webhook 入站 |
+| **预留** | AI 文案/图片 **应用**（`ai-text-apply` / `ai-image-apply`）、库存补偿 |
+| **验证** | `node scripts/p2-1-domain-idempotency-check.mjs` → [`P2_1_DOMAIN_IDEMPOTENCY_REPORT.md`](P2_1_DOMAIN_IDEMPOTENCY_REPORT.md) |
+
+`router.go` 将同一 `idempotencySvc` 注入 `ordersync`、`order`、`inventory`、`productpublish`、`customerchat`、`aiproducttext`、`aiproductimage`。
+
 ## Scope 与 Key 模式
 
-Key 构造见 `keys.go`，**不得嵌入密钥或 PII**：
+Key 构造见 `scope.go` + `keys.go`，**不得嵌入密钥或 PII**：
 
-| Scope 示例 | Key 模式 | 场景 |
-| --- | --- | --- |
-| `webhook` | `webhook:{platform}:{eventId}` | Webhook 入站 |
-| （调用方自定） | `order-sync:{platform}:{shopId}:{platformOrderId}` | 订单同步 |
-| | `inventory-deduct:{orderId}:{orderItemId}:{skuId}` | 库存扣减 |
-| | `inventory-push:{shopId}:{skuId}:{stockVersion}` | 库存推送 |
-| | `customer-send:{conversationId}:{clientMessageId}` | 客服外发 |
-| | `publish-draft:{shopId}:{productDraftId}:{publishVersion}` | 刊登草稿 |
-| | `ai-text-batch:{productId}:{contentHash}:{op}` | AI 文案批次 |
-| | `ai-image-batch:{productId}:{imageHash}:{op}` | AI 图片批次 |
+| Scope | Key 模式 | 场景 | P2.1 |
+| --- | --- | --- | --- |
+| `order_sync` | `order-sync-job:{platform}:{shopId}:{mode}:{window}` | 同步任务创建 | ✓ |
+| `order_import` | `order-import:{platform}:{shopId}:{platformOrderId}` | 单订单导入 | ✓ |
+| `inventory` | `inventory-deduct:{orderId}:{orderItemId}:{skuId}` | 库存扣减 | ✓ |
+| `inventory_push` | `inventory-push:{platform}:{shopId}:{skuId}:{stockVersion}` | 库存推送 | ✓ |
+| `publish` | `publish-batch:…` / `publish-enqueue:…` | 刊登批次/入队 | ✓ |
+| `customer_send` | `customer-send:{conversationId}:{clientMessageId}` | 客服外发 | ✓ |
+| `ai_text` | `ai-text-batch:…` | AI 文案批次 | ✓ |
+| `ai_image` | `ai-image-batch:…` | AI 图片批次 | ✓ |
+| `webhook` | `webhook:{platform}:{eventId}` | Webhook 入站 | ✓ |
 
 `HashRequest(payload []byte)` 对规范化请求体做 SHA-256。
 
@@ -75,3 +87,4 @@ P2 迁移（`migrate_p2.go`）创建表及索引：`ix_idempotency_status`、`ix
 2. 业务成功必须 `Complete`；失败按 `taskretry.Classify` 决定 `retryable`。
 3. 客户端可选传幂等键；服务端必须用稳定业务语义生成 key，而非随机 UUID。
 4. Webhook 与订单同步共享同一套 `idempotency_records` + 领域表双写防重。
+5. 异步 Worker 须配合 `tasklease`（`execution_id` / `heartbeat_at` / `lock_version`），见 [`TASK_LEASE_AND_HEARTBEAT_DESIGN.md`](TASK_LEASE_AND_HEARTBEAT_DESIGN.md)。

@@ -9,9 +9,21 @@ import (
 
 // Key builders use stable business semantics; never embed secrets or PII.
 
-func OrderSync(platform, shopID, platformOrderID string) string {
-	return fmt.Sprintf("order-sync:%s:%s:%s",
+// OrderSyncJob deduplicates shop-level sync task creation.
+func OrderSyncJob(platform, shopID, syncMode, windowOrCursor string) string {
+	return fmt.Sprintf("order-sync-job:%s:%s:%s:%s",
+		norm(platform), norm(shopID), norm(syncMode), norm(windowOrCursor))
+}
+
+// OrderImport deduplicates single-order import/upsert.
+func OrderImport(platform, shopID, platformOrderID string) string {
+	return fmt.Sprintf("order-import:%s:%s:%s",
 		norm(platform), norm(shopID), norm(platformOrderID))
+}
+
+// OrderSync is kept for per-order sync side effects inside a running job.
+func OrderSync(platform, shopID, platformOrderID string) string {
+	return OrderImport(platform, shopID, platformOrderID)
 }
 
 func InventoryDeduct(orderID, orderItemID, skuID string) string {
@@ -19,9 +31,24 @@ func InventoryDeduct(orderID, orderItemID, skuID string) string {
 		norm(orderID), norm(orderItemID), norm(skuID))
 }
 
-func InventoryPush(shopID, skuID, stockVersion string) string {
-	return fmt.Sprintf("inventory-push:%s:%s:%s",
-		norm(shopID), norm(skuID), norm(stockVersion))
+func InventoryCompensate(orderID, orderItemID, skuID, reason string) string {
+	return fmt.Sprintf("inventory-compensate:%s:%s:%s:%s",
+		norm(orderID), norm(orderItemID), norm(skuID), norm(reason))
+}
+
+func InventoryPush(platform, shopID, skuID, stockVersion string) string {
+	return fmt.Sprintf("inventory-push:%s:%s:%s:%s",
+		norm(platform), norm(shopID), norm(skuID), norm(stockVersion))
+}
+
+func PublishBatch(shopID, productDraftID, publishVersion string) string {
+	return fmt.Sprintf("publish-batch:%s:%s:%s",
+		norm(shopID), norm(productDraftID), norm(publishVersion))
+}
+
+func PublishEnqueue(publishBatchID, taskType string) string {
+	return fmt.Sprintf("publish-enqueue:%s:%s",
+		norm(publishBatchID), norm(taskType))
 }
 
 func CustomerSend(conversationID, clientMessageID string) string {
@@ -29,19 +56,30 @@ func CustomerSend(conversationID, clientMessageID string) string {
 		norm(conversationID), norm(clientMessageID))
 }
 
-func PublishDraft(shopID, productDraftID, publishVersion string) string {
-	return fmt.Sprintf("publish-draft:%s:%s:%s",
-		norm(shopID), norm(productDraftID), norm(publishVersion))
+func AITextApply(batchID, itemID, targetVersion string) string {
+	return fmt.Sprintf("ai-text-apply:%s:%s:%s",
+		norm(batchID), norm(itemID), norm(targetVersion))
 }
 
-func AITextBatch(productID, contentHash, operationType string) string {
+func AIImageApply(batchID, itemID, targetVersion string) string {
+	return fmt.Sprintf("ai-image-apply:%s:%s:%s",
+		norm(batchID), norm(itemID), norm(targetVersion))
+}
+
+func AITextBatch(productID, productVersion, operationType, inputHash string) string {
+	return fmt.Sprintf("ai-text-batch:%s:%s:%s:%s",
+		norm(productID), norm(productVersion), norm(operationType), norm(inputHash))
+}
+
+func AIImageBatch(productID, productVersion, operationType, inputImageHash string) string {
+	return fmt.Sprintf("ai-image-batch:%s:%s:%s:%s",
+		norm(productID), norm(productVersion), norm(operationType), norm(inputImageHash))
+}
+
+// LegacyAITextBatch preserves older two-part key shape for migration compatibility.
+func LegacyAITextBatch(productID, contentHash, operationType string) string {
 	return fmt.Sprintf("ai-text-batch:%s:%s:%s",
 		norm(productID), norm(contentHash), norm(operationType))
-}
-
-func AIImageBatch(productID, imageHash, operationType string) string {
-	return fmt.Sprintf("ai-image-batch:%s:%s:%s",
-		norm(productID), norm(imageHash), norm(operationType))
 }
 
 func Webhook(platform, eventID string) string {

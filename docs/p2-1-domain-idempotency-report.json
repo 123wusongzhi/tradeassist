@@ -1,0 +1,522 @@
+{
+  "generatedAt": "2026-07-10T14:23:58.570Z",
+  "phase": "P2.1",
+  "overall": "passed_with_warning",
+  "summary": {
+    "passed": 74,
+    "warnings": 3,
+    "failed": 0,
+    "total": 77
+  },
+  "domainPaths": [
+    {
+      "id": "path-order-sync",
+      "label": "order sync job create",
+      "file": "backend/internal/modules/ordersync/idempotency_create.go"
+    },
+    {
+      "id": "path-order-import",
+      "label": "order import/upsert",
+      "file": "backend/internal/modules/order/idempotency_import.go"
+    },
+    {
+      "id": "path-inventory-deduct",
+      "label": "inventory deduct",
+      "file": "backend/internal/modules/inventory/idempotency_deduct.go"
+    },
+    {
+      "id": "path-inventory-push",
+      "label": "inventory push",
+      "file": "backend/internal/modules/inventory/idempotency_push.go"
+    },
+    {
+      "id": "path-publish-batch",
+      "label": "publish batch / enqueue",
+      "file": "backend/internal/modules/productpublish/idempotency_batch.go"
+    },
+    {
+      "id": "path-customer-send",
+      "label": "customer message send",
+      "file": "backend/internal/modules/customerchat/send_platform.go"
+    },
+    {
+      "id": "path-ai-text-batch",
+      "label": "AI text batch create",
+      "file": "backend/internal/modules/aiproducttext/service.go"
+    },
+    {
+      "id": "path-ai-image-batch",
+      "label": "AI image batch create",
+      "file": "backend/internal/modules/aiproductimage/service.go"
+    },
+    {
+      "id": "path-webhook",
+      "label": "webhook ingest",
+      "file": "backend/internal/modules/webhook/service.go"
+    }
+  ],
+  "checks": [
+    {
+      "id": "idem-module-service",
+      "status": "passed",
+      "message": "idempotency.Service exists",
+      "detail": "backend/internal/modules/idempotency/service.go"
+    },
+    {
+      "id": "idem-module-scopes",
+      "status": "passed",
+      "message": "idempotency business scopes",
+      "detail": "backend/internal/modules/idempotency/scope.go"
+    },
+    {
+      "id": "idem-module-keys",
+      "status": "passed",
+      "message": "idempotency key builders",
+      "detail": "backend/internal/modules/idempotency/keys.go"
+    },
+    {
+      "id": "idem-module-decision",
+      "status": "passed",
+      "message": "idempotency Classify",
+      "detail": "backend/internal/modules/idempotency/decision.go"
+    },
+    {
+      "id": "idem-module-execute",
+      "status": "passed",
+      "message": "idempotency Execute helper",
+      "detail": "backend/internal/modules/idempotency/execute.go"
+    },
+    {
+      "id": "idem-model-unique",
+      "status": "passed",
+      "message": "idempotency unique constraint",
+      "detail": "backend/internal/modules/idempotency/model.go"
+    },
+    {
+      "id": "router-idempotency-svc",
+      "status": "passed",
+      "message": "router creates shared idempotency.Service",
+      "detail": null
+    },
+    {
+      "id": "router-wire-ordersync",
+      "status": "passed",
+      "message": "router wires idempotency to ordersync",
+      "detail": null
+    },
+    {
+      "id": "router-wire-order",
+      "status": "passed",
+      "message": "router wires idempotency to order import",
+      "detail": null
+    },
+    {
+      "id": "router-wire-inventory",
+      "status": "passed",
+      "message": "router wires idempotency to inventory",
+      "detail": null
+    },
+    {
+      "id": "router-wire-publish",
+      "status": "passed",
+      "message": "router wires idempotency to productpublish",
+      "detail": null
+    },
+    {
+      "id": "router-wire-customer",
+      "status": "passed",
+      "message": "router wires idempotency to customerchat",
+      "detail": null
+    },
+    {
+      "id": "router-wire-ai-text",
+      "status": "passed",
+      "message": "router wires idempotency to aiproducttext",
+      "detail": null
+    },
+    {
+      "id": "router-wire-ai-image",
+      "status": "passed",
+      "message": "router wires idempotency to aiproductimage",
+      "detail": null
+    },
+    {
+      "id": "router-wire-webhook",
+      "status": "warning",
+      "message": "webhook HTTP route not wired in router (service-level idempotency only)",
+      "detail": null
+    },
+    {
+      "id": "path-order-sync-file",
+      "status": "passed",
+      "message": "order sync job create exists",
+      "detail": "backend/internal/modules/ordersync/idempotency_create.go"
+    },
+    {
+      "id": "path-order-sync-acquire",
+      "status": "passed",
+      "message": "order sync job create Acquire via ScopeOrderSync",
+      "detail": "backend/internal/modules/ordersync/idempotency_create.go"
+    },
+    {
+      "id": "path-order-sync-complete",
+      "status": "passed",
+      "message": "order sync job create Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/ordersync/idempotency_create.go"
+    },
+    {
+      "id": "path-order-sync-key",
+      "status": "passed",
+      "message": "order sync job create uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-order-import-file",
+      "status": "passed",
+      "message": "order import/upsert exists",
+      "detail": "backend/internal/modules/order/idempotency_import.go"
+    },
+    {
+      "id": "path-order-import-acquire",
+      "status": "passed",
+      "message": "order import/upsert Acquire via ScopeOrderImport",
+      "detail": "backend/internal/modules/order/idempotency_import.go"
+    },
+    {
+      "id": "path-order-import-complete",
+      "status": "passed",
+      "message": "order import/upsert Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/order/idempotency_import.go"
+    },
+    {
+      "id": "path-order-import-key",
+      "status": "passed",
+      "message": "order import/upsert uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-inventory-deduct-file",
+      "status": "passed",
+      "message": "inventory deduct exists",
+      "detail": "backend/internal/modules/inventory/idempotency_deduct.go"
+    },
+    {
+      "id": "path-inventory-deduct-acquire",
+      "status": "passed",
+      "message": "inventory deduct Acquire via ScopeInventory",
+      "detail": "backend/internal/modules/inventory/idempotency_deduct.go"
+    },
+    {
+      "id": "path-inventory-deduct-complete",
+      "status": "passed",
+      "message": "inventory deduct Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/inventory/idempotency_deduct.go"
+    },
+    {
+      "id": "path-inventory-deduct-key",
+      "status": "passed",
+      "message": "inventory deduct uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-inventory-push-file",
+      "status": "passed",
+      "message": "inventory push exists",
+      "detail": "backend/internal/modules/inventory/idempotency_push.go"
+    },
+    {
+      "id": "path-inventory-push-acquire",
+      "status": "passed",
+      "message": "inventory push Acquire via ScopeInventoryPush",
+      "detail": "backend/internal/modules/inventory/idempotency_push.go"
+    },
+    {
+      "id": "path-inventory-push-complete",
+      "status": "passed",
+      "message": "inventory push Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/inventory/idempotency_push.go"
+    },
+    {
+      "id": "path-inventory-push-key",
+      "status": "passed",
+      "message": "inventory push uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-publish-batch-file",
+      "status": "passed",
+      "message": "publish batch / enqueue exists",
+      "detail": "backend/internal/modules/productpublish/idempotency_batch.go"
+    },
+    {
+      "id": "path-publish-batch-acquire",
+      "status": "passed",
+      "message": "publish batch / enqueue Acquire via ScopePublish",
+      "detail": "backend/internal/modules/productpublish/idempotency_batch.go"
+    },
+    {
+      "id": "path-publish-batch-complete",
+      "status": "passed",
+      "message": "publish batch / enqueue Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/productpublish/idempotency_batch.go"
+    },
+    {
+      "id": "path-publish-batch-key",
+      "status": "passed",
+      "message": "publish batch / enqueue uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-customer-send-file",
+      "status": "passed",
+      "message": "customer message send exists",
+      "detail": "backend/internal/modules/customerchat/send_platform.go"
+    },
+    {
+      "id": "path-customer-send-acquire",
+      "status": "passed",
+      "message": "customer message send Acquire via ScopeCustomerSend",
+      "detail": "backend/internal/modules/customerchat/send_platform.go"
+    },
+    {
+      "id": "path-customer-send-complete",
+      "status": "passed",
+      "message": "customer message send Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/customerchat/send_platform.go"
+    },
+    {
+      "id": "path-customer-send-key",
+      "status": "passed",
+      "message": "customer message send uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-ai-text-batch-file",
+      "status": "passed",
+      "message": "AI text batch create exists",
+      "detail": "backend/internal/modules/aiproducttext/service.go"
+    },
+    {
+      "id": "path-ai-text-batch-acquire",
+      "status": "passed",
+      "message": "AI text batch create Acquire via ScopeAIText",
+      "detail": "backend/internal/modules/aiproducttext/service.go"
+    },
+    {
+      "id": "path-ai-text-batch-complete",
+      "status": "passed",
+      "message": "AI text batch create Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/aiproducttext/service.go"
+    },
+    {
+      "id": "path-ai-text-batch-key",
+      "status": "passed",
+      "message": "AI text batch create uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-ai-image-batch-file",
+      "status": "passed",
+      "message": "AI image batch create exists",
+      "detail": "backend/internal/modules/aiproductimage/service.go"
+    },
+    {
+      "id": "path-ai-image-batch-acquire",
+      "status": "passed",
+      "message": "AI image batch create Acquire via ScopeAIImage",
+      "detail": "backend/internal/modules/aiproductimage/service.go"
+    },
+    {
+      "id": "path-ai-image-batch-complete",
+      "status": "passed",
+      "message": "AI image batch create Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/aiproductimage/service.go"
+    },
+    {
+      "id": "path-ai-image-batch-key",
+      "status": "passed",
+      "message": "AI image batch create uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-webhook-file",
+      "status": "passed",
+      "message": "webhook ingest exists",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "path-webhook-acquire",
+      "status": "passed",
+      "message": "webhook ingest Acquire via ScopeWebhook",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "path-webhook-complete",
+      "status": "passed",
+      "message": "webhook ingest Complete/Fail lifecycle",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "path-webhook-key",
+      "status": "passed",
+      "message": "webhook ingest uses key pattern",
+      "detail": null
+    },
+    {
+      "id": "path-publish-enqueue",
+      "status": "passed",
+      "message": "publish enqueue idempotency",
+      "detail": "backend/internal/modules/productpublish/idempotency_batch.go"
+    },
+    {
+      "id": "tasklease-pkg",
+      "status": "passed",
+      "message": "tasklease package exists",
+      "detail": "backend/internal/pkg/tasklease/lease.go"
+    },
+    {
+      "id": "tasklease-try-claim",
+      "status": "passed",
+      "message": "tasklease TryClaim fields",
+      "detail": "backend/internal/pkg/tasklease/lease.go"
+    },
+    {
+      "id": "tasklease-renew",
+      "status": "passed",
+      "message": "tasklease renewal API",
+      "detail": "backend/internal/pkg/tasklease/lease.go"
+    },
+    {
+      "id": "tasklease-takeover",
+      "status": "passed",
+      "message": "tasklease stale takeover",
+      "detail": "backend/internal/pkg/tasklease/lease.go"
+    },
+    {
+      "id": "tasklease-ordersync",
+      "status": "passed",
+      "message": "order sync worker lease",
+      "detail": "backend/internal/modules/ordersync/lease.go"
+    },
+    {
+      "id": "tasklease-inventory",
+      "status": "passed",
+      "message": "inventory sync worker lease",
+      "detail": "backend/internal/modules/inventory/lease.go"
+    },
+    {
+      "id": "tasklease-publish",
+      "status": "passed",
+      "message": "product publish worker lease",
+      "detail": "backend/internal/modules/productpublish/lease.go"
+    },
+    {
+      "id": "task-model-ordersync",
+      "status": "passed",
+      "message": "order_sync_tasks model lease fields",
+      "detail": "backend/internal/modules/ordersync/model.go"
+    },
+    {
+      "id": "task-model-inventory",
+      "status": "passed",
+      "message": "inventory_sync_tasks model lease fields",
+      "detail": "backend/internal/modules/inventory/model.go"
+    },
+    {
+      "id": "task-model-publish",
+      "status": "passed",
+      "message": "product_publish_tasks model lease fields",
+      "detail": "backend/internal/modules/productpublish/model.go"
+    },
+    {
+      "id": "migrate-p21",
+      "status": "passed",
+      "message": "P2.1 migration",
+      "detail": "backend/internal/database/migrate_p2_1.go"
+    },
+    {
+      "id": "migrate-p21-collect_tasks",
+      "status": "passed",
+      "message": "P2.1 migration adds heartbeat_at to collect_tasks",
+      "detail": null
+    },
+    {
+      "id": "migrate-p21-image_tasks",
+      "status": "passed",
+      "message": "P2.1 migration adds heartbeat_at to image_tasks",
+      "detail": null
+    },
+    {
+      "id": "migrate-p21-customer_message_sync_tasks",
+      "status": "passed",
+      "message": "P2.1 migration adds heartbeat_at to customer_message_sync_tasks",
+      "detail": null
+    },
+    {
+      "id": "inventory-event-key-index",
+      "status": "passed",
+      "message": "inventory business_event_key partial unique index",
+      "detail": null
+    },
+    {
+      "id": "path-ai-text-apply",
+      "status": "warning",
+      "message": "AI text apply path not yet wired (batch create only; keys reserved in keys.go)",
+      "detail": null
+    },
+    {
+      "id": "path-ai-image-apply",
+      "status": "warning",
+      "message": "AI image apply path not yet wired (batch create only; keys reserved in keys.go)",
+      "detail": null
+    },
+    {
+      "id": "doc-IDEMPOTENCY_DESIGN.md",
+      "status": "passed",
+      "message": "docs/IDEMPOTENCY_DESIGN.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md",
+      "status": "passed",
+      "message": "docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-DOMAIN_IDEMPOTENCY_INTEGRATION.md",
+      "status": "passed",
+      "message": "docs/DOMAIN_IDEMPOTENCY_INTEGRATION.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-TASK_LEASE_AND_HEARTBEAT_DESIGN.md",
+      "status": "passed",
+      "message": "docs/TASK_LEASE_AND_HEARTBEAT_DESIGN.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-STALE_WORKER_PROTECTION.md",
+      "status": "passed",
+      "message": "docs/STALE_WORKER_PROTECTION.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-CONCURRENT_WRITE_SAFETY.md",
+      "status": "passed",
+      "message": "docs/CONCURRENT_WRITE_SAFETY.md exists",
+      "detail": null
+    },
+    {
+      "id": "idem-concurrency-test",
+      "status": "passed",
+      "message": "idempotency concurrency test exists",
+      "detail": null
+    },
+    {
+      "id": "tasklease-test",
+      "status": "passed",
+      "message": "tasklease unit test exists",
+      "detail": null
+    }
+  ]
+}

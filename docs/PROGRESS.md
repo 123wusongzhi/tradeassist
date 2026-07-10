@@ -1,4 +1,6 @@
 ﻿# TradeMind 开发进度记录
+**Stage update**: 2026-07-10 — **Phase P2.1 领域幂等与任务心跳租约完成**。统一 `idempotency.Service` 接入订单同步/导入、库存扣减/推送、刊登、客服外发、AI 文案/图片批次、Webhook；`tasklease` 包（`heartbeat_at` / `execution_id` / `lock_version`）接入订单同步、库存同步、刊登 Worker；静态扫描 `scripts/p2-1-domain-idempotency-check.mjs`；文档 `P2_1_*`、`DOMAIN_IDEMPOTENCY_INTEGRATION`、`TASK_LEASE_AND_HEARTBEAT_DESIGN`、`STALE_WORKER_PROTECTION`、`CONCURRENT_WRITE_SAFETY`。策略：**Phase P2.1 Completed** · **Core Reliability Foundation Ready** · **非 Production Ready** · **Final Acceptance Deferred**（AI Key / 抖店 E2E 等仍可能阻塞）。
+
 **Stage update**: 2026-07-10 — **Phase P2 核心可靠性基础完成；P1 已收口**。统一幂等（`idempotency_records`）、任务租约/心跳/重试/死信、订单 upsert 唯一键、库存台账与 `business_event_key`、客服 `clientMessageId`、刊登批次/子任务幂等、Provider `httpclient`+熔断+429、PostgreSQL 迁移 advisory lock、staging/production CORS fail-fast、`STORAGE_PROVIDER` 生产门禁。设计文档：`IDEMPOTENCY_DESIGN.md`、`TASK_RELIABILITY_DESIGN.md`、`ORDER_SYNC_RELIABILITY.md`、`INVENTORY_CONSISTENCY_DESIGN.md`、`CUSTOMER_MESSAGE_IDEMPOTENCY.md`、`PUBLISH_IDEMPOTENCY_DESIGN.md`、`PROVIDER_RESILIENCE_DESIGN.md`、`CIRCUIT_BREAKER_AND_RATE_LIMIT.md`、`MULTI_INSTANCE_SAFETY.md`、`CORS_PRODUCTION_GUIDE.md`、`MIGRATION_LOCK_DESIGN.md`。策略：**Phase P2 Completed** · **Core Reliability Foundation Ready** · **P1 Closed** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **非 Production Ready** · **Tag deferred** · **抖店 Release Candidate**。
 
 **Stage update**: 2026-07-10 — **Phase P1 生产配置、Storage 与环境基础设施完成**。多环境配置体系（`APP_ENV` profiles + `.env.*.example`）；production fail-fast（JWT/MasterKey/危险功能/API 公网 URL）；`/health/live` + `/health/ready`；Storage `ValidatePublicBase` + 公网测试别名路由；配置状态中心增强（环境/生产安全/Storage 边界）；`deploy/` Nginx/systemd/脚本；P1 扫描 `scripts/p1-production-config-check.mjs`。策略：**Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（P10）；F9 为历史 Demo 基线；不允许灰度。
@@ -619,6 +621,7 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-10 | **Phase P2.1 领域幂等与任务心跳租约**：关键写路径接入 `idempotency.Service`；`tasklease` + P2.1 迁移；扫描脚本与接入/并发安全文档 |
 | 2026-06-27 | **Phase R1.2 真实预发部署与 Demo Tag 确认（部分）**：构建/smoke/Demo 数据/浏览器点检通过；Docker 不可用 + 无预发 SSH，HTTPS/Storage/备份/tag 仍 pending |
 | 2026-06-27 | **Phase R1.1 MVP Demo 预发部署与人工走查**：本地 dev 等价环境 `go test`/`build`/`pnpm build:admin` 通过；路由 smoke + Demo 数据复跑；12 步 Demo 走查与 1366/1024 分辨率验收；`DEPLOYMENT_PRECHECK` 备份记录；Git tag **Tag deferred**（待真实预发 Nginx/HTTPS） |
 | 2026-06-13 | **管理端文案与 UI 规范收口**：`TmPageContainer` 全站替换；`copywriting` / `layoutTokens` / `errorMessages` + `components/ui`；任务/刊登/库存/店铺/采集/AI 页技术信息折叠；`docs/ai-workflow.md` 补充典型模式；全局英文表头扫尾；`pnpm build:admin` 通过 |

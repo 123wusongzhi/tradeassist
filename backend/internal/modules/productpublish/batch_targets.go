@@ -302,6 +302,14 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		adminKey = adminID.String()
 	}
 	idemKey := batchIdempotencyKey(adminKey, req.ProductIDs, req.Targets, req.CommonConfig, req.Overrides)
+	inRaw, _ := json.Marshal(req)
+	idemJob, replayRes, acqErr := s.acquirePublishBatch(ctx, c, idemKey, inRaw)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingPublishBatch(ctx, replayRes, idemKey)
+	}
 	var existing ProductPublishBatch
 	if idemKey != "" {
 		if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
@@ -317,6 +325,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		Overrides:    req.Overrides,
 	})
 	if err != nil {
+		s.failPublishBatchCreate(ctx, idemJob, "PUBLISH_BATCH_CHECK_FAILED", true)
 		return nil, err
 	}
 	checkByKey := map[string]BatchTargetCheckItem{}
@@ -324,7 +333,6 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		checkByKey[it.ProductID+":"+it.TargetKey] = it
 	}
 
-	inRaw, _ := json.Marshal(req)
 	batch := ProductPublishBatch{
 		BatchType:      BatchTypeMultiProduct,
 		Name:           strings.TrimSpace(req.Name),
@@ -344,6 +352,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 				return s.batchCreateResponseFromExisting(ctx, &dupBatch)
 			}
 		}
+		s.failPublishBatchCreate(ctx, idemJob, "PUBLISH_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 
@@ -449,6 +458,10 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}).Error
 
 	s.writeBatchOpLog(c, batch.ID, batchStatus, successN, failedN, skippedN, "product.publish.batch.create")
+
+	if err := s.completePublishBatchCreate(ctx, idemJob, batch.ID); err != nil {
+		return nil, err
+	}
 
 	return &BatchTargetsCreateDraftsResponse{
 		BatchID:      batch.ID.String(),
