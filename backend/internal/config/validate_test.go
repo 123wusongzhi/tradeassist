@@ -9,14 +9,14 @@ import (
 func TestValidate_productionBlocksDefaults(t *testing.T) {
 	t.Parallel()
 	cfg := &Config{
-		AppEnv:          EnvProduction,
-		JWTSecret:       defaultJWTSecret,
-		MasterKey:       "",
-		APIPublicURL:    "",
-		AdminPublicURL:  "",
-		EnableDemoSeed:  true,
-		EnableDevRoutes: true,
-		StorageProvider: "cos",
+		AppEnv:             EnvProduction,
+		JWTSecret:          defaultJWTSecret,
+		MasterKey:          "",
+		APIPublicURL:       "",
+		AdminPublicURL:     "",
+		EnableDemoSeed:     true,
+		EnableDevRoutes:    true,
+		StorageProvider:    "cos",
 		CORSAllowedOrigins: []string{"https://admin.example.com"},
 		DB: DBConfig{
 			Driver: "postgres",
