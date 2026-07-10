@@ -389,6 +389,15 @@ export default function ProductDraftsPage() {
         locale={emptyLocale}
         actionRef={actionRef}
         formRef={formRef}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword || urlFilters.keyword,
+          status: urlState.status || urlFilters.status,
+          platform: urlState.platform || urlFilters.platform,
+          shopId: urlState.shopId || urlFilters.shopId,
+          source: urlState.source || urlFilters.navSource,
+        }}
         onReset={() => {
           setTablePage(1);
           setTablePageSize(20);

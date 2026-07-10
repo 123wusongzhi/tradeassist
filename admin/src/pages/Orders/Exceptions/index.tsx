@@ -626,6 +626,19 @@ export default function OrderExceptionsPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          exceptionType: urlState.exceptionType,
+          severity: urlState.severity,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          orderId: urlState.orderId,
+          status: urlState.status,
+          start: urlState.start,
+          end: urlState.end,
+        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
         onReset={() => {
           setTablePage(1);

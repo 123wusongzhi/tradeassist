@@ -54,6 +54,7 @@ function readConversationLegacyFilters(search: string) {
     pendingReply:
       sp.get('pendingReply') === '1' ||
       replyStatus === 'pending' ||
+      replyStatus === 'pending_reply' ||
       sp.get('status') === 'pending_reply',
     hasAiSuggestion:
       sp.get('hasAiSuggestion') === '1' ||
@@ -331,6 +332,17 @@ export default function CustomerConversationsPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          pendingReply: urlFilters.pendingReply ? 'true' : undefined,
+          hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
+          sendFailed: urlFilters.sendFailed ? 'true' : undefined,
+          hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+        }}
         search={{ labelWidth: 'auto' }}
         onReset={() => {
           setTablePage(1);
@@ -383,7 +395,7 @@ export default function CustomerConversationsPage() {
             hasOrder: params.hasOrder as boolean | string | undefined,
           };
           const replyStatus =
-            qp.pendingReply === 'true' || qp.pendingReply === true ? 'pending' : undefined;
+            qp.pendingReply === 'true' || qp.pendingReply === true ? 'pending_reply' : undefined;
           const aiSuggestionStatus =
             qp.hasAiSuggestion === 'true' || qp.hasAiSuggestion === true ? 'pending' : undefined;
           const sendStatus =

@@ -600,6 +600,20 @@ export default function OrdersPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          paymentStatus: urlState.payStatus,
+          skuMatchStatus: urlState.skuStatus,
+          inventoryDeductStatus: urlState.inventoryStatus,
+          status: urlState.status,
+          fulfillmentStatus: urlState.fulfillmentStatus,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          start: urlState.start,
+          end: urlState.end,
+        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
         onReset={() => {
           setTablePage(1);

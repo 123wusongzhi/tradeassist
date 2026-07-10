@@ -837,6 +837,20 @@ export default function TaskCenterFailuresPage() {
           columns={columns}
           actionRef={actionRef}
           formRef={formRef}
+          params={{
+            current: tablePage,
+            pageSize: tablePageSize,
+            taskType: urlState.taskType,
+            normalizedStatus: urlState.normalizedStatus,
+            failureCategory: urlState.failureCategory,
+            recoveryStatus: urlState.recoveryStatus,
+            severity: urlState.severity,
+            platform: urlState.platform,
+            shopId: urlState.shopId,
+            keyword: urlState.keyword,
+            start: urlState.start,
+            end: urlState.end,
+          }}
           search={{
             labelWidth: 'auto',
           }}

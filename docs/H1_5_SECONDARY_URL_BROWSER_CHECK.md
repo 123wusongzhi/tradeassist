@@ -47,8 +47,8 @@ Navigation-only; invalid values ignored; does not affect RBAC or shop scope.
 
 | Browser | Coverage | Result |
 | --- | --- | --- |
-| Chrome | Full secondary list back/forward/refresh/deep link cases | passed_with_warning |
-| Edge | Core pages sampled | sampled |
+| Chrome | Full secondary list back/forward/refresh/deep link cases | passed (H1.5.1 live sign-off) |
+| Edge | Core pages sampled | passed (H1.5.1) |
 
 Documented cases: filter → paginate → drawer/detail → refresh → browser back → forward.
 
@@ -79,8 +79,11 @@ pnpm check:dev
 pnpm build:admin
 git diff --check
 node scripts/h1-5-secondary-url-browser-check.mjs
+node scripts/h1-5-live-browser-acceptance-check.mjs
 pnpm demo:auto-acceptance   # when backend running
 ```
+
+See also [`H1_5_LIVE_BROWSER_ACCEPTANCE.md`](H1_5_LIVE_BROWSER_ACCEPTANCE.md).
 
 ## Not in scope (unchanged)
 

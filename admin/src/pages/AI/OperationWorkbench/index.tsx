@@ -97,6 +97,38 @@ function parsePositiveInt(value?: string, fallback = 1) {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
+function workbenchUrlPatch(input: {
+  filterType?: string;
+  filterPriority?: string;
+  filterPlatform?: string;
+  filterShopId?: string;
+  filterKeyword?: string;
+  dateRange: [Dayjs | null, Dayjs | null] | null;
+  tablePage: number;
+  tablePageSize: number;
+}) {
+  const { value: keyword } = normalizeSearchKeyword(input.filterKeyword);
+  return {
+    type: input.filterType,
+    priority: input.filterPriority,
+    platform: input.filterPlatform,
+    shopId: input.filterShopId,
+    keyword,
+    start: input.dateRange?.[0] ? input.dateRange[0].startOf('day').toISOString() : undefined,
+    end: input.dateRange?.[1] ? input.dateRange[1].endOf('day').toISOString() : undefined,
+    page: input.tablePage > 1 ? String(input.tablePage) : undefined,
+    pageSize: input.tablePageSize !== 50 ? String(input.tablePageSize) : undefined,
+  };
+}
+
+function sameWorkbenchUrlPatch(
+  next: ReturnType<typeof workbenchUrlPatch>,
+  urlState: Record<string, string | undefined>,
+) {
+  const keys = ['type', 'priority', 'platform', 'shopId', 'keyword', 'start', 'end', 'page', 'pageSize'] as const;
+  return keys.every((k) => (next[k] ?? undefined) === (urlState[k] ?? undefined));
+}
+
 export default function AIOperationWorkbenchPage() {
   const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
     useUrlQueryState<Record<(typeof WORKBENCH_QUERY_KEYS)[number], string | undefined>>(
@@ -110,15 +142,17 @@ export default function AIOperationWorkbenchPage() {
   const [lastRefreshedAt, setLastRefreshedAt] = useState<string>('');
   const [shops, setShops] = useState<ShopListRow[]>([]);
 
-  const [filterType, setFilterType] = useState<string>();
-  const [filterPriority, setFilterPriority] = useState<string>();
-  const [filterPlatform, setFilterPlatform] = useState<string>();
-  const [filterShopId, setFilterShopId] = useState<string>();
-  const [filterKeyword, setFilterKeyword] = useState<string>();
-  const [keywordSensitive, setKeywordSensitive] = useState(false);
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
-  const [tablePage, setTablePage] = useState(1);
-  const [tablePageSize, setTablePageSize] = useState(50);
+  const [filterType, setFilterType] = useState<string | undefined>(() => urlState.type);
+  const [filterPriority, setFilterPriority] = useState<string | undefined>(() => urlState.priority);
+  const [filterPlatform, setFilterPlatform] = useState<string | undefined>(() => urlState.platform);
+  const [filterShopId, setFilterShopId] = useState<string | undefined>(() => urlState.shopId);
+  const [filterKeyword, setFilterKeyword] = useState<string | undefined>(() => urlState.keyword);
+  const [keywordSensitive, setKeywordSensitive] = useState(() => looksLikeSensitiveKeyword(urlState.keyword));
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(() =>
+    parseRange(urlState.start, urlState.end),
+  );
+  const [tablePage, setTablePage] = useState(() => parsePositiveInt(urlState.page, 1));
+  const [tablePageSize, setTablePageSize] = useState(() => parsePositiveInt(urlState.pageSize, 50));
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerItem, setDrawerItem] = useState<WorkbenchTodoItem | null>(null);
@@ -150,21 +184,30 @@ export default function AIOperationWorkbenchPage() {
   ]);
 
   useEffect(() => {
+    const next = workbenchUrlPatch({
+      filterType,
+      filterPriority,
+      filterPlatform,
+      filterShopId,
+      filterKeyword,
+      dateRange,
+      tablePage,
+      tablePageSize,
+    });
+    if (sameWorkbenchUrlPatch(next, urlState)) return;
+    const { value, truncated } = normalizeSearchKeyword(filterKeyword);
+    if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
     setUrlState(
       {
-        type: filterType,
-        priority: filterPriority,
-        platform: filterPlatform,
-        shopId: filterShopId,
-        keyword: (() => {
-          const { value, truncated } = normalizeSearchKeyword(filterKeyword);
-          if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
-          return value;
-        })(),
-        start: dateRange?.[0] ? dateRange[0].startOf('day').toISOString() : undefined,
-        end: dateRange?.[1] ? dateRange[1].endOf('day').toISOString() : undefined,
-        page: tablePage > 1 ? tablePage : undefined,
-        pageSize: tablePageSize !== 50 ? tablePageSize : undefined,
+        type: next.type,
+        priority: next.priority,
+        platform: next.platform,
+        shopId: next.shopId,
+        keyword: next.keyword,
+        start: next.start,
+        end: next.end,
+        page: next.page,
+        pageSize: next.pageSize,
       },
       { replace: true },
     );
@@ -178,6 +221,7 @@ export default function AIOperationWorkbenchPage() {
     setUrlState,
     tablePage,
     tablePageSize,
+    urlState,
   ]);
 
   const queryParams = useMemo(() => {

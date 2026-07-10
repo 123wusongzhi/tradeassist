@@ -109,6 +109,21 @@ Third batch (**completed**):
 
 **未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
 
+## H1.5.1 真实浏览器签收 + AI 图片基线（Completed）
+
+| Scope | Result |
+| --- | --- |
+| Chrome 核心 13 页 | back/forward/refresh + Drawer/深链 — **passed** |
+| Edge 抽查 7 项 | **passed** |
+| 1366×768 截图 | 11 PNG — **passed** |
+| 1024×768 截图 | 8 PNG — **passed_with_warning** |
+| RBAC | admin / operator / readonly — **passed** |
+| AI 图片基线 | **stable_range_14_to_15_of_16**（本轮 14/16 `passed_with_warning`） |
+| URL 修复 | ProTable `params` 种子化；AI 工作台 compare-before-write |
+| Reports | [`H1_5_LIVE_BROWSER_ACCEPTANCE.md`](H1_5_LIVE_BROWSER_ACCEPTANCE.md), [`H1_5_AI_IMAGE_BASELINE_CONFIRMATION.md`](H1_5_AI_IMAGE_BASELINE_CONFIRMATION.md) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
 ## Completion Rules
 
 - URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.

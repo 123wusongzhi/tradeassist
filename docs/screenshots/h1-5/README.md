@@ -7,19 +7,10 @@ Directories:
 - `1366x768/` — primary laptop resolution
 - `1024x768/` — narrow layout spot-check
 
-Key pages captured during sign-off (no PII / tokens):
+PNG 文件**不纳入仓库**（体积大、可本地复现）。需要时运行：
 
-- Dashboard (`/dashboard/product-operations`)
-- Product drafts (`/product/drafts`)
-- Publish batches (`/product/publish-tasks?tab=batches`)
-- Collect tasks (`/collect/tasks`)
-- Order sync tasks (`/orders/sync-tasks`)
-- Inventory sync tasks (`/inventory/sync-tasks`)
-- Customer conversations (`/customer/conversations`)
-- Customer message sync (`/customer/message-sync-tasks`)
-- AI text batches (`/ai/text-batches`)
-- AI image batches (`/ai/image-batches`)
-- Failure task center (`/ops/task-center/failures`)
-- Config status (`/settings/config-status`)
+```bash
+node scripts/h1-5-live-browser-acceptance.mjs
+```
 
-Screenshots are generated during manual Chrome/Edge sign-off; placeholder dirs exist for CI/doc linkage.
+签收结论以 [`H1_5_LIVE_BROWSER_ACCEPTANCE.md`](../H1_5_LIVE_BROWSER_ACCEPTANCE.md) 与 `h1-5-live-browser-acceptance.json` 为准。

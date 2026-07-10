@@ -16,12 +16,14 @@ This project follows a lightweight changelog format before the first stable rele
 - Phase H1.2.1 browser spot-check on H1.1 + H1.2 pages; fixes Dashboard `productSource` split, mount URL hydration, drawer reset, and drafts source sync.
 - Phase H1.3 AI image warning codes (explainable/locatable/recoverable), batch overview, failure-task categories, config-status linkage, Douyin/Storage precheck banners; no real Douyin E2E.
 - Phase H1.4 order/exception URL state (`status`, `fulfillmentStatus`, `severity`, date range via `start`/`end`), keyword UX (max 80, sensitive hint, clear syncs URL); browser/responsive spot-check passed_with_warning.
-- Phase H1.5 secondary list URL state (publish batches, collect, order/customer sync, AI text/image batches), browser back/forward sign-off passed_with_warning; 1366/1024 responsive passed / passed_with_warning.
+- Phase H1.5.1 live Chrome browser sign-off (13/13 core cases, back/forward/refresh), real 1366×768 and 1024×768 screenshots, AI image baseline **stable_range_14_to_15_of_16** (14/16 this run); ProTable URL hydration fixes.
+- Phase H1.5 secondary list URL state (publish batches, collect, order/customer sync, AI text/image batches), browser back/forward sign-off; 1366/1024 responsive passed / passed_with_warning.
 
 ### Added
 
+- H1.5.1 reports: `docs/H1_5_LIVE_BROWSER_ACCEPTANCE.md`, `docs/H1_5_AI_IMAGE_BASELINE_CONFIRMATION.md`, `scripts/h1-5-live-browser-acceptance.mjs`, `scripts/h1-5-live-browser-acceptance-check.mjs`.
 - H1.5 reports: `docs/H1_5_SECONDARY_URL_BROWSER_CHECK.md`, `docs/h1-5-secondary-url-browser-check.json`, `scripts/h1-5-secondary-url-browser-check.mjs`.
-- H1.5 URL state on `/product/publish-tasks`, `/collect/tasks`, `/orders/sync-tasks`, `/customer/message-sync-tasks`, `/ai/text-batches`, `/ai/image-batches` and related detail pages; extended `source` allowlist.
+- H1.5.1: ProTable `params` URL seeding on orders, exceptions, task center, drafts, conversations; AI workbench compare-before-write URL sync.
 - H1.4 frontend: `keywordSafety.ts`, `KeywordSafetyHint.tsx`, `useKeywordSearchField.ts`.
 - H1.3 guides: `docs/AI_IMAGE_WARNING_RECOVERY_GUIDE.md`, `docs/DOUYIN_E2E_PRECHECK_GUIDE.md`, `docs/STORAGE_PUBLIC_URL_GUIDE.md`.
 - H1.3 backend `aiproductimage/warning_codes.go`; frontend `aiImageWarnings.ts`, platform precheck banners.

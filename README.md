@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**Post-F9 Enhancement** · **MVP Demo Ready**（2026-07-07 最终总体验收完成）。**F1–F9 ✅** · **Tag deferred**。项目仍**非 Production Ready**，不允许灰度；抖店真实 E2E 仍受真实凭证阻塞，Douyin Shop 保持 **Release Candidate**。H1 要点：**H1.5** 次级列表 URL 状态与浏览器签收；**H1.4** 订单/异常 URL 补漏与 keyword UX；H1.3 AI 图片 warning 收敛 — [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)、[`docs/H1_5_SECONDARY_URL_BROWSER_CHECK.md`](docs/H1_5_SECONDARY_URL_BROWSER_CHECK.md)。
+> 当前状态：**Phase H1.5.1 Completed** · **Post-F9 Enhancement** · **MVP Demo Ready**（2026-07-07 最终总体验收完成）。**F1–F9 ✅** · **Tag deferred**。项目仍**非 Production Ready**，不允许灰度；抖店真实 E2E 仍受真实凭证阻塞，Douyin Shop 保持 **Release Candidate**。H1 要点：**H1.5.1** 真实 Chrome/Edge 浏览器签收 + 1366/1024 截图 + AI 图片基线 **stable_range_14_to_15_of_16**；**H1.5** 次级列表 URL 状态；**H1.4** 订单/异常 URL 补漏 — [`docs/H1_5_LIVE_BROWSER_ACCEPTANCE.md`](docs/H1_5_LIVE_BROWSER_ACCEPTANCE.md)、[`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。
 
 ## 项目定位
 

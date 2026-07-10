@@ -1,0 +1,74 @@
+{
+  "phase": "H1.5.1",
+  "status": "passed_with_warning",
+  "checkedAt": "2026-07-10T06:50:00.000Z",
+  "baseline": {
+    "result": "stable_range_14_to_15_of_16",
+    "currentRun": "14/16",
+    "conclusion": "passed_with_warning",
+    "codeLevelFailures": 0,
+    "environmentWarnings": 2
+  },
+  "provider": {
+    "name": "dashscope_image",
+    "configured": true,
+    "dashscope_image_api_key": false,
+    "storage_public_base": "not_verified_public_in_preflight"
+  },
+  "dataset": {
+    "sameTestMatrix": true,
+    "productsWithImages": 20,
+    "batches": ["I1-quality", "I2-white-bg", "I3-watermark", "I4-select-main"],
+    "totalItems": 16
+  },
+  "currentRunDetail": {
+    "successItems": 14,
+    "failedItems": 2,
+    "qualityWarningItems": 4,
+    "sourceArtifact": "docs/ai-image-trial-run.json",
+    "generatedAt": "2026-07-10T06:52:46.3469545Z"
+  },
+  "failures": [
+    {
+      "batch": "I2-white-bg",
+      "operationType": "white_background",
+      "errorCode": "source_download_failed",
+      "errorMessage": "无法从源图链接下载图片，请确认图片 URL 可访问或重新上传图片。",
+      "warningCodes": [],
+      "cause": "environment_provider",
+      "notes": "dashscope_image API Key 未配置；外部源图下载波动"
+    },
+    {
+      "batch": "I4-select-main",
+      "operationType": "select_best_main",
+      "errorCode": "provider_timeout",
+      "errorMessage": "图片处理超时，可稍后重试或检查 Provider 网络与超时设置。",
+      "warningCodes": [],
+      "cause": "environment_provider",
+      "notes": "Provider 网络/超时波动；非批次 API 代码异常"
+    }
+  ],
+  "historicalDelta": {
+    "h1_3_reported": "15/16 passed_with_warning (manual / prior trial)",
+    "h1_5_auto": "14/16 passed_with_warning",
+    "h1_5_1_rerun": "14/16 passed_with_warning",
+    "h1_5_1_demo_auto": "15/16 passed_with_warning",
+    "explanation": "差异来自 Provider 外部波动（白底图下载失败 vs 成功、select_best_main 超时 vs 成功），非代码回归。H1.3 / demo:auto-acceptance 可达 15/16 时通常为 I2 或 I4 其中一项在本轮环境中通过；独立试跑可能为 14/16。"
+  },
+  "unifiedBaseline": {
+    "label": "stable_range_14_to_15_of_16",
+    "status": "passed_with_warning",
+    "codeFailures": 0,
+    "acceptableWarnings": [
+      "dashscope_image_api_key_missing",
+      "source_image_download_failed",
+      "provider_timeout",
+      "storage_public_url_missing"
+    ]
+  },
+  "artifacts": [
+    "docs/ai-image-trial-run.json",
+    "docs/ai-image-trial-run.auto.json"
+  ],
+  "finalConclusion": "AI 图片基线确认为 stable_range_14_to_15_of_16 / passed_with_warning；代码级失败 0；当前试跑 14/16。"
+}
