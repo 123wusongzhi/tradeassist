@@ -36,7 +36,7 @@ export const WORKBENCH_SUMMARY_CARDS = [
     title: '待复核 AI 文案',
     filterType: 'ai_text_review',
     actionLabel: '去复核',
-    link: '/ai/text-batches',
+    link: '/ai/text-batches?source=ai_workbench',
   },
   {
     key: 'aiImageReviewCount',
@@ -45,7 +45,7 @@ export const WORKBENCH_SUMMARY_CARDS = [
     title: '待复核 AI 图片',
     filterType: 'ai_image_review',
     actionLabel: '去复核',
-    link: '/ai/image-batches',
+    link: '/ai/image-batches?source=ai_workbench',
   },
   {
     key: 'publishCheckIssueCount',
@@ -63,7 +63,7 @@ export const WORKBENCH_SUMMARY_CARDS = [
     title: '刊登任务异常',
     filterType: 'publish_batch_failed',
     actionLabel: '查看批次',
-    link: '/product/publish-tasks?status=failed',
+    link: '/product/publish-tasks?status=failed&tab=batches&source=ai_workbench',
   },
   {
     key: 'todayResolvedCount',

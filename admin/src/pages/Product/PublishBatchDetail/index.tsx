@@ -14,7 +14,8 @@ import {
   type PublishBatchDetail,
 } from '@/services/productPublish';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams } from '@umijs/max';
+import { Link, history, useParams, useSearchParams } from '@umijs/max';
+import { normalizeSource } from '@/utils/urlState';
 import { Alert, Button, Card, Descriptions, Popconfirm, Space, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -43,6 +44,8 @@ function taskStatusTag(status: string, label?: string) {
 
 export default function PublishBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const navSource = normalizeSource(searchParams.get('source') || undefined);
   const [detail, setDetail] = useState<PublishBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -104,7 +107,12 @@ export default function PublishBatchDetailPage() {
       title="刊登批次详情"
       subTitle={detail?.name || `批次编号 ${id?.slice(0, 8)}…`}
       loading={loading}
-      onBack={() => history.push('/product/publish-tasks?tab=batches')}
+      onBack={() => {
+        const qs = new URLSearchParams();
+        qs.set('tab', 'batches');
+        if (navSource) qs.set('source', navSource);
+        history.push(`/product/publish-tasks?${qs.toString()}`);
+      }}
     >
       {detail && (
         <>

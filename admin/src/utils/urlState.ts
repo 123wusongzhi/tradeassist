@@ -68,6 +68,15 @@ const ALLOWED_QUERY_KEYS = new Set([
   'hasAiSuggestion',
   'sendFailed',
   'hasOrder',
+  // H1.5 — secondary task lists
+  'warningCode',
+  'resultStatus',
+  'retryable',
+  'failedPagesOnly',
+  'publishMode',
+  'taskId',
+  'sourcePlatform',
+  'targetShopId',
 ]);
 
 export const URL_SOURCE_VALUES = new Set([
@@ -78,6 +87,11 @@ export const URL_SOURCE_VALUES = new Set([
   'customer',
   'collect',
   'manual',
+  'ai_workbench',
+  'config_status',
+  'publish_batch',
+  'order_sync',
+  'customer_sync',
 ]);
 
 export function parsePositiveInt(value?: string, fallback = 1) {
@@ -115,6 +129,14 @@ export function isNavSourceValue(value?: string) {
 /** Product-origin filter; ignores navigation `source` values like dashboard / taskcenter. */
 export function resolveProductSourceFromQuery(productSource?: string, legacySource?: string) {
   if (productSource?.trim()) return productSource.trim();
+  const legacy = legacySource?.trim();
+  if (legacy && !isNavSourceValue(legacy)) return legacy;
+  return undefined;
+}
+
+/** Collect-provider filter; ignores navigation `source` values. Prefers `sourcePlatform`. */
+export function resolveCollectPlatformFromQuery(sourcePlatform?: string, legacySource?: string) {
+  if (sourcePlatform?.trim()) return sourcePlatform.trim();
   const legacy = legacySource?.trim();
   if (legacy && !isNavSourceValue(legacy)) return legacy;
   return undefined;

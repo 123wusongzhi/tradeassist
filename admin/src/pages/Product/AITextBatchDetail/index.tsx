@@ -19,7 +19,9 @@ import {
   type AIProductTextItemRow,
 } from '@/services/aiProductText';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams, useSearchParams } from '@umijs/max';
+import { Link, history, useParams } from '@umijs/max';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { normalizeSource } from '@/utils/urlState';
 import {
   Alert,
   Button,
@@ -36,12 +38,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AITextBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const focusItemId = (searchParams.get('itemId') || '').trim();
+  const { state: urlState, setState: setUrlState } = useUrlQueryState<{
+    itemId?: string;
+    tab?: string;
+    source?: string;
+  }>(['itemId', 'tab', 'source']);
+  const navSource = normalizeSource(urlState.source);
+  const focusItemId = (urlState.itemId || '').trim();
   const [detail, setDetail] = useState<AIProductTextBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(urlState.tab || 'all');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reviewItem, setReviewItem] = useState<AIProductTextItemRow | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -107,9 +114,20 @@ export default function AITextBatchDetailPage() {
     });
   };
 
+  useEffect(() => {
+    if (urlState.tab) setStatusFilter(urlState.tab);
+  }, [urlState.tab]);
+
   const openReview = (row: AIProductTextItemRow) => {
     setReviewItem(row);
     setReviewOpen(true);
+    setUrlState({ itemId: row.id });
+  };
+
+  const closeReview = () => {
+    setReviewOpen(false);
+    setReviewItem(null);
+    setUrlState({ itemId: undefined }, { replace: true });
   };
 
   const batchTag = detail ? aiTextBatchStatusTag(detail.status, detail.statusLabel) : null;
@@ -135,7 +153,17 @@ export default function AITextBatchDetailPage() {
               <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
             <Space wrap style={{ marginTop: 12 }}>
-              <Button onClick={() => history.push('/product/drafts')}>返回商品列表</Button>
+              <Button
+                onClick={() => {
+                  const back =
+                    navSource === 'ai_workbench'
+                      ? '/ai/operation-workbench'
+                      : `/ai/text-batches${navSource ? `?source=${encodeURIComponent(navSource)}` : ''}`;
+                  history.push(back);
+                }}
+              >
+                {navSource === 'ai_workbench' ? '返回 AI 工作台' : '返回批次列表'}
+              </Button>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -198,7 +226,11 @@ export default function AITextBatchDetailPage() {
           <Segmented
             options={AI_TEXT_REVIEW_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
             value={statusFilter}
-            onChange={(v) => setStatusFilter(String(v))}
+            onChange={(v) => {
+              const next = String(v);
+              setStatusFilter(next);
+              setUrlState({ tab: next === 'all' ? undefined : next, itemId: undefined }, { replace: true });
+            }}
             style={{ marginBottom: 12 }}
           />
 
@@ -292,10 +324,7 @@ export default function AITextBatchDetailPage() {
         open={reviewOpen}
         item={reviewItem}
         loading={acting}
-        onClose={() => {
-          setReviewOpen(false);
-          setReviewItem(null);
-        }}
+        onClose={closeReview}
         onApply={async (text) => {
           if (!reviewItem) return;
           const label = reviewItem.operationLabel || 'AI 文案';
@@ -307,7 +336,7 @@ export default function AITextBatchDetailPage() {
               }
               await applyAiProductTextItem(reviewItem.id, text);
               message.success('已应用');
-              setReviewOpen(false);
+              closeReview();
               await reload();
             } catch (e: unknown) {
               message.error((e as Error)?.message || '应用失败');

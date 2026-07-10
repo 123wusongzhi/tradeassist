@@ -153,6 +153,11 @@ export default [
         hideInMenu: true,
       },
       {
+        path: '/product/ai-text-batches',
+        redirect: '/ai/text-batches',
+        hideInMenu: true,
+      },
+      {
         path: '/product/ai-text-batches/:id',
         name: 'AI 文案批次复核',
         component: './Product/AITextBatchDetail',
@@ -165,9 +170,19 @@ export default [
         hideInMenu: true,
       },
       {
+        path: '/product/ai-image-batches',
+        redirect: '/ai/image-batches',
+        hideInMenu: true,
+      },
+      {
         path: '/product/ai-image-batches/:id',
         name: 'AI 图片批次复核',
         component: './Product/AIImageBatchDetail',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/publish-batches',
+        redirect: '/product/publish-tasks?tab=batches',
         hideInMenu: true,
       },
       {

@@ -1,6 +1,6 @@
 # Workbench URL State Design
 
-> **Phase**: H1.1 + H1.2
+> **Phase**: H1.1 + H1.2 + H1.5
 > **Goal**: make key workbench pages recover filters, pagination, tabs, and drawers after refresh/back navigation.
 
 ## Shared Utilities
@@ -63,6 +63,14 @@ sendStatus
 conversationId
 suggestionId
 productSource
+warningCode
+resultStatus
+retryable
+failedPagesOnly
+publishMode
+taskId
+sourcePlatform
+targetShopId
 ```
 
 Legacy deep-link keys (read + write when explicitly set):
@@ -101,6 +109,11 @@ inventory
 customer
 collect
 manual
+ai_workbench
+config_status
+publish_batch
+order_sync
+customer_sync
 ```
 
 - Dashboard outbound links use `appendSourceToUrl(..., 'dashboard')`.
@@ -171,9 +184,31 @@ Lightweight: `platform`, `shopId`, `source`. Hub cards pass filters into convers
 
 Persisted: `keyword`, `replyStatus`, `aiSuggestionStatus`, `sendStatus`, `platform`, `shopId`, `page`, `pageSize`, `conversationId`, `suggestionId`, `drawer`, `source`. Legacy `pendingReply`, `hasAiSuggestion`, `sendFailed`, `hasOrder`, `status=pending_reply` remain compatible. `conversationId` redirects to `/customer/conversations/:id`; `suggestionId` is honored on conversation detail.
 
-## Deferred Pages
+## Implemented Pages (H1.5)
 
-Other list pages (publish batches, collect tasks, order sync tasks, etc.) may adopt the same utilities in a later H1 batch.
+### `/product/publish-tasks`
+
+Persisted: `tab` (`tasks`|`batches`), `status`, `platform`, `shopId`, `productId`, `batchId`, `page`, `pageSize`, `drawer`, `id`, `source`, `start`/`end`. Batch tab links to `/product/publish-batches/:id?source=…`; back preserves `source` + `tab=batches`.
+
+### `/collect/tasks`
+
+Persisted: `keyword`, `status`, `sourcePlatform`, `batchId`, `page`, `pageSize`, `drawer=events`, `id`, `source`. Collect provider filter uses `sourcePlatform` (legacy non-nav `source=1688` still read). Product draft links append `source=collect`.
+
+### `/orders/sync-tasks`
+
+Persisted: `status`, `resultStatus` (alias for `partial_success`), `platform`, `shopId`, `page`, `pageSize`, `drawer=task`, `id`, `source`, date range.
+
+### `/customer/message-sync-tasks`
+
+Persisted: `status`, `resultStatus`, `platform`, `shopId`, `page`, `pageSize`, `drawer=task`, `id`, `source`, date range.
+
+### `/ai/text-batches` + `/product/ai-text-batches/:id`
+
+List: `status`, `page`, `pageSize`, `batchId`, `source`. Detail: `itemId`, `tab`, `source`. AI workbench outbound uses `source=ai_workbench`.
+
+### `/ai/image-batches` + `/product/ai-image-batches/:id`
+
+List: `status`, `warningCode`, `page`, `pageSize`, `batchId`, `source`. Detail: `itemId`, `tab`, `warningCode`, `source`.
 
 ## Compatibility Strategy
 

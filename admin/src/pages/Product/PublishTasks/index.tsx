@@ -1,14 +1,16 @@
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
-import { Link, useLocation } from '@umijs/max';
+import { Link, useSearchParams } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
 import { publishBatchStatusTag } from '@/constants/publishLabels';
 import { platformLabel } from '@/constants/userFriendly';
+import { normalizeSource, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
 import {
   getProductPublishTask,
   queryProductPublishTasks,
@@ -18,6 +20,25 @@ import {
   type PublishBatchListItem,
 } from '@/services/productPublish';
 
+const PUBLISH_TASK_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'status',
+  'platform',
+  'shopId',
+  'batchId',
+  'tab',
+  'id',
+  'drawer',
+  'source',
+  'productId',
+  'start',
+  'end',
+  'createdFrom',
+  'createdTo',
+] as const;
+
 function tagFromStatus(raw: string) {
   const c = COLLECT_TASK_STATUS[raw as keyof typeof COLLECT_TASK_STATUS];
   if (!c) return <Tag>{raw}</Tag>;
@@ -25,41 +46,62 @@ function tagFromStatus(raw: string) {
 }
 
 export default function ProductPublishTasksPage() {
-  const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof PUBLISH_TASK_QUERY_KEYS)[number], string | undefined>>(
+      PUBLISH_TASK_QUERY_KEYS,
+    );
+  const navSource = normalizeSource(urlState.source);
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const statusFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [location.search]);
-  const tabFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('tab')?.trim() || 'tasks';
-    } catch {
-      return 'tasks';
-    }
-  }, [location.search]);
-  const taskIdFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('id')?.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [location.search]);
-  const [activeTab, setActiveTab] = useState(tabFromUrl);
-  const emptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
   const batchActionRef = useRef<ActionType>();
+  const batchFormRef = useRef<ProFormInstance>();
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const [batchPage, setBatchPage] = useState(1);
+  const [batchPageSize, setBatchPageSize] = useState(20);
+  const activeTab = urlState.tab === 'tasks' ? 'tasks' : 'batches';
+  const taskIdFromUrl = urlState.id;
+  const statusFromUrl = urlState.status;
+  const batchIdFromUrl = urlState.batchId;
+  const emptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
 
   useEffect(() => {
-    if (!statusFromUrl) return;
-    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    setBatchPage(parsePositiveInt(urlState.page, 1));
+    setBatchPageSize(parsePositiveInt(urlState.pageSize, 20));
+    const createdRange = queryTimeRange(
+      urlState.start,
+      urlState.end,
+      urlState.createdFrom,
+      urlState.createdTo,
+    );
+    formRef.current?.setFieldsValue?.({
+      status: statusFromUrl,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      productId: urlState.productId,
+      createdRange,
+    });
+  }, [
+    statusFromUrl,
+    urlState.createdFrom,
+    urlState.createdTo,
+    urlState.end,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.productId,
+    urlState.shopId,
+    urlState.start,
+  ]);
+
+  useEffect(() => {
+    if (!statusFromUrl && !urlState.platform && !urlState.shopId && !urlState.productId) return;
     actionRef.current?.reload?.();
-  }, [statusFromUrl]);
+  }, [statusFromUrl, urlState.platform, urlState.productId, urlState.shopId]);
 
   useEffect(() => {
     if (!taskIdFromUrl) return;
@@ -73,6 +115,19 @@ export default function ProductPublishTasksPage() {
       }
     })();
   }, [taskIdFromUrl]);
+
+  const openTaskDetail = async (id: string) => {
+    const row = await getProductPublishTask(id);
+    setDetail(row);
+    setDetailOpen(true);
+    setUrlState({ drawer: 'task', id });
+  };
+
+  const closeTaskDetail = () => {
+    setDetailOpen(false);
+    setDetail(null);
+    setUrlState({ drawer: undefined, id: undefined }, { replace: true });
+  };
 
   const columns: ProColumns<ProductPublishTaskDTO>[] = useMemo(
     () => [
@@ -164,15 +219,7 @@ export default function ProductPublishTasksPage() {
         width: 140,
         render: (_, r) => (
           <Space>
-            <a
-              onClick={async () => {
-                const d = await getProductPublishTask(r.id);
-                setDetail(d);
-                setDetailOpen(true);
-              }}
-            >
-              查看
-            </a>
+            <a onClick={() => void openTaskDetail(r.id)}>查看</a>
             {r.status === 'failed' ? (
               <Popconfirm
                 title="确认重试该刊登任务？"
@@ -193,10 +240,6 @@ export default function ProductPublishTasksPage() {
     ],
     [],
   );
-
-  useEffect(() => {
-    setActiveTab(tabFromUrl);
-  }, [tabFromUrl]);
 
   const batchColumns: ProColumns<PublishBatchListItem>[] = useMemo(
     () => [
@@ -233,17 +276,62 @@ export default function ProductPublishTasksPage() {
         title: '操作',
         valueType: 'option',
         width: 100,
-        render: (_, r) => <Link to={`/product/publish-batches/${r.id}`}>查看</Link>,
+        render: (_, r) => {
+          const detailHref = navSource
+            ? `/product/publish-batches/${r.id}?source=${encodeURIComponent(navSource)}`
+            : `/product/publish-batches/${r.id}`;
+          return <Link to={detailHref}>查看</Link>;
+        },
       },
     ],
-    [],
+    [navSource],
   );
+
+  const buildListQuery = (params: Record<string, unknown>, page: number, pageSize: number) => ({
+    page,
+    pageSize,
+    shopId: (params.shopId as string | undefined)?.trim(),
+    productId: (params.productId as string | undefined)?.trim() || urlState.productId,
+    platform: (params.platform as string | undefined)?.trim(),
+    status: (params.status as string | undefined)?.trim() || statusFromUrl,
+    start: typeof params.start === 'string' ? params.start : urlState.start,
+    end: typeof params.end === 'string' ? params.end : urlState.end,
+  });
 
   return (
     <TmPageContainer title="商品刊登任务" subTitle="查看刊登子任务与批量刊登批次进度。">
+      {navSource ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="已从关联页面带入导航上下文（不影响权限与店铺范围）。"
+        />
+      ) : null}
+      {batchIdFromUrl ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={`当前批次筛选：${batchIdFromUrl}`}
+        />
+      ) : null}
       <Tabs
         activeKey={activeTab}
-        onChange={setActiveTab}
+        onChange={(key) => {
+          setUrlState(
+            {
+              tab: key === 'tasks' ? undefined : key,
+              page: undefined,
+              pageSize: undefined,
+              drawer: undefined,
+              id: undefined,
+            },
+            { replace: true },
+          );
+          setTablePage(1);
+          setBatchPage(1);
+        }}
         items={[
           {
             key: 'tasks',
@@ -255,20 +343,47 @@ export default function ProductPublishTasksPage() {
                 formRef={formRef}
                 columns={columns}
                 search={{ labelWidth: 'auto', defaultCollapsed: false }}
-                pagination={{ pageSize: 20, showSizeChanger: true }}
+                onReset={() => {
+                  setTablePage(1);
+                  setTablePageSize(20);
+                  closeTaskDetail();
+                  clearUrlState(PUBLISH_TASK_QUERY_KEYS, { replace: true });
+                }}
+                pagination={{
+                  current: tablePage,
+                  pageSize: tablePageSize,
+                  showSizeChanger: true,
+                  onChange: (page, pageSize) => {
+                    setTablePage(page);
+                    setTablePageSize(pageSize);
+                    setUrlState({
+                      page: page > 1 ? page : undefined,
+                      pageSize: pageSize !== 20 ? pageSize : undefined,
+                    });
+                  },
+                }}
                 headerTitle="刊登记录"
                 locale={emptyLocale}
                 request={async (params) => {
-                  const res = await queryProductPublishTasks({
-                    page: params.current,
-                    pageSize: params.pageSize,
-                    shopId: params.shopId as string | undefined,
-                    productId: params.productId as string | undefined,
-                    platform: params.platform as string | undefined,
-                    status: params.status as string | undefined,
-                    start: typeof params.start === 'string' ? params.start : undefined,
-                    end: typeof params.end === 'string' ? params.end : undefined,
-                  });
+                  const qp = buildListQuery(params, params.current ?? tablePage, params.pageSize ?? tablePageSize);
+                  setUrlState(
+                    {
+                      page: Number(qp.page) > 1 ? qp.page : undefined,
+                      pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                      shopId: qp.shopId,
+                      productId: qp.productId,
+                      platform: qp.platform,
+                      status: qp.status,
+                      start: qp.start,
+                      end: qp.end,
+                      tab: undefined,
+                      source: urlState.source,
+                      drawer: urlState.drawer,
+                      id: urlState.id,
+                    },
+                    { replace: true },
+                  );
+                  const res = await queryProductPublishTasks(qp);
                   return { data: res.list, total: res.pagination.total, success: true };
                 }}
               />
@@ -281,16 +396,38 @@ export default function ProductPublishTasksPage() {
               <ProTable<PublishBatchListItem>
                 rowKey="id"
                 actionRef={batchActionRef}
+                formRef={batchFormRef}
                 columns={batchColumns}
                 search={false}
-                pagination={{ pageSize: 20, showSizeChanger: true }}
+                pagination={{
+                  current: batchPage,
+                  pageSize: batchPageSize,
+                  showSizeChanger: true,
+                  onChange: (page, pageSize) => {
+                    setBatchPage(page);
+                    setBatchPageSize(pageSize);
+                    setUrlState({
+                      tab: 'batches',
+                      page: page > 1 ? page : undefined,
+                      pageSize: pageSize !== 20 ? pageSize : undefined,
+                    });
+                  },
+                }}
                 headerTitle="批量刊登批次"
                 locale={emptyLocale}
                 request={async (params) => {
-                  const res = await queryPublishBatches({
-                    page: params.current,
-                    pageSize: params.pageSize,
-                  });
+                  const page = params.current ?? batchPage;
+                  const pageSize = params.pageSize ?? batchPageSize;
+                  setUrlState(
+                    {
+                      tab: 'batches',
+                      page: page > 1 ? page : undefined,
+                      pageSize: pageSize !== 20 ? pageSize : undefined,
+                      source: urlState.source,
+                    },
+                    { replace: true },
+                  );
+                  const res = await queryPublishBatches({ page, pageSize });
                   return { data: res.list, total: res.pagination.total, success: true };
                 }}
               />
@@ -304,10 +441,7 @@ export default function ProductPublishTasksPage() {
         title={detail ? `刊登任务 ${detail.id}` : '详情'}
         open={detailOpen}
         destroyOnHidden
-        onClose={() => {
-          setDetailOpen(false);
-          setDetail(null);
-        }}
+        onClose={closeTaskDetail}
       >
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">

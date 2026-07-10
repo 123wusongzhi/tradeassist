@@ -7,29 +7,29 @@
                     {
                         "failedCount":  0,
                         "label":  "T1-title",
-                        "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
+                        "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
                         "successCount":  5,
-                        "batchNo":  "AT202607090014",
+                        "batchNo":  "AT202607100002",
                         "status":  "success"
                     },
                     {
                         "failedCount":  0,
                         "label":  "T2-description",
-                        "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                        "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
                         "successCount":  5,
-                        "batchNo":  "AT202607090015",
+                        "batchNo":  "AT202607100003",
                         "status":  "success"
                     },
                     {
                         "failedCount":  0,
                         "label":  "T3-both",
-                        "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                        "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                         "successCount":  6,
-                        "batchNo":  "AT202607090016",
+                        "batchNo":  "AT202607100004",
                         "status":  "success"
                     }
                 ],
-    "generatedAt":  "2026-07-09T06:56:05.4261700Z",
+    "generatedAt":  "2026-07-10T06:00:55.1120918Z",
     "pendingReview":  16,
     "totalItems":  16,
     "apiBase":  "http://127.0.0.1:8080",
@@ -37,12 +37,57 @@
     "items":  [
                   {
                       "batchLabel":  "T1-title",
+                      "productId":  "4fe45e34-4529-438b-a64d-a478b412118c",
+                      "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
+                      "autoOverwrite":  false,
+                      "productTitleUnchanged":  false,
+                      "generatedLen":  21,
+                      "itemId":  "ba8a0be0-5ba2-425b-8663-62d40e940032",
+                      "qualityWarningCount":  0,
+                      "generatedPreview":  "手工制作香水种子#499 手动操作教程指南",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "title",
+                      "errorMessage":  null
+                  },
+                  {
+                      "batchLabel":  "T1-title",
+                      "productId":  "a7715a98-3291-4bc3-ab7d-6620b07371af",
+                      "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
+                      "autoOverwrite":  false,
+                      "productTitleUnchanged":  true,
+                      "generatedLen":  24,
+                      "itemId":  "90ec9a24-7dc7-4c38-8ab6-4652051807f1",
+                      "qualityWarningCount":  0,
+                      "generatedPreview":  "爆款种子#497 高发芽率 易种植 家庭园艺优选",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "title",
+                      "errorMessage":  null
+                  },
+                  {
+                      "batchLabel":  "T1-title",
+                      "productId":  "8dfe5af3-554a-4110-9af8-ad1f2165583b",
+                      "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
+                      "autoOverwrite":  false,
+                      "productTitleUnchanged":  true,
+                      "generatedLen":  29,
+                      "itemId":  "9f440208-7a4a-412e-8fe6-2df0111d3a2b",
+                      "qualityWarningCount":  0,
+                      "generatedPreview":  "Perf Seed #494 手动版 使用说明书 详细教程",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "title",
+                      "errorMessage":  null
+                  },
+                  {
+                      "batchLabel":  "T1-title",
                       "productId":  "715b12b8-c23a-42a3-bcc9-f2dd69d47095",
-                      "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
+                      "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
                       "generatedLen":  28,
-                      "itemId":  "3bd36194-c75e-45de-a38c-ce316428c5f9",
+                      "itemId":  "46708870-1637-4088-8f9e-2d6182b224a5",
                       "qualityWarningCount":  1,
                       "generatedPreview":  "高品质_perf种子#495_1688源头直供_现货速发",
                       "qualityWarnings":  [
@@ -57,27 +102,12 @@
                   },
                   {
                       "batchLabel":  "T1-title",
-                      "productId":  "4fe45e34-4529-438b-a64d-a478b412118c",
-                      "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
-                      "autoOverwrite":  false,
-                      "productTitleUnchanged":  false,
-                      "generatedLen":  29,
-                      "itemId":  "78397512-edce-43ba-a2ad-18154c94fb27",
-                      "qualityWarningCount":  0,
-                      "generatedPreview":  "Perf Seed #499 手动版 使用说明书 详细教程",
-                      "qualityWarnings":  null,
-                      "status":  "pending_review",
-                      "operationType":  "title",
-                      "errorMessage":  null
-                  },
-                  {
-                      "batchLabel":  "T1-title",
                       "productId":  "ac15338f-2e45-40c3-89bc-8c9150fa49b7",
-                      "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
+                      "batchId":  "df1e0355-076f-4aa5-b2af-38017228b80e",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
                       "generatedLen":  28,
-                      "itemId":  "742baf23-4fd3-4491-acea-4bd6a3c55612",
+                      "itemId":  "fc1654a3-7dca-4bd9-82f4-a93eacf58549",
                       "qualityWarningCount":  0,
                       "generatedPreview":  "定制款 Perf Seed #498 精选种子 高发芽率",
                       "qualityWarnings":  null,
@@ -86,45 +116,15 @@
                       "errorMessage":  null
                   },
                   {
-                      "batchLabel":  "T1-title",
-                      "productId":  "a7715a98-3291-4bc3-ab7d-6620b07371af",
-                      "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
-                      "autoOverwrite":  false,
-                      "productTitleUnchanged":  true,
-                      "generatedLen":  24,
-                      "itemId":  "cdb732f2-5408-4bd8-ad9c-0b991bb28fc0",
-                      "qualityWarningCount":  0,
-                      "generatedPreview":  "爆款种子#497 高发芽率 易种植 家庭园艺优选",
-                      "qualityWarnings":  null,
-                      "status":  "pending_review",
-                      "operationType":  "title",
-                      "errorMessage":  null
-                  },
-                  {
-                      "batchLabel":  "T1-title",
-                      "productId":  "8dfe5af3-554a-4110-9af8-ad1f2165583b",
-                      "batchId":  "b0be6d61-63fa-48c5-b827-9b6edc04c335",
-                      "autoOverwrite":  false,
-                      "productTitleUnchanged":  true,
-                      "generatedLen":  31,
-                      "itemId":  "f41812fb-fb8e-4782-b6f7-2337366098bd",
-                      "qualityWarningCount":  0,
-                      "generatedPreview":  "Perf Seed #494 手动版 使用说明书 详细操作指南",
-                      "qualityWarnings":  null,
-                      "status":  "pending_review",
-                      "operationType":  "title",
-                      "errorMessage":  null
-                  },
-                  {
                       "batchLabel":  "T2-description",
-                      "productId":  "93b9663d-a5f4-4810-a9bc-2e3dcaf9f87d",
-                      "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                      "productId":  "e1f60994-f434-47ef-b8fe-d5593d6b8118",
+                      "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  133,
-                      "itemId":  "76fd8c1f-80df-4a1c-91cb-901bf27dc300",
+                      "generatedLen":  130,
+                      "itemId":  "4a823827-0c05-452e-a02b-cc2932e3f7cc",
                       "qualityWarningCount":  2,
-                      "generatedPreview":  "本产品为编号#496的香精种子（Perf seed），适用于香水调配、香氛研发及DIY香调实验。该香精种子为浓缩香基原料，需按比例稀释后使用，适合专业调香师、香...",
+                      "generatedPreview":  "Perf seed #492 是一款专为跨境电商业务设计的香精原料产品，适用于香水、香薰、日化香型调配等场景。本品为高纯度香精基底，具有稳定扩散性与良好留香表现...",
                       "qualityWarnings":  [
                                               {
                                                   "code":  "desc_unclear_structure",
@@ -142,13 +142,33 @@
                   {
                       "batchLabel":  "T2-description",
                       "productId":  "4ee03ff7-4239-4d10-ae6b-ba72ffb468aa",
-                      "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                      "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  128,
-                      "itemId":  "cec6c25d-9312-4c35-81ec-640be8b59254",
+                      "generatedLen":  126,
+                      "itemId":  "770923c2-2745-49be-a4cb-db626477096d",
+                      "qualityWarningCount":  1,
+                      "generatedPreview":  "Perf seed #490 1688 是一款专为香水研发与调香实验设计的香精原料样品。适用于专业调香师、香氛产品开发者及化妆品研发人员进行气味评估、配方测试与...",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "desc_unclear_structure",
+                                                  "message":  "描述结构不够清晰，建议分段或使用列表呈现卖点。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "description",
+                      "errorMessage":  null
+                  },
+                  {
+                      "batchLabel":  "T2-description",
+                      "productId":  "93b9663d-a5f4-4810-a9bc-2e3dcaf9f87d",
+                      "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
+                      "autoOverwrite":  false,
+                      "productTitleUnchanged":  true,
+                      "generatedLen":  122,
+                      "itemId":  "7948b95e-0f71-4fca-8ca7-7a2a17e3e00d",
                       "qualityWarningCount":  2,
-                      "generatedPreview":  "Perf seed #490 1688 是一款用于香精配方开发的基础原料，适用于调香师、化妆品及日化产品研发人员。该产品为标准化香料中间体，编号#490，批次号...",
+                      "generatedPreview":  "本产品为编号#496的香精种子（Perf seed），适用于香水调配、香氛研发及DIY香精实验。该产品为专业级香精原料，需由具备相关知识的用户在适当条件下使用。...",
                       "qualityWarnings":  [
                                               {
                                                   "code":  "desc_unclear_structure",
@@ -166,11 +186,11 @@
                   {
                       "batchLabel":  "T2-description",
                       "productId":  "28aa935b-03a5-440b-8697-51cd3f95de02",
-                      "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                      "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
                       "generatedLen":  119,
-                      "itemId":  "4b9847db-1999-4671-b01a-db2c97de7093",
+                      "itemId":  "ebd1afb8-5563-4bd6-a53d-a8e236e52706",
                       "qualityWarningCount":  3,
                       "generatedPreview":  "Perf seed #491 是一款用于植物育种或科研实验的种子产品，适用于特定品种的繁殖与性状筛选。本产品为标准化包装种子，来源清晰，适合农业科研机构、高校实...",
                       "qualityWarnings":  [
@@ -193,15 +213,19 @@
                   },
                   {
                       "batchLabel":  "T2-description",
-                      "productId":  "e1f60994-f434-47ef-b8fe-d5593d6b8118",
-                      "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                      "productId":  "077fb62d-f936-4b13-96e3-15014dfa3f58",
+                      "batchId":  "58312c4b-ef51-4b8a-82a0-316c34622258",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  140,
-                      "itemId":  "55be6c82-13e5-40f6-aa3b-64d36986a707",
-                      "qualityWarningCount":  2,
-                      "generatedPreview":  "Perf seed #492 是一款专为跨境及国内电商渠道设计的香精原料产品，适用于香水、香薰、日化用品等领域的配方开发。本品为高纯度香精浓缩液，具有稳定扩散性...",
+                      "generatedLen":  108,
+                      "itemId":  "3736326c-8657-40b6-b84d-6346bf5fd3b4",
+                      "qualityWarningCount":  3,
+                      "generatedPreview":  "本产品为 Perf seed #486，源自拼多多平台商品编号#486。该产品为种子类商品，具体品种、用途及种植要求请以实际发货内容及随附说明为准。适用于园艺爱...",
                       "qualityWarnings":  [
+                                              {
+                                                  "code":  "desc_no_bullets",
+                                                  "message":  "描述缺少卖点列表，建议补充核心卖点。"
+                                              },
                                               {
                                                   "code":  "desc_unclear_structure",
                                                   "message":  "描述结构不够清晰，建议分段或使用列表呈现卖点。"
@@ -216,15 +240,15 @@
                       "errorMessage":  null
                   },
                   {
-                      "batchLabel":  "T2-description",
-                      "productId":  "077fb62d-f936-4b13-96e3-15014dfa3f58",
-                      "batchId":  "8a8c1165-cead-4b07-a047-eddc456584e8",
+                      "batchLabel":  "T3-both",
+                      "productId":  "1cf3566d-9aaf-44ed-b8eb-293ec5d16031",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  146,
-                      "itemId":  "d68b7715-8a08-444e-802b-d51e3fe96753",
+                      "generatedLen":  128,
+                      "itemId":  "c5a2f6f9-b761-45c0-a316-7a9749f8464f",
                       "qualityWarningCount":  2,
-                      "generatedPreview":  "本产品为编号#486的香精种子（Perf seed），适用于香水调配、香氛研发或DIY香调实验。该香精种子为浓缩香基原料，需按比例稀释后使用，适合专业调香师、香...",
+                      "generatedPreview":  "Perf Seed #493 定制款精选种子，专为追求高品质种植效果的用户设计。本批次种子经过严格筛选与品控，确保高发芽率与稳定生长表现，适用于家庭园艺、小型农...",
                       "qualityWarnings":  [
                                               {
                                                   "code":  "desc_unclear_structure",
@@ -242,11 +266,11 @@
                   {
                       "batchLabel":  "T3-both",
                       "productId":  "1cf3566d-9aaf-44ed-b8eb-293ec5d16031",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  false,
                       "generatedLen":  28,
-                      "itemId":  "2f0a9192-b889-4c86-9617-8cb830a40191",
+                      "itemId":  "64016b21-01e2-4c2d-8529-4267b0be5dad",
                       "qualityWarningCount":  0,
                       "generatedPreview":  "定制款 Perf Seed #493 精选种子 高发芽率",
                       "qualityWarnings":  null,
@@ -256,14 +280,14 @@
                   },
                   {
                       "batchLabel":  "T3-both",
-                      "productId":  "1cf3566d-9aaf-44ed-b8eb-293ec5d16031",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                      "productId":  "249a2bac-a1d4-43c8-bbff-7b909c100ab9",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  130,
-                      "itemId":  "a2f155e1-348f-4b80-a892-24fe0d09ca64",
+                      "generatedLen":  141,
+                      "itemId":  "c808f2a8-cce1-49ec-9013-b7619c9b6365",
                       "qualityWarningCount":  2,
-                      "generatedPreview":  "Perf Seed #493 定制款精选种子，专为追求高品质发芽表现的种植者设计。本批次种子经过严格筛选与品控，确保高发芽率与稳定生长潜力，适用于家庭园艺、小型...",
+                      "generatedPreview":  "Perf seed #487 是一款专为跨境及国内电商渠道设计的香精原料产品，适用于香水、香薰、日化用品等领域的配方开发。本品为高纯度香精浓缩液，具有稳定扩散性...",
                       "qualityWarnings":  [
                                               {
                                                   "code":  "desc_unclear_structure",
@@ -281,13 +305,13 @@
                   {
                       "batchLabel":  "T3-both",
                       "productId":  "249a2bac-a1d4-43c8-bbff-7b909c100ab9",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
                       "generatedLen":  24,
-                      "itemId":  "fa6feea0-d428-407b-b3ed-8ded3e89a583",
+                      "itemId":  "3061367c-9355-4a59-b4a7-a60b760067ac",
                       "qualityWarningCount":  0,
-                      "generatedPreview":  "爆款种子#487 高发芽率 易种植 家庭园艺必备",
+                      "generatedPreview":  "爆款种子#487 高发芽率 易种植 家庭园艺优选",
                       "qualityWarnings":  null,
                       "status":  "pending_review",
                       "operationType":  "title",
@@ -295,36 +319,12 @@
                   },
                   {
                       "batchLabel":  "T3-both",
-                      "productId":  "249a2bac-a1d4-43c8-bbff-7b909c100ab9",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
-                      "autoOverwrite":  false,
-                      "productTitleUnchanged":  true,
-                      "generatedLen":  116,
-                      "itemId":  "22733864-43b2-4a13-83e9-6549856227c7",
-                      "qualityWarningCount":  2,
-                      "generatedPreview":  "本产品为编号#487的香氛种子（Perf Seed），适用于香氛扩散、DIY香薰制作或家居香氛搭配使用。产品源自淘宝/天猫平台供应链，品质稳定，适配多种香氛载体...",
-                      "qualityWarnings":  [
-                                              {
-                                                  "code":  "desc_unclear_structure",
-                                                  "message":  "描述结构不够清晰，建议分段或使用列表呈现卖点。"
-                                              },
-                                              {
-                                                  "code":  "desc_no_specs",
-                                                  "message":  "描述缺少规格信息，建议保留原参数。"
-                                              }
-                                          ],
-                      "status":  "pending_review",
-                      "operationType":  "description",
-                      "errorMessage":  null
-                  },
-                  {
-                      "batchLabel":  "T3-both",
                       "productId":  "1ae4dd72-541f-43d7-8051-05dd32adf984",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
                       "generatedLen":  28,
-                      "itemId":  "80eb6c44-5bd5-4f5e-ad7e-3d817fb40e66",
+                      "itemId":  "69423922-b418-4750-8a10-42c632405d39",
                       "qualityWarningCount":  1,
                       "generatedPreview":  "高品质_perf种子#485_1688源头直供_现货速发",
                       "qualityWarnings":  [
@@ -340,13 +340,13 @@
                   {
                       "batchLabel":  "T3-both",
                       "productId":  "1ae4dd72-541f-43d7-8051-05dd32adf984",
-                      "batchId":  "90c9625c-576e-4fb2-89f3-40f21db508a1",
+                      "batchId":  "45f4552c-0b6d-442d-9d97-8c4a9a9a60b5",
                       "autoOverwrite":  false,
                       "productTitleUnchanged":  true,
-                      "generatedLen":  155,
-                      "itemId":  "7893825e-5953-4fcf-89ed-3f79603da2a0",
+                      "generatedLen":  140,
+                      "itemId":  "6da3dead-ee90-4bd4-a6a5-2e4b43cc79a4",
                       "qualityWarningCount":  2,
-                      "generatedPreview":  "Perf seed #485 1688 是一款用于香精配方开发的基础原料，适用于调香师、化妆品研发人员及香氛产品制造商。该产品为标准化香料中间体，编号#485，...",
+                      "generatedPreview":  "Perf seed #485 1688 是一款用于香精配方开发的基础原料，适用于调香师、化妆品及日化产品研发人员。该产品为标准化香料中间体，编号#485 168...",
                       "qualityWarnings":  [
                                               {
                                                   "code":  "desc_unclear_structure",

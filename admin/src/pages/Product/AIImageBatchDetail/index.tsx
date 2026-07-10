@@ -17,7 +17,9 @@ import {
   type AIProductImageItemRow,
 } from '@/services/aiProductImage';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams, useSearchParams } from '@umijs/max';
+import { Link, history, useParams } from '@umijs/max';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { normalizeSource } from '@/utils/urlState';
 import {
   Alert,
   Button,
@@ -36,12 +38,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AIImageBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const focusItemId = (searchParams.get('itemId') || '').trim();
+  const { state: urlState, setState: setUrlState } = useUrlQueryState<{
+    itemId?: string;
+    tab?: string;
+    source?: string;
+    warningCode?: string;
+  }>(['itemId', 'tab', 'source', 'warningCode']);
+  const navSource = normalizeSource(urlState.source);
+  const focusItemId = (urlState.itemId || '').trim();
   const [detail, setDetail] = useState<AIProductImageBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(urlState.tab || urlState.warningCode || 'all');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [batchApplyMode, setBatchApplyMode] = useState('save_to_gallery');
   const [reviewItem, setReviewItem] = useState<AIProductImageItemRow | null>(null);
@@ -76,6 +84,23 @@ export default function AIImageBatchDetailPage() {
     setReviewItem(target);
     setReviewOpen(true);
   }, [focusItemId, detail?.items]);
+
+  useEffect(() => {
+    if (urlState.tab) setStatusFilter(urlState.tab);
+    else if (urlState.warningCode) setStatusFilter('warning');
+  }, [urlState.tab, urlState.warningCode]);
+
+  const openReview = (row: AIProductImageItemRow) => {
+    setReviewItem(row);
+    setReviewOpen(true);
+    setUrlState({ itemId: row.id });
+  };
+
+  const closeReview = () => {
+    setReviewOpen(false);
+    setReviewItem(null);
+    setUrlState({ itemId: undefined }, { replace: true });
+  };
 
   const reviewableIds = useMemo(
     () =>
@@ -164,7 +189,19 @@ export default function AIImageBatchDetailPage() {
               />
             ) : null}
             <Space wrap style={{ marginTop: 12 }}>
-              <Button onClick={() => history.push('/product/drafts')}>返回商品列表</Button>
+              <Button
+                onClick={() => {
+                  const back =
+                    navSource === 'config_status'
+                      ? '/settings/config-status'
+                      : navSource === 'taskcenter'
+                        ? '/ops/task-center/failures'
+                        : `/ai/image-batches${navSource ? `?source=${encodeURIComponent(navSource)}` : ''}${urlState.warningCode ? `${navSource ? '&' : '?'}warningCode=${encodeURIComponent(urlState.warningCode)}` : ''}`;
+                  history.push(back);
+                }}
+              >
+                返回列表
+              </Button>
               <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
               <Button onClick={() => history.push('/settings/image')}>图片 AI 设置</Button>
               <Button
@@ -225,7 +262,18 @@ export default function AIImageBatchDetailPage() {
           <Segmented
             options={AI_IMAGE_REVIEW_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
             value={statusFilter}
-            onChange={(v) => setStatusFilter(String(v))}
+            onChange={(v) => {
+              const next = String(v);
+              setStatusFilter(next);
+              setUrlState(
+                {
+                  tab: next === 'all' ? undefined : next,
+                  warningCode: next === 'warning' ? urlState.warningCode : undefined,
+                  itemId: undefined,
+                },
+                { replace: true },
+              );
+            }}
             style={{ marginBottom: 12 }}
           />
 
@@ -333,7 +381,7 @@ export default function AIImageBatchDetailPage() {
                 title: '操作',
                 width: 120,
                 render: (_, row) => (
-                  <Button type="link" size="small" onClick={() => { setReviewItem(row); setReviewOpen(true); }}>
+                  <Button type="link" size="small" onClick={() => openReview(row)}>
                     查看对比
                   </Button>
                 ),
@@ -354,7 +402,7 @@ export default function AIImageBatchDetailPage() {
       <ReviewImageItemModal
         open={reviewOpen}
         item={reviewItem}
-        onClose={() => setReviewOpen(false)}
+        onClose={closeReview}
         onDone={() => void reload()}
       />
     </TmPageContainer>

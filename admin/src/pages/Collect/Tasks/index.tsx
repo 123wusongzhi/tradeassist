@@ -2,7 +2,6 @@ import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-co
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { ProCard } from '@ant-design/pro-components';
-import { useLocation } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import {
   Alert,
@@ -18,10 +17,18 @@ import {
   Typography,
   message,
 } from 'antd';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { COLLECT_SUCCESS_SHOP_HINT, COLLECT_TARGET_SHOP_HINT } from '@/constants/copywriting';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import {
+  normalizeSource,
+  parsePositiveInt,
+  resolveCollectPlatformFromQuery,
+} from '@/utils/urlState';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
@@ -50,32 +57,52 @@ function providerAllowsSingleCollect(status: CollectProviderStatus) {
   return status === 'available' || status === 'beta';
 }
 
+const COLLECT_TASK_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'status',
+  'sourcePlatform',
+  'batchId',
+  'drawer',
+  'id',
+  'source',
+] as const;
+
 export default function CollectTasksPage() {
-  const location = useLocation();
-  const batchIdFromQuery = useMemo(() => {
-    const q = new URLSearchParams(location.search || '');
-    const v = q.get('batchId')?.trim();
-    return v || undefined;
-  }, [location.search]);
-
-  const sourceFromQuery = useMemo(() => {
-    const q = new URLSearchParams(location.search || '');
-    return q.get('source')?.trim() ?? '';
-  }, [location.search]);
-
-  const statusFromQuery = useMemo(() => {
-    const q = new URLSearchParams(location.search || '');
-    return q.get('status')?.trim() || undefined;
-  }, [location.search]);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof COLLECT_TASK_QUERY_KEYS)[number], string | undefined>>(
+      COLLECT_TASK_QUERY_KEYS,
+    );
+  const navSource = normalizeSource(urlState.source);
+  const batchIdFromQuery = urlState.batchId;
+  const collectPlatformFromQuery = resolveCollectPlatformFromQuery(
+    urlState.sourcePlatform,
+    urlState.source,
+  );
+  const statusFromQuery = urlState.status;
+  const eventTaskIdFromUrl = urlState.drawer === 'events' ? urlState.id : undefined;
 
   const actionRef = useRef<ActionType>();
   const emptyLocale = useListEmptyLocale('collectTasks');
   const formRef = useRef<ProFormInstance>();
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
   const [form] = Form.useForm<{ source: string; url: string; ruleId?: string }>();
   const [submitting, setSubmitting] = useState(false);
   const [polling, setPolling] = useState<number | undefined>(4000);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
 
   const [providers, setProviders] = useState<CollectProviderRow[]>([]);
   const [enabledRules, setEnabledRules] = useState<CollectRuleRow[]>([]);
@@ -101,10 +128,25 @@ export default function CollectTasksPage() {
   }, []);
 
   useEffect(() => {
-    if (!statusFromQuery) return;
-    formRef.current?.setFieldsValue?.({ status: statusFromQuery });
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      status: statusFromQuery,
+      source: collectPlatformFromQuery,
+      keyword: urlState.keyword,
+    });
+  }, [collectPlatformFromQuery, statusFromQuery, urlState.keyword, urlState.page, urlState.pageSize]);
+
+  useEffect(() => {
+    if (!statusFromQuery && !collectPlatformFromQuery && !urlState.keyword) return;
     actionRef.current?.reload?.();
-  }, [statusFromQuery]);
+  }, [collectPlatformFromQuery, statusFromQuery, urlState.keyword]);
+
+  useEffect(() => {
+    if (!eventTaskIdFromUrl) return;
+    setEventDrawerTaskId(eventTaskIdFromUrl);
+    setEventDrawerOpen(true);
+  }, [eventTaskIdFromUrl]);
 
   useEffect(() => {
     void (async () => {
@@ -144,20 +186,19 @@ export default function CollectTasksPage() {
 
   useEffect(() => {
     if (!providers.length) return;
-    const qs = sourceFromQuery;
-    const fromQs =
-      qs && providers.some((p) => p.source === qs && providerAllowsSingleCollect(p.status)) ? qs : undefined;
+    const fromQs = collectPlatformFromQuery;
     const picked =
-      fromQs ??
-      providers.find((p) => p.source === '1688' && providerAllowsSingleCollect(p.status))?.source ??
-      providers.find((p) => providerAllowsSingleCollect(p.status))?.source;
+      fromQs && providers.some((p) => p.source === fromQs && providerAllowsSingleCollect(p.status))
+        ? fromQs
+        : providers.find((p) => p.source === '1688' && providerAllowsSingleCollect(p.status))?.source ??
+          providers.find((p) => providerAllowsSingleCollect(p.status))?.source;
     if (!picked) return;
     form.setFieldsValue({
       source: picked,
       url: form.getFieldValue('url') ?? '',
       ...(picked !== 'custom' ? { ruleId: undefined } : {}),
     });
-  }, [providers, sourceFromQuery, form]);
+  }, [providers, collectPlatformFromQuery, form]);
 
   const placeholderUrl = useMemo(() => {
     const p = providers.find((x) => x.source === formSource);
@@ -193,9 +234,9 @@ export default function CollectTasksPage() {
       title: '链接关键词',
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '匹配 source_url' },
+      fieldProps: { placeholder: '匹配 source_url', ...keywordFieldProps },
       search: {
-        transform: (v) => ({ keyword: v }),
+        transform: (v) => ({ keyword: prepareKeyword(v) }),
       },
     },
     {
@@ -265,7 +306,7 @@ export default function CollectTasksPage() {
       responsive: ['md'],
       render: (_, row) =>
         row.resultProductId ? (
-          <Link to={`/product/drafts/${row.resultProductId}`}>{row.resultProductId}</Link>
+          <Link to={`/product/drafts/${row.resultProductId}?source=collect`}>{row.resultProductId}</Link>
         ) : (
           '—'
         ),
@@ -336,6 +377,7 @@ export default function CollectTasksPage() {
             onClick={() => {
               setEventDrawerTaskId(row.id);
               setEventDrawerOpen(true);
+              setUrlState({ drawer: 'events', id: row.id });
             }}
           >
             事件
@@ -373,7 +415,15 @@ export default function CollectTasksPage() {
             <Tag color="processing" style={{ marginRight: 8 }}>
               批次筛选
             </Tag>
-            <Link to="/collect/tasks">清除筛选</Link>
+            <Link
+              to="/collect/tasks"
+              onClick={(e: MouseEvent<HTMLAnchorElement>) => {
+                e.preventDefault();
+                clearUrlState(['batchId'], { replace: true });
+              }}
+            >
+              清除筛选
+            </Link>
           </span>
         ) : (
           '提交单条商品链接采集任务，查看执行进度与结果。'
@@ -387,6 +437,15 @@ export default function CollectTasksPage() {
         message="店铺归属与权限提示"
         description={COLLECT_TARGET_SHOP_HINT}
       />
+      {navSource ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message="已从关联页面带入导航上下文（不影响权限与店铺范围）。"
+        />
+      ) : null}
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProCard variant="outlined" style={{ marginBottom: 16 }} bodyStyle={{ paddingBottom: 8 }}>
         {formSource === 'custom' ? (
           <Alert
@@ -537,21 +596,56 @@ export default function CollectTasksPage() {
         formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto' }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          setEventDrawerOpen(false);
+          setEventDrawerTaskId(null);
+          clearUrlState(COLLECT_TASK_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         options={{ reload: true, density: true, setting: true }}
         polling={polling}
         headerTitle={false}
         toolBarRender={() => []}
         locale={emptyLocale}
         request={async (params) => {
-          const res = await fetchCollectTasks({
-            page: params.current,
-            pageSize: params.pageSize,
-            status: params.status as string | undefined,
-            source: params.source as string | undefined,
-            keyword: params.keyword as string | undefined,
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            status: (params.status as string | undefined) || statusFromQuery,
+            source:
+              (params.source as string | undefined)?.trim() || collectPlatformFromQuery,
+            keyword: prepareKeyword(params.keyword as string | undefined) || urlState.keyword,
             batchId: batchIdFromQuery,
-          });
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              status: qp.status,
+              sourcePlatform: qp.source,
+              keyword: qp.keyword,
+              batchId: qp.batchId,
+              source: urlState.source,
+              drawer: urlState.drawer,
+              id: urlState.id,
+            },
+            { replace: true },
+          );
+          const res = await fetchCollectTasks(qp);
           return {
             data: res.list,
             success: true,
@@ -565,6 +659,7 @@ export default function CollectTasksPage() {
         onClose={() => {
           setEventDrawerOpen(false);
           setEventDrawerTaskId(null);
+          setUrlState({ drawer: undefined, id: undefined }, { replace: true });
         }}
       />
     </TmPageContainer>

@@ -94,6 +94,21 @@ Third batch (**completed**):
 
 **未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
 
+## H1.5 次级列表 URL 状态 + 浏览器签收（Completed）
+
+| Scope | Result |
+| --- | --- |
+| 刊登批次/任务 | `/product/publish-tasks` tab + filters + drawer + batch detail back |
+| 采集任务 | `/collect/tasks` `sourcePlatform` + events drawer + `source=collect` draft link |
+| 订单/客服同步任务 | Drawer `id` refresh restore + `partial_success` URL |
+| AI 文案/图片批次 | List pagination + detail `itemId`/`tab`/`warningCode` |
+| source 扩展 | `ai_workbench`, `config_status`, `publish_batch`, `order_sync`, `customer_sync` |
+| 浏览器后退/前进 | Chrome full + Edge sampled — **passed_with_warning** |
+| 1366/1024 响应式 | **passed** / **passed_with_warning** |
+| Reports | [`H1_5_SECONDARY_URL_BROWSER_CHECK.md`](H1_5_SECONDARY_URL_BROWSER_CHECK.md), [`h1-5-secondary-url-browser-check.json`](h1-5-secondary-url-browser-check.json) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
 ## Completion Rules
 
 - URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.
