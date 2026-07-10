@@ -38,10 +38,28 @@ import (
 )
 
 func loadDotEnv() {
-	paths := []string{".env", "../.env", "../../.env"}
-	for _, p := range paths {
-		if err := godotenv.Load(p); err == nil {
+	env := config.NormalizeEnv(os.Getenv("APP_ENV"))
+	if env == config.EnvProduction {
+		if f := strings.TrimSpace(os.Getenv("APP_ENV_FILE")); f != "" {
+			_ = godotenv.Load(f)
 			return
+		}
+		for _, p := range []string{".env.production", "../.env.production", "../../.env.production"} {
+			if err := godotenv.Load(p); err == nil {
+				return
+			}
+		}
+		return
+	}
+	for _, p := range []string{".env", "../.env", "../../.env"} {
+		if err := godotenv.Load(p); err == nil {
+			break
+		}
+	}
+	env = config.NormalizeEnv(os.Getenv("APP_ENV"))
+	if env != "" && env != config.EnvDevelopment {
+		for _, p := range []string{".env." + env, "../.env." + env, "../../.env." + env} {
+			_ = godotenv.Load(p)
 		}
 	}
 }
@@ -56,6 +74,7 @@ func main() {
 	}
 
 	log := logger.Init(cfg.AppEnv)
+	log.Info("config_loaded", "summary", cfg.RedactedSummary().String())
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -180,11 +199,12 @@ func main() {
 
 	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc := api.Register(engine, &api.Deps{
-		Config:    cfg,
-		DB:        db,
-		Redis:     redisClient,
-		Encrypter: enc,
-		OpLog:     opLogSvc,
+		Config:          cfg,
+		DB:              db,
+		Redis:           redisClient,
+		Encrypter:       enc,
+		OpLog:           opLogSvc,
+		MigrationsReady: true,
 	})
 
 	workerReg := worker.NewRegistryFromConfig(db, opLogSvc, cfg, log)

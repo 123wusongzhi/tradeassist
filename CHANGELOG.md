@@ -6,11 +6,20 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P1 — Production infrastructure (2026-07-10)
+
+- Multi-environment config profiles, production fail-fast validation, redacted startup summary.
+- Health probes: `GET /health/live`, `GET /health/ready`.
+- Storage public_base validation, settings storage public-check API alias, upload image decode hardening.
+- Deploy assets: `deploy/nginx`, `deploy/systemd`, `deploy/scripts`, env profile examples.
+- Config status center: environment, production safety, storage production boundary, project phase banner.
+- P1 static scan: `scripts/p1-production-config-check.mjs`.
+
 ### Release Status
 
-- Phase F9 final acceptance completed: MVP Demo Ready, P0/P1 cleared, and the demo tag is deferred for Post-F9 enhancement.
-- Production Ready and gray release remain blocked by environment, public storage, and real Douyin credentials.
-- Douyin Shop remains Release Candidate until real read/write E2E and gray observation complete.
+- **Production Capability Development In Progress**; F9 retained as historical Demo baseline; **Final Acceptance Deferred to Phase P10**.
+- MVP Demo Ready; **Tag deferred**; **非 Production Ready**; gray release not allowed.
+- Douyin Shop remains Release Candidate until real read/write E2E (P3/P10).
 - Phase H1.1 adds URL-based state restoration for key operation workbenches.
 - Phase H1.2 extends URL state to orders, product drafts, inventory, and customer service list pages (filters, pagination, drawers, legacy deep links).
 - Phase H1.2.1 browser spot-check on H1.1 + H1.2 pages; fixes Dashboard `productSource` split, mount URL hydration, drawer reset, and drafts source sync.

@@ -39,7 +39,7 @@ Add-Issue "Admin route uses /ops/task-center/failures" ($wrongRouteHits.Count -e
 
 $readme = Get-Content (Join-Path $repoRoot "README.md") -Raw
 Add-Issue "README states MVP Demo Ready" ($readme -match 'MVP Demo Ready') "README.md release line"
-Add-Issue "README states Post-F9 Enhancement" ($readme -match 'Post-F9 Enhancement') "README.md stage line"
+Add-Issue "README states production capability phase" ($readme -match 'Production Capability Development|Post-F9 Enhancement|Phase P1') "README.md stage line"
 Add-Issue "README states Tag deferred" ($readme -match 'Tag deferred') "tag status"
 Add-Issue "README Douyin Release Candidate" ($readme -match 'Release Candidate') "douyin status"
 
@@ -80,10 +80,12 @@ $md += @(
     "",
     "## Required release status",
     "",
-    "- Post-F9 Enhancement In Progress",
+    "- Production Capability Development In Progress",
+    "- Infrastructure Foundation Ready",
     "- MVP Demo Ready",
     "- Tag deferred",
     "- Not Production Ready",
+    "- Final Acceptance Deferred (Phase P10)",
     "- Douyin Release Candidate",
     "",
     "## Route convention",

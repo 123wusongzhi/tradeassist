@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	"github.com/trademind-ai/trademind/backend/internal/health"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
@@ -140,10 +141,11 @@ func (a collectRuleCreatorAdapter) CreateFromAI(c *gin.Context, body collectrule
 
 // Deps holds process-wide dependencies for HTTP handlers.
 type Deps struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	Redis     *rdb.Client
-	Encrypter *encrypt.Service
+	Config          *config.Config
+	DB              *gorm.DB
+	Redis           *rdb.Client
+	Encrypter       *encrypt.Service
+	MigrationsReady bool
 	// OpLog optional; when nil Register creates a default operation log service from DB.
 	OpLog *operationlog.Service
 }
@@ -157,6 +159,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	h := healthHandler(dep)
 	r.GET("/health", h)
 	r.GET("/api/v1/health", h)
+	health.Register(r, &health.Deps{
+		Config:          dep.Config,
+		DB:              dep.DB,
+		Redis:           dep.Redis,
+		MigrationsReady: dep.MigrationsReady,
+	})
 
 	adminStore := &admin.Store{DB: dep.DB}
 	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
@@ -326,7 +334,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
-	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc}
+	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc, DB: dep.DB}
 
 	douyinPreflightSvc := &douyinpreflight.Service{
 		DB:       dep.DB,
@@ -629,11 +637,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
 
-	if dep.Config == nil || !strings.EqualFold(strings.TrimSpace(dep.Config.AppEnv), "production") {
-		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: "development"}
-		if dep.Config != nil && strings.TrimSpace(dep.Config.AppEnv) != "" {
-			demoSeedSvc.AppEnv = dep.Config.AppEnv
-		}
+	if dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv) {
+		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: dep.Config.AppEnv}
 		demoSeedH := &demoseed.Handler{Svc: demoSeedSvc}
 		demoseed.Register(authed, demoSeedH)
 	}

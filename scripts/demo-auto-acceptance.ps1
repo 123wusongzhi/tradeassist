@@ -277,7 +277,7 @@ $automatableConclusion = if ($overallFailed -eq 0) {
 } else { "failed" }
 
 $finalStatus = @{
-    stage      = "Post-F9 Enhancement In Progress"
+    stage      = "Production Capability Development In Progress"
     release    = "MVP Demo Ready"
     tag        = "Tag deferred"
     production = "Not Production Ready"
@@ -369,7 +369,7 @@ $mdLines.Add("")
 $mdLines.Add("## Final status")
 $mdLines.Add("")
 $mdLines.Add('```text')
-$mdLines.Add("Post-F9 Enhancement In Progress")
+$mdLines.Add("Production Capability Development In Progress")
 $mdLines.Add("MVP Demo Ready")
 $mdLines.Add("Tag deferred")
 $mdLines.Add("Not Production Ready")

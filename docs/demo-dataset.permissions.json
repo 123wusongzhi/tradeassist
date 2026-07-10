@@ -1,7 +1,7 @@
 ﻿{
     "phase":  "F7",
     "note":  "Passwords are demo-only; change in production.",
-    "generatedAt":  "2026-07-10T06:58:42.0798192Z",
+    "generatedAt":  "2026-07-10T07:46:07.6497661Z",
     "negativeTests":  [
                           {
                               "account":  "demo_readonly",
@@ -9,7 +9,7 @@
                               "tag":  "readonly_write_blocked"
                           },
                           {
-                              "shopId":  "1741e7db-da8a-4edd-963a-85fe08535b26",
+                              "shopId":  "e9eecfb8-e87e-4a02-83f2-3d12c0356552",
                               "account":  "demo_operator",
                               "expect":  "404 or 403",
                               "tag":  "operator_cross_store_denied"
@@ -18,7 +18,7 @@
     "accounts":  {
                      "demo_readonly":  {
                                            "email":  "demo_readonly@trademind.local",
-                                           "authorizedShopId":  "b63ea4b7-f260-44b4-83ff-8520d7dd6dee",
+                                           "authorizedShopId":  "dabf2916-8381-4c9a-9734-f5640a52ab96",
                                            "password":  "DemoReadonly123!",
                                            "role":  "readonly"
                                        },
@@ -29,7 +29,7 @@
                                     },
                      "demo_operator":  {
                                            "email":  "demo_operator@trademind.local",
-                                           "authorizedShopId":  "b63ea4b7-f260-44b4-83ff-8520d7dd6dee",
+                                           "authorizedShopId":  "dabf2916-8381-4c9a-9734-f5640a52ab96",
                                            "password":  "DemoOperator123!",
                                            "role":  "operator"
                                        }

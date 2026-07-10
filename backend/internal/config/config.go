@@ -9,13 +9,24 @@ import (
 
 // Config holds environment-driven settings for the API server.
 type Config struct {
-	AppEnv    string
-	HTTPAddr  string
-	MasterKey string
-	DB        DBConfig
-	Redis     RedisConfig
-	JWTSecret string
-	JWTExpHrs int
+	AppEnv         string
+	AppName        string
+	AppVersion     string
+	HTTPAddr       string
+	AdminPublicURL string
+	APIPublicURL   string
+	LogLevel       string
+	MasterKey      string
+
+	// Feature gates (production must disable dangerous flags).
+	EnableSwagger        bool
+	EnableDevRoutes      bool
+	EnableDemoSeed       bool
+	EnableDebugEndpoints bool
+	DB                   DBConfig
+	Redis                RedisConfig
+	JWTSecret            string
+	JWTExpHrs            int
 
 	// BootstrapAdminEmail / BootstrapAdminPhone / BootstrapAdminPassword seed the first admin when admin_users is empty (at least one contact required).
 	BootstrapAdminEmail    string
@@ -147,10 +158,20 @@ type RedisConfig struct {
 
 // Load reads configuration from environment variables (after optional .env in main).
 func Load() (*Config, error) {
+	appEnv := NormalizeEnv(firstNonEmpty(os.Getenv("APP_ENV"), EnvDevelopment))
 	cfg := &Config{
-		AppEnv:    firstNonEmpty(os.Getenv("APP_ENV"), "development"),
-		HTTPAddr:  firstNonEmpty(os.Getenv("APP_HTTP_ADDR"), ":8080"),
-		MasterKey: os.Getenv("APP_MASTER_KEY"),
+		AppEnv:               appEnv,
+		AppName:              firstNonEmpty(os.Getenv("APP_NAME"), "TradeMind"),
+		AppVersion:           strings.TrimSpace(os.Getenv("APP_VERSION")),
+		HTTPAddr:             resolveHTTPAddr(),
+		AdminPublicURL:       strings.TrimSpace(os.Getenv("ADMIN_PUBLIC_URL")),
+		APIPublicURL:         strings.TrimSpace(os.Getenv("API_PUBLIC_URL")),
+		LogLevel:             firstNonEmpty(os.Getenv("LOG_LEVEL"), defaultLogLevel(appEnv)),
+		MasterKey:            os.Getenv("APP_MASTER_KEY"),
+		EnableSwagger:        envBool(os.Getenv("ENABLE_SWAGGER"), appEnv != EnvProduction),
+		EnableDevRoutes:      envBool(os.Getenv("ENABLE_DEV_ROUTES"), appEnv != EnvProduction && appEnv != EnvStaging),
+		EnableDemoSeed:       envBool(os.Getenv("ENABLE_DEMO_SEED"), appEnv == EnvDevelopment || appEnv == EnvDemo),
+		EnableDebugEndpoints: envBool(os.Getenv("ENABLE_DEBUG_ENDPOINTS"), appEnv != EnvProduction),
 		DB: DBConfig{
 			Driver:   strings.ToLower(strings.TrimSpace(firstNonEmpty(os.Getenv("DB_DRIVER"), "postgres"))),
 			Host:     firstNonEmpty(os.Getenv("DB_HOST"), "127.0.0.1"),
@@ -284,11 +305,39 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("DB_NAME is required")
 	}
 
-	if cfg.AppEnv == "production" && cfg.JWTSecret == "change-me-in-development" {
-		return nil, fmt.Errorf("JWT_SECRET must be set for production")
+	if err := cfg.Validate(); err != nil {
+		return nil, err
 	}
 
 	return cfg, nil
+}
+
+func defaultLogLevel(appEnv string) string {
+	if IsProduction(appEnv) {
+		return "info"
+	}
+	return "debug"
+}
+
+func resolveHTTPAddr() string {
+	if v := strings.TrimSpace(os.Getenv("APP_HTTP_ADDR")); v != "" {
+		return v
+	}
+	host := strings.TrimSpace(os.Getenv("HTTP_HOST"))
+	port := strings.TrimSpace(os.Getenv("HTTP_PORT"))
+	if host != "" && port != "" {
+		if strings.Contains(host, ":") {
+			return host + ":" + port
+		}
+		return host + ":" + port
+	}
+	if port != "" {
+		if strings.HasPrefix(port, ":") {
+			return port
+		}
+		return ":" + port
+	}
+	return ":8080"
 }
 
 // MaxUploadBytes returns the max upload size in bytes from UploadMaxMB (fallback 10 MB).

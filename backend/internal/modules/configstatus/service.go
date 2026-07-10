@@ -49,9 +49,10 @@ type Item struct {
 
 // Overview is GET /api/v1/settings/config-status.
 type Overview struct {
-	GeneratedAt string `json:"generatedAt"`
-	Items       []Item `json:"items"`
-	DemoData    Item   `json:"demoData"`
+	GeneratedAt  string       `json:"generatedAt"`
+	ProjectPhase ProjectPhase `json:"projectPhase"`
+	Items        []Item       `json:"items"`
+	DemoData     Item         `json:"demoData"`
 }
 
 // Service aggregates configuration health.
@@ -95,9 +96,13 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 		return nil, fmt.Errorf("configstatus: unavailable")
 	}
 	out := &Overview{
-		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
-		Items:       make([]Item, 0, 16),
+		GeneratedAt:  time.Now().UTC().Format(time.RFC3339),
+		ProjectPhase: defaultProjectPhase(),
+		Items:        make([]Item, 0, 20),
 	}
+	out.Items = append(out.Items, s.environmentItem(ctx))
+	out.Items = append(out.Items, s.productionSafetyItem(ctx))
+	out.Items = append(out.Items, s.storageProductionItem(ctx))
 	out.Items = append(out.Items, s.aiTextItem(ctx))
 	out.Items = append(out.Items, s.aiImageItem(ctx))
 	out.Items = append(out.Items, s.dashscopeWhiteBgItem(ctx))

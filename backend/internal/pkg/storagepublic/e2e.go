@@ -50,7 +50,7 @@ func TestEndToEnd(ctx context.Context, plain map[string]string) (EndToEndResult,
 		return out, err
 	}
 	day := time.Now().UTC().Format("2006/01/02")
-	objKey := fmt.Sprintf("%s/.trademind-public-probe-%s.png", day, uuid.NewString())
+	objKey := PublicCheckObjectKey(day, uuid.NewString())
 	if err := prov.Put(ctx, objKey, bytes.NewReader(data), int64(len(data)), "image/png"); err != nil {
 		return out, fmt.Errorf("storage upload probe: %w", err)
 	}

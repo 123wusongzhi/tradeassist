@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"mime"
 	"net/http"
@@ -16,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"golang.org/x/image/webp"
 	"gorm.io/gorm"
 )
 
@@ -72,6 +77,15 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		ct = mimeTypeForExt(ext)
 	}
 
+	if _, _, decErr := image.DecodeConfig(bytes.NewReader(data)); decErr != nil {
+		if _, werr := webp.DecodeConfig(bytes.NewReader(data)); werr != nil {
+			return nil, fmt.Errorf("file is not a decodable image")
+		}
+	}
+	if strings.Contains(objKeyPath(originalName), "..") {
+		return nil, fmt.Errorf("invalid filename")
+	}
+
 	var adminID *uuid.UUID
 	if idStr, ok := c.Get(ctxkey.AdminID); ok {
 		if sub, ok := idStr.(string); ok {
@@ -92,6 +106,9 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 
 	day := time.Now().UTC().Format("2006/01/02")
 	objKey := fmt.Sprintf("%s/%s%s", day, uuid.NewString(), ext)
+	if strings.Contains(objKey, "..") {
+		return nil, fmt.Errorf("invalid object key")
+	}
 
 	if err := prov.Put(reqCtx, objKey, bytes.NewReader(data), int64(len(data)), ct); err != nil {
 		return nil, err
@@ -239,6 +256,10 @@ func mimeTypeForExt(ext string) string {
 	default:
 		return mime.TypeByExtension(ext)
 	}
+}
+
+func objKeyPath(name string) string {
+	return strings.ReplaceAll(filepath.Clean("/"+name), "\\", "/")
 }
 
 // ListQuery binds list filters.

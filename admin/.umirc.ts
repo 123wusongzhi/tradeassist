@@ -50,6 +50,7 @@ export default defineConfig({
     contentWidth: 'Fluid',
   },
   routes,
+  devtool: process.env.NODE_ENV === 'production' ? false : 'source-map',
   proxy: {
     '/api': {
       target: 'http://127.0.0.1:8080',

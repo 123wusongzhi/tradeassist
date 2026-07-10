@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-10T07:03:48.7295199Z
+> Generated: 2026-07-10T07:53:34.9908394Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
@@ -11,8 +11,8 @@
 
 | Metric | Value |
 | --- | --- |
-| Conclusion | **passed** |
-| Failed steps | 0 |
+| Conclusion | **failed** |
+| Failed steps | 1 |
 | Blocked steps | 0 |
 
 ## Step results
@@ -27,7 +27,7 @@
 | demo-empty-state-scan | passed | 0 |  |
 | demo-sensitive-confirm-scan | passed | 0 |  |
 | security-release-check | passed | 0 |  |
-| check-doc-links | passed | 0 |  |
+| check-doc-links | failed | 1 |  |
 | demo-route-smoke | passed | 0 |  |
 | seed-demo-data | passed | 0 |  |
 | seed-demo-permissions | passed | 0 |  |

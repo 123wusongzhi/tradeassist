@@ -5,7 +5,7 @@
 ## 基础约定
 
 - 基础路径：`/api/v1`
-- 健康检查：`GET /health`、`GET /api/v1/health`
+- 健康检查：`GET /health`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
 - 敏感信息：接口不得返回完整 API Key、Token、Secret、Cookie 或密码
@@ -37,7 +37,9 @@
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
-| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
+| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；需 `settings.manage`；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
+| `POST` | `/api/v1/settings/storage/public-check` | 同上（P1 别名） |
+| `GET` | `/api/v1/settings/storage/public-check/latest` | 最近一次公网测试结果（未执行时 `not_run`） |
 | `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）、`settings`（表单覆盖项，支持未保存先测；脱敏 `****` 占位符会忽略并沿用已保存密钥）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
 | `POST` | `/api/v1/settings/test-ocr` | 测试 `settings.image` 中的 OCR 配置。可选 JSON：`provider`（`ai_vision` / `paddleocr` / `baidu` / `aliyun` / `tencent`）、`settings`（表单覆盖项，支持未保存先测；脱敏密钥占位符会忽略）。`paddleocr` 会用后端生成的测试图调用 OCR 服务，检查连通性、文字 `blocks` 与 `bbox`；成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`blocks`、`bboxOk`。 |
 

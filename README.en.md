@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Phase H1.5.1 Completed** · **Post-F9 Enhancement** · **MVP Demo Ready** (final acceptance completed on 2026-07-07). **F1–F9 done** · **Tag deferred**. The project is still **not Production Ready** and gray release is not allowed; real Douyin E2E remains blocked by real credentials, so Douyin Shop stays **Release Candidate**. **H1.5.1** live Chrome/Edge browser sign-off, 1366/1024 screenshots, AI image baseline **stable_range_14_to_15_of_16**; **H1.5** secondary list URL state — [`docs/H1_5_LIVE_BROWSER_ACCEPTANCE.md`](docs/H1_5_LIVE_BROWSER_ACCEPTANCE.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
+> Current status: **Phase P1 Completed** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/PRODUCTION_CONFIGURATION_DESIGN.md`](docs/PRODUCTION_CONFIGURATION_DESIGN.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
 
 ## Positioning
 

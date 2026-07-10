@@ -10,8 +10,19 @@ export type ConfigStatusItem = {
   settingsUrl?: string;
 };
 
+export type ProjectPhase = {
+  phase: string;
+  statusLines: string[];
+  finalAcceptance: string;
+  productionReady: boolean;
+  tagDeferred: boolean;
+  grayReleaseAllowed: boolean;
+  infrastructureFoundationReady: boolean;
+};
+
 export type ConfigStatusOverview = {
   generatedAt: string;
+  projectPhase?: ProjectPhase;
   items: ConfigStatusItem[];
   demoData: ConfigStatusItem;
 };
