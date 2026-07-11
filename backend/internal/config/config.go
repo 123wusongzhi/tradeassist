@@ -155,10 +155,12 @@ type Config struct {
 	MigrationLockTimeoutSeconds int
 
 	// Webhook HTTP receiver (public POST /api/v1/webhooks/:platform/:eventType).
-	WebhookMaxBodyKB             int
-	WebhookMaxClockSkewSeconds   int
-	WebhookEnableTestVerifier    bool
-	WebhookWorkerIntervalSeconds int
+	WebhookMaxBodyKB                int
+	WebhookMaxClockSkewSeconds      int
+	WebhookEnableTestVerifier       bool
+	WebhookWorkerIntervalSeconds    int
+	DouyinWebhookTestShopBindingID  string
+	EnableDouyinWebhookDemoFallback bool
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -314,10 +316,12 @@ func Load() (*Config, error) {
 		MigrationRunOnStartup:       envBool(os.Getenv("MIGRATION_RUN_ON_STARTUP"), true),
 		MigrationLockTimeoutSeconds: atoiOrDefault(os.Getenv("MIGRATION_LOCK_TIMEOUT_SECONDS"), 120),
 
-		WebhookMaxBodyKB:             atoiOrDefault(os.Getenv("WEBHOOK_MAX_BODY_KB"), 512),
-		WebhookMaxClockSkewSeconds:   atoiOrDefault(os.Getenv("WEBHOOK_MAX_CLOCK_SKEW_SECONDS"), 300),
-		WebhookEnableTestVerifier:    envBool(os.Getenv("WEBHOOK_ENABLE_TEST_VERIFIER"), false),
-		WebhookWorkerIntervalSeconds: atoiOrDefault(os.Getenv("WEBHOOK_WORKER_INTERVAL_SECONDS"), 3),
+		WebhookMaxBodyKB:                atoiOrDefault(os.Getenv("WEBHOOK_MAX_BODY_KB"), 512),
+		WebhookMaxClockSkewSeconds:      atoiOrDefault(os.Getenv("WEBHOOK_MAX_CLOCK_SKEW_SECONDS"), 300),
+		WebhookEnableTestVerifier:       envBool(os.Getenv("WEBHOOK_ENABLE_TEST_VERIFIER"), false),
+		WebhookWorkerIntervalSeconds:    atoiOrDefault(os.Getenv("WEBHOOK_WORKER_INTERVAL_SECONDS"), 3),
+		DouyinWebhookTestShopBindingID:  strings.TrimSpace(os.Getenv("DOUYIN_WEBHOOK_TEST_SHOP_BINDING_ID")),
+		EnableDouyinWebhookDemoFallback: envBool(os.Getenv("ENABLE_DOUYIN_WEBHOOK_DEMO_FALLBACK"), false),
 	}
 	// Test verifier must never run in production regardless of env flag.
 	if IsProduction(cfg.AppEnv) {

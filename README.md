@@ -194,3 +194,8 @@ docker compose -f docker-compose.full.yml up -d --build
 ## License
 
 本项目基于 [Apache License 2.0](LICENSE) 开源。
+## P3.2 Safety Note
+
+Phase P3.2 adds multi-shop Douyin webhook routing: verified webhook payloads are resolved to a tenant, internal shop, platform shop ID, app key, and binding before persistence or order upsert. Webhook idempotency is now scoped by platform + tenant + platform shop + event ID, and implicit single-shop fallback is forbidden in staging/production.
+
+This is still not a Production Ready claim. Real Douyin credential E2E, production gray release, and tag creation remain separately gated; the Linux race result is recorded in [`docs/P3_2_RACE_TEST_REPORT.md`](docs/P3_2_RACE_TEST_REPORT.md). See also [`docs/P3_2_MULTI_SHOP_WEBHOOK_REPORT.md`](docs/P3_2_MULTI_SHOP_WEBHOOK_REPORT.md).

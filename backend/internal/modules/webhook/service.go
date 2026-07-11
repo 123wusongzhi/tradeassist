@@ -23,6 +23,7 @@ type Service struct {
 	DB              *gorm.DB
 	Idempotency     *idempotency.Service
 	Verifiers       *Registry
+	ShopResolver    WebhookShopResolver
 	OrderHandler    OrderEventHandler
 	MaxPayloadBytes int64
 	MaxClockSkew    time.Duration
@@ -32,11 +33,12 @@ type Service struct {
 
 // IngestRequest is normalized webhook input.
 type IngestRequest struct {
-	Platform  string
-	EventType string
-	EventID   string
-	Payload   json.RawMessage
-	Timestamp time.Time
+	Platform     string
+	EventType    string
+	EventID      string
+	Payload      json.RawMessage
+	Timestamp    time.Time
+	ResolvedShop *ResolvedWebhookShop
 }
 
 // IngestResult describes ACK outcome.
@@ -111,14 +113,12 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		eventID = hashPayload(req.Payload)
 	}
 	hash := hashPayload(req.Payload)
-	key := idempotency.Webhook(platform, eventID)
+	key := webhookIngestKey(platform, eventID, req.ResolvedShop)
 	reqHash := idempotency.HashRequest(req.Payload)
 	owner := "webhook-ingest"
 
 	var existing Event
-	err := s.DB.WithContext(ctx).
-		Where("platform = ? AND event_id = ?", platform, eventID).
-		First(&existing).Error
+	err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&existing).Error
 	if err == nil {
 		return &IngestResult{EventID: eventID, Status: existing.Status, Duplicate: true}, nil
 	}
@@ -132,7 +132,7 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		decision, rec, _ := idempotency.Classify(res, acqErr)
 		switch decision {
 		case idempotency.DecisionAlreadySucceeded:
-			if row, loadErr := s.loadExistingEvent(ctx, platform, eventID); loadErr == nil {
+			if row, loadErr := s.loadExistingEvent(ctx, platform, eventID, req.ResolvedShop); loadErr == nil {
 				return &IngestResult{EventID: eventID, Status: row.Status, Duplicate: true}, nil
 			}
 			return &IngestResult{EventID: eventID, Status: StatusDuplicate, Duplicate: true}, nil
@@ -154,9 +154,7 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		}
 	}
 
-	meta, _ := json.Marshal(map[string]string{
-		"eventType": strings.TrimSpace(req.EventType),
-	})
+	meta := eventMetadata(req.EventType, req.ResolvedShop)
 	ev := Event{
 		Platform:    platform,
 		EventID:     eventID,
@@ -167,8 +165,9 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		RawSummary:  truncateSummary(string(req.Payload)),
 		Metadata:    datatypes.JSON(meta),
 	}
+	applyResolvedShopToEvent(&ev, req.ResolvedShop)
 	createRes := s.DB.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "platform"}, {Name: "event_id"}},
+		Columns:   []clause.Column{{Name: "platform"}, {Name: "tenant_id"}, {Name: "platform_shop_id"}, {Name: "event_id"}},
 		DoNothing: true,
 	}).Create(&ev)
 	if createRes.Error != nil {
@@ -176,9 +175,7 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		return nil, createRes.Error
 	}
 
-	if err := s.DB.WithContext(ctx).
-		Where("platform = ? AND event_id = ?", platform, eventID).
-		First(&ev).Error; err != nil {
+	if err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&ev).Error; err != nil {
 		s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
 		return nil, err
 	}
@@ -211,12 +208,74 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	return &IngestResult{EventID: eventID, Status: ev.Status, Duplicate: false}, nil
 }
 
-func (s *Service) loadExistingEvent(ctx context.Context, platform, eventID string) (*Event, error) {
+func (s *Service) loadExistingEvent(ctx context.Context, platform, eventID string, resolved *ResolvedWebhookShop) (*Event, error) {
 	var row Event
-	if err := s.DB.WithContext(ctx).Where("platform = ? AND event_id = ?", platform, eventID).First(&row).Error; err != nil {
+	if err := s.eventScopeQuery(ctx, platform, eventID, resolved).First(&row).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil
+}
+
+func (s *Service) eventScopeQuery(ctx context.Context, platform, eventID string, resolved *ResolvedWebhookShop) *gorm.DB {
+	q := s.DB.WithContext(ctx).Where("platform = ? AND event_id = ?", platform, eventID)
+	if resolved != nil && strings.TrimSpace(resolved.PlatformShopID) != "" {
+		q = q.Where("tenant_id = ? AND platform_shop_id = ?", resolved.TenantID, strings.TrimSpace(resolved.PlatformShopID))
+	} else {
+		q = q.Where("tenant_id = ? AND platform_shop_id = ?", int64(0), "")
+	}
+	return q
+}
+
+func webhookIngestKey(platform, eventID string, resolved *ResolvedWebhookShop) string {
+	if resolved != nil && strings.TrimSpace(resolved.PlatformShopID) != "" {
+		return idempotency.WebhookScoped(platform, resolved.TenantID, resolved.PlatformShopID, eventID)
+	}
+	return idempotency.Webhook(platform, eventID)
+}
+
+func webhookProcessKey(ev *Event) string {
+	if ev != nil && strings.TrimSpace(ev.PlatformShopID) != "" {
+		return idempotency.WebhookProcessScoped(ev.Platform, ev.TenantID, ev.PlatformShopID, ev.EventID)
+	}
+	if ev == nil {
+		return idempotency.WebhookProcess("", "")
+	}
+	return idempotency.WebhookProcess(ev.Platform, ev.EventID)
+}
+
+func applyResolvedShopToEvent(ev *Event, resolved *ResolvedWebhookShop) {
+	if ev == nil || resolved == nil {
+		return
+	}
+	ev.TenantID = resolved.TenantID
+	if resolved.InternalShopID != uuid.Nil {
+		id := resolved.InternalShopID
+		ev.InternalShopID = &id
+	}
+	ev.PlatformShopID = strings.TrimSpace(resolved.PlatformShopID)
+	ev.AppID = strings.TrimSpace(resolved.AppID)
+	if resolved.BindingID != uuid.Nil {
+		id := resolved.BindingID
+		ev.BindingID = &id
+	}
+}
+
+func eventMetadata(eventType string, resolved *ResolvedWebhookShop) []byte {
+	m := map[string]any{"eventType": strings.TrimSpace(eventType)}
+	if resolved != nil {
+		m["tenantId"] = resolved.TenantID
+		m["internalShopId"] = resolved.InternalShopID.String()
+		m["platformShopId"] = resolved.PlatformShopID
+		m["appId"] = resolved.AppID
+		m["bindingId"] = resolved.BindingID.String()
+		m["authorizationStatus"] = resolved.AuthorizationStatus
+		m["contractStatus"] = resolved.ContractStatus
+		if resolved.TestFallback {
+			m["test_fallback"] = true
+		}
+	}
+	b, _ := json.Marshal(m)
+	return b
 }
 
 func (s *Service) failWebhookIngest(ctx context.Context, job *webhookAcquire, code string, retryable bool) {

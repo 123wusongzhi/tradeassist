@@ -81,7 +81,7 @@ func (s *Service) importSyncedOrderWithIdempotency(ctx context.Context, shopID u
 		}
 		recordID := res.Record.ID
 
-		existing, findErr := s.findExistingSyncedOrder(ctx, shopID, platformKey, ext)
+		existing, findErr := s.findExistingSyncedOrder(ctx, shopID, platformKey, ext, p.TenantID)
 		if findErr == nil {
 			if isStalePlatformUpdate(existing, revision, meta.platformUpdatedAt, p) {
 				summary, _ := json.Marshal(map[string]string{
@@ -306,10 +306,10 @@ func isStaleSyncedUpdate(existing *Order, p SyncedOrderPayload) bool {
 	return false
 }
 
-func (s *Service) findExistingSyncedOrder(ctx context.Context, shopID uuid.UUID, platformKey, ext string) (*Order, error) {
+func (s *Service) findExistingSyncedOrder(ctx context.Context, shopID uuid.UUID, platformKey, ext string, tenantID int64) (*Order, error) {
 	var existing Order
 	err := s.DB.WithContext(ctx).
-		Where("shop_id = ? AND platform = ? AND external_order_id = ?", shopID, platformKey, ext).
+		Where("tenant_id = ? AND shop_id = ? AND platform = ? AND external_order_id = ?", tenantID, shopID, platformKey, ext).
 		First(&existing).Error
 	if err != nil {
 		return nil, err

@@ -22,6 +22,7 @@ type PlatformOrderUpsertInput struct {
 	TenantID          int64
 	Platform          string
 	ShopID            uuid.UUID
+	PlatformShopID    string
 	PlatformOrderID   string
 	PlatformUpdatedAt *time.Time
 	PlatformRevision  string
@@ -59,8 +60,19 @@ func (s *Service) UpsertPlatformOrder(ctx context.Context, input PlatformOrderUp
 		return nil, fmt.Errorf("shop id is required")
 	}
 
+	tenantID := input.TenantID
+	if tenantID == 0 {
+		tenantID = s.resolveTenantIDForShop(ctx, input.ShopID)
+	}
 	p := input.NormalizedOrder
+	p.TenantID = tenantID
 	p.ExternalOrderID = ext
+	if p.RawSummary == nil {
+		p.RawSummary = map[string]any{}
+	}
+	if strings.TrimSpace(input.PlatformShopID) != "" {
+		p.RawSummary["platformShopId"] = strings.TrimSpace(input.PlatformShopID)
+	}
 	if p.PlatformUpdatedAt == nil {
 		p.PlatformUpdatedAt = input.PlatformUpdatedAt
 	}
@@ -127,4 +139,19 @@ func (s *Service) UpsertPlatformOrders(ctx context.Context, shopID uuid.UUID, pl
 
 func revisionFromTime(t time.Time) string {
 	return fmt.Sprintf("t:%d", t.UTC().Unix())
+}
+
+func (s *Service) resolveTenantIDForShop(ctx context.Context, shopID uuid.UUID) int64 {
+	if s == nil || s.DB == nil || shopID == uuid.Nil {
+		return 0
+	}
+	var tenantID int64
+	if err := s.DB.WithContext(ctx).
+		Table("shops").
+		Select("tenant_id").
+		Where("id = ?", shopID).
+		Scan(&tenantID).Error; err != nil {
+		return 0
+	}
+	return tenantID
 }

@@ -123,3 +123,13 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 - 较大模块或阶段性变更：更新 [PROGRESS.md](PROGRESS.md)。
 
 详细规则见 [ai-coding-rules.md](ai-coding-rules.md)。
+## Phase P3.2 Douyin Webhook Docs
+
+| Document | Purpose |
+| --- | --- |
+| [P3_2_MULTI_SHOP_WEBHOOK_AUDIT.md](P3_2_MULTI_SHOP_WEBHOOK_AUDIT.md) | Multi-shop webhook routing audit matrix. |
+| [P3_2_MULTI_SHOP_WEBHOOK_REPORT.md](P3_2_MULTI_SHOP_WEBHOOK_REPORT.md) | Generated P3.2 static scan report. |
+| [DOUYIN_WEBHOOK_SHOP_RESOLUTION.md](DOUYIN_WEBHOOK_SHOP_RESOLUTION.md) | Resolver inputs, trust boundary, fallback policy, and error codes. |
+| [DOUYIN_WEBHOOK_TENANT_ISOLATION.md](DOUYIN_WEBHOOK_TENANT_ISOLATION.md) | Tenant/shop scoped event persistence and order upsert rules. |
+| [DOUYIN_WEBHOOK_APP_SECRET_BINDING.md](DOUYIN_WEBHOOK_APP_SECRET_BINDING.md) | App key / binding validation notes. |
+| [P3_2_RACE_TEST_REPORT.md](P3_2_RACE_TEST_REPORT.md) | Race verification status. Do not mark passed without a real Linux/WSL2/Docker Linux run. |

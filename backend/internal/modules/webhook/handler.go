@@ -87,13 +87,38 @@ func (h *Handler) Receive(c *gin.Context) {
 		return
 	}
 
+	var resolved *ResolvedWebhookShop
+	if isDouyinWebhookPlatform(platform) {
+		resolveInput, err := ExtractResolveWebhookShopInput(platform, eventType, c.Request.Header, raw)
+		if err != nil {
+			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid webhook payload")
+			return
+		}
+		resolveInput.AppEnv = h.Svc.AppEnv
+		resolveInput.RequestID = c.GetString("requestId")
+		if h.Svc.ShopResolver == nil {
+			failWebhook(c, newCodeError(CodeDouyinWebhookShopNotResolved, http.StatusForbidden, CodeDouyinWebhookShopNotResolved))
+			return
+		}
+		resolved, err = h.Svc.ShopResolver.Resolve(c.Request.Context(), resolveInput)
+		if err != nil {
+			if ce, ok := AsCodeError(err); ok {
+				failWebhook(c, ce)
+				return
+			}
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "webhook shop resolve failed")
+			return
+		}
+	}
+
 	eventID := extractEventID(raw)
 	result, err := h.Svc.Ingest(c.Request.Context(), IngestRequest{
-		Platform:  platform,
-		EventType: eventType,
-		EventID:   eventID,
-		Payload:   json.RawMessage(raw),
-		Timestamp: ts,
+		Platform:     platform,
+		EventType:    eventType,
+		EventID:      eventID,
+		Payload:      json.RawMessage(raw),
+		Timestamp:    ts,
+		ResolvedShop: resolved,
 	})
 	if err != nil {
 		if ce, ok := AsCodeError(err); ok {
@@ -197,11 +222,30 @@ func parseTimestampValue(v string) (time.Time, error) {
 }
 
 func extractEventID(raw []byte) string {
+	if id := extractEventIDFromObject(raw); id != "" {
+		return id
+	}
+	var arr []map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &arr); err == nil && len(arr) > 0 {
+		for _, item := range arr {
+			if id := extractEventIDFromMap(item); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
+func extractEventIDFromObject(raw []byte) string {
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &m); err != nil {
 		return ""
 	}
-	for _, key := range []string{"eventId", "event_id", "id"} {
+	return extractEventIDFromMap(m)
+}
+
+func extractEventIDFromMap(m map[string]json.RawMessage) string {
+	for _, key := range []string{"eventId", "event_id", "msg_id", "msgId", "id"} {
 		rawVal, ok := m[key]
 		if !ok {
 			continue

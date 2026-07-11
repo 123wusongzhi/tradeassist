@@ -2,7 +2,6 @@ package ordersync
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -31,7 +30,7 @@ func (h *DouyinOrderWebhookHandler) HandleDouyinOrderEvent(ctx context.Context, 
 	if err != nil {
 		return err
 	}
-	shopID, shopPlatform, err := h.resolveDouyinShop(ctx, mapped.ShopIDHint)
+	shopID, shopPlatform, tenantID, err := h.resolveDouyinShop(ctx, ev, mapped.ShopIDHint)
 	if err != nil {
 		return err
 	}
@@ -42,8 +41,10 @@ func (h *DouyinOrderWebhookHandler) HandleDouyinOrderEvent(ctx context.Context, 
 	}
 
 	res, upErr := h.Orders.UpsertPlatformOrder(ctx, order.PlatformOrderUpsertInput{
+		TenantID:          tenantID,
 		Platform:          shopPlatform,
 		ShopID:            shopID,
+		PlatformShopID:    ev.PlatformShopID,
 		PlatformOrderID:   mapped.PlatformOrderID,
 		PlatformUpdatedAt: mapped.PlatformUpdatedAt,
 		PlatformRevision:  mapped.PlatformRevision,
@@ -75,9 +76,29 @@ func (h *DouyinOrderWebhookHandler) HandleDouyinOrderEvent(ctx context.Context, 
 	return nil
 }
 
-func (h *DouyinOrderWebhookHandler) resolveDouyinShop(ctx context.Context, shopHint string) (uuid.UUID, string, error) {
+func (h *DouyinOrderWebhookHandler) resolveDouyinShop(ctx context.Context, ev *platformdouyin.NormalizedWebhookEvent, shopHint string) (uuid.UUID, string, int64, error) {
 	if h == nil || h.DB == nil {
-		return uuid.Nil, "", fmt.Errorf("ordersync: no db")
+		return uuid.Nil, "", 0, fmt.Errorf("ordersync: no db")
+	}
+	if ev != nil && strings.TrimSpace(ev.InternalShopID) != "" {
+		sid, err := uuid.Parse(strings.TrimSpace(ev.InternalShopID))
+		if err != nil {
+			return uuid.Nil, "", 0, platformdouyin.NewError(platformdouyin.CodeDouyinValidationFailed,
+				"invalid resolved douyin shop id", "", "shop_binding_invalid", "")
+		}
+		var row shop.Shop
+		err = h.DB.WithContext(ctx).
+			Where("id = ? AND tenant_id = ? AND platform IN ?", sid, ev.TenantID, douyinPlatforms()).
+			First(&row).Error
+		if err != nil {
+			return uuid.Nil, "", 0, platformdouyin.NewError(platformdouyin.CodeDouyinValidationFailed,
+				"resolved douyin shop tenant mismatch", "", "tenant_mismatch", "")
+		}
+		if strings.TrimSpace(ev.PlatformShopID) != "" && strings.TrimSpace(row.ExternalShopID) != strings.TrimSpace(ev.PlatformShopID) {
+			return uuid.Nil, "", 0, platformdouyin.NewError(platformdouyin.CodeDouyinValidationFailed,
+				"resolved douyin platform shop mismatch", "", "shop_binding_mismatch", "")
+		}
+		return row.ID, row.Platform, row.TenantID, nil
 	}
 	hint := strings.TrimSpace(shopHint)
 	if hint != "" {
@@ -85,37 +106,19 @@ func (h *DouyinOrderWebhookHandler) resolveDouyinShop(ctx context.Context, shopH
 			var row shop.Shop
 			if err := h.DB.WithContext(ctx).First(&row, "id = ?", sid).Error; err == nil {
 				if isDouyinPlatform(row.Platform) {
-					return row.ID, row.Platform, nil
+					return row.ID, row.Platform, row.TenantID, nil
 				}
 			}
 		}
 		var byExt shop.Shop
 		q := h.DB.WithContext(ctx).Where("platform IN ? AND external_shop_id = ?", douyinPlatforms(), hint)
 		if err := q.First(&byExt).Error; err == nil {
-			return byExt.ID, byExt.Platform, nil
+			return byExt.ID, byExt.Platform, byExt.TenantID, nil
 		}
 	}
 
-	var shops []shop.Shop
-	if err := h.DB.WithContext(ctx).
-		Where("platform IN ? AND auth_status = ?", douyinPlatforms(), shop.AuthAuthorized).
-		Find(&shops).Error; err != nil {
-		return uuid.Nil, "", err
-	}
-	if len(shops) == 1 {
-		return shops[0].ID, shops[0].Platform, nil
-	}
-	if len(shops) == 0 {
-		return uuid.Nil, "", platformdouyin.NewError(platformdouyin.CodeDouyinStoreNotAuthorized,
-			"no authorized douyin shop for webhook order event", "", "shop_not_found", "")
-	}
-	ids := make([]string, 0, len(shops))
-	for _, s := range shops {
-		ids = append(ids, s.ID.String())
-	}
-	summary, _ := json.Marshal(map[string]any{"authorizedShopIds": ids})
-	return uuid.Nil, "", platformdouyin.NewError(platformdouyin.CodeDouyinValidationFailed,
-		fmt.Sprintf("ambiguous douyin shop for webhook: %s", string(summary)), "", "shop_ambiguous", "")
+	return uuid.Nil, "", 0, platformdouyin.NewError(platformdouyin.CodeDouyinStoreNotAuthorized,
+		"no resolved douyin shop for webhook order event", "", "shop_not_resolved", "")
 }
 
 func isDouyinPlatform(p string) bool {

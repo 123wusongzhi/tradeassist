@@ -77,3 +77,8 @@ Webhook 入站（`webhook.Service.Ingest`）与订单同步共用防重思想：
 2. 并发双 Worker 同步同一订单 → 唯一索引 + 事务保证无重复行。
 3. Webhook 重复投递 → `duplicate=true`，不重复写 `webhook_events`。
 4. 迁移前故意留重复数据 → 启动 fail-fast 并给出 sample IDs。
+## P3.2 Douyin Webhook Tenant Update
+
+Douyin order webhooks no longer infer a shop by "the only authorized shop". The webhook event must already contain resolver output: `tenant_id`, `internal_shop_id`, `platform_shop_id`, `app_id`, and optional `binding_id`. `DouyinOrderWebhookHandler` validates that scope before calling `UpsertPlatformOrder`, and order lookup/upsert now includes `TenantID` plus `shop_id`.
+
+Webhook domain uniqueness is `webhook_events(platform, tenant_id, platform_shop_id, event_id)`. The older `platform + event_id` explanation remains only as P2.2 historical foundation text.

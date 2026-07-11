@@ -65,3 +65,8 @@ webhook.Handler.Receive
 ## 未知事件处理原则
 
 未知 tag/event 必须安全 ACK（返回 200），不得静默丢弃——记录 slog.Warn 日志。
+## P3.2 Multi-Shop Routing
+
+Douyin webhook business handling is shop-scoped. After signature verification and JSON validation, the handler extracts `client_key` / app ID, platform shop ID, and optional binding ID, then resolves them through `shops` + `shop_auth_tokens`. The persisted event carries `tenant_id`, `internal_shop_id`, `platform_shop_id`, `app_id`, and `binding_id`.
+
+The resolver rejects missing, ambiguous, mismatched, expired, or revoked bindings. Staging and production reject `DOUYIN_WEBHOOK_TEST_SHOP_BINDING_ID` and `ENABLE_DOUYIN_WEBHOOK_DEMO_FALLBACK` at config validation time.

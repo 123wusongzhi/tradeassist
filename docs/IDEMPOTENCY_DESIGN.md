@@ -89,3 +89,13 @@ P2 迁移（`migrate_p2.go`）创建表及索引：`ix_idempotency_status`、`ix
 3. 客户端可选传幂等键；服务端必须用稳定业务语义生成 key，而非随机 UUID。
 4. Webhook 与订单同步共享同一套 `idempotency_records` + 领域表双写防重。
 5. 异步 Worker 须配合 `tasklease`（`execution_id` / `heartbeat_at` / `lock_version`），见 [`TASK_LEASE_AND_HEARTBEAT_DESIGN.md`](TASK_LEASE_AND_HEARTBEAT_DESIGN.md)。
+## P3.2 Douyin Webhook Scoped Keys
+
+P3.2 Douyin webhook uses scoped keys instead of the historical P2.2 shape:
+
+```text
+webhook:{platform}:{tenantId}:{platformShopId}:{eventId}
+webhook-process:{platform}:{tenantId}:{platformShopId}:{eventId}
+```
+
+Do not use an app secret, access token, refresh token, buyer data, or raw payload as any part of these keys.

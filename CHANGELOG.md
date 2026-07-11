@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P3.2 - Multi-shop Douyin webhook routing (2026-07-11)
+
+- Added `WebhookShopResolver` for Douyin webhook tenant/shop/app/binding resolution before ingest and order processing.
+- Scoped webhook persistence and idempotency by `platform + tenant_id + platform_shop_id + event_id`; async worker processes concrete event rows by ID.
+- Removed legacy implicit single-authorized-shop fallback from Douyin order webhooks; staging/production reject webhook fallback env vars.
+- Added config-status and task-center categories for shop resolution, tenant mismatch, app/binding mismatch, expired/revoked authorization, and race verification status.
+- Added P3.2 static scan and docs. Linux WSL2 race verification passed; real Douyin credential E2E remains deferred.
+
 ### Phase P3.1 — Douyin closure (2026-07-11)
 
 - Order webhook handler wired to unified `UpsertPlatformOrder` (shared with polling sync).

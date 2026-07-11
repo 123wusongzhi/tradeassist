@@ -67,6 +67,7 @@ func (s *Service) HandleDouyinPlatformEvent(ctx context.Context, ev *Event) erro
 	// Try standard Douyin envelope first
 	if env, err := douyinshop.ParseDouyinWebhookEnvelope(payload); err == nil && env.Event != "" {
 		normalized := douyinshop.NormalizeDouyinEnvelope(env, payload)
+		applyEventResolution(ev, normalized)
 		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
 		return dispatcher.DispatchDouyinEvent(ctx, normalized)
 	}
@@ -76,6 +77,7 @@ func (s *Service) HandleDouyinPlatformEvent(ctx context.Context, ev *Event) erro
 		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
 		for _, item := range items {
 			normalized := douyinshop.NormalizeJinriteimaiItem(item, payload)
+			applyEventResolution(ev, normalized)
 			if err := dispatcher.DispatchDouyinEvent(ctx, normalized); err != nil {
 				return err
 			}
@@ -87,4 +89,19 @@ func (s *Service) HandleDouyinPlatformEvent(ctx context.Context, ev *Event) erro
 	slog.WarnContext(ctx, "douyin webhook payload did not match any known envelope format — safe ACK",
 		"platform", ev.Platform, "eventId", ev.EventID)
 	return nil
+}
+
+func applyEventResolution(src *Event, dst *douyinshop.NormalizedWebhookEvent) {
+	if src == nil || dst == nil {
+		return
+	}
+	dst.TenantID = src.TenantID
+	dst.PlatformShopID = src.PlatformShopID
+	dst.AppID = src.AppID
+	if src.InternalShopID != nil {
+		dst.InternalShopID = src.InternalShopID.String()
+	}
+	if src.BindingID != nil {
+		dst.BindingID = src.BindingID.String()
+	}
 }

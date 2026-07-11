@@ -13,7 +13,8 @@ import (
 )
 
 // ProcessEvent runs async business handling for one durable webhook event.
-// Uses idempotency key webhook-process:{platform}:{eventId}. Unknown platforms use a noop handler.
+// Uses a shop-scoped idempotency key when the event has resolved shop metadata.
+// Unknown platforms use a noop handler.
 func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("webhook: unavailable")
@@ -28,11 +29,35 @@ func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) er
 	if err := s.DB.WithContext(ctx).Where("platform = ? AND event_id = ?", platform, eventID).First(&ev).Error; err != nil {
 		return err
 	}
+	return s.processEventRow(ctx, &ev)
+}
+
+// ProcessEventByID processes one already selected event row. Workers use this
+// path so identical eventId values from different shops cannot resolve to the
+// wrong row.
+func (s *Service) ProcessEventByID(ctx context.Context, id uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("webhook: unavailable")
+	}
+	if id == uuid.Nil {
+		return fmt.Errorf("webhook event id required")
+	}
+	var ev Event
+	if err := s.DB.WithContext(ctx).First(&ev, "id = ?", id).Error; err != nil {
+		return err
+	}
+	return s.processEventRow(ctx, &ev)
+}
+
+func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
+	if ev == nil {
+		return nil
+	}
 	if ev.Status == StatusProcessed || ev.Status == StatusIgnored || ev.Status == StatusDuplicate {
 		return nil
 	}
 
-	key := idempotency.WebhookProcess(platform, eventID)
+	key := webhookProcessKey(ev)
 	owner := "webhook-process"
 	var idemJob *webhookAcquire
 	if s.Idempotency != nil {
@@ -76,13 +101,13 @@ func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) er
 			_ = s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
 				ResponseCode: "WEBHOOK_ALREADY_CLAIMED",
 				ResourceType: "webhook_event",
-				ResourceID:   eventID,
+				ResourceID:   ev.EventID,
 			})
 		}
 		return nil
 	}
 
-	if err := s.handlePlatformEvent(ctx, &ev); err != nil {
+	if err := s.handlePlatformEvent(ctx, ev); err != nil {
 		_ = s.markFailed(ctx, ev.ID, StatusFailedRetryable, "WEBHOOK_PROCESS_FAILED", err.Error())
 		s.failProcess(ctx, idemJob, "WEBHOOK_PROCESS_FAILED", true)
 		return err
@@ -101,12 +126,12 @@ func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) er
 	}
 
 	if idemJob != nil && s.Idempotency != nil {
-		summary, _ := json.Marshal(map[string]string{"eventId": eventID, "status": StatusProcessed})
+		summary, _ := json.Marshal(map[string]string{"eventId": ev.EventID, "status": StatusProcessed})
 		_ = s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
 			ResponseCode:    "WEBHOOK_PROCESSED",
 			ResponseSummary: string(summary),
 			ResourceType:    "webhook_event",
-			ResourceID:      eventID,
+			ResourceID:      ev.EventID,
 		})
 	}
 	return nil
@@ -131,7 +156,7 @@ func (s *Service) ProcessQueuedEvents(ctx context.Context, limit int) (int, erro
 	}
 	done := 0
 	for i := range rows {
-		if err := s.ProcessEvent(ctx, rows[i].Platform, rows[i].EventID); err != nil {
+		if err := s.ProcessEventByID(ctx, rows[i].ID); err != nil {
 			continue
 		}
 		done++

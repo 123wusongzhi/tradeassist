@@ -70,6 +70,13 @@ export const TASK_FAILURE_CATEGORY_LABEL: Record<string, string> = {
   ai_image_unsupported_operation: 'AI 图片能力不支持',
   // 抖店平台级站内告警（douyinruntime/alert.go）
   douyin_token_refresh_failed: '访问令牌刷新失败',
+  douyin_webhook_shop_not_resolved: 'Webhook 店铺未解析',
+  douyin_webhook_shop_ambiguous: 'Webhook 店铺绑定歧义',
+  douyin_webhook_binding_mismatch: 'Webhook 绑定不一致',
+  douyin_webhook_tenant_mismatch: 'Webhook 租户不一致',
+  douyin_webhook_authorization_expired: 'Webhook 店铺授权过期',
+  douyin_webhook_binding_revoked: 'Webhook 店铺绑定失效',
+  douyin_webhook_app_binding_mismatch: 'Webhook 应用绑定不一致',
   douyin_auth_expiring: '店铺授权即将过期',
   douyin_auth_expired: '店铺授权已过期',
   douyin_auth_need_check: '店铺授权需检查',

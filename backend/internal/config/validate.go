@@ -7,15 +7,16 @@ import (
 
 // Config error codes (API / logs).
 const (
-	ErrCodeConfigRequired            = "CONFIG_REQUIRED"
-	ErrCodeConfigInvalid             = "CONFIG_INVALID"
-	ErrCodeConfigInsecureDefault     = "CONFIG_INSECURE_DEFAULT"
-	ErrCodeProductionDevRouteEnabled = "PRODUCTION_DEV_ROUTE_ENABLED"
-	ErrCodeStorageProviderInvalid    = "STORAGE_PROVIDER_INVALID"
-	ErrCodeStoragePublicBaseInvalid  = "STORAGE_PUBLIC_BASE_INVALID"
-	ErrCodeSecretKeyRequired         = "SECRET_KEY_REQUIRED"
-	ErrCodeDatabaseNotReady          = "DATABASE_NOT_READY"
-	ErrCodeRedisNotReady             = "REDIS_NOT_READY"
+	ErrCodeConfigRequired                     = "CONFIG_REQUIRED"
+	ErrCodeConfigInvalid                      = "CONFIG_INVALID"
+	ErrCodeConfigInsecureDefault              = "CONFIG_INSECURE_DEFAULT"
+	ErrCodeProductionDevRouteEnabled          = "PRODUCTION_DEV_ROUTE_ENABLED"
+	ErrCodeStorageProviderInvalid             = "STORAGE_PROVIDER_INVALID"
+	ErrCodeStoragePublicBaseInvalid           = "STORAGE_PUBLIC_BASE_INVALID"
+	ErrCodeSecretKeyRequired                  = "SECRET_KEY_REQUIRED"
+	ErrCodeDatabaseNotReady                   = "DATABASE_NOT_READY"
+	ErrCodeRedisNotReady                      = "REDIS_NOT_READY"
+	ErrCodeProductionWebhookFallbackForbidden = "PRODUCTION_WEBHOOK_FALLBACK_FORBIDDEN"
 )
 
 const defaultJWTSecret = "change-me-in-development"
@@ -50,11 +51,24 @@ func (c *Config) Validate() error {
 	if err := c.validateCORS(); err != nil {
 		return err
 	}
+	if err := c.validateWebhookFallback(); err != nil {
+		return err
+	}
 
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()
 	}
 	return c.validateProduction()
+}
+
+func (c *Config) validateWebhookFallback() error {
+	if !IsStagingOrProduction(c.AppEnv) {
+		return nil
+	}
+	if strings.TrimSpace(c.DouyinWebhookTestShopBindingID) != "" || c.EnableDouyinWebhookDemoFallback {
+		return fmt.Errorf("%s: douyin webhook test/demo fallback is forbidden in staging/production", ErrCodeProductionWebhookFallbackForbidden)
+	}
+	return nil
 }
 
 func (c *Config) validateStorageProvider() error {

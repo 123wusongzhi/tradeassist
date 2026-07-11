@@ -423,3 +423,8 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 - 文档：同步本文档、`docs/module-map.md` 和必要的 README 能力描述。
 - 安全：涉及密钥、Token、密码、Cookie 时同步 `SECURITY.md`。
 - 任务：耗时接口必须使用任务状态，不应在 HTTP 请求中长时间阻塞。
+## P3.2 Douyin Webhook Routing Addendum
+
+For `platform=douyin_shop` / `douyin`, the public webhook route resolves the verified payload to a concrete shop binding before persistence. Accepted events carry `tenantId`, `internalShopId`, `platformShopId`, `appId`, and `bindingId` into `webhook_events` and downstream order upsert. Duplicate detection is scoped by `platform + tenant_id + platform_shop_id + event_id`, so the same platform `event_id` from two shops does not collide.
+
+Resolution failures are non-success ACKs and may use codes such as `DOUYIN_WEBHOOK_SHOP_NOT_RESOLVED`, `DOUYIN_WEBHOOK_SHOP_AMBIGUOUS`, `DOUYIN_WEBHOOK_BINDING_REVOKED`, `DOUYIN_WEBHOOK_AUTHORIZATION_EXPIRED`, `DOUYIN_WEBHOOK_APP_BINDING_MISMATCH`, and `DOUYIN_WEBHOOK_TENANT_MISMATCH`.

@@ -15,6 +15,7 @@ import (
 
 // SyncedOrderPayload is provider-neutral input produced by ordersync (maps from platform.PlatformOrder).
 type SyncedOrderPayload struct {
+	TenantID          int64
 	ExternalOrderID   string
 	OrderNo           string
 	CustomerName      string
@@ -147,11 +148,12 @@ func extSkuPtrFromPayload(it SyncedOrderItemPayload) *string {
 	return &s
 }
 
-func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, src map[string]any) datatypes.JSON {
+func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, tenantID int64, src map[string]any) datatypes.JSON {
 	m := map[string]any{
 		"source":          "platform_order_sync",
 		"platform":        platformKey,
 		"shopId":          shopID.String(),
+		"tenantId":        tenantID,
 		"externalOrderId": extID,
 		"syncedAt":        time.Now().UTC().Format(time.RFC3339),
 		"providerSummary": src,
@@ -174,6 +176,9 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 		return nil, 0, 0, 0, 0, fmt.Errorf("platform is required")
 	}
 	for _, p := range payloads {
+		if p.TenantID == 0 {
+			p.TenantID = s.resolveTenantIDForShop(ctx, shopID)
+		}
 		ext := strings.TrimSpace(p.ExternalOrderID)
 		if ext == "" {
 			failed++
@@ -228,10 +233,10 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 			on = fmt.Sprintf("SYNC-%s", ext)
 		}
 
-		raw := compactRawSummary(platformKey, shopID, ext, p.RawSummary)
+		raw := compactRawSummary(platformKey, shopID, ext, p.TenantID, p.RawSummary)
 
 		var existing Order
-		q := tx.Where("shop_id = ? AND platform = ? AND external_order_id = ?", shopID, platformKey, ext)
+		q := tx.Where("tenant_id = ? AND shop_id = ? AND platform = ? AND external_order_id = ?", p.TenantID, shopID, platformKey, ext)
 		findErr := q.First(&existing).Error
 		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
 			return findErr
@@ -243,6 +248,7 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		if errors.Is(findErr, gorm.ErrRecordNotFound) {
 			isCreate = true
 			o := &Order{
+				TenantID:          p.TenantID,
 				Platform:          platformKey,
 				ShopID:            &sid,
 				ExternalOrderID:   &extCopy,
@@ -269,6 +275,7 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		}
 
 		existing.Platform = platformKey
+		existing.TenantID = p.TenantID
 		existing.ShopID = &sid
 		existing.ExternalOrderID = &extCopy
 		existing.OrderNo = on

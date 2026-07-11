@@ -31,3 +31,8 @@ ordersync.ProcessQueuedTask → ToSyncedPayloads → UpsertPlatformOrders(source
 - Webhook Handler 直接写 orders 表
 - 绕过 idempotency.Service
 - Webhook 与轮询各写一套逻辑
+## P3.2 Tenant/Shop Scope
+
+Order webhooks must use resolver output already stored on the webhook event. `HandleDouyinOrderEvent` validates `tenantId`, `internalShopId`, and `platformShopId` before unified upsert. `UpsertPlatformOrder` receives both `TenantID` and `PlatformShopID`; raw order summaries may include non-sensitive platform shop identifiers, but never secrets or tokens.
+
+The webhook handler must not write `orders` directly, bypass `idempotency.Service`, fork polling/webhook upsert logic, or infer the shop from "the only authorized shop".

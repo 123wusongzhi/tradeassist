@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +25,7 @@ func openOrderUpsertTestDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&order.Order{}, &order.OrderItem{}, &order.OrderShipment{}, &idempotency.Record{}); err != nil {
+	if err := db.AutoMigrate(&order.Order{}, &order.OrderItem{}, &order.OrderShipment{}, &idempotency.Record{}, &shop.Shop{}); err != nil {
 		t.Fatal(err)
 	}
 	return db
@@ -115,6 +116,40 @@ func TestWebhookPollingConcurrentUpsert(t *testing.T) {
 	db.Model(&order.Order{}).Count(&count)
 	if count != 1 {
 		t.Fatalf("expected single order, got %d", count)
+	}
+}
+
+func TestUpsertPlatformOrdersUsesShopTenantWhenPayloadTenantMissing(t *testing.T) {
+	db := openOrderUpsertTestDB(t)
+	svc := &order.Service{DB: db, Idempotency: &idempotency.Service{DB: db}}
+	row := shop.Shop{
+		TenantID:       42,
+		Platform:       "douyin_shop",
+		ShopName:       "Tenant Shop",
+		ExternalShopID: "ps-tenant",
+		Status:         shop.StatusActive,
+		AuthStatus:     shop.AuthAuthorized,
+	}
+	if err := db.Create(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	_, success, failed, _, _, err := svc.UpsertPlatformOrders(context.Background(), row.ID, row.Platform, order.UpsertSourcePolling, []order.SyncedOrderPayload{
+		testPayload("ORD-TENANT", order.StatusPaid, time.Unix(1700005000, 0).UTC()),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if success != 1 || failed != 0 {
+		t.Fatalf("unexpected upsert counters success=%d failed=%d", success, failed)
+	}
+
+	var got order.Order
+	if err := db.First(&got, "external_order_id = ?", "ORD-TENANT").Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.TenantID != row.TenantID {
+		t.Fatalf("expected tenant %d, got %d", row.TenantID, got.TenantID)
 	}
 }
 

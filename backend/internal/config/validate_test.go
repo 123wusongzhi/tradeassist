@@ -75,6 +75,50 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 	}
 }
 
+func TestValidate_productionRejectsDouyinWebhookFallback(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		AppEnv:                         EnvProduction,
+		JWTSecret:                      strings.Repeat("a", 48),
+		MasterKey:                      strings.Repeat("b", 64),
+		APIPublicURL:                   "https://api.example.com",
+		AdminPublicURL:                 "https://admin.example.com",
+		BootstrapAdminPassword:         "StrongPass!2026",
+		StorageProvider:                "cos",
+		CORSAllowedOrigins:             []string{"https://admin.example.com"},
+		DouyinWebhookTestShopBindingID: "11111111-1111-1111-1111-111111111111",
+		DB: DBConfig{
+			Driver: "postgres",
+			User:   "u",
+			Name:   "db",
+		},
+	}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), ErrCodeProductionWebhookFallbackForbidden) {
+		t.Fatalf("expected webhook fallback rejection, got %v", err)
+	}
+}
+
+func TestValidate_stagingRejectsDouyinWebhookDemoFallback(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		AppEnv:                          EnvStaging,
+		JWTSecret:                       defaultJWTSecret,
+		StorageProvider:                 "cos",
+		CORSAllowedOrigins:              []string{"https://admin.example.com"},
+		EnableDouyinWebhookDemoFallback: true,
+		DB: DBConfig{
+			Driver: "postgres",
+			User:   "u",
+			Name:   "db",
+		},
+	}
+	err := cfg.Validate()
+	if err == nil || !strings.Contains(err.Error(), ErrCodeProductionWebhookFallbackForbidden) {
+		t.Fatalf("expected webhook fallback rejection, got %v", err)
+	}
+}
+
 func TestRedactedSummary_noSecrets(t *testing.T) {
 	t.Parallel()
 	cfg := &Config{

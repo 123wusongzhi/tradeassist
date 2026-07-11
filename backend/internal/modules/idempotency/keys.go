@@ -123,9 +123,19 @@ func Webhook(platform, eventID string) string {
 	return fmt.Sprintf("webhook:%s:%s", norm(platform), norm(eventID))
 }
 
+// WebhookScoped deduplicates inbound webhook events per tenant/shop.
+func WebhookScoped(platform string, tenantID int64, platformShopID, eventID string) string {
+	return fmt.Sprintf("webhook:%s:%d:%s:%s", norm(platform), tenantID, norm(platformShopID), norm(eventID))
+}
+
 // WebhookProcess deduplicates async webhook event processing.
 func WebhookProcess(platform, eventID string) string {
 	return fmt.Sprintf("webhook-process:%s:%s", norm(platform), norm(eventID))
+}
+
+// WebhookProcessScoped deduplicates async webhook processing per tenant/shop.
+func WebhookProcessScoped(platform string, tenantID int64, platformShopID, eventID string) string {
+	return fmt.Sprintf("webhook-process:%s:%d:%s:%s", norm(platform), tenantID, norm(platformShopID), norm(eventID))
 }
 
 // DouyinProductDraftCreate deduplicates Douyin platform draft creation.

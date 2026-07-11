@@ -36,7 +36,7 @@ func migrateP2Indexes(db *gorm.DB) error {
 	if driver == "postgres" {
 		stmts := []string{
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_customer_msg_client_id ON customer_messages (conversation_id, client_message_id) WHERE client_message_id IS NOT NULL AND client_message_id <> ''`,
-			`CREATE UNIQUE INDEX IF NOT EXISTS ux_webhook_platform_event ON webhook_events (platform, event_id) WHERE deleted_at IS NULL`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS ux_webhook_shop_event ON webhook_events (platform, tenant_id, platform_shop_id, event_id) WHERE deleted_at IS NULL`,
 			`CREATE INDEX IF NOT EXISTS ix_idempotency_status ON idempotency_records (status)`,
 			`CREATE INDEX IF NOT EXISTS ix_idempotency_locked_until ON idempotency_records (locked_until)`,
 		}

@@ -76,13 +76,18 @@ func ParseJinriteimaiPushEnvelope(raw []byte) (JinriteimaiPushEnvelope, error) {
 
 // NormalizedWebhookEvent is the unified event after parsing either envelope format.
 type NormalizedWebhookEvent struct {
-	EventType    string
-	MsgID        string
-	Tag          string
-	ClientKey    string
-	IsHealthPing bool
-	Data         map[string]any
-	Raw          []byte
+	EventType      string
+	MsgID          string
+	Tag            string
+	ClientKey      string
+	IsHealthPing   bool
+	Data           map[string]any
+	Raw            []byte
+	TenantID       int64
+	InternalShopID string
+	PlatformShopID string
+	AppID          string
+	BindingID      string
 }
 
 // NormalizeDouyinEnvelope converts a parsed DouyinWebhookEnvelope to NormalizedWebhookEvent.

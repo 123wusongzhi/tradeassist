@@ -157,6 +157,12 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	out.Items = append(out.Items, s.p31TokenRecoveryItem(ctx))
 	out.Items = append(out.Items, s.p31DouyinBrandItem(ctx))
 	out.Items = append(out.Items, s.p31WebhookSignatureItem(ctx))
+	out.Items = append(out.Items, s.p32WebhookResolverItem(ctx))
+	out.Items = append(out.Items, s.p32WebhookAppBindingItem(ctx))
+	out.Items = append(out.Items, s.p32WebhookTenantIsolationItem(ctx))
+	out.Items = append(out.Items, s.p32WebhookProductionFallbackItem(ctx))
+	out.Items = append(out.Items, s.p32WebhookConcurrencyItem(ctx))
+	out.Items = append(out.Items, s.p32RaceVerificationItem(ctx))
 	out.DemoData = s.demoDataItem(ctx)
 	return out, nil
 }

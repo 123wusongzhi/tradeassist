@@ -76,3 +76,13 @@ Real Douyin / TikTok / Shopee business adapters, production gray release, Produc
 
 - [`WEBHOOK_SIGNATURE_AND_REPLAY_PROTECTION.md`](WEBHOOK_SIGNATURE_AND_REPLAY_PROTECTION.md)
 - [`IDEMPOTENCY_DESIGN.md`](IDEMPOTENCY_DESIGN.md)
+## P3.2 Multi-Shop Update
+
+For Douyin, the handler resolves a trusted shop binding before ingest. The old `(platform, event_id)` wording in the P2.2 foundation applies only to unknown/noop platforms and historical context. Douyin events now use:
+
+- Domain uniqueness: `webhook_events(platform, tenant_id, platform_shop_id, event_id)`.
+- Ingest key: `webhook:{platform}:{tenantId}:{platformShopId}:{eventId}`.
+- Process key: `webhook-process:{platform}:{tenantId}:{platformShopId}:{eventId}`.
+- Worker dispatch: process the selected event row by ID, not a platform/event lookup that could collide across shops.
+
+Implicit "pick the only authorized shop" fallback is not allowed for Douyin webhook business handling. `DOUYIN_WEBHOOK_TEST_SHOP_BINDING_ID` is development/test only, and `ENABLE_DOUYIN_WEBHOOK_DEMO_FALLBACK` is rejected in staging/production.
