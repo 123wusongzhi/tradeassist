@@ -6,6 +6,27 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P3 — 抖店 Production Adapter (2026-07-11)
+
+- **DouyinProvider facade**: thin interface wrapping all Client capabilities (Auth/Shop/Catalog/Image/Product/Order/Inventory/Customer).
+- **Error classification**: `ErrorClass` enum (auth_error / rate_limited / timeout / unknown_result / contract_mismatch); `UnknownResult`, `SafeRetry`, `ManualReviewRequired`, `RetryAfter` fields.
+- **Token version locking**: `TokenVersion` on `ShopAuthToken`; stale-write rejection (`DOUYIN_TOKEN_VERSION_CONFLICT`); singleflight dedup.
+- **Order detail**: `GetOrderDetail` via `order.orderDetail`; maps to `PlatformOrder` via existing helpers.
+- **Inventory query**: `GetSKUStockFromDetail` reusing `product.detail` (no undocumented stock API used).
+- **Customer messaging**: `blocked_by_contract_verification` gated; DTO + fixture helpers ready.
+- **Webhook**: `DouyinSignatureVerifier` (SHA1), `DouyinVerifier` adapter, `HandleDouyinPlatformEvent` dispatcher; Douyin + Jinritemai envelope parsing; unknown tag safe ACK.
+- **OAuth state DB**: `DouyinOAuthState` model; one-time consume; redirect_uri allowlist.
+- **Image idempotency**: `DouyinImageAsset` cache by `(shop_id, content_hash)`; unknown_result on upload timeout.
+- **Product draft idempotency**: key `douyin-product-draft-create:{shopId}:{draftId}:{version}`; `tryRecoverDouyinDraftFromPlatform` on unknown_result.
+- **AI apply idempotency (P2-DEBT-001)**: `applyAIContent` wrapped with `idempotency.Acquire/Complete/Fail`.
+- **DouyinSyncCursor**: order sync cursor model with version-monotonic upsert.
+- **configstatus**: fixed `platform_douyinshop` → `platform_douyin_shop`; 9 P3 Douyin capability items added.
+- **Migrations**: `migrate_p3_douyin.go` (AutoMigrate new models + ALTER TABLE column additions).
+- **Failure classifier**: 16 `douyin_*` task type strings added.
+- **Tests**: all unit tests pass (webhook sig, token version conflict, order detail parse, customer blocked, facade compile, transport 429).
+- **Docs**: 12 design docs + audit matrix + adapter report.
+- Status: **抖店 Production Adapter Implemented** · **Real Credential Verification Deferred** · **只创建平台草稿 / 不自动上架** · **代码实现完成不等于真实 E2E** · **非 Production Ready**.
+
 ### Phase P2.2 — Reliability closure (2026-07-11)
 
 - AI text/image apply + undo via shared `idempotency.Service` (`AITextApply`/`AITextUndo`/`AIImageApply`/`AIImageUndo`); version conflict codes; concurrency unit tests.

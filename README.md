@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**Phase P2.2 Completed**（AI apply/undo 幂等 + Webhook HTTP 接收 + 六 Worker tasklease）· **Core Reliability Foundation Ready** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（最终生产验收统一 Phase P10；F9 保留为历史 Demo 基线；不允许灰度）。详见 [`docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md`](docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md)、[`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)、[`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。
+> 当前状态：**Phase P3 抖店 Production Adapter 代码实现完成** · **抖店 Production Adapter Implemented** · **Real Credential Verification Deferred** · **只创建平台草稿 / 不自动上架** · **代码实现完成不等于真实 E2E** · **Phase P2.2 Completed** · **Core Reliability Foundation Ready** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（最终生产验收统一 Phase P10；F9 保留为历史 Demo 基线；不允许灰度）。详见 [`docs/P3_DOUYIN_ADAPTER_REPORT.md`](docs/P3_DOUYIN_ADAPTER_REPORT.md)、[`docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md`](docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md)、[`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)。
 
 ## 项目定位
 

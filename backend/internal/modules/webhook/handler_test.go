@@ -35,6 +35,11 @@ func openWebhookTestDB(t *testing.T) *gorm.DB {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
 	require.NoError(t, db.AutoMigrate(&idempotency.Record{}, &webhook.Event{}))
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	// Serialize SQLite connections so concurrent ingest tests exercise app idempotency,
+	// not driver "database is locked" races.
+	sqlDB.SetMaxOpenConns(1)
 	return db
 }
 

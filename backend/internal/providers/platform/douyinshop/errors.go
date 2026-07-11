@@ -53,6 +53,34 @@ const (
 	CodeDouyinInventoryRecentlySynced       = "DOUYIN_INVENTORY_RECENTLY_SYNCED"
 	CodeUnknownDouyinInventoryError         = "UNKNOWN_DOUYIN_INVENTORY_ERROR"
 	CodeUnknownDouyinError                  = "UNKNOWN_DOUYIN_ERROR"
+
+	// P3 additions
+	CodeDouyinUnknownResult              = "DOUYIN_UNKNOWN_RESULT"
+	CodeDouyinNotConfigured              = "DOUYIN_NOT_CONFIGURED"
+	CodeDouyinReauthorizationRequired    = "DOUYIN_REAUTHORIZATION_REQUIRED"
+	CodeDouyinContractMismatch           = "DOUYIN_CONTRACT_MISMATCH"
+	CodeDouyinManualConfirmationRequired = "DOUYIN_MANUAL_CONFIRMATION_REQUIRED"
+	CodeDouyinValidationFailed           = "DOUYIN_VALIDATION_FAILED"
+	CodeDouyinTimeout                    = "DOUYIN_TIMEOUT"
+	CodeDouyinResourceNotFound           = "DOUYIN_RESOURCE_NOT_FOUND"
+	CodeDouyinTokenVersionConflict       = "DOUYIN_TOKEN_VERSION_CONFLICT"
+	CodeDouyinTokenRefreshInProgress     = "DOUYIN_TOKEN_REFRESH_IN_PROGRESS"
+	CodeDouyinOAuthStateMissing          = "DOUYIN_OAUTH_STATE_MISSING"
+	CodeDouyinOAuthStateExpired          = "DOUYIN_OAUTH_STATE_EXPIRED"
+	CodeDouyinOAuthStateAlreadyUsed      = "DOUYIN_OAUTH_STATE_ALREADY_USED"
+	CodeDouyinOAuthRedirectNotAllowed    = "DOUYIN_OAUTH_REDIRECT_NOT_ALLOWED"
+
+	// Error class constants for ErrorClass field.
+	ErrorClassAuthError        = "auth_error"
+	ErrorClassRateLimited      = "rate_limited"
+	ErrorClassTimeout          = "timeout"
+	ErrorClassUnknownResult    = "unknown_result"
+	ErrorClassContractMismatch = "contract_mismatch"
+	ErrorClassValidation       = "validation"
+	ErrorClassPermission       = "permission"
+	ErrorClassNotFound         = "not_found"
+	ErrorClassNetwork          = "network"
+	ErrorClassSystem           = "system"
 )
 
 type Error struct {
@@ -65,6 +93,12 @@ type Error struct {
 	RateLimited      bool
 	PermissionDenied bool
 	AuthExpired      bool
+	// P3 fields
+	SafeRetry            bool   // true = re-send is safe (idempotent read-side or idempotent write with confirmed dedup)
+	ManualReviewRequired bool   // operator must check platform before retry
+	UnknownResult        bool   // write sent, outcome unknown (timeout/network after write)
+	ErrorClass           string // auth_error, rate_limited, timeout, unknown_result, etc.
+	RetryAfter           int64  // seconds to wait before retry (from Retry-After header)
 }
 
 func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
@@ -106,6 +140,53 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 		CodeDouyinSKUBindingConflict, CodeDouyinSKUBindingRequired,
 		CodeDouyinGrayReleaseNotEnabled, CodeDouyinShopNotInGrayList, CodeDouyinWriteOperationDisabled:
 		e.Retryable = false
+	// P3 codes
+	case CodeDouyinUnknownResult:
+		e.UnknownResult = true
+		e.SafeRetry = false
+		e.ManualReviewRequired = true
+		e.ErrorClass = ErrorClassUnknownResult
+	case CodeDouyinNotConfigured:
+		e.Retryable = false
+		e.ErrorClass = ErrorClassSystem
+	case CodeDouyinReauthorizationRequired:
+		e.AuthExpired = true
+		e.ErrorClass = ErrorClassAuthError
+	case CodeDouyinContractMismatch:
+		e.Retryable = false
+		e.ErrorClass = ErrorClassContractMismatch
+	case CodeDouyinManualConfirmationRequired:
+		e.SafeRetry = false
+		e.ManualReviewRequired = true
+		e.ErrorClass = ErrorClassUnknownResult
+	case CodeDouyinValidationFailed:
+		e.Retryable = false
+		e.ErrorClass = ErrorClassValidation
+	case CodeDouyinTimeout:
+		e.Retryable = true
+		e.ErrorClass = ErrorClassTimeout
+	case CodeDouyinResourceNotFound:
+		e.Retryable = false
+		e.ErrorClass = ErrorClassNotFound
+	case CodeDouyinTokenVersionConflict:
+		e.Retryable = false
+		e.ErrorClass = ErrorClassAuthError
+	case CodeDouyinTokenRefreshInProgress:
+		e.Retryable = true
+		e.ErrorClass = ErrorClassAuthError
+	}
+	// Set ErrorClass from existing flags if not already set by P3 switch
+	if e.ErrorClass == "" {
+		switch {
+		case e.AuthExpired:
+			e.ErrorClass = ErrorClassAuthError
+		case e.RateLimited:
+			e.ErrorClass = ErrorClassRateLimited
+		case e.PermissionDenied:
+			e.ErrorClass = ErrorClassPermission
+		case e.UnknownResult:
+			e.ErrorClass = ErrorClassUnknownResult
+		}
 	}
 	return e
 }
@@ -173,6 +254,40 @@ func MapPlatformError(platformCode, platformMsg, requestID string) *Error {
 		return NewError(CodeDouyinAuthExpired, "douyin authorization expired", pc, pm, requestID)
 	default:
 		return NewError(CodeDouyinAPIError, "douyin openapi error", pc, pm, requestID)
+	}
+}
+
+// ClassifyError returns an ErrorClass string for the given error (may be non-douyin).
+func ClassifyError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var de *Error
+	if errors.As(err, &de) {
+		if de.ErrorClass != "" {
+			return de.ErrorClass
+		}
+		switch {
+		case de.AuthExpired:
+			return ErrorClassAuthError
+		case de.RateLimited:
+			return ErrorClassRateLimited
+		case de.PermissionDenied:
+			return ErrorClassPermission
+		case de.UnknownResult:
+			return ErrorClassUnknownResult
+		}
+	}
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline"):
+		return ErrorClassTimeout
+	case strings.Contains(msg, "rate") || strings.Contains(msg, "limit"):
+		return ErrorClassRateLimited
+	case strings.Contains(msg, "auth") || strings.Contains(msg, "token") || strings.Contains(msg, "unauthorized"):
+		return ErrorClassAuthError
+	default:
+		return ErrorClassSystem
 	}
 }
 

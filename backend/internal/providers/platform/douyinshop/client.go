@@ -57,6 +57,8 @@ type Client struct {
 	RefreshTokenValue     string
 	AccessTokenExpiresAt  *time.Time
 	RefreshTokenExpiresAt *time.Time
+	TokenVersion          int64
+	TokenLocker           TokenRefreshLocker
 
 	PersistRefreshedToken func(ctx context.Context, tok *TokenBundle) error
 	MarkAuthStatus        func(ctx context.Context, status string) error
@@ -75,11 +77,8 @@ func (c *Client) httpClient() HTTPDoer {
 	if c != nil && c.HTTP != nil {
 		return c.HTTP
 	}
-	timeout := 30 * time.Second
-	if c != nil && c.Config.HTTPTimeout > 0 {
-		timeout = c.Config.HTTPTimeout
-	}
-	return &http.Client{Timeout: timeout}
+	// P3: reuse unified httpclient + circuit breaker (tests inject HTTPDoer).
+	return SharedHTTPDoer()
 }
 
 func (c *Client) apiBaseURL() string {

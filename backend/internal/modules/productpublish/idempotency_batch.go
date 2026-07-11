@@ -21,6 +21,55 @@ type publishBatchAcquire struct {
 	Owner    string
 }
 
+func (s *Service) acquirePublishIdempotency(ctx context.Context, idemKey string, reqHash []byte, owner string) (*publishBatchAcquire, *idempotency.AcquireResult, error) {
+	if s == nil || s.Idempotency == nil || idemKey == "" {
+		return nil, nil, nil
+	}
+	if owner == "" {
+		owner = "douyin-draft-create"
+	}
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopePublish, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	decision, rec, _ := idempotency.Classify(res, err)
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		return nil, res, nil
+	case idempotency.DecisionInProgress:
+		return nil, res, fmt.Errorf("%s", errPublishBatchInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		return nil, res, fmt.Errorf("%s", errPublishBatchKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if rec == nil && res != nil {
+			rec = res.Record
+		}
+		if rec == nil {
+			return nil, res, fmt.Errorf("idempotency: missing record")
+		}
+		return &publishBatchAcquire{RecordID: rec.ID, Owner: owner}, res, nil
+	default:
+		return nil, res, err
+	}
+}
+
+func (s *Service) completePublishIdempotency(ctx context.Context, job *publishBatchAcquire, summary map[string]string, resourceID string) error {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return nil
+	}
+	body, _ := json.Marshal(summary)
+	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+		ResponseCode:    "DOUYIN_DRAFT_CREATED",
+		ResponseSummary: string(body),
+		ResourceType:    "platform_product_draft",
+		ResourceID:      resourceID,
+	})
+}
+
+func (s *Service) failPublishIdempotency(ctx context.Context, job *publishBatchAcquire, code string, retryable bool) {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return
+	}
+	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+}
+
 func (s *Service) acquirePublishBatch(ctx context.Context, c *gin.Context, idemKey string, reqHash []byte) (*publishBatchAcquire, *idempotency.AcquireResult, error) {
 	if s == nil || s.Idempotency == nil || idemKey == "" {
 		return nil, nil, nil

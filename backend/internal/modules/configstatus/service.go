@@ -140,6 +140,16 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	out.Items = append(out.Items, s.p22AllWorkersLeaseItem(ctx))
 	out.Items = append(out.Items, s.providerHealthItem(ctx))
 	out.Items = append(out.Items, s.circuitBreakerItem(ctx))
+	// P3 Douyin adapter capability items
+	out.Items = append(out.Items, s.p3DouyinOAuthItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinTokenItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinCatalogItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinImageItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinDraftItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinOrderItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinInventoryItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinCustomerItem(ctx))
+	out.Items = append(out.Items, s.p3DouyinWebhookItem(ctx))
 	out.DemoData = s.demoDataItem(ctx)
 	return out, nil
 }
@@ -404,7 +414,7 @@ func (s *Service) douyinCredentialItem(ctx context.Context) Item {
 		NextAction:  "配置抖店开放平台应用并完成店铺 OAuth 授权",
 		ImpactScope: "真实抖店 E2E、平台草稿创建、订单/库存同步；缺失时仅可本地 Demo 与前置检查",
 	}
-	plain, err := s.Settings.PlainByGroup(ctx, 0, "platform_douyinshop")
+	plain, err := s.Settings.PlainByGroup(ctx, 0, "platform_douyin_shop")
 	if err != nil {
 		it.Status = StatusConfigError
 		return it
@@ -418,7 +428,7 @@ func (s *Service) douyinCredentialItem(ctx context.Context) Item {
 	var authed int64
 	if s.DB != nil {
 		_ = s.DB.WithContext(ctx).Model(&shop.Shop{}).
-			Where("platform = ? AND auth_status = ?", "douyinshop", "authorized").Count(&authed).Error
+			Where("platform = ? AND auth_status = ?", "douyin_shop", "authorized").Count(&authed).Error
 	}
 	if authed > 0 {
 		it.Status = StatusConfigured

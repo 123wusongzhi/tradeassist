@@ -113,6 +113,24 @@ func WebhookProcess(platform, eventID string) string {
 	return fmt.Sprintf("webhook-process:%s:%s", norm(platform), norm(eventID))
 }
 
+// DouyinProductDraftCreate deduplicates Douyin platform draft creation.
+func DouyinProductDraftCreate(shopID, productDraftID, publishVersion string) string {
+	return fmt.Sprintf("douyin-product-draft-create:%s:%s:%s",
+		norm(shopID), norm(productDraftID), norm(publishVersion))
+}
+
+// DouyinImageUpload deduplicates Douyin image upload by content hash.
+func DouyinImageUpload(shopID, storageObjectKey, contentHash string) string {
+	return fmt.Sprintf("douyin-image-upload:%s:%s:%s",
+		norm(shopID), norm(storageObjectKey), norm(contentHash))
+}
+
+// AIProductApply deduplicates product AI content application.
+func AIProductApply(productID, fieldType, taskID, sourceSnapshotHash string) string {
+	return fmt.Sprintf("ai-product-apply:%s:%s:%s:%s",
+		norm(productID), norm(fieldType), norm(taskID), norm(sourceSnapshotHash))
+}
+
 // HashRequest returns a stable SHA-256 hex digest of normalized request payload bytes.
 func HashRequest(payload []byte) string {
 	sum := sha256.Sum256(payload)

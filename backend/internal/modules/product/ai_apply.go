@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 )
 
@@ -26,8 +27,40 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 	if err != nil {
 		return err
 	}
+	// P2-DEBT-001 Scheme A: wrap with idempotency key to prevent duplicate applications.
+	var idemRecordID uuid.UUID
+	var idemOwner string
+	ctx := c.Request.Context()
+	if s.Idempotency != nil {
+		idemKey := idempotency.AIProductApply(p.ID.String(), fieldType, taskID.String(), strings.TrimSpace(sourceSnapshotHash))
+		reqHash := idempotency.HashRequest([]byte(idemKey))
+		idemOwner = "product-ai-apply"
+		res, acqErr := s.Idempotency.Acquire(ctx, idempotency.ScopeProductAIApply, idemKey, reqHash, idemOwner, idempotency.DefaultLease)
+		decision, rec, _ := idempotency.Classify(res, acqErr)
+		switch decision {
+		case idempotency.DecisionAlreadySucceeded:
+			// Already applied — idempotent success
+			return nil
+		case idempotency.DecisionInProgress:
+			return fmt.Errorf("AI content apply already in progress for this product/field/task")
+		case idempotency.DecisionPermanentFailure:
+			return fmt.Errorf("AI content apply permanently failed for this product/field/task")
+		case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+			if rec == nil && res != nil {
+				rec = res.Record
+			}
+			if rec != nil {
+				idemRecordID = rec.ID
+			}
+		default:
+			if acqErr != nil {
+				// Idempotency service unavailable — proceed without idempotency guard
+				_ = acqErr
+			}
+		}
+	}
 	now := time.Now().UTC()
-	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	txErr := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var current Product
 		if err := tx.First(&current, "id = ?", p.ID).Error; err != nil {
 			return err
@@ -79,6 +112,19 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 		}
 		return nil
 	})
+	if s.Idempotency != nil && idemRecordID != uuid.Nil {
+		if txErr == nil {
+			_ = s.Idempotency.Complete(ctx, idemRecordID, idemOwner, idempotency.CompleteResult{
+				ResponseCode: "AI_APPLY_OK",
+				ResourceType: "product_ai_content_application",
+				ResourceID:   p.ID.String(),
+			})
+		} else {
+			permanent := strings.Contains(txErr.Error(), "content conflict")
+			_ = s.Idempotency.Fail(ctx, idemRecordID, idemOwner, "AI_APPLY_FAILED", !permanent)
+		}
+	}
+	return txErr
 }
 
 // UndoAIContent restores the latest safely restorable AI-applied field value.

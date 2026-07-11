@@ -31,10 +31,11 @@
 | Webhook HTTP 公开路由 | **done (P2.2)** | `POST /api/v1/webhooks/:platform/:eventType`；平台业务适配仍后置 |
 | collect / imagetask / customersync tasklease | **done (P2.2)** | 与 ordersync/inventory/publish 统一 |
 
-## P3 — 后续增强（禁止混入 F8）
+## P3 — 抖店 Production Adapter（2026-07-11 代码完成 · 真实凭证 E2E 推迟）
 
 | ID | 描述 | 处置 |
 | --- | --- | --- |
+| P3-Douyin-Adapter | OAuth/Token/类目/图片/草稿/订单/库存/客服/Webhook | **done (code)** · Real Credential Verification Deferred |
 | P3-01 | TikTok/Shopee 等真实刊登 OpenAPI | deferred |
 | P3-02 | SHEIN/Temu 生产级采集 | deferred |
 | P3-03 | 自动直接上架 | **禁止** |
@@ -45,8 +46,11 @@
 | P3-08 | Prometheus `/metrics` | deferred by design |
 | P3-F8-01 | 更多 dedicated 单测 | 按需补充 |
 | P3-F8-02 | 非抖店真实 OpenAPI | deferred |
+| P3-Customer-IM-Live | 抖店 IM 真实方法路径 | blocked_by_contract_verification |
+| P3-Race-Windows | Windows `go test -race`（需 gcc） | deferred to WSL2/Linux CI |
 
 ## 评审规则
 
 - F9 通过后、tag deferred 期间：逐条评审 P2 是否升为 P1。
-- P3 进入路线图需单独 ADR / PROGRESS 记录。
+- P3 抖店 Adapter 代码已落地；真实凭证总体验收统一 Phase P10。
+- P3 进入生产灰度前必须完成真实 E2E，且不得自动上架。

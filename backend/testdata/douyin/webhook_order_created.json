@@ -1,0 +1,11 @@
+[
+  {
+    "synthetic": true,
+    "tag": "100",
+    "msg_id": "synthetic-order-event-001",
+    "data": {
+      "shop_order_id": "SYNTHETIC-ORDER-EVENT-001",
+      "order_status": "1010"
+    }
+  }
+]

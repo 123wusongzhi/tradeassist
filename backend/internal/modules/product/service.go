@@ -14,6 +14,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -25,12 +26,13 @@ import (
 
 // Service handles product draft persistence.
 type Service struct {
-	DB        *gorm.DB
-	OpLog     *operationlog.Service
-	Settings  *settings.Service
-	Prompts   *aiprompt.Service
-	AITasks   *aitask.Service
-	AIGateway *aigate.Gateway
+	DB          *gorm.DB
+	OpLog       *operationlog.Service
+	Settings    *settings.Service
+	Prompts     *aiprompt.Service
+	AITasks     *aitask.Service
+	AIGateway   *aigate.Gateway
+	Idempotency *idempotency.Service
 
 	Shops               DouyinShopClientFactory
 	DouyinImageUploader DouyinImageUploader

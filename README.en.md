@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Phase P2.2 Completed** (AI apply/undo idempotency + Webhook HTTP receiver + tasklease on six workers) · **Core Reliability Foundation Ready** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md`](docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md), [`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
+> Current status: **Phase P3 Completed** · **Production Capability Development In Progress** · **Douyin Production Adapter Implemented** · **Real Credential Verification Deferred** · **Core Reliability Foundation Ready** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred**. Code creates platform drafts only (no auto-list). Adapter code complete ≠ real Douyin E2E passed. See [`docs/P3_DOUYIN_ADAPTER_REPORT.md`](docs/P3_DOUYIN_ADAPTER_REPORT.md), [`docs/DOUYIN_PROVIDER_ARCHITECTURE.md`](docs/DOUYIN_PROVIDER_ARCHITECTURE.md).
 
 ## Positioning
 

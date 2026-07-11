@@ -42,6 +42,24 @@ func AllCategories() []string {
 		"ai_image_storage_public_url_missing",
 		"ai_image_download_failed",
 		"ai_image_unsupported_operation",
+		// P3 Douyin adapter task types
+		"douyin_draft_create_failed",
+		"douyin_draft_unknown_result",
+		"douyin_draft_recover_failed",
+		"douyin_image_upload_failed",
+		"douyin_image_upload_unknown_result",
+		"douyin_order_sync_failed",
+		"douyin_order_detail_failed",
+		"douyin_inventory_push_failed",
+		"douyin_inventory_push_unknown_result",
+		"douyin_token_refresh_failed",
+		"douyin_token_version_conflict",
+		"douyin_webhook_signature_failed",
+		"douyin_webhook_dispatch_failed",
+		"douyin_customer_contract_mismatch",
+		"douyin_oauth_state_invalid",
+		"douyin_oauth_state_expired",
+		"douyin_oauth_state_already_used",
 	}
 }
 

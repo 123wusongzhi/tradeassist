@@ -1,0 +1,339 @@
+{
+  "generatedAt": "2026-07-11T10:03:35.919Z",
+  "overall": "passed_with_real_credentials_deferred",
+  "passed": 49,
+  "warnings": 0,
+  "failed": 0,
+  "scanner": "scripts/p3-douyin-adapter-check.mjs",
+  "phaseStatus": "passed_with_real_credentials_deferred",
+  "providerSection": {
+    "status": "passed"
+  },
+  "webhookSection": {
+    "status": "passed"
+  },
+  "modelSection": {
+    "status": "passed"
+  },
+  "idemSection": {
+    "status": "passed"
+  },
+  "migrateSection": {
+    "status": "passed"
+  },
+  "configSection": {
+    "status": "passed"
+  },
+  "failClassifierSection": {
+    "status": "passed"
+  },
+  "fixtureSection": {
+    "status": "passed"
+  },
+  "docsSection": {
+    "status": "passed"
+  },
+  "environment": {
+    "scanner": "scripts/p3-douyin-adapter-check.mjs",
+    "node": "v22.15.0",
+    "cwd": "D:\\project\\trademind-ai",
+    "note": "Static scan only; not Production Ready; real credential E2E deferred to Phase P10"
+  },
+  "issues": [],
+  "checks": [
+    {
+      "id": "provider.facade",
+      "status": "passed",
+      "message": "DouyinProvider facade exists",
+      "detail": "backend/internal/providers/platform/douyinshop/facade.go"
+    },
+    {
+      "id": "provider.errors",
+      "status": "passed",
+      "message": "errors.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/errors.go"
+    },
+    {
+      "id": "provider.token_lock",
+      "status": "passed",
+      "message": "token_lock.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/token_lock.go"
+    },
+    {
+      "id": "provider.order_detail",
+      "status": "passed",
+      "message": "order_detail.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/order_detail.go"
+    },
+    {
+      "id": "provider.inventory_query",
+      "status": "passed",
+      "message": "inventory_query.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/inventory_query.go"
+    },
+    {
+      "id": "provider.customer",
+      "status": "passed",
+      "message": "customer.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/customer.go"
+    },
+    {
+      "id": "provider.webhook_sign",
+      "status": "passed",
+      "message": "webhook_sign.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/webhook_sign.go"
+    },
+    {
+      "id": "provider.webhook_events",
+      "status": "passed",
+      "message": "webhook_events.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/webhook_events.go"
+    },
+    {
+      "id": "provider.health",
+      "status": "passed",
+      "message": "health.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/health.go"
+    },
+    {
+      "id": "provider.brand",
+      "status": "passed",
+      "message": "brand.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/brand.go"
+    },
+    {
+      "id": "provider.http_transport",
+      "status": "passed",
+      "message": "http_transport.go exists",
+      "detail": "backend/internal/providers/platform/douyinshop/http_transport.go"
+    },
+    {
+      "id": "provider.errors.codes",
+      "status": "passed",
+      "message": "errors.go has P3 fields and codes",
+      "detail": "backend/internal/providers/platform/douyinshop/errors.go"
+    },
+    {
+      "id": "provider.brand.blocked",
+      "status": "passed",
+      "message": "brand.go declares blocked_by_contract_verification",
+      "detail": "backend/internal/providers/platform/douyinshop/brand.go"
+    },
+    {
+      "id": "provider.customer.blocked",
+      "status": "passed",
+      "message": "customer.go declares blocked_by_contract_verification",
+      "detail": "backend/internal/providers/platform/douyinshop/customer.go"
+    },
+    {
+      "id": "webhook.douyin_verifier",
+      "status": "passed",
+      "message": "douyin_verifier.go exists",
+      "detail": "backend/internal/modules/webhook/douyin_verifier.go"
+    },
+    {
+      "id": "webhook.douyin_handler",
+      "status": "passed",
+      "message": "douyin_handler.go exists",
+      "detail": "backend/internal/modules/webhook/douyin_handler.go"
+    },
+    {
+      "id": "webhook.processor",
+      "status": "passed",
+      "message": "processor.go dispatches to HandleDouyinPlatformEvent",
+      "detail": "backend/internal/modules/webhook/processor.go"
+    },
+    {
+      "id": "model.oauth_state",
+      "status": "passed",
+      "message": "DouyinOAuthState model exists",
+      "detail": "backend/internal/modules/shop/douyin_oauth_state.go"
+    },
+    {
+      "id": "model.image_asset",
+      "status": "passed",
+      "message": "DouyinImageAsset model exists",
+      "detail": "backend/internal/modules/product/douyin_image_asset.go"
+    },
+    {
+      "id": "model.sync_cursor",
+      "status": "passed",
+      "message": "DouyinSyncCursor model exists",
+      "detail": "backend/internal/modules/ordersync/douyin_sync_cursor.go"
+    },
+    {
+      "id": "idem.keys",
+      "status": "passed",
+      "message": "idempotency/keys.go has P3 key builders",
+      "detail": "backend/internal/modules/idempotency/keys.go"
+    },
+    {
+      "id": "idem.scope",
+      "status": "passed",
+      "message": "idempotency/scope.go has P3 scopes",
+      "detail": "backend/internal/modules/idempotency/scope.go"
+    },
+    {
+      "id": "migrate.p3",
+      "status": "passed",
+      "message": "migrate_p3_douyin.go exists",
+      "detail": "backend/internal/database/migrate_p3_douyin.go"
+    },
+    {
+      "id": "migrate.call",
+      "status": "passed",
+      "message": "migrate.go calls migrateP3Douyin",
+      "detail": "backend/internal/database/migrate.go"
+    },
+    {
+      "id": "configstatus.platform_key",
+      "status": "passed",
+      "message": "configstatus uses platform_douyin_shop",
+      "detail": "backend/internal/modules/configstatus/service.go"
+    },
+    {
+      "id": "configstatus.p3_status",
+      "status": "passed",
+      "message": "p3_status.go exists",
+      "detail": "backend/internal/modules/configstatus/p3_status.go"
+    },
+    {
+      "id": "failclassifier.douyin",
+      "status": "passed",
+      "message": "failureclassifier has douyin_* types",
+      "detail": "backend/internal/modules/taskcenter/failureclassifier/enumerate.go"
+    },
+    {
+      "id": "fixture.oauth_state",
+      "status": "passed",
+      "message": "fixture oauth_state.json exists",
+      "detail": "backend/testdata/douyin/oauth_state.json"
+    },
+    {
+      "id": "fixture.order_detail",
+      "status": "passed",
+      "message": "fixture order_detail.json exists",
+      "detail": "backend/testdata/douyin/order_detail.json"
+    },
+    {
+      "id": "fixture.webhook_health_ping",
+      "status": "passed",
+      "message": "fixture webhook_health_ping.json exists",
+      "detail": "backend/testdata/douyin/webhook_health_ping.json"
+    },
+    {
+      "id": "fixture.webhook_order_created",
+      "status": "passed",
+      "message": "fixture webhook_order_created.json exists",
+      "detail": "backend/testdata/douyin/webhook_order_created.json"
+    },
+    {
+      "id": "fixture.customer_message_envelope",
+      "status": "passed",
+      "message": "fixture customer_message_envelope.json exists",
+      "detail": "backend/testdata/douyin/customer_message_envelope.json"
+    },
+    {
+      "id": "fixture.product_draft_create",
+      "status": "passed",
+      "message": "fixture product_draft_create.json exists",
+      "detail": "backend/testdata/douyin/product_draft_create.json"
+    },
+    {
+      "id": "fixture.inventory_query",
+      "status": "passed",
+      "message": "fixture inventory_query.json exists",
+      "detail": "backend/testdata/douyin/inventory_query.json"
+    },
+    {
+      "id": "fixture.shop_info",
+      "status": "passed",
+      "message": "fixture shop_info.json exists",
+      "detail": "backend/testdata/douyin/shop_info.json"
+    },
+    {
+      "id": "doc.P3_DOUYIN_ADAPTER_AUDIT_MATRIX",
+      "status": "passed",
+      "message": "P3_DOUYIN_ADAPTER_AUDIT_MATRIX.md exists",
+      "detail": "docs/P3_DOUYIN_ADAPTER_AUDIT_MATRIX.md"
+    },
+    {
+      "id": "doc.DOUYIN_PROVIDER_ARCHITECTURE",
+      "status": "passed",
+      "message": "DOUYIN_PROVIDER_ARCHITECTURE.md exists",
+      "detail": "docs/DOUYIN_PROVIDER_ARCHITECTURE.md"
+    },
+    {
+      "id": "doc.DOUYIN_OAUTH_AND_TOKEN_LIFECYCLE",
+      "status": "passed",
+      "message": "DOUYIN_OAUTH_AND_TOKEN_LIFECYCLE.md exists",
+      "detail": "docs/DOUYIN_OAUTH_AND_TOKEN_LIFECYCLE.md"
+    },
+    {
+      "id": "doc.DOUYIN_CATALOG_SYNC_DESIGN",
+      "status": "passed",
+      "message": "DOUYIN_CATALOG_SYNC_DESIGN.md exists",
+      "detail": "docs/DOUYIN_CATALOG_SYNC_DESIGN.md"
+    },
+    {
+      "id": "doc.DOUYIN_IMAGE_UPLOAD_DESIGN",
+      "status": "passed",
+      "message": "DOUYIN_IMAGE_UPLOAD_DESIGN.md exists",
+      "detail": "docs/DOUYIN_IMAGE_UPLOAD_DESIGN.md"
+    },
+    {
+      "id": "doc.DOUYIN_PRODUCT_DRAFT_MAPPING",
+      "status": "passed",
+      "message": "DOUYIN_PRODUCT_DRAFT_MAPPING.md exists",
+      "detail": "docs/DOUYIN_PRODUCT_DRAFT_MAPPING.md"
+    },
+    {
+      "id": "doc.DOUYIN_PRODUCT_DRAFT_IDEMPOTENCY",
+      "status": "passed",
+      "message": "DOUYIN_PRODUCT_DRAFT_IDEMPOTENCY.md exists",
+      "detail": "docs/DOUYIN_PRODUCT_DRAFT_IDEMPOTENCY.md"
+    },
+    {
+      "id": "doc.DOUYIN_ORDER_SYNC_DESIGN",
+      "status": "passed",
+      "message": "DOUYIN_ORDER_SYNC_DESIGN.md exists",
+      "detail": "docs/DOUYIN_ORDER_SYNC_DESIGN.md"
+    },
+    {
+      "id": "doc.DOUYIN_INVENTORY_ADAPTER",
+      "status": "passed",
+      "message": "DOUYIN_INVENTORY_ADAPTER.md exists",
+      "detail": "docs/DOUYIN_INVENTORY_ADAPTER.md"
+    },
+    {
+      "id": "doc.DOUYIN_CUSTOMER_ADAPTER",
+      "status": "passed",
+      "message": "DOUYIN_CUSTOMER_ADAPTER.md exists",
+      "detail": "docs/DOUYIN_CUSTOMER_ADAPTER.md"
+    },
+    {
+      "id": "doc.DOUYIN_WEBHOOK_ADAPTER",
+      "status": "passed",
+      "message": "DOUYIN_WEBHOOK_ADAPTER.md exists",
+      "detail": "docs/DOUYIN_WEBHOOK_ADAPTER.md"
+    },
+    {
+      "id": "doc.DOUYIN_ERROR_CLASSIFICATION",
+      "status": "passed",
+      "message": "DOUYIN_ERROR_CLASSIFICATION.md exists",
+      "detail": "docs/DOUYIN_ERROR_CLASSIFICATION.md"
+    },
+    {
+      "id": "doc.P3_DOUYIN_ADAPTER_REPORT",
+      "status": "passed",
+      "message": "P3_DOUYIN_ADAPTER_REPORT.md exists",
+      "detail": "docs/P3_DOUYIN_ADAPTER_REPORT.md"
+    },
+    {
+      "id": "safety.no_auto_publish",
+      "status": "passed",
+      "message": "No commit=true found in productpublish",
+      "detail": "productpublish/**/*.go"
+    }
+  ]
+}

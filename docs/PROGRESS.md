@@ -1,4 +1,6 @@
 ﻿# TradeMind 开发进度记录
+**Stage update**: 2026-07-11 — **Phase P3 抖店 Production Adapter 代码实现完成**。实现抖店 Provider 增强（facade/http_transport/errors/token_lock/order_detail/inventory_query/customer/webhook_sign/webhook_events/health/brand）、Webhook 模块（douyin_verifier/douyin_handler）、OAuth state DB 模型（DouyinOAuthState）、图片幂等缓存（DouyinImageAsset）、订单同步游标（DouyinSyncCursor）、P2-DEBT-001 AI apply 幂等、configstatus P3 指标、数据库迁移（migrate_p3_douyin）、单元测试全部通过、13 份架构文档。策略：**抖店 Production Adapter Implemented** · **Real Credential Verification Deferred** · **只创建平台草稿 / 不自动上架** · **代码实现完成不等于真实 E2E** · **非 Production Ready**。
+
 **Stage update**: 2026-07-11 — **Phase P2 Fully Closed（生产能力可靠性收口）**。AI apply/undo 幂等、Webhook HTTP 接收地基、六大生产 Worker 统一 tasklease、WSL2 `-race` 通过（无 data race）、P2.1 三 warning 清零、P2.2 静态扫描通过。策略：**Phase P2 Fully Closed** · **Production Capability Development In Progress** · **AI Result Application Idempotency Ready** · **Webhook Receiver Foundation Ready** · **All Production Workers Lease-Protected** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（AI Provider Key 可能仍为 environment_blocked）。
 
 

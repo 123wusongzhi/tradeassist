@@ -3,21 +3,21 @@
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "7bfd7e4e-83a2-45bf-a5ca-d481efe8305a",
+                        "conversationId":  "9e717ce0-6422-4ca1-9231-8ef854292abd",
                         "note":  "customer conversation",
                         "tag":  "pending_reply_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "dc66f544-cae4-42bc-b8e1-89dd485de010",
+                        "conversationId":  "671215e1-1516-4190-a2e5-c84b952090f9",
                         "note":  "customer conversation",
                         "tag":  "order_linked_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "560afe24-5421-4261-b37b-68434b5bac9c",
+                        "conversationId":  "1ea58075-2d7a-4d9b-8751-f3c17ef4cdf0",
                         "note":  "customer conversation",
                         "tag":  "inventory_consult_conversation"
                     },
@@ -37,6 +37,6 @@
                         "tag":  "ai_suggestion_skipped"
                     }
                 ],
-    "generatedAt":  "2026-07-11T09:00:31.5442869Z",
+    "generatedAt":  "2026-07-11T10:01:25.9761788Z",
     "note":  "F4+F7 customer service demo samples"
 }

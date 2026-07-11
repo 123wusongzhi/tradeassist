@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
@@ -330,24 +331,59 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 			})
 		}
 	} else {
-		var pubErr error
-		res, pubErr = client.CreateProductDraft(xctx, taskRow.ShopID.String(), buildRes.APIReq)
-		if pubErr != nil {
-			code := inferDouyinPublishErrorCode(pubErr)
-			var de *platformdouyin.Error
-			raw := map[string]any{}
-			retryable := false
-			requestID := ""
-			if errors.As(pubErr, &de) {
-				retryable = de.Retryable
-				requestID = de.RequestID
-				raw = map[string]any{"platformCode": de.PlatformCode, "platformMessage": de.PlatformMessage}
-				if de.Code == platformdouyin.CodeDouyinRequestTimeout {
-					s.markDouyinStale(ctx, taskID, platformdouyin.CodeDouyinTaskResultUnknown, platformdouyin.RecoveryResultUnknown, taskRow.CreatedBy)
-					return fail(platformdouyin.CodeDouyinTaskResultUnknown, platformdouyin.UserMessageForRecovery(platformdouyin.RecoveryResultUnknown), true, requestID, raw)
+		publishVersion := snap.MappingHash
+		if publishVersion == "" {
+			publishVersion = taskID.String()
+		}
+		idemKey := idempotency.DouyinProductDraftCreate(taskRow.ShopID.String(), taskRow.ProductID.String(), publishVersion)
+		idemJob, replayRes, acqErr := s.acquirePublishIdempotency(ctx, idemKey, []byte(idemKey), "douyin-draft-create")
+		if acqErr != nil {
+			return fail(inferDouyinPublishErrorCode(acqErr), acqErr.Error(), true, "", nil)
+		}
+		if replayRes != nil && replayRes.Replay && strings.TrimSpace(replayRes.ResourceID) != "" {
+			res = &platformdouyin.PlatformProductResult{PlatformProductID: replayRes.ResourceID, PlatformStatus: "draft"}
+		} else {
+			var pubErr error
+			res, pubErr = client.CreateProductDraft(xctx, taskRow.ShopID.String(), buildRes.APIReq)
+			if pubErr != nil {
+				code := inferDouyinPublishErrorCode(pubErr)
+				var de *platformdouyin.Error
+				raw := map[string]any{}
+				retryable := false
+				requestID := ""
+				if errors.As(pubErr, &de) {
+					retryable = de.Retryable
+					requestID = de.RequestID
+					raw = map[string]any{"platformCode": de.PlatformCode, "platformMessage": de.PlatformMessage}
+					if de.UnknownResult || de.Code == platformdouyin.CodeDouyinRequestTimeout || de.Code == platformdouyin.CodeDouyinUnknownResult {
+						// unknown_result: try recover before failing; do not auto-recreate
+						if recoveredRes2, recovered2, recErr2 := tryRecoverDouyinDraftFromPlatform(xctx, client, taskRow.ShopID.String(), taskRow.ProductID.String()); recErr2 == nil && recovered2 && recoveredRes2 != nil {
+							res = recoveredRes2
+							if idemJob != nil {
+								_ = s.completePublishIdempotency(ctx, idemJob, map[string]string{"platformProductId": res.PlatformProductID}, res.PlatformProductID)
+							}
+						} else {
+							if idemJob != nil {
+								s.failPublishIdempotency(ctx, idemJob, platformdouyin.CodeDouyinUnknownResult, false)
+							}
+							s.markDouyinStale(ctx, taskID, platformdouyin.CodeDouyinUnknownResult, platformdouyin.RecoveryResultUnknown, taskRow.CreatedBy)
+							return fail(platformdouyin.CodeDouyinUnknownResult, "抖店草稿创建结果未知，请先回查平台草稿箱", false, requestID, raw)
+						}
+					} else {
+						if idemJob != nil {
+							s.failPublishIdempotency(ctx, idemJob, code, retryable)
+						}
+						return fail(code, pubErr.Error(), retryable, requestID, raw)
+					}
+				} else {
+					if idemJob != nil {
+						s.failPublishIdempotency(ctx, idemJob, code, retryable)
+					}
+					return fail(code, pubErr.Error(), retryable, requestID, raw)
 				}
+			} else if idemJob != nil && res != nil {
+				_ = s.completePublishIdempotency(ctx, idemJob, map[string]string{"platformProductId": res.PlatformProductID}, res.PlatformProductID)
 			}
-			return fail(code, pubErr.Error(), retryable, requestID, raw)
 		}
 	}
 	if res == nil || strings.TrimSpace(res.PlatformProductID) == "" {

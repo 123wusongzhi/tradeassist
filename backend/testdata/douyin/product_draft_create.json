@@ -1,0 +1,9 @@
+{
+  "synthetic": true,
+  "description": "Synthetic product draft response from product.addV2",
+  "product_id": "synthetic-product-id-001",
+  "commit": false,
+  "outer_product_id": "TEST-DRAFT-001",
+  "name": "Synthetic Test Product",
+  "status": "draft"
+}

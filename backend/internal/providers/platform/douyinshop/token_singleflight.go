@@ -46,6 +46,7 @@ func refreshFlightKey(c *Client, ctx context.Context) string {
 }
 
 // EnsureFreshAccessSingleflight ensures at most one refresh HTTP call per shop at a time.
+// Also acquires TokenRefreshLocker with version key when configured (cross-process dedup).
 func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, error) {
 	now := c.now()
 	if token, ok := c.freshAccessToken(now); ok {
@@ -58,7 +59,30 @@ func (c *Client) EnsureFreshAccessSingleflight(ctx context.Context) (string, err
 	}
 
 	v, err, _ := tokenRefreshFlights.Do(key, func() (any, error) {
-		return c.ensureFreshAccessDirect(ctx)
+		locker := c.TokenLocker
+		if locker == nil {
+			locker = DefaultTokenLocker()
+		}
+		ver := c.TokenVersion
+		lockKey := TokenVersionKey(key, ver)
+		acquired, _, acqErr := locker.AcquireRefresh(ctx, lockKey, key, ver)
+		if acqErr != nil {
+			return "", acqErr
+		}
+		if !acquired {
+			return "", NewError(CodeDouyinTokenRefreshInProgress, "抖店令牌刷新进行中，请稍后重试", "", "refresh_in_progress", "")
+		}
+		token, refreshErr := c.ensureFreshAccessDirect(ctx)
+		if refreshErr != nil {
+			_ = locker.ReleaseRefresh(ctx, lockKey)
+			return "", refreshErr
+		}
+		c.tokenMu.Lock()
+		c.TokenVersion = ver + 1
+		newVer := c.TokenVersion
+		c.tokenMu.Unlock()
+		_ = locker.CommitRefresh(ctx, lockKey, newVer)
+		return token, nil
 	})
 	if err != nil {
 		return "", err

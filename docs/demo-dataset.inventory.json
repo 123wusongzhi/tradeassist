@@ -1,22 +1,22 @@
 ﻿{
     "samples":  [
                     {
-                        "productId":  "8c4e1d36-71bb-4c31-a4f7-89206ec50d4d",
+                        "productId":  "95ef04fd-1cf2-4d1f-b244-0abe3ac3ac68",
                         "note":  "local stock 120",
                         "tag":  "normal_stock_sku"
                     },
                     {
-                        "productId":  "610ae044-32db-48eb-a2bc-b5a9411cc22c",
+                        "productId":  "f68130c9-c778-4a7c-9268-751156d93441",
                         "note":  "stock below warning line",
                         "tag":  "low_stock_sku"
                     },
                     {
-                        "productId":  "7bad6038-ed10-4cef-9139-8ad0771f4936",
+                        "productId":  "b492bb72-7fc4-4e42-8162-7c0f8ac7087c",
                         "note":  "stock is 0",
                         "tag":  "zero_stock_sku"
                     },
                     {
-                        "orderId":  "b874df6d-d426-4462-a5e8-817853d4ae6b",
+                        "orderId":  "ca825aeb-79f6-470e-b475-adde18ce9ec9",
                         "deductResult":  "远程服务器返回错误: (400) 错误的请求。",
                         "note":  "manual deduct attempt on F2 normal order",
                         "tag":  "deduct_success_order"
@@ -43,6 +43,6 @@
                         "centerCount":  5
                     }
                 ],
-    "generatedAt":  "2026-07-11T09:00:31.0367938Z",
+    "generatedAt":  "2026-07-11T10:01:25.5180282Z",
     "note":  "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
 }

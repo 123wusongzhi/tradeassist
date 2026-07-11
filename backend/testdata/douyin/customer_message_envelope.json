@@ -1,0 +1,14 @@
+{
+  "synthetic": true,
+  "description": "Synthetic customer message envelope — shape is UNVERIFIED (blocked_by_contract_verification)",
+  "messages": [
+    {
+      "message_id": "synthetic-msg-001",
+      "conversation_id": "synthetic-conv-001",
+      "content": "Hello, when will my order arrive?",
+      "content_type": "text",
+      "sender_type": "buyer"
+    }
+  ],
+  "next_token": ""
+}

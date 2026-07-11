@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "description": "Synthetic order.orderDetail response fixture",
+  "order_id": "SYNTHETIC-ORDER-001",
+  "shop_order_id": "SYNTHETIC-SHOP-ORDER-001",
+  "order_status": "105",
+  "main_status": "paid",
+  "pay_amount": 9900,
+  "currency": "CNY",
+  "create_time": 1700000000,
+  "update_time": 1700001000,
+  "buyer_note": "synthetic test note",
+  "pay_info": {
+    "pay_type": "synthetic_pay",
+    "pay_time": 1700000500
+  }
+}

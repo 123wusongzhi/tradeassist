@@ -81,7 +81,10 @@ func (c *Client) do(ctx context.Context, method string, params map[string]any, a
 		}
 		retryAfter := ParseRetryAfter(resp.Header.Get("Retry-After"))
 		if retryAfter > 0 && outErr.RateLimited {
-			_ = retryAfter
+			outErr.RetryAfter = int64(retryAfter.Seconds())
+			if outErr.RetryAfter <= 0 {
+				outErr.RetryAfter = 2
+			}
 		}
 		c.logRequest(ctx, SafeRequestLog{
 			Method:       method,

@@ -139,10 +139,17 @@ func (s *Service) ProcessQueuedEvents(ctx context.Context, limit int) (int, erro
 	return done, nil
 }
 
-func (s *Service) handlePlatformEvent(_ context.Context, ev *Event) error {
-	// MVP: no Douyin/business handlers — noop marks processed for all platforms including internal-test.
-	_ = ev
-	return nil
+func (s *Service) handlePlatformEvent(ctx context.Context, ev *Event) error {
+	if ev == nil {
+		return nil
+	}
+	switch ev.Platform {
+	case "douyin_shop", "douyin":
+		return s.HandleDouyinPlatformEvent(ctx, ev)
+	default:
+		// Other platforms: noop marks processed
+		return nil
+	}
 }
 
 func (s *Service) markFailed(ctx context.Context, id uuid.UUID, status, code, msg string) error {

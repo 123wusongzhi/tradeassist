@@ -245,12 +245,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	imageTaskH := &imagetask.Handler{Svc: imageTaskSvc}
 
 	productSvc := &product.Service{
-		DB:        dep.DB,
-		OpLog:     opLogSvc,
-		Settings:  settingsSvc,
-		Prompts:   promptSvc,
-		AITasks:   aiTaskSvc,
-		AIGateway: aiGateway,
+		DB:          dep.DB,
+		OpLog:       opLogSvc,
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AITasks:     aiTaskSvc,
+		AIGateway:   aiGateway,
+		Idempotency: idempotencySvc,
 	}
 	productH := &product.Handler{Svc: productSvc, Files: fileSvc}
 
@@ -589,10 +590,24 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.RegisterPublic(v1, shopH)
+	webhookRegistry := webhook.NewRegistry(dep.Config)
+	// Register Douyin webhook signature verifier — loads app_secret from settings
+	// (platform_douyin_shop group). If secret is missing the verifier is still
+	// registered but Verify returns CodeVerifierNotConfigured.
+	if settingsSvc != nil {
+		if plain, err := settingsSvc.PlainByGroup(context.Background(), 0, "platform_douyin_shop"); err == nil {
+			appSecret := plain["app_secret"]
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifier(appSecret))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifier(appSecret))
+		} else {
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifier(""))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifier(""))
+		}
+	}
 	webhookSvc := &webhook.Service{
 		DB:          dep.DB,
 		Idempotency: idempotencySvc,
-		Verifiers:   webhook.NewRegistry(dep.Config),
+		Verifiers:   webhookRegistry,
 		AppEnv:      "",
 	}
 	if dep.Config != nil {

@@ -12,7 +12,9 @@ type Event struct {
 	model.Base
 	Platform     string         `gorm:"size:64;not null;uniqueIndex:ux_webhook_platform_event" json:"platform"`
 	EventID      string         `gorm:"size:255;not null;uniqueIndex:ux_webhook_platform_event" json:"eventId"`
+	EventType    string         `gorm:"size:128;index" json:"eventType,omitempty"`
 	PayloadHash  string         `gorm:"size:64;not null" json:"payloadHash"`
+	PayloadBody  string         `gorm:"type:text" json:"-"` // full body for async handlers; never log
 	Status       string         `gorm:"size:32;index;not null" json:"status"`
 	ProcessedAt  *time.Time     `json:"processedAt,omitempty"`
 	ErrorCode    string         `gorm:"size:64" json:"errorCode,omitempty"`

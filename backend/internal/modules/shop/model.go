@@ -33,21 +33,24 @@ func (Shop) TableName() string { return "shops" }
 // ShopAuthToken stores secrets for one shop (single row per shop in v1).
 type ShopAuthToken struct {
 	model.Base
-	ShopID           uuid.UUID      `gorm:"type:char(36);uniqueIndex;not null" json:"shopId"`
-	Platform         string         `gorm:"size:32;index;not null" json:"platform"`
-	AuthType         string         `gorm:"size:32;index;not null" json:"authType"`
-	AppKey           string         `gorm:"size:512" json:"appKey,omitempty"`
-	AppSecretEnc     string         `gorm:"type:text" json:"-"`
-	AccessTokenEnc   string         `gorm:"type:text" json:"-"`
-	RefreshTokenEnc  string         `gorm:"type:text" json:"-"`
-	SellerID         string         `gorm:"size:255" json:"sellerId,omitempty"`
-	MerchantID       string         `gorm:"size:255" json:"merchantId,omitempty"`
-	MarketplaceID    string         `gorm:"size:255" json:"marketplaceId,omitempty"`
-	ExpiresAt        *time.Time     `json:"expiresAt,omitempty"`
-	RefreshExpiresAt *time.Time     `json:"refreshExpiresAt,omitempty"`
-	Scopes           datatypes.JSON `gorm:"type:jsonb" json:"scopes,omitempty"`
-	AuthConfig       datatypes.JSON `gorm:"type:jsonb" json:"authConfig,omitempty"`
-	RawData          datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	ShopID                  uuid.UUID      `gorm:"type:char(36);uniqueIndex;not null" json:"shopId"`
+	Platform                string         `gorm:"size:32;index;not null" json:"platform"`
+	AuthType                string         `gorm:"size:32;index;not null" json:"authType"`
+	AppKey                  string         `gorm:"size:512" json:"appKey,omitempty"`
+	AppSecretEnc            string         `gorm:"type:text" json:"-"`
+	AccessTokenEnc          string         `gorm:"type:text" json:"-"`
+	RefreshTokenEnc         string         `gorm:"type:text" json:"-"`
+	SellerID                string         `gorm:"size:255" json:"sellerId,omitempty"`
+	MerchantID              string         `gorm:"size:255" json:"merchantId,omitempty"`
+	MarketplaceID           string         `gorm:"size:255" json:"marketplaceId,omitempty"`
+	ExpiresAt               *time.Time     `json:"expiresAt,omitempty"`
+	RefreshExpiresAt        *time.Time     `json:"refreshExpiresAt,omitempty"`
+	Scopes                  datatypes.JSON `gorm:"type:jsonb" json:"scopes,omitempty"`
+	AuthConfig              datatypes.JSON `gorm:"type:jsonb" json:"authConfig,omitempty"`
+	RawData                 datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
+	TokenVersion            int64          `gorm:"not null;default:0" json:"tokenVersion"`
+	ReauthorizationRequired bool           `gorm:"not null;default:false" json:"reauthorizationRequired"`
+	LastRefreshErrorCode    string         `gorm:"size:128" json:"lastRefreshErrorCode,omitempty"`
 }
 
 func (ShopAuthToken) TableName() string { return "shop_auth_tokens" }

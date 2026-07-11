@@ -27,7 +27,26 @@ func (provider) Capabilities() []platformp.Capability {
 		platformp.CapProductPublish,
 		platformp.CapOrderSync,
 		platformp.CapInventorySync,
+		platformp.CapCustomerMessage, // gated: live IM blocked_by_contract_verification until enabled
 	}
+}
+
+// PullMessages implements CustomerMessageProvider (contract-gated).
+func (provider) PullMessages(ctx context.Context, req platformp.PullMessagesRequest) (*platformp.PullMessagesResult, error) {
+	_ = ctx
+	_ = req
+	return nil, NewError(CodeDouyinContractMismatch,
+		"抖店客服消息拉取需通过合同核查后方可启用",
+		"", "blocked_by_contract_verification", "")
+}
+
+// SendMessage implements CustomerMessageProvider (contract-gated; never auto-send).
+func (provider) SendMessage(ctx context.Context, req platformp.SendMessageRequest) (*platformp.SendMessageResult, error) {
+	_ = ctx
+	_ = req
+	return nil, NewError(CodeDouyinContractMismatch,
+		"抖店客服消息发送需通过合同核查且必须人工确认",
+		"", "blocked_by_contract_verification", "")
 }
 
 func (provider) AuthSchema() platformp.AuthSchema {

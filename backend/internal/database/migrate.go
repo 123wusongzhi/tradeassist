@@ -176,5 +176,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP21Reliability(db); err != nil {
 		return err
 	}
-	return migrateP22Reliability(db)
+	if err := migrateP22Reliability(db); err != nil {
+		return err
+	}
+	return migrateP3Douyin(db)
 }
