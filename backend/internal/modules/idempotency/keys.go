@@ -56,14 +56,36 @@ func CustomerSend(conversationID, clientMessageID string) string {
 		norm(conversationID), norm(clientMessageID))
 }
 
-func AITextApply(batchID, itemID, targetVersion string) string {
+func AITextApply(batchID, itemID, targetProductID, targetVersion string) string {
+	return fmt.Sprintf("ai-text-apply:%s:%s:%s:%s",
+		norm(batchID), norm(itemID), norm(targetProductID), norm(targetVersion))
+}
+
+// LegacyAITextApply preserves the older 3-part key shape for migration / tests.
+func LegacyAITextApply(batchID, itemID, targetVersion string) string {
 	return fmt.Sprintf("ai-text-apply:%s:%s:%s",
 		norm(batchID), norm(itemID), norm(targetVersion))
 }
 
-func AIImageApply(batchID, itemID, targetVersion string) string {
+func AITextUndo(applyRecordID, targetVersion string) string {
+	return fmt.Sprintf("ai-text-undo:%s:%s",
+		norm(applyRecordID), norm(targetVersion))
+}
+
+func AIImageApply(batchID, itemID, targetProductID, targetVersion, slot string) string {
+	return fmt.Sprintf("ai-image-apply:%s:%s:%s:%s:%s",
+		norm(batchID), norm(itemID), norm(targetProductID), norm(targetVersion), norm(slot))
+}
+
+// LegacyAIImageApply preserves the older 3-part key shape for migration / tests.
+func LegacyAIImageApply(batchID, itemID, targetVersion string) string {
 	return fmt.Sprintf("ai-image-apply:%s:%s:%s",
 		norm(batchID), norm(itemID), norm(targetVersion))
+}
+
+func AIImageUndo(applyRecordID, targetVersion string) string {
+	return fmt.Sprintf("ai-image-undo:%s:%s",
+		norm(applyRecordID), norm(targetVersion))
 }
 
 func AITextBatch(productID, productVersion, operationType, inputHash string) string {
@@ -84,6 +106,11 @@ func LegacyAITextBatch(productID, contentHash, operationType string) string {
 
 func Webhook(platform, eventID string) string {
 	return fmt.Sprintf("webhook:%s:%s", norm(platform), norm(eventID))
+}
+
+// WebhookProcess deduplicates async webhook event processing.
+func WebhookProcess(platform, eventID string) string {
+	return fmt.Sprintf("webhook-process:%s:%s", norm(platform), norm(eventID))
 }
 
 // HashRequest returns a stable SHA-256 hex digest of normalized request payload bytes.

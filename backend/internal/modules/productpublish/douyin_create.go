@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -247,11 +248,8 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 			"request_id":         requestID,
 			"finished_at":        &fin,
 			"platform_raw_error": datatypes.JSON(rawJSON),
-			"locked_by":          nil,
-			"locked_until":       nil,
-			"updated_at":         fin,
 		}
-		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).Updates(updates).Error
+		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, updates)
 		if snap, ok := parseDouyinDraftSnapshot(taskRow.Input); ok {
 			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).
 				Updates(map[string]any{"status": StatusPubFailed, "publish_status": StatusPubFailed, "updated_at": fin}).Error
@@ -356,10 +354,10 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 		return fail(ErrorDouyinCreateProductFailed, "platform did not return product id", true, "", nil)
 	}
 
-	return s.completeDouyinDraftSuccess(ctx, taskRow, taskID, snap, buildRes, res)
+	return s.completeDouyinDraftSuccess(ctx, taskRow, taskID, workerID, claim, snap, buildRes, res)
 }
 
-func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *ProductPublishTask, taskID uuid.UUID, snap douyinDraftSnapshot, buildRes *DouyinPayloadBuildResult, res *platformdouyin.PlatformProductResult) error {
+func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *ProductPublishTask, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, snap douyinDraftSnapshot, buildRes *DouyinPayloadBuildResult, res *platformdouyin.PlatformProductResult) error {
 	fin := time.Now().UTC()
 	outSnap := map[string]any{
 		"platformProductId": res.PlatformProductID,
@@ -367,22 +365,26 @@ func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *Produ
 		"requestId":         res.RequestID,
 	}
 	rawOut, _ := json.Marshal(outSnap)
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":              TaskSuccess,
-			"publish_status":      StatusDraftCreated,
-			"platform_product_id": res.PlatformProductID,
-			"request_id":          res.RequestID,
-			"retryable":           false,
-			"error_code":          "",
-			"error_message":       "",
-			"finished_at":         &fin,
-			"output":              datatypes.JSON(rawOut),
-			"platform_result":     datatypes.JSON(rawOut),
-			"locked_by":           nil,
-			"locked_until":        nil,
-			"updated_at":          fin,
-		}).Error
+	updates := map[string]any{
+		"status":              TaskSuccess,
+		"publish_status":      StatusDraftCreated,
+		"platform_product_id": res.PlatformProductID,
+		"request_id":          res.RequestID,
+		"retryable":           false,
+		"error_code":          "",
+		"error_message":       "",
+		"finished_at":         &fin,
+		"output":              datatypes.JSON(rawOut),
+		"platform_result":     datatypes.JSON(rawOut),
+	}
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, updates)
+	} else {
+		updates["locked_by"] = nil
+		updates["locked_until"] = nil
+		updates["updated_at"] = fin
+		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).Updates(updates).Error
+	}
 
 	rd, _ := json.Marshal(sanitizeRawErrorMap(res.Raw))
 	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).

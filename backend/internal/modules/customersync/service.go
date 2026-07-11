@@ -295,7 +295,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}()
 
 	lease := s.taskLeaseTTL()
-	task, ok, err := s.tryClaimTask(ctx, taskID, workerID, lease)
+	task, claim, ok, err := s.tryClaimTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -303,7 +303,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return nil
 	}
 
-	stopRen := s.startLeaseRenewal(ctx, taskID, workerID, lease)
+	stopRen := s.startLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stopRen()
 
 	if s.OpLog != nil {
@@ -319,15 +319,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": msg,
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
-			}).Error
+		_ = s.finishCustomerSyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": msg,
+			"finished_at":   &fin,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 				AdminUserID: task.CreatedBy,
@@ -401,20 +397,19 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fin := time.Now().UTC()
 	nextCur := strings.TrimSpace(res.NextCursor)
-	_ = s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        StatusSuccess,
-			"finished_at":   &fin,
-			"total_count":   convN,
-			"success_count": msgN,
-			"failed_count":  0,
-			"cursor":        nextCur,
-			"output":        datatypes.JSON(outJSON),
-			"error_message": "",
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	if err := s.finishCustomerSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        StatusSuccess,
+		"finished_at":   &fin,
+		"total_count":   convN,
+		"success_count": msgN,
+		"failed_count":  0,
+		"cursor":        nextCur,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	}); err != nil {
+		slog.Warn("customer_sync_success_lease_lost", "taskId", taskID.String(), "error", err.Error())
+		return err
+	}
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{

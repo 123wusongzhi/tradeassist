@@ -24,9 +24,14 @@ type Event struct {
 func (Event) TableName() string { return "webhook_events" }
 
 const (
-	StatusReceived   = "received"
-	StatusProcessing = "processing"
-	StatusProcessed  = "processed"
-	StatusIgnored    = "ignored"
-	StatusFailed     = "failed"
+	StatusReceived        = "received"
+	StatusQueued          = "queued"
+	StatusProcessing      = "processing"
+	StatusProcessed       = "processed"
+	StatusIgnored         = "ignored"
+	StatusFailed          = "failed"
+	StatusFailedRetryable = "failed_retryable"
+	StatusFailedPermanent = "failed_permanent"
+	StatusDeadLetter      = "dead_letter"
+	StatusDuplicate       = "duplicate"
 )

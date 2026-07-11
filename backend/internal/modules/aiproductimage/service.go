@@ -811,7 +811,7 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 			updates["image_updated_at"] = &t
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", item.ID).Updates(updates).Error
+	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
 }
 
 func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) (*imagetask.ImageTask, error) {
@@ -846,7 +846,7 @@ func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg stri
 	if m := WarningCodeMessage(norm); m != "" {
 		userMsg = m
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", itemID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status IN ?", itemID, []string{ItemRunning, ItemPending}).Updates(map[string]any{
 		"status":        ItemFailed,
 		"error_code":    norm,
 		"error_message": userMsg,

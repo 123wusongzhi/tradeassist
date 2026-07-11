@@ -161,6 +161,7 @@ type ApplyItemResult struct {
 	ProductID    string `json:"productId"`
 	Status       string `json:"status"`
 	StatusLabel  string `json:"statusLabel"`
+	ErrorCode    string `json:"errorCode,omitempty"`
 	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 

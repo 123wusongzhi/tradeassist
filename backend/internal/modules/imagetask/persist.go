@@ -164,7 +164,12 @@ func (s *Service) finalizeTaskSuccessWithStatus(ctx context.Context, task *Image
 	if fileID != nil {
 		updates["result_file_id"] = fileID
 	}
-	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
+	workerID, claim := imageLeaseFrom(ctx)
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
+			return err
+		}
+	} else if err := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error; err != nil {
 		return err
 	}
 	_ = s.upsertPrimaryTaskItem(ctx, task, finalURL, storageKey, fileID, scoreJSON, selectedBest)

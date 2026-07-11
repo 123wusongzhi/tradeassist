@@ -33,6 +33,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
+	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
@@ -205,7 +206,7 @@ func main() {
 	engine.Use(middleware.CORS(cfg), middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,
 		Redis:           redisClient,
@@ -257,6 +258,9 @@ func main() {
 
 	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
 	douyinruntime.StartDouyinAlertScanWorker(workerCtx, &workerWG, log, douyinRuntimeSvc, workerReg, cfg)
+	if webhookSvc != nil {
+		webhook.StartWorker(workerCtx, &workerWG, log, webhookSvc, cfg, workerReg)
+	}
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
 		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc, workerReg)

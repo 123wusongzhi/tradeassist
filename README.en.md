@@ -38,7 +38,7 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Phase P2.1 Completed** (unified idempotency on critical write paths + task heartbeat leases) · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
+> Current status: **Phase P2.2 Completed** (AI apply/undo idempotency + Webhook HTTP receiver + tasklease on six workers) · **Core Reliability Foundation Ready** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred** (Phase P10; F9 retained as historical Demo baseline; gray release not allowed). See [`docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md`](docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md), [`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md), [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md).
 
 ## Positioning
 
@@ -101,6 +101,7 @@ The screenshots below come from the local development environment and show the m
 - Provider abstractions for AI, storage, image, platform, and collector integrations.
 - Self-host-friendly setup with PostgreSQL + Redis and a full Docker Compose deployment path.
 - Monorepo structure for backend, admin, collector, and docs, making team collaboration easier.
+- Reliability foundation (P2.2): unified idempotency on critical writes; AI apply/undo; Webhook HTTP fast ACK; worker tasklease against stale writeback (**not Production Ready**).
 
 ## Architecture and Stack
 

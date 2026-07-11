@@ -1,8 +1,8 @@
 # P2.1 Domain Idempotency Scan Report
 
-Generated: 2026-07-10T14:23:58.570Z
+Generated: 2026-07-11T08:56:03.067Z
 
-**Overall:** passed_with_warning (74 passed, 3 warnings, 0 failed)
+**Overall:** passed (77 passed, 0 warnings, 0 failed)
 
 > Phase P2.1 validates unified `idempotency.Service` on critical write paths and `tasklease` heartbeat/execution identity on async workers. This scan is static; it does not imply Production Ready or full acceptance green.
 
@@ -38,7 +38,7 @@ Generated: 2026-07-10T14:23:58.570Z
 | router-wire-customer | passed | router wires idempotency to customerchat |
 | router-wire-ai-text | passed | router wires idempotency to aiproducttext |
 | router-wire-ai-image | passed | router wires idempotency to aiproductimage |
-| router-wire-webhook | warning | webhook HTTP route not wired in router (service-level idempotency only) |
+| router-wire-webhook | passed | webhook handler wired in router |
 | path-order-sync-file | passed | order sync job create exists |
 | path-order-sync-acquire | passed | order sync job create Acquire via ScopeOrderSync |
 | path-order-sync-complete | passed | order sync job create Complete/Fail lifecycle |
@@ -91,8 +91,8 @@ Generated: 2026-07-10T14:23:58.570Z
 | migrate-p21-image_tasks | passed | P2.1 migration adds heartbeat_at to image_tasks |
 | migrate-p21-customer_message_sync_tasks | passed | P2.1 migration adds heartbeat_at to customer_message_sync_tasks |
 | inventory-event-key-index | passed | inventory business_event_key partial unique index |
-| path-ai-text-apply | warning | AI text apply path not yet wired (batch create only; keys reserved in keys.go) |
-| path-ai-image-apply | warning | AI image apply path not yet wired (batch create only; keys reserved in keys.go) |
+| path-ai-text-apply | passed | AI text apply idempotency referenced |
+| path-ai-image-apply | passed | AI image apply idempotency referenced |
 | doc-IDEMPOTENCY_DESIGN.md | passed | docs/IDEMPOTENCY_DESIGN.md exists |
 | doc-P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md | passed | docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md exists |
 | doc-DOMAIN_IDEMPOTENCY_INTEGRATION.md | passed | docs/DOMAIN_IDEMPOTENCY_INTEGRATION.md exists |

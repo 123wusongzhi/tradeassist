@@ -3,6 +3,7 @@ package productpublish
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,6 +43,35 @@ func (s *Service) startPublishLeaseRenewal(ctx context.Context, taskID uuid.UUID
 		return func() {}
 	}
 	return tasklease.StartRenewal(ctx, s.DB, ProductPublishTask{}.TableName(), TaskRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion, leaseTTL)
+}
+
+func (s *Service) validatePublishLease(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult) error {
+	if claim == nil {
+		return tasklease.ErrLeaseLost
+	}
+	return tasklease.ValidateLease(ctx, s.DB, ProductPublishTask{}.TableName(), TaskRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion)
+}
+
+func (s *Service) finishProductPublishTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	if err := s.validatePublishLease(ctx, taskID, workerID, claim); err != nil {
+		slog.Warn("product_publish_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
+		return err
+	}
+	now := time.Now().UTC()
+	updates["locked_by"] = nil
+	updates["locked_until"] = nil
+	updates["updated_at"] = now
+	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return tasklease.ErrLeaseLost
+	}
+	return nil
 }
 
 func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) error {

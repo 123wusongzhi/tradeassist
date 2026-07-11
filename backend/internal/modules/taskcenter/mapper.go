@@ -136,6 +136,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		dto.RelatedResourceTitle = truncateRunes(row.SourceURL, 120)
 	}
 	applyMarks(&dto, TaskTypeCollect, row.ID.String(), marks)
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	return dto
 }
 
@@ -187,6 +188,7 @@ func mapImageTask(row *imagetask.ImageTask, productTitles map[uuid.UUID]string, 
 		dto.RelatedResourceTitle = truncateRunes(row.SourceImageURL, 120)
 	}
 	applyMarks(&dto, TaskTypeImage, row.ID.String(), marks)
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	return dto
 }
 
@@ -277,6 +279,7 @@ func mapCustomerMessageSyncTask(row *customersync.CustomerMessageSyncTask, shopN
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	applyMarks(&dto, TaskTypeCustomerMessageSync, row.ID.String(), marks)
 	return dto
 }

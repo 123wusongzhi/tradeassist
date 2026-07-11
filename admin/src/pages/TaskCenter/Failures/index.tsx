@@ -1008,8 +1008,24 @@ export default function TaskCenterFailuresPage() {
                 <Typography.Text strong>幂等作用域：</Typography.Text> {detail.idempotencyScope}
               </Typography.Paragraph>
             ) : null}
+            {detail.safeRetry === true && !detail.manualReviewRequired && !detail.unknownResult ? (
+              <Alert type="success" showIcon message="可安全重试" style={{ marginBottom: 8 }} />
+            ) : null}
+            {detail.safeRetry === false && !detail.manualReviewRequired && !detail.unknownResult ? (
+              <Alert type="warning" showIcon message="需要先人工确认" style={{ marginBottom: 8 }} />
+            ) : null}
+            {typeof detail.errorMessage === 'string' &&
+            /TARGET_VERSION_CONFLICT|UNDO_VERSION_CONFLICT|content conflict|目标.*变化|版本冲突/i.test(
+              detail.errorMessage,
+            ) ? (
+              <Alert type="warning" showIcon message="目标数据已变化，不能直接覆盖" style={{ marginBottom: 8 }} />
+            ) : null}
+            {typeof detail.errorMessage === 'string' &&
+            /TASK_LEASE_LOST|lease lost|租约|已被.*接管/i.test(detail.errorMessage) ? (
+              <Alert type="info" showIcon message="任务已被新的后台执行进程接管" style={{ marginBottom: 8 }} />
+            ) : null}
             {detail.unknownResult ? (
-              <Alert type="error" showIcon message="平台写操作结果未知，禁止盲目重试" style={{ marginBottom: 8 }} />
+              <Alert type="error" showIcon message="结果未知，请先核对外部系统" style={{ marginBottom: 8 }} />
             ) : null}
             {(detail.heartbeatAt || detail.leaseVersion || detail.executionId) ? (
               <TechnicalDetails>

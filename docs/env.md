@@ -44,6 +44,15 @@ docker compose -f docker-compose.full.yml up -d --build
 | `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |
 
+## Webhook 入站（公开 HTTP）
+
+| 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
+| --- | --- | --- | --- | --- |
+| `WEBHOOK_MAX_BODY_KB` | `512` | backend | 否 | `POST /api/v1/webhooks/:platform/:eventType` 请求体上限（KiB）。 |
+| `WEBHOOK_MAX_CLOCK_SKEW_SECONDS` | `300` | backend | 否 | 允许的时间戳时钟偏差；超时或远未来时间戳返回 `WEBHOOK_TIMESTAMP_EXPIRED`。 |
+| `WEBHOOK_ENABLE_TEST_VERIFIER` | `false` | backend | 否 | 启用 `internal-test` HMAC-SHA256 测试验签；**仅** `APP_ENV=development` / `test` 生效，production 强制关闭。 |
+| `WEBHOOK_WORKER_INTERVAL_SECONDS` | `3` | backend | 否 | DB 轮询 `webhook_events.status=queued` 的间隔秒数。 |
+
 ## 数据库
 
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |

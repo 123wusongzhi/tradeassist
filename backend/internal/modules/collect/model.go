@@ -66,6 +66,8 @@ type CollectTask struct {
 	LockedBy        *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
 	LockedUntil     *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
 	LockVersion     int            `gorm:"default:0;not null" json:"lockVersion"`
+	HeartbeatAt     *time.Time     `gorm:"index" json:"heartbeatAt,omitempty"`
+	ExecutionID     *string        `gorm:"size:36;index" json:"executionId,omitempty"`
 }
 
 func (CollectTask) TableName() string { return "collect_tasks" }

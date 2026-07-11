@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-10T13:42:19.6013597Z
+> Generated: 2026-07-11T09:01:47.7856462Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
@@ -20,9 +20,9 @@
 | Step | Status | Exit | Detail |
 | --- | --- | --- | --- |
 | go test regression | failed | 1 |  |
-| go build backend | skipped | 0 | -SkipBuild |
-| pnpm build:admin | skipped | 0 | -SkipBuild |
-| git diff --check | skipped | 0 | -SkipBuild |
+| go build backend | passed | 0 |  |
+| pnpm build:admin | passed | 0 |  |
+| git diff --check | passed | 0 |  |
 | check-ui-copy | passed | 0 |  |
 | demo-empty-state-scan | passed | 0 |  |
 | demo-sensitive-confirm-scan | passed | 0 |  |

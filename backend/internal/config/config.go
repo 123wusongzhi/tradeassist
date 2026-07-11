@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds environment-driven settings for the API server.
@@ -152,6 +153,12 @@ type Config struct {
 	// Migration lock settings.
 	MigrationRunOnStartup       bool
 	MigrationLockTimeoutSeconds int
+
+	// Webhook HTTP receiver (public POST /api/v1/webhooks/:platform/:eventType).
+	WebhookMaxBodyKB             int
+	WebhookMaxClockSkewSeconds   int
+	WebhookEnableTestVerifier    bool
+	WebhookWorkerIntervalSeconds int
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -306,6 +313,15 @@ func Load() (*Config, error) {
 
 		MigrationRunOnStartup:       envBool(os.Getenv("MIGRATION_RUN_ON_STARTUP"), true),
 		MigrationLockTimeoutSeconds: atoiOrDefault(os.Getenv("MIGRATION_LOCK_TIMEOUT_SECONDS"), 120),
+
+		WebhookMaxBodyKB:             atoiOrDefault(os.Getenv("WEBHOOK_MAX_BODY_KB"), 512),
+		WebhookMaxClockSkewSeconds:   atoiOrDefault(os.Getenv("WEBHOOK_MAX_CLOCK_SKEW_SECONDS"), 300),
+		WebhookEnableTestVerifier:    envBool(os.Getenv("WEBHOOK_ENABLE_TEST_VERIFIER"), false),
+		WebhookWorkerIntervalSeconds: atoiOrDefault(os.Getenv("WEBHOOK_WORKER_INTERVAL_SECONDS"), 3),
+	}
+	// Test verifier must never run in production regardless of env flag.
+	if IsProduction(cfg.AppEnv) {
+		cfg.WebhookEnableTestVerifier = false
 	}
 
 	port, err := atoiOrError(os.Getenv("DB_PORT"), defaultDBPort(cfg.DB.Driver))
@@ -378,6 +394,27 @@ func (c *Config) MaxUploadBytes() int64 {
 		mb = 10
 	}
 	return int64(mb) << 20
+}
+
+// WebhookMaxBodyBytes returns inbound webhook body limit (default 512 KiB).
+func (c *Config) WebhookMaxBodyBytes() int64 {
+	if c == nil {
+		return 512 * 1024
+	}
+	kb := c.WebhookMaxBodyKB
+	if kb <= 0 {
+		kb = 512
+	}
+	return int64(kb) * 1024
+}
+
+// WebhookMaxClockSkew returns allowed |now - timestamp| window (default 300s).
+func (c *Config) WebhookMaxClockSkew() time.Duration {
+	sec := 300
+	if c != nil && c.WebhookMaxClockSkewSeconds > 0 {
+		sec = c.WebhookMaxClockSkewSeconds
+	}
+	return time.Duration(sec) * time.Second
 }
 
 func firstNonEmpty(a, b string) string {

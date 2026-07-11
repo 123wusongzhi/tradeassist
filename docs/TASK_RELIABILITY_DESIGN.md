@@ -1,6 +1,7 @@
-# 任务可靠性设计（P2）
+# 任务可靠性设计（P2 / P2.2）
 
 > 异步任务（采集、图片、订单同步、客服同步、刊登、库存同步）统一采用 **DB 租约 + 心跳续期 + 重试策略 + 死信** 模式。
+> **Phase P2.2**：上述六个 Worker 均已接入共享 `tasklease`（`TryClaim` / `TryClaimPendingOrRetrying`、`execution_id`、心跳续租、`ValidateLease` + `finish*Task` 守卫写回）。矩阵见 [`P2_2_WORKER_LEASE_ADOPTION_MATRIX.md`](P2_2_WORKER_LEASE_ADOPTION_MATRIX.md)。
 
 ## 任务租约字段
 

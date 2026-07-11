@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -125,7 +127,7 @@ func (n *normalizedProduct) importParams(fullJSON json.RawMessage) product.Impor
 	}
 }
 
-func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, msg string, payload map[string]any) {
+func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, msg string, payload map[string]any, workerID string, claim *tasklease.ClaimResult) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
@@ -139,18 +141,24 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, m
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 	fin := time.Now().UTC()
 	tid := task.ID
-	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ?", tid).
-		Updates(map[string]interface{}{
-			"status":            StatusFailed,
-			"error_message":     msg,
-			"finished_at":       &fin,
-			"next_retry_at":     nil,
-			"retry_enqueued_at": nil,
-			"locked_by":         nil,
-			"locked_until":      nil,
-			"updated_at":        fin,
-		}).Error
+	updates := map[string]interface{}{
+		"status":            StatusFailed,
+		"error_message":     msg,
+		"finished_at":       &fin,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
+		"updated_at":        fin,
+	}
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		if err := s.finishCollectTask(ctx, tid, workerID, claim, updates); err != nil {
+			slog.Warn("collect_fail_lease_lost", "taskId", tid.String(), "error", err.Error())
+			return
+		}
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", tid).Updates(updates).Error
+	}
 
 	s.RecordTaskEvent(ctx, task, TaskEventInput{
 		EventType:    EventTaskFailed,
@@ -189,7 +197,7 @@ func (s *Service) failTask(ctx context.Context, task *CollectTask, fromStatus, m
 	}
 }
 
-func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask, msg string, payload map[string]any) {
+func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask, msg string, payload map[string]any, workerID string, claim *tasklease.ClaimResult) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
@@ -199,18 +207,24 @@ func (s *Service) failTaskRetryExhausted(ctx context.Context, task *CollectTask,
 	msg = truncateRunes(strings.TrimSpace(msg), 8000)
 	fin := time.Now().UTC()
 	tid := task.ID
-	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ?", tid).
-		Updates(map[string]interface{}{
-			"status":            StatusFailed,
-			"error_message":     msg,
-			"finished_at":       &fin,
-			"next_retry_at":     nil,
-			"retry_enqueued_at": nil,
-			"locked_by":         nil,
-			"locked_until":      nil,
-			"updated_at":        fin,
-		}).Error
+	updates := map[string]interface{}{
+		"status":            StatusFailed,
+		"error_message":     msg,
+		"finished_at":       &fin,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
+		"updated_at":        fin,
+	}
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		if err := s.finishCollectTask(ctx, tid, workerID, claim, updates); err != nil {
+			slog.Warn("collect_retry_exhausted_lease_lost", "taskId", tid.String(), "error", err.Error())
+			return
+		}
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", tid).Updates(updates).Error
+	}
 
 	s.RecordTaskEvent(ctx, task, TaskEventInput{
 		EventType:    EventTaskRetryExhausted,
@@ -266,12 +280,12 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	prevStatus := peek.Status
 
 	lease := s.collectLeaseTTL()
-	task, ok := s.tryClaimCollectTask(ctx, taskID, workerID, lease)
+	task, claim, ok := s.tryClaimCollectTask(ctx, taskID, workerID, lease)
 	if !ok {
 		return
 	}
 
-	stopRenew := s.startCollectLeaseRenewal(ctx, taskID, workerID, lease)
+	stopRenew := s.startCollectLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stopRenew()
 
 	s.RecordTaskEvent(ctx, task, TaskEventInput{
@@ -291,7 +305,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 
 	releaseGate, preflightErr := s.runBatchCollectPreflight(ctx, task)
 	if preflightErr != nil {
-		s.handleCollectJobError(ctx, task, preflightErr)
+		s.handleCollectJobError(ctx, task, preflightErr, workerID, claim)
 		return
 	}
 	if releaseGate != nil {
@@ -338,16 +352,16 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			UseBrowserProfile bool            `json:"useBrowserProfile"`
 		}
 		if len(task.RequestOptions) == 0 {
-			s.failTask(ctx, task, prevStatus, "missing custom rule snapshot", nil)
+			s.failTask(ctx, task, prevStatus, "missing custom rule snapshot", nil, workerID, claim)
 			return
 		}
 		if err := json.Unmarshal(task.RequestOptions, &snap); err != nil || len(snap.Rule) == 0 {
-			s.failTask(ctx, task, prevStatus, "invalid custom rule snapshot", nil)
+			s.failTask(ctx, task, prevStatus, "invalid custom rule snapshot", nil, workerID, claim)
 			return
 		}
 		var ruleObj any
 		if err := json.Unmarshal(snap.Rule, &ruleObj); err != nil {
-			s.failTask(ctx, task, prevStatus, "invalid embedded rule json", nil)
+			s.failTask(ctx, task, prevStatus, "invalid embedded rule json", nil, workerID, claim)
 			return
 		}
 		collectorOpts = map[string]any{
@@ -375,20 +389,20 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	collectTimeout := s.collectorHTTPTimeoutForTask(ctx, task, collectorOpts)
 	outcome, err := s.Client.CollectWithTimeout(ctx, task.Source, task.SourceURL, collectorOpts, collectTimeout)
 	if err != nil {
-		s.handleCollectJobError(ctx, task, err)
+		s.handleCollectJobError(ctx, task, err, workerID, claim)
 		return
 	}
 
 	norm, err := parseNormalized(outcome.ProductJSON)
 	if err != nil {
-		s.handleCollectJobError(ctx, task, fmt.Errorf("parse normalized product: %w", err))
+		s.handleCollectJobError(ctx, task, fmt.Errorf("parse normalized product: %w", err), workerID, claim)
 		return
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "1688") && len(norm.MainImages) == 0 {
 		s.handleCollectJobError(ctx, task, &CollectorRejectedError{
 			Code:    "PARSE_FAILED",
 			Message: "missing main images after collect",
-		})
+		}, workerID, claim)
 		return
 	}
 
@@ -404,29 +418,24 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
-		s.handleCollectJobError(ctx, task, err)
+		s.handleCollectJobError(ctx, task, err, workerID, claim)
 		return
 	}
 
 	fin := time.Now().UTC()
 	rawJSON := datatypes.JSON(outcome.ProductJSON)
 	pid := created.ID
-	if err := s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ?", taskID).
-		Updates(map[string]interface{}{
-			"status":            StatusSuccess,
-			"result_product_id": pid,
-			"raw_result":        rawJSON,
-			"error_message":     "",
-			"finished_at":       &fin,
-			"next_retry_at":     nil,
-			"retry_enqueued_at": nil,
-			"retry_count":       0,
-			"locked_by":         nil,
-			"locked_until":      nil,
-			"updated_at":        fin,
-		}).Error; err != nil {
-		s.failTask(ctx, task, StatusRunning, err.Error(), nil)
+	if err := s.finishCollectTask(ctx, taskID, workerID, claim, map[string]interface{}{
+		"status":            StatusSuccess,
+		"result_product_id": pid,
+		"raw_result":        rawJSON,
+		"error_message":     "",
+		"finished_at":       &fin,
+		"next_retry_at":     nil,
+		"retry_enqueued_at": nil,
+		"retry_count":       0,
+	}); err != nil {
+		slog.Warn("collect_success_lease_lost", "taskId", taskID.String(), "error", err.Error())
 		return
 	}
 	var refreshed CollectTask

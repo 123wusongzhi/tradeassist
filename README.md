@@ -38,7 +38,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**Phase P2.1 Completed**（关键写路径统一幂等 + 任务心跳租约）· **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（最终生产验收统一 Phase P10；F9 保留为历史 Demo 基线；不允许灰度）。详见 [`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)、[`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。
+> 当前状态：**Phase P2.2 Completed**（AI apply/undo 幂等 + Webhook HTTP 接收 + 六 Worker tasklease）· **Core Reliability Foundation Ready** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（最终生产验收统一 Phase P10；F9 保留为历史 Demo 基线；不允许灰度）。详见 [`docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md`](docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md)、[`docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](docs/P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)、[`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)。
 
 ## 项目定位
 
@@ -101,6 +101,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 - Provider 架构：AI、存储、图片、平台、采集能力均通过 Provider 抽象扩展。
 - 自部署友好：默认 PostgreSQL + Redis，支持本地开发和 Docker Compose 完整部署。
 - Monorepo 协作：backend、admin、collector 与文档规则统一维护，适合团队协作与持续演进。
+- 可靠性地基（P2.2）：关键写路径统一幂等；AI 结果 apply/undo 幂等；Webhook HTTP 快 ACK；异步 Worker tasklease 防陈旧写回（**非 Production Ready**）。
 
 ## 架构与技术栈
 

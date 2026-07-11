@@ -50,6 +50,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
@@ -152,7 +153,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -588,6 +589,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.RegisterPublic(v1, shopH)
+	webhookSvc := &webhook.Service{
+		DB:          dep.DB,
+		Idempotency: idempotencySvc,
+		Verifiers:   webhook.NewRegistry(dep.Config),
+		AppEnv:      "",
+	}
+	if dep.Config != nil {
+		webhookSvc.MaxPayloadBytes = dep.Config.WebhookMaxBodyBytes()
+		webhookSvc.MaxClockSkew = dep.Config.WebhookMaxClockSkew()
+		webhookSvc.AppEnv = dep.Config.AppEnv
+	}
+	webhookH := &webhook.Handler{Svc: webhookSvc}
+	webhook.RegisterPublic(v1, webhookH)
 	shop.Register(authed, shopH)
 	storagepublic.Register(authed, storagePublicH)
 	douyinpreflight.Register(authed, douyinPreflightH)
@@ -651,7 +665,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		demoseed.Register(authed, demoSeedH)
 	}
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

@@ -36,6 +36,11 @@ const (
 
 	ConflictUserMessage = "商品图片在 AI 处理结果生成后已经被修改。为避免覆盖人工修改，请重新对比后再应用。"
 
+	ErrCodeTargetVersionConflict = "AI_IMAGE_TARGET_VERSION_CONFLICT"
+	ErrCodeUndoVersionConflict   = "AI_IMAGE_UNDO_VERSION_CONFLICT"
+
+	ItemProcessing = "processing"
+
 	BatchPending        = "pending"
 	BatchRunning        = "running"
 	BatchSuccess        = "success"

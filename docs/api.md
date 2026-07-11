@@ -10,6 +10,14 @@
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
 - 敏感信息：接口不得返回完整 API Key、Token、Secret、Cookie 或密码
 
+## Webhook 入站（公开，无 JWT）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/webhooks/:platform/:eventType` | 平台 Webhook 接收：限体、`Content-Type: application/json`、签名/时间戳校验、幂等持久化、快速 ACK；异步由 DB 轮询 Worker 处理。开发可用 `platform=internal-test`（需 `WEBHOOK_ENABLE_TEST_VERIFIER=true`）。成功 `message=accepted`，`data.eventId` / `duplicate`。 |
+
+签名头：`X-Webhook-Signature` 或 `X-TradeMind-Signature`；时间戳：`X-Webhook-Timestamp` / `X-TradeMind-Timestamp`（unix 秒或 RFC3339）。`internal-test` 签名为 HMAC-SHA256 hex（payload = `"{unix}.{rawBody}"`）。失败码含 `WEBHOOK_SIGNATURE_*`、`WEBHOOK_TIMESTAMP_EXPIRED`、`WEBHOOK_PAYLOAD_TOO_LARGE` 等，**不**成功 ACK。
+
 示例：
 
 ```json

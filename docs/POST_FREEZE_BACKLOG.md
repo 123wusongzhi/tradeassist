@@ -22,6 +22,15 @@
 | P2-F8-01 | 库存预警推荐操作列增强 | 库存 | 冻结后 backlog |
 | P2-F8-02 | 客服复杂 Demo 样本扩展 | 客服 | edge-case seed 已补基础 |
 
+## Reliability foundation（Phase P2.x，已完成 · 非 Production Ready）
+
+| 项 | 状态 | 备注 |
+| --- | --- | --- |
+| AI 文案/图片 apply 幂等 | **done (P2.2)** | 不再 backlog；见 `AI_RESULT_APPLY_IDEMPOTENCY.md` |
+| AI apply undo | **done (P2.2)** | `AI_RESULT_UNDO_DESIGN.md` |
+| Webhook HTTP 公开路由 | **done (P2.2)** | `POST /api/v1/webhooks/:platform/:eventType`；平台业务适配仍后置 |
+| collect / imagetask / customersync tasklease | **done (P2.2)** | 与 ordersync/inventory/publish 统一 |
+
 ## P3 — 后续增强（禁止混入 F8）
 
 | ID | 描述 | 处置 |

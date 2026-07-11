@@ -2,6 +2,7 @@
 
 > Phase P2 引入跨模块幂等基础设施，避免重复执行产生副作用。实现位于 `backend/internal/modules/idempotency`。
 > **Phase P2.1**：关键生产写路径已通过共享 `idempotency.Service` 完成接入（订单同步/导入、库存扣减/推送、刊登、客服外发、AI 批次、Webhook）；接入矩阵见 [`P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md`](P2_1_IDEMPOTENCY_ADOPTION_MATRIX.md)，集成指南见 [`DOMAIN_IDEMPOTENCY_INTEGRATION.md`](DOMAIN_IDEMPOTENCY_INTEGRATION.md)。
+> **Phase P2.2**：AI 文案/图片 **apply + undo** 与 Webhook **HTTP 接收 / process** 键已接入；见 [`AI_RESULT_APPLY_IDEMPOTENCY.md`](AI_RESULT_APPLY_IDEMPOTENCY.md)、[`AI_RESULT_UNDO_DESIGN.md`](AI_RESULT_UNDO_DESIGN.md)、[`WEBHOOK_HTTP_RECEIVER_DESIGN.md`](WEBHOOK_HTTP_RECEIVER_DESIGN.md)。
 
 ## 数据模型：`idempotency_records`
 
@@ -43,9 +44,9 @@ processing（租约过期）→ expired（ReleaseExpired 清扫）
 
 | 状态 | 说明 |
 | --- | --- |
-| **已接入** | 订单同步任务、订单导入、库存扣减/推送、刊登批次/入队、客服外发、AI 文案/图片批次创建、Webhook 入站 |
-| **预留** | AI 文案/图片 **应用**（`ai-text-apply` / `ai-image-apply`）、库存补偿 |
-| **验证** | `node scripts/p2-1-domain-idempotency-check.mjs` → [`P2_1_DOMAIN_IDEMPOTENCY_REPORT.md`](P2_1_DOMAIN_IDEMPOTENCY_REPORT.md) |
+| **已接入** | 订单同步任务、订单导入、库存扣减/推送、刊登批次/入队、客服外发、AI 文案/图片批次创建、AI 文案/图片 **apply/undo**、Webhook 入站 ACK + `webhook-process` 异步处理 |
+| **预留** | 库存补偿（`inventory-compensate`） |
+| **验证** | `node scripts/p2-1-domain-idempotency-check.mjs`；`node scripts/p2-2-reliability-closure-check.mjs` → [`P2_2_RELIABILITY_CLOSURE_REPORT.md`](P2_2_RELIABILITY_CLOSURE_REPORT.md) |
 
 `router.go` 将同一 `idempotencySvc` 注入 `ordersync`、`order`、`inventory`、`productpublish`、`customerchat`、`aiproducttext`、`aiproductimage`。
 
@@ -61,9 +62,9 @@ Key 构造见 `scope.go` + `keys.go`，**不得嵌入密钥或 PII**：
 | `inventory_push` | `inventory-push:{platform}:{shopId}:{skuId}:{stockVersion}` | 库存推送 | ✓ |
 | `publish` | `publish-batch:…` / `publish-enqueue:…` | 刊登批次/入队 | ✓ |
 | `customer_send` | `customer-send:{conversationId}:{clientMessageId}` | 客服外发 | ✓ |
-| `ai_text` | `ai-text-batch:…` | AI 文案批次 | ✓ |
-| `ai_image` | `ai-image-batch:…` | AI 图片批次 | ✓ |
-| `webhook` | `webhook:{platform}:{eventId}` | Webhook 入站 | ✓ |
+| `ai_text` | `ai-text-batch:…` / `ai-text-apply:…` / `ai-text-undo:…` | AI 文案批次 / 应用 / 撤销 | ✓（P2.2 apply/undo） |
+| `ai_image` | `ai-image-batch:…` / `ai-image-apply:…` / `ai-image-undo:…` | AI 图片批次 / 应用 / 撤销 | ✓（P2.2 apply/undo） |
+| `webhook` | `webhook:{platform}:{eventId}` / `webhook-process:…` | Webhook 入站 / 异步处理 | ✓（P2.2 HTTP） |
 
 `HashRequest(payload []byte)` 对规范化请求体做 SHA-256。
 

@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-07-10T14:23:58.570Z",
+  "generatedAt": "2026-07-11T08:56:03.067Z",
   "phase": "P2.1",
-  "overall": "passed_with_warning",
+  "overall": "passed",
   "summary": {
-    "passed": 74,
-    "warnings": 3,
+    "passed": 77,
+    "warnings": 0,
     "failed": 0,
     "total": 77
   },
@@ -142,8 +142,8 @@
     },
     {
       "id": "router-wire-webhook",
-      "status": "warning",
-      "message": "webhook HTTP route not wired in router (service-level idempotency only)",
+      "status": "passed",
+      "message": "webhook handler wired in router",
       "detail": null
     },
     {
@@ -460,14 +460,14 @@
     },
     {
       "id": "path-ai-text-apply",
-      "status": "warning",
-      "message": "AI text apply path not yet wired (batch create only; keys reserved in keys.go)",
+      "status": "passed",
+      "message": "AI text apply idempotency referenced",
       "detail": null
     },
     {
       "id": "path-ai-image-apply",
-      "status": "warning",
-      "message": "AI image apply path not yet wired (batch create only; keys reserved in keys.go)",
+      "status": "passed",
+      "message": "AI image apply idempotency referenced",
       "detail": null
     },
     {

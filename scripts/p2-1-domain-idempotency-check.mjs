@@ -257,18 +257,23 @@ if (read('backend/internal/database/migrate_p2_1.go').includes('ux_inventory_cha
   fail('inventory-event-key-index', 'inventory business_event_key index missing in migrate_p2_1');
 }
 
-// --- Secondary / future paths (warn if not integrated) ---
-const aiTextSvc = read('backend/internal/modules/aiproducttext/service.go');
-if (aiTextSvc.includes('AITextApply') || aiTextSvc.includes('ai-text-apply')) {
+// --- AI apply paths (P2.2 integrated; scan service + apply helpers) ---
+const aiTextApplySrc =
+  read('backend/internal/modules/aiproducttext/service.go') +
+  read('backend/internal/modules/aiproducttext/idempotency_apply.go');
+if (aiTextApplySrc.includes('AITextApply') || aiTextApplySrc.includes('ai-text-apply')) {
   pass('path-ai-text-apply', 'AI text apply idempotency referenced');
 } else {
-  warn('path-ai-text-apply', 'AI text apply path not yet wired (batch create only; keys reserved in keys.go)');
+  fail('path-ai-text-apply', 'AI text apply path not wired (expected AITextApply / ai-text-apply)');
 }
-const aiImageSvc = read('backend/internal/modules/aiproductimage/service.go');
-if (aiImageSvc.includes('AIImageApply') || aiImageSvc.includes('ai-image-apply')) {
+const aiImageApplySrc =
+  read('backend/internal/modules/aiproductimage/service.go') +
+  read('backend/internal/modules/aiproductimage/service_apply.go') +
+  read('backend/internal/modules/aiproductimage/idempotency_apply.go');
+if (aiImageApplySrc.includes('AIImageApply') || aiImageApplySrc.includes('ai-image-apply')) {
   pass('path-ai-image-apply', 'AI image apply idempotency referenced');
 } else {
-  warn('path-ai-image-apply', 'AI image apply path not yet wired (batch create only; keys reserved in keys.go)');
+  fail('path-ai-image-apply', 'AI image apply path not wired (expected AIImageApply / ai-image-apply)');
 }
 
 // --- Docs ---

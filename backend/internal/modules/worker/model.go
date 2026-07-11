@@ -18,6 +18,7 @@ const (
 	TypeProductPublish      = "product_publish"
 	TypeInventorySync       = "inventory_sync"
 	TypeTaskAlertScan       = "task_alert_scan"
+	TypeWebhook             = "webhook"
 	StatusRunning           = "running"
 	StatusStale             = "stale"
 	StatusStopped           = "stopped"

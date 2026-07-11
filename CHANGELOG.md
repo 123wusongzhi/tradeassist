@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P2.2 — Reliability closure (2026-07-11)
+
+- AI text/image apply + undo via shared `idempotency.Service` (`AITextApply`/`AITextUndo`/`AIImageApply`/`AIImageUndo`); version conflict codes; concurrency unit tests.
+- Public Webhook HTTP receiver: `POST /api/v1/webhooks/:platform/:eventType` (signature, clock skew, body limit, fast ACK, DB-poll async worker); production signature bypass forbidden.
+- tasklease adoption on collect / imagetask / customersync (plus existing ordersync / inventory / productpublish); stale worker finish guards.
+- Docs + scan: `scripts/p2-2-reliability-closure-check.mjs` → `docs/P2_2_RELIABILITY_CLOSURE_REPORT.md`.
+- Status: **Phase P2.2 Completed** · **Core Reliability Foundation Ready** · **非 Production Ready** · Final Acceptance Deferred · no Production Ready / gray / Douyin E2E claim.
+
 ### Phase P1 — Production infrastructure (2026-07-10)
 
 - Multi-environment config profiles, production fail-fast validation, redacted startup summary.

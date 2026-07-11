@@ -1,4 +1,13 @@
 ﻿# TradeMind 开发进度记录
+**Stage update**: 2026-07-11 — **Phase P2 Fully Closed（生产能力可靠性收口）**。AI apply/undo 幂等、Webhook HTTP 接收地基、六大生产 Worker 统一 tasklease、WSL2 `-race` 通过（无 data race）、P2.1 三 warning 清零、P2.2 静态扫描通过。策略：**Phase P2 Fully Closed** · **Production Capability Development In Progress** · **AI Result Application Idempotency Ready** · **Webhook Receiver Foundation Ready** · **All Production Workers Lease-Protected** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **非 Production Ready** · **抖店 Release Candidate** · **Final Acceptance Deferred**（AI Provider Key 可能仍为 environment_blocked）。
+
+
+**Stage update**: 2026-07-11 — **Phase P2.2 AI 文案/图片 apply+undo 幂等完成**。`keys.go` 扩展 `ai-text-apply/undo`、`ai-image-apply/undo`；`aiproducttext`/`aiproductimage` 接入 `idempotency.Service`；目标版本冲突码；生成 Worker `WHERE status=running` 写回守卫；`set_main` undo 恢复 `previousBestMainId`；并发单测通过。策略：**Production Capability Development In Progress** · **非 Production Ready**。
+
+**Stage update**: 2026-07-11 — **Phase P2.2 Webhook HTTP 接收地基完成**。公开 `POST /api/v1/webhooks/:platform/:eventType`（无 JWT）；签名/时间戳/体限制；幂等持久化后快速 ACK；DB 轮询异步 noop 处理；`WEBHOOK_*` 配置。策略：**Production Capability Development In Progress** · **非 Production Ready**。
+
+**Stage update**: 2026-07-11 — **Phase P2.2 tasklease 扩展至采集 / 图片 / 客服同步 Worker**。`TryClaimPendingOrRetrying`（pending 或 retrying+`next_retry_at IS NULL`）；collect / imagetask / customersync 接入 `execution_id`+心跳续约+`finish*Task` 守卫写回；productpublish 终态写回加固；`migrate_p2_2` 索引；taskcenter `applyLeaseMeta` 覆盖上述类型；stale worker 单测。策略：**Phase P2.2 Completed** · **Core Reliability Foundation Ready** · **非 Production Ready** · **Final Acceptance Deferred**。
+
 **Stage update**: 2026-07-10 — **Phase P2.1 领域幂等与任务心跳租约完成**。统一 `idempotency.Service` 接入订单同步/导入、库存扣减/推送、刊登、客服外发、AI 文案/图片批次、Webhook；`tasklease` 包（`heartbeat_at` / `execution_id` / `lock_version`）接入订单同步、库存同步、刊登 Worker；静态扫描 `scripts/p2-1-domain-idempotency-check.mjs`；文档 `P2_1_*`、`DOMAIN_IDEMPOTENCY_INTEGRATION`、`TASK_LEASE_AND_HEARTBEAT_DESIGN`、`STALE_WORKER_PROTECTION`、`CONCURRENT_WRITE_SAFETY`。策略：**Phase P2.1 Completed** · **Core Reliability Foundation Ready** · **非 Production Ready** · **Final Acceptance Deferred**（AI Key / 抖店 E2E 等仍可能阻塞）。
 
 **Stage update**: 2026-07-10 — **Phase P2 核心可靠性基础完成；P1 已收口**。统一幂等（`idempotency_records`）、任务租约/心跳/重试/死信、订单 upsert 唯一键、库存台账与 `business_event_key`、客服 `clientMessageId`、刊登批次/子任务幂等、Provider `httpclient`+熔断+429、PostgreSQL 迁移 advisory lock、staging/production CORS fail-fast、`STORAGE_PROVIDER` 生产门禁。设计文档：`IDEMPOTENCY_DESIGN.md`、`TASK_RELIABILITY_DESIGN.md`、`ORDER_SYNC_RELIABILITY.md`、`INVENTORY_CONSISTENCY_DESIGN.md`、`CUSTOMER_MESSAGE_IDEMPOTENCY.md`、`PUBLISH_IDEMPOTENCY_DESIGN.md`、`PROVIDER_RESILIENCE_DESIGN.md`、`CIRCUIT_BREAKER_AND_RATE_LIMIT.md`、`MULTI_INSTANCE_SAFETY.md`、`CORS_PRODUCTION_GUIDE.md`、`MIGRATION_LOCK_DESIGN.md`。策略：**Phase P2 Completed** · **Core Reliability Foundation Ready** · **P1 Closed** · **Production Capability Development In Progress** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **非 Production Ready** · **Tag deferred** · **抖店 Release Candidate**。
@@ -621,6 +630,10 @@ trademind-ai/
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-11 | **P2.2 文档与扫描收口**：AI apply/undo、Webhook HTTP/签名、Worker 租约矩阵、race 占位报告；`p2-2-reliability-closure-check.mjs`；更新 IDEMPOTENCY / TASK_RELIABILITY / P2.1 矩阵 / CHANGELOG / README |
+| 2026-07-11 | **P2.2 AI text/image apply+undo 幂等**：`AITextApply/Undo`、`AIImageApply/Undo` key；apply/undo Acquire/Complete；版本冲突码；生成写回 `status=running` 守卫；set_main undo 恢复 previousBestMain；并发测试通过 |
+| 2026-07-11 | **P2.2 Webhook HTTP 接收地基**：公开 `POST /api/v1/webhooks/:platform/:eventType`；签名验签抽象 + `internal-test` HMAC；时钟偏差/体限制；幂等 Ingest → `queued`；DB 轮询 Worker；配置 `WEBHOOK_*`；`go test ./internal/modules/webhook/...` 通过 |
+| 2026-07-11 | **Phase P2.2 tasklease 扩展**：`TryClaimPendingOrRetrying`；collect / imagetask / customersync Worker 租约写回守卫；productpublish `finishProductPublishTask`；`migrate_p2_2`；taskcenter lease meta；stale worker 单测通过 |
 | 2026-07-10 | **Phase P2.1 领域幂等与任务心跳租约**：关键写路径接入 `idempotency.Service`；`tasklease` + P2.1 迁移；扫描脚本与接入/并发安全文档 |
 | 2026-06-27 | **Phase R1.2 真实预发部署与 Demo Tag 确认（部分）**：构建/smoke/Demo 数据/浏览器点检通过；Docker 不可用 + 无预发 SSH，HTTPS/Storage/备份/tag 仍 pending |
 | 2026-06-27 | **Phase R1.1 MVP Demo 预发部署与人工走查**：本地 dev 等价环境 `go test`/`build`/`pnpm build:admin` 通过；路由 smoke + Demo 数据复跑；12 步 Demo 走查与 1366/1024 分辨率验收；`DEPLOYMENT_PRECHECK` 备份记录；Git tag **Tag deferred**（待真实预发 Nginx/HTTPS） |
