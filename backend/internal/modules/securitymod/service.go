@@ -1,0 +1,70 @@
+package securitymod
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/crypto"
+	"gorm.io/gorm"
+)
+
+// Service provides key rotation and audit integrity operations.
+type Service struct {
+	DB     *gorm.DB
+	Cfg    *config.Config
+	OpLogs *operationlog.Service
+}
+
+// RotationStatus summarizes master key rotation readiness.
+type RotationStatus struct {
+	ActiveKeyID        string `json:"activeKeyId"`
+	PendingReencrypt   int64  `json:"pendingReencrypt"`
+	PreviousKeyCount   int    `json:"previousKeyCount"`
+	LastVerifiedAt     string `json:"lastVerifiedAt,omitempty"`
+	IntegrityOK        bool   `json:"integrityOk"`
+	IntegrityCheckedAt string `json:"integrityCheckedAt,omitempty"`
+}
+
+// PrepareRotation dry-run counts records that would be re-encrypted.
+func (s *Service) PrepareRotation(ctx context.Context) (*RotationStatus, error) {
+	if s == nil || s.Cfg == nil {
+		return nil, fmt.Errorf("security: unavailable")
+	}
+	kr, err := s.keyRing()
+	if err != nil {
+		return nil, err
+	}
+	var pending int64
+	_ = s.DB.WithContext(ctx).Table("settings").Where("is_encrypted = ?", true).Count(&pending).Error
+	return &RotationStatus{
+		ActiveKeyID:      kr.ActiveID,
+		PendingReencrypt: pending,
+		PreviousKeyCount: len(kr.PreviousKeys),
+	}, nil
+}
+
+// VerifyAuditIntegrity checks recent audit hash chain for tenant 0.
+func (s *Service) VerifyAuditIntegrity(ctx context.Context, days int) (int, error) {
+	if s == nil || s.OpLogs == nil {
+		return 0, fmt.Errorf("security: unavailable")
+	}
+	if days <= 0 {
+		days = 7
+	}
+	to := time.Now().UTC()
+	from := to.Add(-time.Duration(days) * 24 * time.Hour)
+	n, _, err := s.OpLogs.VerifyChain(ctx, 0, from, to)
+	return n, err
+}
+
+func (s *Service) keyRing() (*crypto.KeyRing, error) {
+	activeID := s.Cfg.Auth.AppMasterActiveKeyID
+	activeKey := s.Cfg.Auth.AppMasterActiveKey
+	if activeKey == "" {
+		activeKey = s.Cfg.MasterKey
+	}
+	return crypto.NewKeyRing(activeID, activeKey, s.Cfg.Auth.AppMasterPreviousKeys)
+}

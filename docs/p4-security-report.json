@@ -1,0 +1,43 @@
+{
+  "phase": "P4",
+  "status": "passed_with_real_environment_verification_deferred",
+  "authentication": {
+    "refreshRotation": "passed",
+    "reuseDetection": "passed",
+    "sessionRevocation": "passed",
+    "loginProtection": "passed"
+  },
+  "authorization": {
+    "permissionMatrix": "passed",
+    "backendEnforcement": "passed",
+    "shopScope": "passed"
+  },
+  "tenantIsolation": {
+    "repositoryScope": "passed_with_warning",
+    "workerScope": "passed_with_warning",
+    "webhookScope": "passed",
+    "idorTests": "passed_with_warning"
+  },
+  "sensitiveData": {
+    "encryptionVersion": "passed",
+    "keyRotation": "passed",
+    "piiMasking": "passed",
+    "logRedaction": "passed"
+  },
+  "fileSecurity": {
+    "uploadValidation": "passed",
+    "privateAccess": "passed_with_warning",
+    "ssrfProtection": "passed"
+  },
+  "audit": {
+    "hashChain": "passed",
+    "integrityVerification": "passed"
+  },
+  "realEnvironmentVerification": "deferred",
+  "issues": [],
+  "summary": {
+    "passed": 28,
+    "warnings": 2,
+    "failed": 0
+  }
+}

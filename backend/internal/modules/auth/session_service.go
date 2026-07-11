@@ -1,0 +1,420 @@
+package auth
+
+import (
+	"context"
+	"crypto/subtle"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+// SessionService manages sessions and refresh token rotation.
+type SessionService struct {
+	Cfg    *config.Config
+	DB     *gorm.DB
+	Admins *admin.Store
+}
+
+// LoginSessionResult is returned after successful credential verification.
+type LoginSessionResult struct {
+	AccessToken  string
+	AccessExp    time.Time
+	RefreshToken string
+	SessionID    uuid.UUID
+	User         userView
+}
+
+// CreateSession authenticates and creates session + refresh token family.
+func (s *SessionService) CreateSession(ctx context.Context, account, password, ip, userAgent string) (*LoginSessionResult, error) {
+	if s == nil || s.Admins == nil || s.Cfg == nil || s.DB == nil {
+		return nil, fmt.Errorf("auth: misconfigured")
+	}
+	guard := &LoginGuard{Cfg: s.Cfg, DB: s.DB}
+	if err := guard.CheckAllowed(ctx, account, ip); err != nil {
+		return nil, err
+	}
+
+	u, err := s.Admins.ByLoginAccount(ctx, account)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_ = guard.RecordFailure(ctx, account, ip)
+			return nil, errors.New(ErrInvalidCredentials)
+		}
+		return nil, err
+	}
+	if err := admin.CheckPassword(u.PasswordHash, password); err != nil {
+		_ = guard.RecordFailure(ctx, account, ip)
+		return nil, errors.New(ErrInvalidCredentials)
+	}
+	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
+		return nil, errors.New(ErrUserDisabled)
+	}
+	if u.MustChangePassword {
+		return nil, errors.New(ErrPasswordChangeRequired)
+	}
+	_ = guard.ClearFailures(ctx, account, ip)
+
+	now := time.Now().UTC()
+	session := &AuthSession{
+		TenantID:         u.TenantID,
+		UserID:           u.ID,
+		Status:           SessionStatusActive,
+		BrowserSummary:   authutil.SummarizeUserAgent(userAgent),
+		DeviceSummary:    "web",
+		IPHash:           authutil.HashIP(ip),
+		UserAgentSummary: authutil.SummarizeUserAgent(userAgent),
+		LastActivityAt:   now,
+	}
+	familyID := uuid.New()
+	refreshRaw, err := authutil.NewOpaqueToken(32)
+	if err != nil {
+		return nil, err
+	}
+	refreshTTL := s.Cfg.RefreshTokenTTL()
+	refresh := &AuthRefreshToken{
+		TenantID:         u.TenantID,
+		UserID:           u.ID,
+		SessionID:        session.ID,
+		TokenFamilyID:    familyID,
+		TokenHash:        authutil.HashToken(refreshRaw, s.Cfg.JWTSecret),
+		Status:           RefreshStatusActive,
+		ExpiresAt:        now.Add(refreshTTL),
+		IPHash:           authutil.HashIP(ip),
+		UserAgentSummary: authutil.SummarizeUserAgent(userAgent),
+	}
+
+	ks, err := BuildKeySet(s.Cfg)
+	if err != nil {
+		return nil, err
+	}
+	access, exp, err := MintAccessToken(s.Cfg, ks, MintAccessInput{
+		UserID:       u.ID,
+		Username:     u.LoginLabel(),
+		TenantID:     u.TenantID,
+		SessionID:    session.ID,
+		TokenVersion: u.TokenVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(session).Error; err != nil {
+			return err
+		}
+		refresh.SessionID = session.ID
+		return tx.Create(refresh).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	label := u.LoginLabel()
+	dn := u.DisplayName
+	if dn == "" {
+		dn = label
+	}
+	return &LoginSessionResult{
+		AccessToken:  access,
+		AccessExp:    exp,
+		RefreshToken: refreshRaw,
+		SessionID:    session.ID,
+		User: userView{
+			ID:          u.ID.String(),
+			Username:    label,
+			Email:       u.Email,
+			Phone:       u.Phone,
+			DisplayName: dn,
+		},
+	}, nil
+}
+
+// RefreshResult holds new tokens after rotation.
+type RefreshResult struct {
+	AccessToken  string
+	AccessExp    time.Time
+	RefreshToken string
+}
+
+// RotateRefresh exchanges a refresh token for a new pair (rotation + reuse detection).
+func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, userAgent string) (*RefreshResult, error) {
+	if s == nil || s.Cfg == nil || s.DB == nil {
+		return nil, fmt.Errorf("auth: misconfigured")
+	}
+	refreshRaw = strings.TrimSpace(refreshRaw)
+	if refreshRaw == "" {
+		return nil, errors.New(ErrRefreshTokenRevoked)
+	}
+	hash := authutil.HashToken(refreshRaw, s.Cfg.JWTSecret)
+	now := time.Now().UTC()
+
+	var result *RefreshResult
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row AuthRefreshToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token_hash = ?", hash).First(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New(ErrRefreshTokenRevoked)
+			}
+			return err
+		}
+
+		switch row.Status {
+		case RefreshStatusActive:
+			// proceed
+		case RefreshStatusRotated:
+			_ = s.revokeTokenFamilyTx(tx, row.TokenFamilyID, RefreshStatusCompromised, "reuse_detected")
+			return errors.New(ErrRefreshTokenReused)
+		case RefreshStatusRevoked, RefreshStatusCompromised, RefreshStatusReuseDetected:
+			return errors.New(ErrRefreshTokenRevoked)
+		default:
+			return errors.New(ErrRefreshTokenRevoked)
+		}
+		if now.After(row.ExpiresAt) {
+			_ = tx.Model(&row).Updates(map[string]any{"status": RefreshStatusExpired}).Error
+			return errors.New(ErrRefreshTokenExpired)
+		}
+
+		var sess AuthSession
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			First(&sess, "id = ?", row.SessionID).Error; err != nil {
+			return errors.New(ErrSessionRevoked)
+		}
+		if sess.Status != SessionStatusActive {
+			return errors.New(ErrSessionRevoked)
+		}
+
+		var u admin.AdminUser
+		if err := tx.Select("id", "tenant_id", "role", "status", "token_version", "email", "phone", "display_name").
+			First(&u, "id = ?", row.UserID).Error; err != nil {
+			return errors.New(ErrSessionRevoked)
+		}
+		if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
+			_ = s.revokeSessionTx(tx, sess.ID, "user_disabled")
+			return errors.New(ErrUserDisabled)
+		}
+
+		newRaw, err := authutil.NewOpaqueToken(32)
+		if err != nil {
+			return err
+		}
+		newID := uuid.New()
+		newRow := &AuthRefreshToken{
+			ID:               newID,
+			TenantID:         row.TenantID,
+			UserID:           row.UserID,
+			SessionID:        row.SessionID,
+			TokenFamilyID:    row.TokenFamilyID,
+			TokenHash:        authutil.HashToken(newRaw, s.Cfg.JWTSecret),
+			ParentTokenID:    &row.ID,
+			Status:           RefreshStatusActive,
+			ExpiresAt:        now.Add(s.Cfg.RefreshTokenTTL()),
+			IPHash:           authutil.HashIP(ip),
+			UserAgentSummary: authutil.SummarizeUserAgent(userAgent),
+		}
+		lastUsed := now
+		if err := tx.Model(&row).Updates(map[string]any{
+			"status":               RefreshStatusRotated,
+			"replaced_by_token_id": newID,
+			"last_used_at":         &lastUsed,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(newRow).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&sess).Updates(map[string]any{
+			"last_activity_at":   now,
+			"ip_hash":            authutil.HashIP(ip),
+			"user_agent_summary": authutil.SummarizeUserAgent(userAgent),
+		}).Error; err != nil {
+			return err
+		}
+
+		ks, err := BuildKeySet(s.Cfg)
+		if err != nil {
+			return err
+		}
+		access, exp, err := MintAccessToken(s.Cfg, ks, MintAccessInput{
+			UserID:       u.ID,
+			Username:     u.LoginLabel(),
+			TenantID:     u.TenantID,
+			SessionID:    sess.ID,
+			TokenVersion: u.TokenVersion,
+		})
+		if err != nil {
+			return err
+		}
+		result = &RefreshResult{
+			AccessToken:  access,
+			AccessExp:    exp,
+			RefreshToken: newRaw,
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *SessionService) revokeTokenFamilyTx(tx *gorm.DB, familyID uuid.UUID, status, reason string) error {
+	now := time.Now().UTC()
+	return tx.Model(&AuthRefreshToken{}).
+		Where("token_family_id = ? AND status IN ?", familyID, []string{RefreshStatusActive, RefreshStatusRotated}).
+		Updates(map[string]any{
+			"status":        status,
+			"revoked_at":    &now,
+			"revoke_reason": reason,
+		}).Error
+}
+
+func (s *SessionService) revokeSessionTx(tx *gorm.DB, sessionID uuid.UUID, reason string) error {
+	now := time.Now().UTC()
+	if err := tx.Model(&AuthSession{}).Where("id = ?", sessionID).Updates(map[string]any{
+		"status":        SessionStatusRevoked,
+		"revoked_at":    &now,
+		"revoke_reason": reason,
+	}).Error; err != nil {
+		return err
+	}
+	return tx.Model(&AuthRefreshToken{}).
+		Where("session_id = ? AND status = ?", sessionID, RefreshStatusActive).
+		Updates(map[string]any{
+			"status":        RefreshStatusRevoked,
+			"revoked_at":    &now,
+			"revoke_reason": reason,
+		}).Error
+}
+
+// RevokeSession revokes one session and its refresh tokens.
+func (s *SessionService) RevokeSession(ctx context.Context, sessionID, userID uuid.UUID, reason string) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("auth: misconfigured")
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var sess AuthSession
+		if err := tx.First(&sess, "id = ?", sessionID).Error; err != nil {
+			return err
+		}
+		if sess.UserID != userID {
+			return gorm.ErrRecordNotFound
+		}
+		return s.revokeSessionTx(tx, sessionID, reason)
+	})
+}
+
+// RevokeOtherSessions revokes all sessions except current.
+func (s *SessionService) RevokeOtherSessions(ctx context.Context, userID, currentSessionID uuid.UUID) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("auth: misconfigured")
+	}
+	var count int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var sessions []AuthSession
+		if err := tx.Where("user_id = ? AND status = ? AND id <> ?", userID, SessionStatusActive, currentSessionID).
+			Find(&sessions).Error; err != nil {
+			return err
+		}
+		for _, sess := range sessions {
+			if err := s.revokeSessionTx(tx, sess.ID, "revoke_others"); err != nil {
+				return err
+			}
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+// RevokeAllUserSessions revokes every session for a user (admin action).
+func (s *SessionService) RevokeAllUserSessions(ctx context.Context, userID uuid.UUID, reason string) (int64, error) {
+	if s == nil || s.DB == nil {
+		return 0, fmt.Errorf("auth: misconfigured")
+	}
+	var count int64
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var sessions []AuthSession
+		if err := tx.Where("user_id = ? AND status = ?", userID, SessionStatusActive).Find(&sessions).Error; err != nil {
+			return err
+		}
+		for _, sess := range sessions {
+			if err := s.revokeSessionTx(tx, sess.ID, reason); err != nil {
+				return err
+			}
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+// ListSessions returns active/recent sessions for a user.
+func (s *SessionService) ListSessions(ctx context.Context, userID uuid.UUID) ([]AuthSession, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("auth: misconfigured")
+	}
+	var rows []AuthSession
+	err := s.DB.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("last_activity_at DESC").
+		Limit(50).
+		Find(&rows).Error
+	return rows, err
+}
+
+// ValidateSessionAccess checks session is active for access token binding.
+func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uuid.UUID, userID uuid.UUID, tokenVersion int) error {
+	if sessionID == uuid.Nil {
+		return nil
+	}
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("auth: misconfigured")
+	}
+	var sess AuthSession
+	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id").First(&sess, "id = ?", sessionID).Error; err != nil {
+		return errors.New(ErrSessionRevoked)
+	}
+	if sess.Status != SessionStatusActive || sess.UserID != userID {
+		return errors.New(ErrSessionRevoked)
+	}
+	var u admin.AdminUser
+	if err := s.DB.WithContext(ctx).Select("token_version", "status").First(&u, "id = ?", userID).Error; err != nil {
+		return errors.New(ErrSessionRevoked)
+	}
+	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
+		return errors.New(ErrUserDisabled)
+	}
+	if tokenVersion > 0 && u.TokenVersion > 0 && tokenVersion != u.TokenVersion {
+		return errors.New(ErrSessionRevoked)
+	}
+	return nil
+}
+
+// RevokeByRefreshToken revokes session linked to refresh token (logout).
+func (s *SessionService) RevokeByRefreshToken(ctx context.Context, refreshRaw string) error {
+	if s == nil || s.DB == nil || s.Cfg == nil {
+		return fmt.Errorf("auth: misconfigured")
+	}
+	hash := authutil.HashToken(strings.TrimSpace(refreshRaw), s.Cfg.JWTSecret)
+	var row AuthRefreshToken
+	if err := s.DB.WithContext(ctx).Where("token_hash = ?", hash).First(&row).Error; err != nil {
+		return nil
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.revokeSessionTx(tx, row.SessionID, "logout")
+	})
+}
+
+// ConstantTimeCompare wraps subtle.ConstantTimeCompare for tests.
+func ConstantTimeCompare(a, b string) bool {
+	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}

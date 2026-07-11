@@ -1,6 +1,7 @@
 package adminperm
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -30,23 +31,26 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	}
 	idStr, ok := c.Get(ctxkey.AdminID)
 	if !ok {
-		p := &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
+		p := &Principal{Role: RoleReadonly, Permissions: PermissionsForRole(RoleReadonly)}
 		c.Set(ctxPrincipalKey, p)
 		return p, nil
 	}
 	s, _ := idStr.(string)
 	uid, err := uuid.Parse(strings.TrimSpace(s))
 	if err != nil || uid == uuid.Nil {
-		p := &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
+		p := &Principal{Role: RoleReadonly, Permissions: PermissionsForRole(RoleReadonly)}
 		c.Set(ctxPrincipalKey, p)
 		return p, nil
 	}
 
 	var row admin.AdminUser
-	if err := db.WithContext(c.Request.Context()).Select("id", "role", "status").First(&row, "id = ?", uid).Error; err != nil {
-		p := &Principal{UserID: uid, Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
-		c.Set(ctxPrincipalKey, p)
-		return p, nil
+	if err := db.WithContext(c.Request.Context()).Select("id", "role", "status", "tenant_id").First(&row, "id = ?", uid).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			p := &Principal{UserID: uid, Role: RoleReadonly, Permissions: PermissionsForRole(RoleReadonly)}
+			c.Set(ctxPrincipalKey, p)
+			return p, nil
+		}
+		return nil, err
 	}
 	role := normalizeRole(row.Role)
 	p := &Principal{

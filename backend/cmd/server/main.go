@@ -35,6 +35,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	securitypkg "github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -203,7 +204,14 @@ func main() {
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
-	engine.Use(middleware.CORS(cfg), middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
+	engine.Use(
+		middleware.CORS(cfg),
+		middleware.RequestID(),
+		middleware.Recovery(log),
+		middleware.AccessLog(log),
+		securitypkg.SecurityHeaders(cfg),
+		securitypkg.CSRFProtection(cfg),
+	)
 
 	opLogSvc := &operationlog.Service{DB: db}
 	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc := api.Register(engine, &api.Deps{

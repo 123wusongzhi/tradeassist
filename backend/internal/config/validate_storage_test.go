@@ -79,6 +79,7 @@ func TestValidate_storageProductionCOSPassesBase(t *testing.T) {
 		AdminPublicURL:         "https://admin.example.com",
 		BootstrapAdminPassword: "StrongPass!2026",
 		CORSAllowedOrigins:     []string{"https://admin.example.com"},
+		Auth:                   productionP4Auth(),
 		DB:                     DBConfig{Driver: "postgres", User: "u", Name: "db"},
 	}
 	if err := cfg.Validate(); err != nil {

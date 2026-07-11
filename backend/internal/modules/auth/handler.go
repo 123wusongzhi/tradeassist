@@ -6,10 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/authcookie"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -19,11 +21,13 @@ import (
 // Handler serves auth HTTP API.
 type Handler struct {
 	LoginSvc *LoginService
+	Sessions *SessionService
 	Admins   *admin.Store
 	OpLog    *operationlog.Service
 	Redis    *rdb.Client
 	Settings *settings.Service
 	DB       *gorm.DB
+	Cfg      *config.Config
 }
 
 type loginBody struct {
@@ -47,7 +51,7 @@ func (h *Handler) Login(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "account is required")
 		return
 	}
-	res, err := h.LoginSvc.Login(c.Request.Context(), account, body.Password)
+	res, err := h.LoginSvc.Login(c.Request.Context(), account, body.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
@@ -58,7 +62,12 @@ func (h *Handler) Login(c *gin.Context) {
 				Message:  err.Error(),
 			})
 		}
-		response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+		code := response.CodeUnauthorized
+		msg := err.Error()
+		if msg == ErrAccountTemporarilyLocked || msg == ErrTooManyAttempts {
+			code = response.CodeForbidden
+		}
+		response.Fail(c, 401, code, msg)
 		return
 	}
 	uid, perr := uuid.Parse(res.User.ID)
@@ -71,11 +80,26 @@ func (h *Handler) Login(c *gin.Context) {
 			Status:      "success",
 		})
 	}
-	response.OK(c, gin.H{
+	out := gin.H{
 		"token":     res.Token,
 		"expiresAt": res.ExpiresAt,
 		"user":      res.User,
-	})
+		"sessionMode": func() string {
+			if h.Cfg != nil {
+				return h.Cfg.Auth.SessionMode
+			}
+			return config.AuthSessionModeLegacy
+		}(),
+	}
+	if h.Cfg != nil && h.Cfg.UsesSecureSession() {
+		SetRefreshCookieResponse(c, h.Cfg, res.RefreshToken, h.Cfg.RefreshTokenTTL())
+	} else if res.RefreshToken != "" {
+		out["refreshToken"] = res.RefreshToken
+	}
+	if h.Cfg != nil && h.Cfg.Auth.SessionMode == config.AuthSessionModeLegacy {
+		out["deprecatedSessionMode"] = true
+	}
+	response.OK(c, out)
 }
 
 // Profile GET /api/v1/auth/profile
@@ -136,8 +160,20 @@ func (h *Handler) Profile(c *gin.Context) {
 	})
 }
 
-// Logout POST /api/v1/auth/logout — stateless JWT; client discards token.
+// Logout POST /api/v1/auth/logout — revokes server session when refresh cookie/body present.
 func (h *Handler) Logout(c *gin.Context) {
+	raw := authcookie.ReadRefresh(c)
+	if raw == "" {
+		var body struct {
+			RefreshToken string `json:"refreshToken"`
+		}
+		_ = c.ShouldBindJSON(&body)
+		raw = strings.TrimSpace(body.RefreshToken)
+	}
+	if h.Sessions != nil && raw != "" {
+		_ = h.Sessions.RevokeByRefreshToken(c.Request.Context(), raw)
+	}
+	ClearSessionCookies(c, h.Cfg)
 	if h.OpLog != nil {
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
 			Action:   "logout",

@@ -54,6 +54,9 @@ func (c *Config) Validate() error {
 	if err := c.validateWebhookFallback(); err != nil {
 		return err
 	}
+	if err := c.validateAuthSecurity(); err != nil {
+		return err
+	}
 
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()

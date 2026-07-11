@@ -22,6 +22,16 @@ const (
 	PermOperationLogView   = "operationlog.view"
 	PermStoreView          = "store.view"
 	PermStoreOperate       = "store.operate"
+	// P4 security permissions
+	PermSecuritySessionManage = "security.session.manage"
+	PermSecurityKeyRotate     = "security.key.rotate"
+	PermAuditRead             = "audit.read"
+	PermAuditExport           = "audit.export"
+	PermPIIReadMasked         = "pii.read_masked"
+	PermPIIReadFull           = "pii.read_full"
+	PermPIIExport             = "pii.export"
+	PermConfigRead            = "config.read"
+	PermConfigManage          = "config.manage"
 )
 
 var allPermissions = []string{
@@ -43,6 +53,15 @@ var allPermissions = []string{
 	PermOperationLogView,
 	PermStoreView,
 	PermStoreOperate,
+	PermSecuritySessionManage,
+	PermSecurityKeyRotate,
+	PermAuditRead,
+	PermAuditExport,
+	PermPIIReadMasked,
+	PermPIIReadFull,
+	PermPIIExport,
+	PermConfigRead,
+	PermConfigManage,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
@@ -64,6 +83,10 @@ var operatorPermissions = []string{
 	PermOperationLogView,
 	PermStoreView,
 	PermStoreOperate,
+	PermSecuritySessionManage,
+	PermPIIReadMasked,
+	PermAuditRead,
+	PermConfigRead,
 }
 
 var readonlyPermissions = []string{
@@ -73,6 +96,9 @@ var readonlyPermissions = []string{
 	PermCustomerView,
 	PermOperationLogView,
 	PermStoreView,
+	PermPIIReadMasked,
+	PermAuditRead,
+	PermConfigRead,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

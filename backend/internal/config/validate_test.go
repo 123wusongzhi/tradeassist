@@ -29,7 +29,7 @@ func TestValidate_productionBlocksDefaults(t *testing.T) {
 		t.Fatal("expected production validation failure")
 	}
 	msg := err.Error()
-	for _, code := range []string{ErrCodeConfigInsecureDefault, ErrCodeSecretKeyRequired, ErrCodeConfigRequired, ErrCodeProductionDevRouteEnabled} {
+	for _, code := range []string{ErrCodeConfigInsecureDefault, ErrCodeSecretKeyRequired, ErrCodeConfigRequired, ErrCodeProductionDevRouteEnabled, ErrCodeInsecureCookieConfig, ErrCodeInsecureAuthConfig} {
 		if strings.Contains(msg, code) {
 			return
 		}
@@ -53,6 +53,15 @@ func TestValidate_developmentAllowsDefaults(t *testing.T) {
 	}
 }
 
+func productionP4Auth() AuthConfig {
+	return AuthConfig{
+		SessionMode:           AuthSessionModeSecure,
+		SecureCookie:          true,
+		AccessTokenTTLMinutes: 15,
+		RefreshTokenTTLDays:   7,
+	}
+}
+
 func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 	t.Parallel()
 	cfg := &Config{
@@ -64,6 +73,7 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 		BootstrapAdminPassword: "StrongPass!2026",
 		StorageProvider:        "cos",
 		CORSAllowedOrigins:     []string{"https://admin.example.com"},
+		Auth:                   productionP4Auth(),
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",
@@ -157,6 +167,8 @@ func TestLoad_productionFromEnv(t *testing.T) {
 	t.Setenv("ENABLE_DEV_ROUTES", "false")
 	t.Setenv("STORAGE_PROVIDER", "cos")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://admin.example.com")
+	t.Setenv("AUTH_SESSION_MODE", "secure_session")
+	t.Setenv("AUTH_SECURE_COOKIE", "true")
 
 	cfg, err := Load()
 	if err != nil {

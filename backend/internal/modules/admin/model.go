@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
@@ -12,13 +13,17 @@ import (
 // Login uses Email and/or Phone (see ParseLoginAccount / ByLoginAccount).
 type AdminUser struct {
 	model.Base
-	Username     string `gorm:"size:40;not null;uniqueIndex" json:"username"`
-	Email        string `gorm:"size:128" json:"email"`
-	Phone        string `gorm:"size:32" json:"phone"`
-	PasswordHash string `gorm:"size:255;not null" json:"-"`
-	DisplayName  string `gorm:"size:128" json:"displayName"`
-	Role         string `gorm:"size:32;default:'admin'" json:"role"`
-	Status       string `gorm:"size:32;default:'active'" json:"status"`
+	TenantID           int64      `gorm:"not null;default:0;index" json:"tenantId"`
+	Username           string     `gorm:"size:40;not null;uniqueIndex" json:"username"`
+	Email              string     `gorm:"size:128" json:"email"`
+	Phone              string     `gorm:"size:32" json:"phone"`
+	PasswordHash       string     `gorm:"size:255;not null" json:"-"`
+	DisplayName        string     `gorm:"size:128" json:"displayName"`
+	Role               string     `gorm:"size:32;default:'admin'" json:"role"`
+	Status             string     `gorm:"size:32;default:'active'" json:"status"`
+	TokenVersion       int        `gorm:"not null;default:1" json:"-"`
+	MustChangePassword bool       `gorm:"not null;default:false" json:"mustChangePassword,omitempty"`
+	PasswordChangedAt  *time.Time `json:"passwordChangedAt,omitempty"`
 }
 
 // TableName keeps a stable table name for migrations.

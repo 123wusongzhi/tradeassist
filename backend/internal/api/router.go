@@ -45,6 +45,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
@@ -169,7 +170,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	})
 
 	adminStore := &admin.Store{DB: dep.DB}
-	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
+	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc}
 	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := dep.OpLog
 	if opLogSvc == nil {
@@ -179,7 +181,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 
-	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc, DB: dep.DB}
+	authH := &auth.Handler{LoginSvc: loginSvc, Sessions: sessionSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc, DB: dep.DB, Cfg: dep.Config}
+	sessionH := &auth.SessionHandler{Cfg: dep.Config, Sessions: sessionSvc, OpLog: opLogSvc, DB: dep.DB}
 	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway, DB: dep.DB}
 	opLogH := &operationlog.Handler{Svc: opLogSvc, DB: dep.DB}
 
@@ -522,11 +525,17 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	v1.POST("/auth/login", authH.Login)
 	v1.POST("/auth/register", authH.Register)
 	v1.POST("/auth/send-email-code", authH.SendEmailCode)
+	v1.POST("/auth/refresh", sessionH.Refresh)
 
 	authed := v1.Group("")
-	authed.Use(middleware.BearerAuth(dep.Config))
+	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
+	authed.GET("/auth/sessions", sessionH.ListSessions)
+	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
+	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
+	authed.POST("/auth/logout-all", sessionH.LogoutAll)
+	authed.GET("/security/overview", sessionH.SecurityOverview)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
@@ -573,7 +582,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
 	collectorAlias := r.Group("/api/collector")
-	collectorAlias.Use(middleware.BearerAuth(dep.Config))
+	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
 	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
@@ -691,6 +700,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
+
+	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc}
+	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
+	securitymod.RegisterRoutes(authed, secH)
 
 	if dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv) {
 		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: dep.Config.AppEnv}

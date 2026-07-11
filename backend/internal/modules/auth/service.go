@@ -13,45 +13,63 @@ import (
 
 // LoginService handles credential checks and token issuance.
 type LoginService struct {
-	Cfg    *config.Config
-	Admins *admin.Store
+	Cfg      *config.Config
+	Admins   *admin.Store
+	Sessions *SessionService
 }
 
 // LoginResult is returned to HTTP layer.
 type LoginResult struct {
-	Token     string
-	ExpiresAt int64 // unix seconds
-	User      userView
+	Token        string
+	RefreshToken string
+	ExpiresAt    int64 // unix seconds
+	User         userView
 }
 
 type userView struct {
 	ID          string `json:"id"`
-	Username    string `json:"username"` // login identity (email or phone), not internal DB username field
+	Username    string `json:"username"`
 	Email       string `json:"email,omitempty"`
 	Phone       string `json:"phone,omitempty"`
 	DisplayName string `json:"displayName"`
 }
 
-// Login verifies credentials and returns a JWT.
-func (s *LoginService) Login(ctx context.Context, account, password string) (*LoginResult, error) {
+// Login verifies credentials and returns tokens (session or legacy).
+func (s *LoginService) Login(ctx context.Context, account, password, ip, userAgent string) (*LoginResult, error) {
 	if s == nil || s.Admins == nil || s.Cfg == nil {
 		return nil, fmt.Errorf("auth: misconfigured")
 	}
+	if s.Sessions != nil && (s.Cfg.UsesSecureSession() || s.Cfg.Auth.SessionMode == config.AuthSessionModeSecure) {
+		res, err := s.Sessions.CreateSession(ctx, account, password, ip, userAgent)
+		if err != nil {
+			return nil, err
+		}
+		return &LoginResult{
+			Token:        res.AccessToken,
+			RefreshToken: res.RefreshToken,
+			ExpiresAt:    res.AccessExp.Unix(),
+			User:         res.User,
+		}, nil
+	}
+	return s.legacyLogin(ctx, account, password)
+}
+
+func (s *LoginService) legacyLogin(ctx context.Context, account, password string) (*LoginResult, error) {
 	u, err := s.Admins.ByLoginAccount(ctx, account)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("invalid account or password")
+			return nil, errors.New(ErrInvalidCredentials)
 		}
 		return nil, err
 	}
 	if err := admin.CheckPassword(u.PasswordHash, password); err != nil {
-		return nil, errors.New("invalid account or password")
+		return nil, errors.New(ErrInvalidCredentials)
 	}
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
-		return nil, errors.New("账号已禁用，请联系管理员")
+		return nil, errors.New(ErrUserDisabled)
 	}
 	label := u.LoginLabel()
-	token, exp, err := MintToken(s.Cfg, u.ID, label)
+	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label)
 	if err != nil {
 		return nil, err
 	}

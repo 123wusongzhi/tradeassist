@@ -1,13 +1,15 @@
 # P1 Production Config Scan Report
 
-Generated: 2026-07-11T10:39:27.794Z
+Generated: 2026-07-11T12:25:37.743Z
 
-**Overall:** passed (18 passed, 0 warnings, 0 failed)
+**Overall:** passed_with_warning (17 passed, 3 warnings, 0 failed)
 
 | ID | Status | Message |
 | --- | --- | --- |
 | status-no-demo-tag | passed | README.md ok |
-| status-p1 | passed | README.md reflects P1 |
+| status-tag-deferred | warning | README.md missing Tag deferred |
+| status-not-prod | warning | README.md missing 非 Production Ready |
+| status-p1 | warning | README.md may need P1 status line |
 | status-no-demo-tag | passed | docs/PROGRESS.md ok |
 | status-p1 | passed | docs/PROGRESS.md reflects P1 |
 | demo-seed-guard | passed | Demo seed gated by EnableDemoSeed + !production |

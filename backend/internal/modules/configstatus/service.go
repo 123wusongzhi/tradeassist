@@ -163,6 +163,7 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	out.Items = append(out.Items, s.p32WebhookProductionFallbackItem(ctx))
 	out.Items = append(out.Items, s.p32WebhookConcurrencyItem(ctx))
 	out.Items = append(out.Items, s.p32RaceVerificationItem(ctx))
+	out.Items = appendP4SecurityItems(out.Items, s.Config)
 	out.DemoData = s.demoDataItem(ctx)
 	return out, nil
 }

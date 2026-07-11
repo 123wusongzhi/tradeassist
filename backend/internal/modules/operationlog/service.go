@@ -10,13 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 )
 
 // WriteOpts is a single audit row to append.
 type WriteOpts struct {
+	TenantID    int64
 	AdminUserID *uuid.UUID
+	SessionID   *uuid.UUID
 	AdminRole   string
 	Username    string
 	Action      string
@@ -24,6 +27,7 @@ type WriteOpts struct {
 	ResourceID  string
 	ShopID      *uuid.UUID
 	Platform    string
+	Permission  string
 	Status      string
 	Message     string
 }
@@ -65,28 +69,53 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 	}
 
 	row := &OperationLog{
-		AdminUserID: adminID,
-		AdminRole:   strings.TrimSpace(opts.AdminRole),
-		Username:    username,
-		Action:      strings.TrimSpace(opts.Action),
-		Resource:    strings.TrimSpace(opts.Resource),
-		ResourceID:  strings.TrimSpace(opts.ResourceID),
-		ShopID:      opts.ShopID,
-		Platform:    strings.TrimSpace(opts.Platform),
-		Method:      c.Request.Method,
-		Path:        path,
-		IP:          c.ClientIP(),
-		UserAgent:   truncateRunes(c.Request.UserAgent(), 512),
-		RequestID:   rid,
-		Status:      strings.TrimSpace(opts.Status),
-		Message:     truncateRunes(opts.Message, 2000),
+		TenantID:         opts.TenantID,
+		AdminUserID:      adminID,
+		SessionID:        opts.SessionID,
+		AdminRole:        strings.TrimSpace(opts.AdminRole),
+		Username:         username,
+		Action:           strings.TrimSpace(opts.Action),
+		Resource:         strings.TrimSpace(opts.Resource),
+		ResourceID:       strings.TrimSpace(opts.ResourceID),
+		ShopID:           opts.ShopID,
+		Platform:         strings.TrimSpace(opts.Platform),
+		Permission:       strings.TrimSpace(opts.Permission),
+		Method:           c.Request.Method,
+		Path:             path,
+		IPHash:           authutil.HashIP(c.ClientIP()),
+		UserAgentSummary: authutil.SummarizeUserAgent(c.Request.UserAgent()),
+		RequestID:        rid,
+		Status:           strings.TrimSpace(opts.Status),
+		Message:          truncateRunes(opts.Message, 2000),
+		CreatedAt:        time.Now().UTC(),
+	}
+	if row.TenantID == 0 {
+		if tid, ok := c.Get(ctxkey.TenantID); ok {
+			if v, ok := tid.(int64); ok {
+				row.TenantID = v
+			}
+		}
+	}
+	if row.SessionID == nil {
+		if sid, ok := c.Get(ctxkey.SessionID); ok {
+			if s, ok := sid.(string); ok {
+				if u, err := uuid.Parse(s); err == nil {
+					row.SessionID = &u
+				}
+			}
+		}
 	}
 	if row.AdminRole == "" && s.DB != nil {
 		if p, err := adminperm.LoadPrincipal(c, s.DB); err == nil && p != nil {
 			row.AdminRole = p.Role
 		}
 	}
-	return s.DB.WithContext(c.Request.Context()).Create(row).Error
+	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := s.appendHashChain(tx, row); err != nil {
+			return err
+		}
+		return tx.Create(row).Error
+	})
 }
 
 // WriteBackground inserts one log row without an HTTP request (workers, cron).

@@ -185,5 +185,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP31Douyin(db); err != nil {
 		return err
 	}
-	return migrateP32Webhook(db)
+	if err := migrateP32Webhook(db); err != nil {
+		return err
+	}
+	return migrateP4Security(db)
 }
