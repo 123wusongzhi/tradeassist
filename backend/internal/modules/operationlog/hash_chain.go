@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -28,7 +29,9 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) error {
 	prevHash := ""
 	if err == nil {
 		prevHash = strings.TrimSpace(prev.EntryHash)
-	} else if err != gorm.ErrRecordNotFound {
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// first entry in partition
+	} else {
 		return err
 	}
 	row.PrevHash = prevHash

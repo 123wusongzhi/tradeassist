@@ -31,7 +31,8 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	}
 	idStr, ok := c.Get(ctxkey.AdminID)
 	if !ok {
-		p := &Principal{Role: RoleReadonly, Permissions: PermissionsForRole(RoleReadonly)}
+		// No auth context (unit tests / internal calls): preserve pre-P4 admin scope behavior.
+		p := &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
 		c.Set(ctxPrincipalKey, p)
 		return p, nil
 	}

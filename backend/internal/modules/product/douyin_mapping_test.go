@@ -241,6 +241,7 @@ func newDouyinMappingTestDB(t *testing.T) *gorm.DB {
 		&ProductImage{},
 		&ProductSKU{},
 		&ProductPlatformPublishConfig{},
+		&DouyinImageAsset{},
 		&files.FileRecord{},
 		&shop.Shop{},
 		&shop.ShopAuthToken{},
