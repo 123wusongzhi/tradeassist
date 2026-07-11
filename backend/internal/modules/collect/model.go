@@ -31,6 +31,7 @@ const (
 // CollectBatch groups many collect_tasks within one bulk submission.
 type CollectBatch struct {
 	model.HardDeleteBase
+	TenantID       int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	Source         string     `gorm:"size:64;index;not null" json:"source"`
 	TotalCount     int        `gorm:"not null" json:"totalCount"`
 	PendingCount   int        `gorm:"not null" json:"pendingCount"`
@@ -48,6 +49,7 @@ func (CollectBatch) TableName() string { return "collect_batches" }
 // CollectTask persists orchestration state; collector never writes this table.
 type CollectTask struct {
 	model.HardDeleteBase
+	TenantID        int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchID         *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
 	Source          string         `gorm:"size:64;index;not null" json:"source"`
 	SourceURL       string         `gorm:"size:2048;not null" json:"sourceUrl"`

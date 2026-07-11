@@ -43,6 +43,7 @@ const (
 // AIProductTextBatch groups bulk AI title/description generation with human review.
 type AIProductTextBatch struct {
 	model.Base
+	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchNo        string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	BatchType      string         `gorm:"size:32;index;not null;default:ai_text" json:"batchType"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`

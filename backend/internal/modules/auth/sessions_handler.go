@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authcookie"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -196,34 +195,6 @@ func (h *SessionHandler) LogoutAll(c *gin.Context) {
 	response.OK(c, gin.H{"revoked": n})
 }
 
-// SecurityOverview GET /api/v1/security/overview (for settings/security page)
-func (h *SessionHandler) SecurityOverview(c *gin.Context) {
-	if h == nil || h.Cfg == nil || h.DB == nil {
-		response.Fail(c, 500, response.CodeInternalError, "security unavailable")
-		return
-	}
-	if !adminperm.RequirePermission(c, h.DB, adminperm.PermSettingsManage) {
-		return
-	}
-	uid, _ := currentUserID(c)
-	var sessionCount int64
-	if uid != uuid.Nil {
-		_ = h.DB.Model(&AuthSession{}).Where("user_id = ? AND status = ?", uid, SessionStatusActive).Count(&sessionCount).Error
-	}
-	response.OK(c, gin.H{
-		"authSessionMode":        h.Cfg.Auth.SessionMode,
-		"accessTokenTTLMinutes":  h.Cfg.Auth.AccessTokenTTLMinutes,
-		"refreshTokenTTLDays":    h.Cfg.Auth.RefreshTokenTTLDays,
-		"secureCookie":           h.Cfg.Auth.SecureCookie,
-		"loginMaxAttempts":       h.Cfg.AuthLoginMaxAttempts(),
-		"passwordMinLength":      h.Cfg.AuthPasswordMinLength(),
-		"jwtActiveKeyId":         firstNonEmpty(h.Cfg.Auth.JWTActiveKeyID, "default"),
-		"appMasterActiveKeyId":   firstNonEmpty(h.Cfg.Auth.AppMasterActiveKeyID, "default"),
-		"activeSessionCount":     sessionCount,
-		"productionDebugSurface": h.Cfg.EnableDebugEndpoints || h.Cfg.EnableSwagger || h.Cfg.EnableDevRoutes,
-	})
-}
-
 func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 	idStr, ok := c.Get(ctxkey.AdminID)
 	if !ok {
@@ -235,13 +206,6 @@ func currentUserID(c *gin.Context) (uuid.UUID, bool) {
 		return uuid.Nil, false
 	}
 	return uid, true
-}
-
-func firstNonEmpty(a, b string) string {
-	if strings.TrimSpace(a) != "" {
-		return strings.TrimSpace(a)
-	}
-	return strings.TrimSpace(b)
 }
 
 func min64(a, b int64) int64 {

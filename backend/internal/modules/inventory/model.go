@@ -11,6 +11,7 @@ import (
 // InventoryChangeLog is an append-only local stock / sync audit trail (hard-deleted rows only via admin tooling).
 type InventoryChangeLog struct {
 	model.HardDeleteBase
+	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	ProductID        uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
 	ProductSKUID     uuid.UUID  `gorm:"type:char(36);index;not null" json:"productSkuId"`
 	ChangeType       string     `gorm:"size:48;index;not null" json:"changeType"`
@@ -30,6 +31,7 @@ func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }
 // InventorySyncBatch groups many outbound inventory_sync_tasks created in one bulk submission.
 type InventorySyncBatch struct {
 	model.HardDeleteBase
+	TenantID      int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchNo       string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	Source        string         `gorm:"size:48;index;not null" json:"source"`
 	Status        string         `gorm:"size:32;index;not null" json:"status"`
@@ -55,6 +57,7 @@ func (InventorySyncBatch) TableName() string { return "inventory_sync_batches" }
 // InventorySyncTask is one outbound stock push to a marketplace listing SKU.
 type InventorySyncTask struct {
 	model.HardDeleteBase
+	TenantID         int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchID          *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
 	BatchNo          string         `gorm:"size:64;index" json:"batchNo,omitempty"`
 	ProductID        uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`

@@ -25,11 +25,13 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
@@ -214,7 +216,7 @@ func main() {
 	)
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,
 		Redis:           redisClient,
@@ -346,6 +348,15 @@ func main() {
 		log.Info("inventory_sync_worker_started", "concurrency", invWorkerConc, "queue", invQn)
 	} else if cfg.InventorySyncQueueEnabled && redisClient == nil {
 		log.Warn("inventory_sync_worker_skipped", "reason", "redis unavailable while INVENTORY_SYNC_QUEUE_ENABLED=true")
+	}
+
+	if redisClient != nil && fileSvc != nil {
+		files.StartScanWorker(workerCtx, &workerWG, log, fileSvc, cfg, workerReg)
+		log.Info("file_security_scan_worker_started")
+	}
+	if secSvc != nil {
+		securitymod.StartReencryptWorker(workerCtx, &workerWG, log, secSvc, workerReg)
+		log.Info("security_secret_reencrypt_worker_started")
 	}
 
 	srv := &http.Server{

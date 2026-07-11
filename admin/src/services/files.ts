@@ -17,6 +17,8 @@ export type FileRow = {
   contentType: string;
   size: number;
   storageKind: string;
+  securityStatus?: string;
+  scanStatus?: string;
   createdBy?: string;
   createdAt: string;
 };

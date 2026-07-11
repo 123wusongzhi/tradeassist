@@ -96,7 +96,8 @@ func (c *Config) ResolveRequestTenantID(rawTenantID int64) (int64, string, error
 	if IsStagingOrProduction(env) {
 		return 0, "", fmt.Errorf("%s", ErrCodeProductionTenantFallbackForbidden)
 	}
-	return 0, "", fmt.Errorf("TENANT_CONTEXT_MISSING")
+	// Local development: legacy single-tenant rows often use tenant_id=0.
+	return 0, "legacy_dev_zero", nil
 }
 
 // TenantFallbackEnabled reports whether explicit dev/demo tenant fallback is on.

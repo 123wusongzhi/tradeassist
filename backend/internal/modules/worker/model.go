@@ -11,20 +11,24 @@ import (
 // Worker instance table: worker_instances
 
 const (
-	TypeCollect             = "collect"
-	TypeImage               = "image"
-	TypeOrderSync           = "order_sync"
-	TypeCustomerMessageSync = "customer_message_sync"
-	TypeProductPublish      = "product_publish"
-	TypeInventorySync       = "inventory_sync"
-	TypeTaskAlertScan       = "task_alert_scan"
-	TypeWebhook             = "webhook"
-	StatusRunning           = "running"
-	StatusStale             = "stale"
-	StatusStopped           = "stopped"
-	ActionStart             = "worker.instance.start"
-	ActionStop              = "worker.instance.stop"
-	ActionLeaseExp          = "worker.task.lease_expired"
+	TypeCollect                 = "collect"
+	TypeImage                   = "image"
+	TypeOrderSync               = "order_sync"
+	TypeCustomerMessageSync     = "customer_message_sync"
+	TypeProductPublish          = "product_publish"
+	TypeInventorySync           = "inventory_sync"
+	TypeTaskAlertScan           = "task_alert_scan"
+	TypeWebhook                 = "webhook"
+	TypeSecuritySecretReencrypt = "security_secret_reencrypt"
+	TypeFileSecurityScan        = "file_security_scan"
+	TypeExport                  = "export"
+	TypeAuditChainVerify        = "audit_chain_verify"
+	StatusRunning               = "running"
+	StatusStale                 = "stale"
+	StatusStopped               = "stopped"
+	ActionStart                 = "worker.instance.start"
+	ActionStop                  = "worker.instance.stop"
+	ActionLeaseExp              = "worker.task.lease_expired"
 )
 
 // Instance is one registered worker process goroutine (or logical consumer).

@@ -183,6 +183,12 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&OperationLog{})
+	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+		_ = tid
+	}
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
 		return nil, err
 	} else {

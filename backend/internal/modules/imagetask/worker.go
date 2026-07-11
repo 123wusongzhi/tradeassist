@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 // StartWorker runs BRPOP consumers until ctx is cancelled.
@@ -81,6 +82,23 @@ func runImageWorker(ctx context.Context, log *slog.Logger, svc *Service, queueNa
 		}
 
 		jobCtx := context.Background()
+		if svc.DB != nil {
+			var probe ImageTask
+			if err := svc.DB.WithContext(jobCtx).Select("product_id").First(&probe, "id = ?", tid).Error; err == nil && probe.ProductID != nil {
+				ptid, terr := tasktenant.ResolveProductTenant(jobCtx, svc.DB, *probe.ProductID)
+				if terr != nil {
+					if log != nil {
+						log.Warn("image_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, ptid, uuid.Nil, "image_task")
+				if terr != nil {
+					continue
+				}
+				jobCtx = wctx
+			}
+		}
 		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("image_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}

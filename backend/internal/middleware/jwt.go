@@ -100,10 +100,7 @@ func IsProductionLike(cfg *config.Config, rawTenant int64) bool {
 	if cfg == nil {
 		return false
 	}
-	if config.IsStagingOrProduction(cfg.AppEnv) {
-		return true
-	}
-	return rawTenant <= 0 && !cfg.TenantFallbackEnabled()
+	return config.IsStagingOrProduction(cfg.AppEnv)
 }
 
 // ReadRefreshCookie extracts refresh token from cookie.

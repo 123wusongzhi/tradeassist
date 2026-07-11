@@ -22,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"golang.org/x/image/webp"
 	"gorm.io/gorm"
 )
@@ -29,6 +30,7 @@ import (
 // Service handles uploads and file metadata.
 type Service struct {
 	DB       *gorm.DB
+	Redis    *rdb.Client
 	Settings *settings.Service
 	MaxBytes int64
 }
@@ -142,6 +144,7 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		_ = prov.Delete(reqCtx, objKey)
 		return nil, err
 	}
+	_ = s.EnqueueSecurityScan(reqCtx, tid, row.ID)
 
 	return &UploadResult{
 		ID:          row.ID.String(),
@@ -340,7 +343,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 
 // Delete removes DB metadata and the stored object when using a supported provider.
 func (s *Service) Delete(c *gin.Context, id uuid.UUID) error {
-	return s.DeleteRecordByID(c.Request.Context(), id)
+	return s.DeleteRecordByTenant(c, id)
 }
 
 // DeleteRecordByID removes a file row and its storage object.

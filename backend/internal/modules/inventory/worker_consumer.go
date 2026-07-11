@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 // StartWorker runs Redis BRPOP consumers until ctx cancelled.
@@ -81,10 +82,20 @@ func runInventorySyncWorker(ctx context.Context, log *slog.Logger, svc *Service,
 
 		jobCtx := context.Background()
 		plat := ""
+		var shopID uuid.UUID
 		if svc.DB != nil {
 			var probe InventorySyncTask
-			if err := svc.DB.WithContext(jobCtx).Select("platform").First(&probe, "id = ?", tid).Error; err == nil {
+			if err := svc.DB.WithContext(jobCtx).Select("platform, shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
 				plat = strings.TrimSpace(strings.ToLower(probe.Platform))
+				shopID = probe.ShopID
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, shopID, "inventory_sync")
+				if terr != nil {
+					if log != nil {
+						log.Warn("inventory_sync_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				jobCtx = wctx
 			}
 		}
 		deferRate, rerr := svc.InventoryRateDefer(jobCtx, plat)

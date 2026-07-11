@@ -9,8 +9,13 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
+	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
@@ -29,6 +34,9 @@ func openDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&shop.Shop{}, &product.Product{}, &product.ProductImage{}, &product.ProductSKU{},
 		&shop.ShopAuthToken{}, &imagetask.ImageTask{}, &admin.AdminUser{}, &admin.UserStorePermission{},
+		&productpublish.ProductPublishTask{}, &exportmod.ExportJob{}, &customerchat.CustomerConversation{},
+		&customerchat.CustomerMessage{}, &order.Order{}, &order.OrderItem{}, &order.OrderShipment{},
+		&operationlog.OperationLog{},
 	); err != nil {
 		t.Fatal(err)
 	}

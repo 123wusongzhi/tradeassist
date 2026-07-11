@@ -68,3 +68,32 @@ func (s *Service) keyRing() (*crypto.KeyRing, error) {
 	}
 	return crypto.NewKeyRing(activeID, activeKey, s.Cfg.Auth.AppMasterPreviousKeys)
 }
+
+// SecurityOverview returns high-level security posture for the security center UI.
+func (s *Service) SecurityOverview(ctx context.Context) (map[string]any, error) {
+	if s == nil || s.Cfg == nil {
+		return nil, fmt.Errorf("security: unavailable")
+	}
+	kr, err := s.keyRing()
+	if err != nil {
+		return nil, err
+	}
+	mode := "legacy_local_storage"
+	if s.Cfg.UsesSecureSession() {
+		mode = "secure_session"
+	}
+	debugSurface := config.IsProduction(s.Cfg.AppEnv) &&
+		(s.Cfg.EnableDebugEndpoints || s.Cfg.EnableSwagger || s.Cfg.EnableDevRoutes)
+	return map[string]any{
+		"authSessionMode":        mode,
+		"accessTokenTTLMinutes":  s.Cfg.Auth.AccessTokenTTLMinutes,
+		"refreshTokenTTLDays":    s.Cfg.Auth.RefreshTokenTTLDays,
+		"secureCookie":           s.Cfg.UsesSecureSession(),
+		"loginMaxAttempts":       s.Cfg.Auth.LoginMaxAttempts,
+		"passwordMinLength":      s.Cfg.Auth.PasswordMinLength,
+		"jwtActiveKeyId":         s.Cfg.Auth.JWTActiveKeyID,
+		"appMasterActiveKeyId":   kr.ActiveID,
+		"activeSessionCount":     0,
+		"productionDebugSurface": debugSurface,
+	}, nil
+}

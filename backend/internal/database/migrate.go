@@ -191,5 +191,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP4Security(db); err != nil {
 		return err
 	}
-	return migrateP41Security(db)
+	if err := migrateP41Security(db); err != nil {
+		return err
+	}
+	return migrateP42Security(db)
 }

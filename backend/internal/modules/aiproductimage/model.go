@@ -55,6 +55,7 @@ const (
 // AIProductImageBatch groups bulk AI image processing with human review.
 type AIProductImageBatch struct {
 	model.Base
+	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchNo        string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	BatchType      string         `gorm:"size:32;index;not null;default:ai_image" json:"batchType"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`

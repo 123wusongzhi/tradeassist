@@ -11,6 +11,7 @@ import (
 // ProductPublishTask is one async listings job.
 type ProductPublishTask struct {
 	model.HardDeleteBase
+	TenantID          int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	ProductID         uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
 	ShopID            uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
 	BatchID           *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`

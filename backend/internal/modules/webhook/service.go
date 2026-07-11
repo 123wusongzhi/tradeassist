@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -166,6 +167,9 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		Metadata:    datatypes.JSON(meta),
 	}
 	applyResolvedShopToEvent(&ev, req.ResolvedShop)
+	if ev.TenantID <= 0 {
+		ev.TenantID = devTestWebhookTenant(platform, s.AppEnv)
+	}
 	createRes := s.DB.WithContext(ctx).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "platform"}, {Name: "tenant_id"}, {Name: "platform_shop_id"}, {Name: "event_id"}},
 		DoNothing: true,
@@ -221,9 +225,17 @@ func (s *Service) eventScopeQuery(ctx context.Context, platform, eventID string,
 	if resolved != nil && strings.TrimSpace(resolved.PlatformShopID) != "" {
 		q = q.Where("tenant_id = ? AND platform_shop_id = ?", resolved.TenantID, strings.TrimSpace(resolved.PlatformShopID))
 	} else {
-		q = q.Where("tenant_id = ? AND platform_shop_id = ?", int64(0), "")
+		q = q.Where("tenant_id = ? AND platform_shop_id = ?", devTestWebhookTenant(platform, s.AppEnv), "")
 	}
 	return q
+}
+
+// devTestWebhookTenant assigns a positive tenant for dev-only internal-test webhooks without shop binding.
+func devTestWebhookTenant(platform, appEnv string) int64 {
+	if platform == PlatformInternalTest && !config.IsProduction(appEnv) {
+		return 1
+	}
+	return 0
 }
 
 func webhookIngestKey(platform, eventID string, resolved *ResolvedWebhookShop) string {

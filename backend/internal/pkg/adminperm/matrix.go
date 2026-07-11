@@ -32,6 +32,8 @@ const (
 	PermPIIExport             = "pii.export"
 	PermConfigRead            = "config.read"
 	PermConfigManage          = "config.manage"
+	PermExportRead            = "export.read"
+	PermExportCreate          = "export.create"
 )
 
 var allPermissions = []string{
@@ -62,6 +64,8 @@ var allPermissions = []string{
 	PermPIIExport,
 	PermConfigRead,
 	PermConfigManage,
+	PermExportRead,
+	PermExportCreate,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)

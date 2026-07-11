@@ -1,0 +1,227 @@
+{
+  "phase": "P4.2",
+  "status": "passed_with_warnings",
+  "generatedAt": "2026-07-11T14:57:26.641Z",
+  "platform": "win32",
+  "tenantIsolation": {
+    "tasktenantPackage": "passed",
+    "workerCoverage": "passed",
+    "modelColumns": "passed",
+    "idorTests": "passed",
+    "shopScopeTests": "passed"
+  },
+  "securityWorkers": {
+    "secretReencrypt": "passed",
+    "fileScan": "passed",
+    "secretTargets": "passed"
+  },
+  "ui": {
+    "securityCenterSections": "passed",
+    "sessions": "passed",
+    "keyRotation": "passed"
+  },
+  "race": {
+    "status": "deferred_on_windows",
+    "note": "Execute go test -race on Linux/WSL2/CI (backend-race job)"
+  },
+  "migration": "passed",
+  "realEnvironmentVerification": "deferred",
+  "checks": [
+    {
+      "id": "tasktenant-package",
+      "status": "passed",
+      "message": "tasktenant context + worker gate + resolve",
+      "detail": ""
+    },
+    {
+      "id": "worker-collect",
+      "status": "passed",
+      "message": "worker.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-ordersync",
+      "status": "passed",
+      "message": "worker.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-customersync",
+      "status": "passed",
+      "message": "worker.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-productpublish",
+      "status": "passed",
+      "message": "worker_consumer.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-inventory",
+      "status": "passed",
+      "message": "worker_consumer.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-file-scan",
+      "status": "passed",
+      "message": "scan_worker.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "worker-webhook",
+      "status": "passed",
+      "message": "processor.go uses tasktenant",
+      "detail": ""
+    },
+    {
+      "id": "security-secret-reencrypt-worker",
+      "status": "passed",
+      "message": "security_secret_reencrypt worker registered",
+      "detail": ""
+    },
+    {
+      "id": "file-security-scan-worker",
+      "status": "passed",
+      "message": "file_security_scan worker + queue",
+      "detail": ""
+    },
+    {
+      "id": "tenant-scope-helpers",
+      "status": "passed",
+      "message": "tenantquery + taskcenter tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "p42-model-tenant-columns",
+      "status": "passed",
+      "message": "11/11 P4.2 models carry tenant_id",
+      "detail": ""
+    },
+    {
+      "id": "migrate-p4-2",
+      "status": "passed",
+      "message": "migrate_p4_2.go wired in migrate.go",
+      "detail": ""
+    },
+    {
+      "id": "secret-target-coverage",
+      "status": "passed",
+      "message": "settings + shop_auth_tokens reencrypt targets",
+      "detail": ""
+    },
+    {
+      "id": "idor-tests",
+      "status": "passed",
+      "message": "55 IDOR test cases",
+      "detail": ""
+    },
+    {
+      "id": "shop-scope-tests",
+      "status": "passed",
+      "message": "21 shop scope test cases",
+      "detail": ""
+    },
+    {
+      "id": "security-center-ui-sections",
+      "status": "passed",
+      "message": "Security center sections: 9 panels",
+      "detail": ""
+    },
+    {
+      "id": "security-center-ui-api",
+      "status": "passed",
+      "message": "Security center wired to overview/rotation/file APIs",
+      "detail": ""
+    },
+    {
+      "id": "session-management-api",
+      "status": "passed",
+      "message": "Session list + revoke-others API",
+      "detail": ""
+    },
+    {
+      "id": "key-rotation-api",
+      "status": "passed",
+      "message": "Key rotation + references API",
+      "detail": ""
+    },
+    {
+      "id": "race-tests",
+      "status": "warning",
+      "message": "Race detector deferred on Windows",
+      "detail": "Run go test -race on Linux/WSL2/CI"
+    },
+    {
+      "id": "doc-P4_2_FULL_TENANT_AND_SECURITY_WORKER_AUDIT",
+      "status": "passed",
+      "message": "docs/P4_2_FULL_TENANT_AND_SECURITY_WORKER_AUDIT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_REPOSITORY_TENANT_COVERAGE",
+      "status": "passed",
+      "message": "docs/P4_2_REPOSITORY_TENANT_COVERAGE.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_ALL_WORKER_TENANT_CONTEXT",
+      "status": "passed",
+      "message": "docs/P4_2_ALL_WORKER_TENANT_CONTEXT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_WEBHOOK_TENANT_PROCESSING",
+      "status": "passed",
+      "message": "docs/P4_2_WEBHOOK_TENANT_PROCESSING.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_SECRET_TARGET_COVERAGE",
+      "status": "passed",
+      "message": "docs/P4_2_SECRET_TARGET_COVERAGE.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_SECRET_REENCRYPT_EXECUTION",
+      "status": "passed",
+      "message": "docs/P4_2_SECRET_REENCRYPT_EXECUTION.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_FILE_SCAN_WORKER",
+      "status": "passed",
+      "message": "docs/P4_2_FILE_SCAN_WORKER.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_SECURITY_CENTER_UI",
+      "status": "passed",
+      "message": "docs/P4_2_SECURITY_CENTER_UI.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_IDOR_TEST_REPORT",
+      "status": "passed",
+      "message": "docs/P4_2_IDOR_TEST_REPORT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_SHOP_SCOPE_TEST_REPORT",
+      "status": "passed",
+      "message": "docs/P4_2_SHOP_SCOPE_TEST_REPORT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_2_RACE_TEST_REPORT",
+      "status": "passed",
+      "message": "docs/P4_2_RACE_TEST_REPORT.md",
+      "detail": ""
+    }
+  ],
+  "issues": [],
+  "warnings": [
+    "Race detector deferred on Windows"
+  ]
+}

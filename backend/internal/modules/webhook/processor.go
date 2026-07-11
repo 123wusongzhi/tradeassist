@@ -9,13 +9,32 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	"gorm.io/gorm"
 )
 
-// ProcessEvent runs async business handling for one durable webhook event.
-// Uses a shop-scoped idempotency key when the event has resolved shop metadata.
-// Unknown platforms use a noop handler.
-func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) error {
+// ProcessEventByRowID processes one durable webhook event with tenant + shop scope.
+func (s *Service) ProcessEventByRowID(ctx context.Context, tenantID int64, webhookEventRowID uuid.UUID) error {
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("webhook: unavailable")
+	}
+	if err := tasktenant.RequireTaskTenant(tenantID); err != nil {
+		return err
+	}
+	if webhookEventRowID == uuid.Nil {
+		return fmt.Errorf("webhook event id required")
+	}
+	var ev Event
+	if err := s.DB.WithContext(ctx).
+		Where("id = ? AND tenant_id = ?", webhookEventRowID, tenantID).
+		First(&ev).Error; err != nil {
+		return err
+	}
+	return s.processEventRow(ctx, &ev)
+}
+
+// ProcessEvent runs async business handling for one durable webhook event (tenant-aware when possible).
+func (s *Service) ProcessEvent(ctx context.Context, tenantID int64, internalShopID uuid.UUID, platform, platformShopID, eventID string) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("webhook: unavailable")
 	}
@@ -24,9 +43,19 @@ func (s *Service) ProcessEvent(ctx context.Context, platform, eventID string) er
 	if platform == "" || eventID == "" {
 		return fmt.Errorf("platform and eventId required")
 	}
+	if err := tasktenant.RequireTaskTenant(tenantID); err != nil {
+		return err
+	}
 
 	var ev Event
-	if err := s.DB.WithContext(ctx).Where("platform = ? AND event_id = ?", platform, eventID).First(&ev).Error; err != nil {
+	q := s.DB.WithContext(ctx).Where("platform = ? AND event_id = ? AND tenant_id = ?", platform, eventID, tenantID)
+	if internalShopID != uuid.Nil {
+		q = q.Where("internal_shop_id = ?", internalShopID)
+	}
+	if platformShopID != "" {
+		q = q.Where("platform_shop_id = ?", platformShopID)
+	}
+	if err := q.First(&ev).Error; err != nil {
 		return err
 	}
 	return s.processEventRow(ctx, &ev)
@@ -156,7 +185,18 @@ func (s *Service) ProcessQueuedEvents(ctx context.Context, limit int) (int, erro
 	}
 	done := 0
 	for i := range rows {
-		if err := s.ProcessEventByID(ctx, rows[i].ID); err != nil {
+		if err := tasktenant.RequireTaskTenant(rows[i].TenantID); err != nil {
+			continue
+		}
+		shopID := uuid.Nil
+		if rows[i].InternalShopID != nil {
+			shopID = *rows[i].InternalShopID
+		}
+		wctx, _, err := tasktenant.BeginWorker(ctx, s.DB, rows[i].TenantID, shopID, "webhook_process")
+		if err != nil {
+			continue
+		}
+		if err := s.ProcessEventByRowID(wctx, rows[i].TenantID, rows[i].ID); err != nil {
 			continue
 		}
 		done++

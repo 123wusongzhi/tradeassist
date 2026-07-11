@@ -13,6 +13,7 @@ import (
 // CustomerConversation is a manual/customer-service conversation (no platform sync in MVP).
 type CustomerConversation struct {
 	model.Base
+	TenantID               int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	Platform               string         `gorm:"size:64;index;not null" json:"platform"`
 	ShopID                 *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
 	ExternalConversationID *string        `gorm:"size:255;index" json:"externalConversationId,omitempty"`

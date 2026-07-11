@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -23,6 +24,7 @@ func RegisterRoutes(authed *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g := authed.Group("/security")
+	g.GET("/overview", h.SecurityOverview)
 	g.POST("/keys/rotation/prepare", h.RotationPrepare)
 	g.GET("/keys/rotation/status", h.RotationStatus)
 	g.POST("/keys/rotation/start", h.RotationStart)
@@ -203,4 +205,23 @@ func (h *Handler) AuditIntegrityVerify(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"ok": true, "checked": n})
+}
+
+func (h *Handler) SecurityOverview(c *gin.Context) {
+	if !adminperm.RequirePermission(c, h.DB, adminperm.PermConfigRead) {
+		return
+	}
+	out, err := h.Svc.SecurityOverview(c.Request.Context())
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if idStr, ok := c.Get(ctxkey.AdminID); ok {
+		if uid, parseErr := uuid.Parse(strings.TrimSpace(idStr.(string))); parseErr == nil && uid != uuid.Nil {
+			var sessionCount int64
+			_ = h.DB.Model(&auth.AuthSession{}).Where("user_id = ? AND status = ?", uid, auth.SessionStatusActive).Count(&sessionCount).Error
+			out["activeSessionCount"] = sessionCount
+		}
+	}
+	response.OK(c, out)
 }

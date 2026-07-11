@@ -11,6 +11,7 @@ import (
 // OrderSyncTask records one shop order synchronization job.
 type OrderSyncTask struct {
 	model.HardDeleteBase
+	TenantID     int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	ShopID       uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
 	Platform     string         `gorm:"size:64;index;not null" json:"platform"`
 	TaskType     string         `gorm:"size:64;index;not null" json:"taskType"`

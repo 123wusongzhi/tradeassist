@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 // StartWorker runs BRPOP consumers until ctx is cancelled.
@@ -81,6 +82,19 @@ func runOrderSyncWorker(ctx context.Context, log *slog.Logger, svc *Service, que
 		}
 
 		jobCtx := context.Background()
+		if svc.DB != nil {
+			var probe OrderSyncTask
+			if err := svc.DB.WithContext(jobCtx).Select("shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, probe.ShopID, "order_sync")
+				if terr != nil {
+					if log != nil {
+						log.Warn("order_sync_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				jobCtx = wctx
+			}
+		}
 		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("order_sync_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}

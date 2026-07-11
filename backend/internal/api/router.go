@@ -32,6 +32,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
+	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
@@ -154,7 +155,7 @@ type Deps struct {
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -190,7 +191,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	if dep.Config != nil {
 		maxUp = dep.Config.MaxUploadBytes()
 	}
-	fileSvc := &files.Service{DB: dep.DB, Settings: settingsSvc, MaxBytes: maxUp}
+	fileSvc := &files.Service{DB: dep.DB, Redis: dep.Redis, Settings: settingsSvc, MaxBytes: maxUp}
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
@@ -535,7 +536,6 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
 	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
 	authed.POST("/auth/logout-all", sessionH.LogoutAll)
-	authed.GET("/security/overview", sessionH.SecurityOverview)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
@@ -705,13 +705,17 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
 	securitymod.RegisterRoutes(authed, secH)
 
+	exportSvc := &exportmod.Service{DB: dep.DB}
+	exportH := &exportmod.Handler{Svc: exportSvc}
+	exportmod.RegisterRoutes(authed, exportH)
+
 	if dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv) {
 		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: dep.Config.AppEnv}
 		demoSeedH := &demoseed.Handler{Svc: demoSeedSvc}
 		demoseed.Register(authed, demoSeedH)
 	}
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

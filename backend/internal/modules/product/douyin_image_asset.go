@@ -15,6 +15,7 @@ import (
 // The unique key is (shop_id, content_hash) — same binary content = same platform image.
 type DouyinImageAsset struct {
 	model.Base
+	TenantID                int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	ShopID                  uuid.UUID  `gorm:"type:char(36);index;not null" json:"shopId"`
 	StorageProvider         string     `gorm:"size:64" json:"storageProvider,omitempty"`
 	StorageObjectKey        string     `gorm:"size:1024" json:"storageObjectKey,omitempty"`
