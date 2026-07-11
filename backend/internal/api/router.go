@@ -613,7 +613,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Idempotency: idempotencySvc,
 		Verifiers:   webhookRegistry,
 		ShopResolver: &webhook.DBWebhookShopResolver{
-			DB:     dep.DB,
+			DB: dep.DB,
 			AppEnv: func() string {
 				if dep.Config != nil {
 					return dep.Config.AppEnv
