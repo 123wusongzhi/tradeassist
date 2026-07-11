@@ -23,6 +23,7 @@ type Service struct {
 	DB              *gorm.DB
 	Idempotency     *idempotency.Service
 	Verifiers       *Registry
+	OrderHandler    OrderEventHandler
 	MaxPayloadBytes int64
 	MaxClockSkew    time.Duration
 	AppEnv          string

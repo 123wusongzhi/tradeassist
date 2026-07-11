@@ -11,6 +11,144 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 )
 
+type importMeta struct {
+	source            string
+	eventType         string
+	eventID           string
+	platformRevision  string
+	platformUpdatedAt *time.Time
+}
+
+func orderImportKey(platformKey, shopID, ext, revision string) string {
+	if strings.TrimSpace(revision) != "" {
+		return idempotency.OrderImportRevision(platformKey, shopID, ext, revision)
+	}
+	return idempotency.OrderImport(platformKey, shopID, ext)
+}
+
+func (s *Service) importSyncedOrderWithIdempotency(ctx context.Context, shopID uuid.UUID, platformKey string, p SyncedOrderPayload, meta importMeta) (syncedOrderImportOutcome, error) {
+	var zero syncedOrderImportOutcome
+	ext := strings.TrimSpace(p.ExternalOrderID)
+	if ext == "" {
+		return zero, fmt.Errorf("external order id is required")
+	}
+
+	revision := strings.TrimSpace(meta.platformRevision)
+	if revision == "" {
+		revision = strings.TrimSpace(p.PlatformRevision)
+	}
+
+	if s.Idempotency == nil {
+		orderID, isCreate, err := s.upsertSingleSyncedOrder(ctx, shopID, platformKey, p)
+		if err != nil {
+			return zero, err
+		}
+		return syncedOrderImportOutcome{orderID: orderID, isCreate: isCreate}, nil
+	}
+
+	key := orderImportKey(platformKey, shopID.String(), ext, revision)
+	reqHash := orderImportRequestHash(p)
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeOrderImport, key, reqHash, orderImportOwner, idempotency.DefaultLease)
+	decision, rec, classifyErr := idempotency.Classify(res, err)
+
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		rid := ""
+		if res != nil {
+			rid = res.ResourceID
+		}
+		if rid == "" && rec != nil {
+			rid = rec.ResourceID
+		}
+		if rid == "" {
+			return zero, fmt.Errorf("%s", codeOrderImportInProgress)
+		}
+		oid, perr := uuid.Parse(rid)
+		if perr != nil {
+			return zero, fmt.Errorf("%s", codeOrderImportInProgress)
+		}
+		return syncedOrderImportOutcome{orderID: oid, replayed: true}, nil
+	case idempotency.DecisionInProgress:
+		return zero, fmt.Errorf("%s", codeOrderImportInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		if classifyErr != nil {
+			return zero, classifyErr
+		}
+		return zero, fmt.Errorf("%s", codeOrderImportKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if res == nil || res.Record == nil {
+			return zero, fmt.Errorf("idempotency: missing record")
+		}
+		recordID := res.Record.ID
+
+		existing, findErr := s.findExistingSyncedOrder(ctx, shopID, platformKey, ext)
+		if findErr == nil {
+			if isStalePlatformUpdate(existing, revision, meta.platformUpdatedAt, p) {
+				summary, _ := json.Marshal(map[string]string{
+					"orderId": existing.ID.String(),
+					"reason":  codeOrderStaleUpdateIgnored,
+					"source":  meta.source,
+				})
+				if err := s.Idempotency.Complete(ctx, recordID, orderImportOwner, idempotency.CompleteResult{
+					ResponseCode:    codeOrderStaleUpdateIgnored,
+					ResponseSummary: string(summary),
+					ResourceType:    "order",
+					ResourceID:      existing.ID.String(),
+				}); err != nil {
+					return zero, err
+				}
+				return syncedOrderImportOutcome{
+					orderID:      existing.ID,
+					staleIgnored: true,
+				}, nil
+			}
+			if !ValidateOrderStateTransition(existing.Status, existing.PaymentStatus, existing.FulfillmentStatus,
+				normalizeSyncedOrderStatus(p.Status), normalizeSyncedPaymentStatus(p.PaymentStatus), normalizeSyncedFulfillmentStatus(p.FulfillmentStatus)) {
+				summary, _ := json.Marshal(map[string]string{
+					"orderId": existing.ID.String(),
+					"reason":  codeOrderStaleUpdateIgnored,
+					"source":  meta.source,
+				})
+				if err := s.Idempotency.Complete(ctx, recordID, orderImportOwner, idempotency.CompleteResult{
+					ResponseCode:    codeOrderStaleUpdateIgnored,
+					ResponseSummary: string(summary),
+					ResourceType:    "order",
+					ResourceID:      existing.ID.String(),
+				}); err != nil {
+					return zero, err
+				}
+				return syncedOrderImportOutcome{orderID: existing.ID, staleIgnored: true}, nil
+			}
+		}
+
+		orderID, isCreate, upErr := s.upsertSingleSyncedOrder(ctx, shopID, platformKey, p)
+		if upErr != nil {
+			_ = s.Idempotency.Fail(ctx, recordID, orderImportOwner, upErr.Error(), true)
+			return zero, upErr
+		}
+		summary, _ := json.Marshal(map[string]string{"orderId": orderID.String(), "source": meta.source})
+		if err := s.Idempotency.Complete(ctx, recordID, orderImportOwner, idempotency.CompleteResult{
+			ResponseCode:    codeOrderImportSucceeded,
+			ResponseSummary: string(summary),
+			ResourceType:    "order",
+			ResourceID:      orderID.String(),
+		}); err != nil {
+			return zero, err
+		}
+		return syncedOrderImportOutcome{orderID: orderID, isCreate: isCreate}, nil
+	default:
+		if classifyErr != nil {
+			return zero, classifyErr
+		}
+		return zero, err
+	}
+}
+
+// importSyncedOrderWithIdempotencyLegacy preserves the polling-only signature.
+func (s *Service) importSyncedOrderWithIdempotencyLegacy(ctx context.Context, shopID uuid.UUID, platformKey string, p SyncedOrderPayload) (syncedOrderImportOutcome, error) {
+	return s.importSyncedOrderWithIdempotency(ctx, shopID, platformKey, p, importMeta{source: UpsertSourcePolling})
+}
+
 const (
 	orderImportOwner            = "order-import"
 	codeOrderStaleUpdateIgnored = "ORDER_STALE_UPDATE_IGNORED"
@@ -31,6 +169,7 @@ type orderImportHashPayload struct {
 	PaymentStatus     string  `json:"paymentStatus"`
 	FulfillmentStatus string  `json:"fulfillmentStatus"`
 	TotalAmount       float64 `json:"totalAmount"`
+	PlatformRevision  string  `json:"platformRevision,omitempty"`
 	OrderedAt         string  `json:"orderedAt,omitempty"`
 	PaidAt            string  `json:"paidAt,omitempty"`
 	ShippedAt         string  `json:"shippedAt,omitempty"`
@@ -43,6 +182,7 @@ func orderImportRequestHash(p SyncedOrderPayload) string {
 		PaymentStatus:     normalizeSyncedPaymentStatus(p.PaymentStatus),
 		FulfillmentStatus: normalizeSyncedFulfillmentStatus(p.FulfillmentStatus),
 		TotalAmount:       p.TotalAmount,
+		PlatformRevision:  strings.TrimSpace(p.PlatformRevision),
 		OrderedAt:         formatTimeRFC(p.OrderedAt),
 		PaidAt:            formatTimeRFC(p.PaidAt),
 		ShippedAt:         formatTimeRFC(p.ShippedAt),
@@ -175,97 +315,4 @@ func (s *Service) findExistingSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		return nil, err
 	}
 	return &existing, nil
-}
-
-func (s *Service) importSyncedOrderWithIdempotency(ctx context.Context, shopID uuid.UUID, platformKey string, p SyncedOrderPayload) (syncedOrderImportOutcome, error) {
-	var zero syncedOrderImportOutcome
-	ext := strings.TrimSpace(p.ExternalOrderID)
-	if ext == "" {
-		return zero, fmt.Errorf("external order id is required")
-	}
-
-	if s.Idempotency == nil {
-		orderID, isCreate, err := s.upsertSingleSyncedOrder(ctx, shopID, platformKey, p)
-		if err != nil {
-			return zero, err
-		}
-		return syncedOrderImportOutcome{orderID: orderID, isCreate: isCreate}, nil
-	}
-
-	key := idempotency.OrderImport(platformKey, shopID.String(), ext)
-	reqHash := orderImportRequestHash(p)
-	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeOrderImport, key, reqHash, orderImportOwner, idempotency.DefaultLease)
-	decision, rec, classifyErr := idempotency.Classify(res, err)
-
-	switch decision {
-	case idempotency.DecisionAlreadySucceeded:
-		rid := ""
-		if res != nil {
-			rid = res.ResourceID
-		}
-		if rid == "" && rec != nil {
-			rid = rec.ResourceID
-		}
-		if rid == "" {
-			return zero, fmt.Errorf("%s", codeOrderImportInProgress)
-		}
-		oid, perr := uuid.Parse(rid)
-		if perr != nil {
-			return zero, fmt.Errorf("%s", codeOrderImportInProgress)
-		}
-		return syncedOrderImportOutcome{orderID: oid, replayed: true}, nil
-	case idempotency.DecisionInProgress:
-		return zero, fmt.Errorf("%s", codeOrderImportInProgress)
-	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
-		if classifyErr != nil {
-			return zero, classifyErr
-		}
-		return zero, fmt.Errorf("%s", codeOrderImportKeyConflict)
-	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
-		if res == nil || res.Record == nil {
-			return zero, fmt.Errorf("idempotency: missing record")
-		}
-		recordID := res.Record.ID
-
-		existing, findErr := s.findExistingSyncedOrder(ctx, shopID, platformKey, ext)
-		if findErr == nil && isStaleSyncedUpdate(existing, p) {
-			summary, _ := json.Marshal(map[string]string{
-				"orderId": existing.ID.String(),
-				"reason":  codeOrderStaleUpdateIgnored,
-			})
-			if err := s.Idempotency.Complete(ctx, recordID, orderImportOwner, idempotency.CompleteResult{
-				ResponseCode:    codeOrderStaleUpdateIgnored,
-				ResponseSummary: string(summary),
-				ResourceType:    "order",
-				ResourceID:      existing.ID.String(),
-			}); err != nil {
-				return zero, err
-			}
-			return syncedOrderImportOutcome{
-				orderID:      existing.ID,
-				staleIgnored: true,
-			}, nil
-		}
-
-		orderID, isCreate, upErr := s.upsertSingleSyncedOrder(ctx, shopID, platformKey, p)
-		if upErr != nil {
-			_ = s.Idempotency.Fail(ctx, recordID, orderImportOwner, upErr.Error(), true)
-			return zero, upErr
-		}
-		summary, _ := json.Marshal(map[string]string{"orderId": orderID.String()})
-		if err := s.Idempotency.Complete(ctx, recordID, orderImportOwner, idempotency.CompleteResult{
-			ResponseCode:    codeOrderImportSucceeded,
-			ResponseSummary: string(summary),
-			ResourceType:    "order",
-			ResourceID:      orderID.String(),
-		}); err != nil {
-			return zero, err
-		}
-		return syncedOrderImportOutcome{orderID: orderID, isCreate: isCreate}, nil
-	default:
-		if classifyErr != nil {
-			return zero, classifyErr
-		}
-		return zero, err
-	}
 }

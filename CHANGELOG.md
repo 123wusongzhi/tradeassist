@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P3.1 — Douyin closure (2026-07-11)
+
+- Order webhook handler wired to unified `UpsertPlatformOrder` (shared with polling sync).
+- Order stale protection: `platform_revision` / `platform_updated_at` + lifecycle validator.
+- `ContractCapabilityGate` (IM, brand, webhook signature v1); production rejects fixture-only signature.
+- AI text/image apply idempotency reconciliation; `token_version` incremented on OAuth refresh persist.
+- `scripts/p3-1-douyin-closure-check.mjs`; P3.1 docs. Real credential E2E still deferred.
+
 ### Phase P3 — 抖店 Production Adapter (2026-07-11)
 
 - **DouyinProvider facade**: thin interface wrapping all Client capabilities (Auth/Shop/Catalog/Image/Product/Order/Inventory/Customer).

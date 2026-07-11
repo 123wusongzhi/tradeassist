@@ -150,6 +150,13 @@ func (s *Service) Build(ctx context.Context) (*Overview, error) {
 	out.Items = append(out.Items, s.p3DouyinInventoryItem(ctx))
 	out.Items = append(out.Items, s.p3DouyinCustomerItem(ctx))
 	out.Items = append(out.Items, s.p3DouyinWebhookItem(ctx))
+	out.Items = append(out.Items, s.p31SummaryItem(ctx))
+	out.Items = append(out.Items, s.p31OrderWebhookItem(ctx))
+	out.Items = append(out.Items, s.p31AIReconcileItem(ctx))
+	out.Items = append(out.Items, s.p31DraftReconcileItem(ctx))
+	out.Items = append(out.Items, s.p31TokenRecoveryItem(ctx))
+	out.Items = append(out.Items, s.p31DouyinBrandItem(ctx))
+	out.Items = append(out.Items, s.p31WebhookSignatureItem(ctx))
 	out.DemoData = s.demoDataItem(ctx)
 	return out, nil
 }

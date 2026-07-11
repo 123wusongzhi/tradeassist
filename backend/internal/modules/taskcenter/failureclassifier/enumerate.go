@@ -60,6 +60,15 @@ func AllCategories() []string {
 		"douyin_oauth_state_invalid",
 		"douyin_oauth_state_expired",
 		"douyin_oauth_state_already_used",
+		"douyin_order_event_contract_mismatch",
+		"douyin_order_event_stale",
+		"douyin_order_event_processing_failed",
+		"douyin_im_contract_verification_required",
+		"douyin_brand_contract_verification_required",
+		"douyin_webhook_signature_contract_pending",
+		"ai_apply_reconciliation_conflict",
+		"douyin_product_draft_reconciliation_failed",
+		"douyin_token_refresh_reconciliation_failed",
 	}
 }
 

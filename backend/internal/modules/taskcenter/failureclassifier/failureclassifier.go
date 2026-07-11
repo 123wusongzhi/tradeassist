@@ -396,6 +396,37 @@ var rules = []rule{
 		reason:  "抖店商品或规格尚未完成平台绑定。",
 		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认规格映射已写入平台规格编号。",
 	},
+	// P3.1 Douyin closure categories
+	{
+		id: "sub:douyin_order_event_contract", substrs: []string{"DOUYIN_ORDER_EVENT_CONTRACT_MISMATCH", "DOUYIN_ORDER_EVENT_INVALID"},
+		category: "douyin_order_event_contract_mismatch", severity: SeverityMedium,
+		reason:  "订单事件结构与当前适配版本不一致",
+		suggest: "请确认平台权限、方法路径和字段版本",
+	},
+	{
+		id: "sub:douyin_order_event_stale", substrs: []string{"ORDER_STALE_UPDATE_IGNORED"},
+		category: "douyin_order_event_stale", severity: SeverityLow,
+		reason:  "该订单事件早于当前订单状态，已安全忽略",
+		suggest: "无需处理；如频繁出现请检查 Webhook 与轮询时序",
+	},
+	{
+		id: "sub:douyin_im_contract", substrs: []string{"DOUYIN_CONTRACT_VERIFICATION_REQUIRED", "blocked_by_contract_verification"},
+		category: "douyin_im_contract_verification_required", severity: SeverityLow,
+		reason:  "客服接口仍等待平台契约确认",
+		suggest: "适配代码已完成，等待平台契约确认后再启用",
+	},
+	{
+		id: "sub:douyin_brand_contract", substrs: []string{"DOUYIN_BRAND", "brand.list"},
+		category: "douyin_brand_contract_verification_required", severity: SeverityLow,
+		reason:  "品牌接口仍等待平台契约确认",
+		suggest: "可手工填写品牌 ID，或等待平台契约确认",
+	},
+	{
+		id: "sub:ai_apply_reconcile", substrs: []string{"AI_APPLY_RECONCILIATION_CONFLICT"},
+		category: "ai_apply_reconciliation_conflict", severity: SeverityMedium,
+		reason:  "商品已被人工修改，无法自动恢复",
+		suggest: "请人工核对商品内容与 AI 应用记录",
+	},
 	{
 		id: "sub:douyin_inventory_stock", substrs: []string{"DOUYIN_STOCK_INVALID", "stock must be >= 0"},
 		category: CategoryValidationError, severity: SeverityMedium,

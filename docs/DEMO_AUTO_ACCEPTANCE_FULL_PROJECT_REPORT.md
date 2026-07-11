@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-11T10:02:38.1203445Z
+> Generated: 2026-07-11T10:43:52.8712409Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase

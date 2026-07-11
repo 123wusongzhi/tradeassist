@@ -55,20 +55,25 @@ const (
 	CodeUnknownDouyinError                  = "UNKNOWN_DOUYIN_ERROR"
 
 	// P3 additions
-	CodeDouyinUnknownResult              = "DOUYIN_UNKNOWN_RESULT"
-	CodeDouyinNotConfigured              = "DOUYIN_NOT_CONFIGURED"
-	CodeDouyinReauthorizationRequired    = "DOUYIN_REAUTHORIZATION_REQUIRED"
-	CodeDouyinContractMismatch           = "DOUYIN_CONTRACT_MISMATCH"
-	CodeDouyinManualConfirmationRequired = "DOUYIN_MANUAL_CONFIRMATION_REQUIRED"
-	CodeDouyinValidationFailed           = "DOUYIN_VALIDATION_FAILED"
-	CodeDouyinTimeout                    = "DOUYIN_TIMEOUT"
-	CodeDouyinResourceNotFound           = "DOUYIN_RESOURCE_NOT_FOUND"
-	CodeDouyinTokenVersionConflict       = "DOUYIN_TOKEN_VERSION_CONFLICT"
-	CodeDouyinTokenRefreshInProgress     = "DOUYIN_TOKEN_REFRESH_IN_PROGRESS"
-	CodeDouyinOAuthStateMissing          = "DOUYIN_OAUTH_STATE_MISSING"
-	CodeDouyinOAuthStateExpired          = "DOUYIN_OAUTH_STATE_EXPIRED"
-	CodeDouyinOAuthStateAlreadyUsed      = "DOUYIN_OAUTH_STATE_ALREADY_USED"
-	CodeDouyinOAuthRedirectNotAllowed    = "DOUYIN_OAUTH_REDIRECT_NOT_ALLOWED"
+	CodeDouyinUnknownResult                = "DOUYIN_UNKNOWN_RESULT"
+	CodeDouyinNotConfigured                = "DOUYIN_NOT_CONFIGURED"
+	CodeDouyinReauthorizationRequired      = "DOUYIN_REAUTHORIZATION_REQUIRED"
+	CodeDouyinContractMismatch             = "DOUYIN_CONTRACT_MISMATCH"
+	CodeDouyinContractVerificationRequired = "DOUYIN_CONTRACT_VERIFICATION_REQUIRED"
+	CodeDouyinContractVersionUnsupported   = "DOUYIN_CONTRACT_VERSION_UNSUPPORTED"
+	CodeDouyinMethodNotConfirmed           = "DOUYIN_METHOD_NOT_CONFIRMED"
+	CodeDouyinScopeNotConfirmed            = "DOUYIN_SCOPE_NOT_CONFIRMED"
+	CodeDouyinResponseSchemaMismatch       = "DOUYIN_RESPONSE_SCHEMA_MISMATCH"
+	CodeDouyinManualConfirmationRequired   = "DOUYIN_MANUAL_CONFIRMATION_REQUIRED"
+	CodeDouyinValidationFailed             = "DOUYIN_VALIDATION_FAILED"
+	CodeDouyinTimeout                      = "DOUYIN_TIMEOUT"
+	CodeDouyinResourceNotFound             = "DOUYIN_RESOURCE_NOT_FOUND"
+	CodeDouyinTokenVersionConflict         = "DOUYIN_TOKEN_VERSION_CONFLICT"
+	CodeDouyinTokenRefreshInProgress       = "DOUYIN_TOKEN_REFRESH_IN_PROGRESS"
+	CodeDouyinOAuthStateMissing            = "DOUYIN_OAUTH_STATE_MISSING"
+	CodeDouyinOAuthStateExpired            = "DOUYIN_OAUTH_STATE_EXPIRED"
+	CodeDouyinOAuthStateAlreadyUsed        = "DOUYIN_OAUTH_STATE_ALREADY_USED"
+	CodeDouyinOAuthRedirectNotAllowed      = "DOUYIN_OAUTH_REDIRECT_NOT_ALLOWED"
 
 	// Error class constants for ErrorClass field.
 	ErrorClassAuthError        = "auth_error"
@@ -152,8 +157,12 @@ func NewError(code, msg, platformCode, platformMsg, requestID string) *Error {
 	case CodeDouyinReauthorizationRequired:
 		e.AuthExpired = true
 		e.ErrorClass = ErrorClassAuthError
-	case CodeDouyinContractMismatch:
+	case CodeDouyinContractMismatch, CodeDouyinContractVerificationRequired,
+		CodeDouyinContractVersionUnsupported, CodeDouyinMethodNotConfirmed,
+		CodeDouyinScopeNotConfirmed, CodeDouyinResponseSchemaMismatch:
 		e.Retryable = false
+		e.SafeRetry = false
+		e.ManualReviewRequired = true
 		e.ErrorClass = ErrorClassContractMismatch
 	case CodeDouyinManualConfirmationRequired:
 		e.SafeRetry = false

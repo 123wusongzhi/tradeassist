@@ -95,6 +95,21 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		result.StatusLabel = itemStatusLabel(ItemApplied)
 		return result
 	}
+	if idemJob != nil {
+		ok, reconcileErr := s.ReconcileImageApply(ctx, idemJob, item, slot)
+		if ok {
+			result.Status = ItemApplied
+			result.StatusLabel = itemStatusLabel(ItemApplied)
+			return result
+		}
+		if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+			result.Status = ItemConflict
+			result.StatusLabel = itemStatusLabel(ItemConflict)
+			result.ErrorCode = product.CodeAIApplyReconciliationConflict
+			result.ErrorMessage = reconcileErr.Error()
+			return result
+		}
+	}
 
 	var app *product.ProductImageApplication
 	var applyErr error

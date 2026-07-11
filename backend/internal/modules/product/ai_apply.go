@@ -52,6 +52,13 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 			if rec != nil {
 				idemRecordID = rec.ID
 			}
+			if decision == idempotency.DecisionRetryAllowed && idemRecordID != uuid.Nil {
+				if recErr := s.ReconcileAIApply(ctx, p.ID, fieldType, taskID.String(), strings.TrimSpace(sourceSnapshotHash), idemRecordID, idemOwner); recErr == nil {
+					return nil
+				} else if strings.Contains(recErr.Error(), CodeAIApplyReconciliationConflict) {
+					return recErr
+				}
+			}
 		default:
 			if acqErr != nil {
 				// Idempotency service unavailable — proceed without idempotency guard

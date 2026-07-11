@@ -28,6 +28,8 @@ type Order struct {
 	OrderedAt         *time.Time     `json:"orderedAt,omitempty"`
 	ShippedAt         *time.Time     `json:"shippedAt,omitempty"`
 	DeliveredAt       *time.Time     `json:"deliveredAt,omitempty"`
+	PlatformUpdatedAt *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
+	PlatformRevision  string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
 	Remark            string         `gorm:"type:text" json:"remark,omitempty"`
 	RawData           datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
 	CreatedBy         *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`

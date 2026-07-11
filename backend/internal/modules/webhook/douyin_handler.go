@@ -67,13 +67,13 @@ func (s *Service) HandleDouyinPlatformEvent(ctx context.Context, ev *Event) erro
 	// Try standard Douyin envelope first
 	if env, err := douyinshop.ParseDouyinWebhookEnvelope(payload); err == nil && env.Event != "" {
 		normalized := douyinshop.NormalizeDouyinEnvelope(env, payload)
-		dispatcher := &douyinEventDispatcher{}
+		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
 		return dispatcher.DispatchDouyinEvent(ctx, normalized)
 	}
 
 	// Try jinritemai array push
 	if items, err := douyinshop.ParseJinriteimaiPushEnvelope(payload); err == nil && len(items) > 0 {
-		dispatcher := &douyinEventDispatcher{}
+		dispatcher := &douyinEventDispatcher{OrderHandler: s.OrderHandler}
 		for _, item := range items {
 			normalized := douyinshop.NormalizeJinriteimaiItem(item, payload)
 			if err := dispatcher.DispatchDouyinEvent(ctx, normalized); err != nil {

@@ -1,5 +1,5 @@
 ﻿{
-    "healthTimestamp":  "2026-07-11T10:01:42Z",
+    "healthTimestamp":  "2026-07-11T10:42:52Z",
     "imageQueue":  {
                        "enabled":  true,
                        "name":  "image:tasks",
@@ -12,7 +12,7 @@
     "appEnv":  "development",
     "routeCount":  12,
     "failed404Count":  0,
-    "generatedAt":  "2026-07-11T10:01:42.6052550Z",
+    "generatedAt":  "2026-07-11T10:42:52.2178978Z",
     "passed":  true,
     "healthStatus":  "up",
     "apiBase":  "http://127.0.0.1:8080",

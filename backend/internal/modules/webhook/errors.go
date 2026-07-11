@@ -8,6 +8,7 @@ const (
 	CodeSignatureInvalid         = "WEBHOOK_SIGNATURE_INVALID"
 	CodeVerifierNotConfigured    = "WEBHOOK_VERIFIER_NOT_CONFIGURED"
 	CodeSignatureBypassForbidden = "WEBHOOK_SIGNATURE_BYPASS_FORBIDDEN"
+	CodeSignatureContractPending = "WEBHOOK_SIGNATURE_CONTRACT_PENDING"
 	CodeTimestampExpired         = "WEBHOOK_TIMESTAMP_EXPIRED"
 	CodeTimestampMissing         = "WEBHOOK_TIMESTAMP_MISSING"
 	CodePayloadTooLarge          = "WEBHOOK_PAYLOAD_TOO_LARGE"

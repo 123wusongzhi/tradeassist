@@ -27,6 +27,8 @@ type SyncedOrderPayload struct {
 	PaidAt            *time.Time
 	ShippedAt         *time.Time
 	DeliveredAt       *time.Time
+	PlatformUpdatedAt *time.Time
+	PlatformRevision  string
 	Items             []SyncedOrderItemPayload
 	Shipments         []SyncedShipmentPayload
 	RawSummary        map[string]any
@@ -178,7 +180,7 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 			continue
 		}
 
-		outcome, impErr := s.importSyncedOrderWithIdempotency(ctx, shopID, platformKey, p)
+		outcome, impErr := s.importSyncedOrderWithIdempotencyLegacy(ctx, shopID, platformKey, p)
 		if impErr != nil {
 			failed++
 			continue
@@ -255,6 +257,8 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 				OrderedAt:         p.OrderedAt,
 				ShippedAt:         p.ShippedAt,
 				DeliveredAt:       p.DeliveredAt,
+				PlatformUpdatedAt: p.PlatformUpdatedAt,
+				PlatformRevision:  strings.TrimSpace(p.PlatformRevision),
 				RawData:           raw,
 			}
 			if err := tx.Create(o).Error; err != nil {
@@ -278,6 +282,12 @@ func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID,
 		existing.OrderedAt = p.OrderedAt
 		existing.ShippedAt = p.ShippedAt
 		existing.DeliveredAt = p.DeliveredAt
+		if p.PlatformUpdatedAt != nil {
+			existing.PlatformUpdatedAt = p.PlatformUpdatedAt
+		}
+		if rev := strings.TrimSpace(p.PlatformRevision); rev != "" {
+			existing.PlatformRevision = rev
+		}
 		existing.RawData = raw
 		// Remark intentionally preserved (manual ops).
 

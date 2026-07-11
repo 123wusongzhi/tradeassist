@@ -450,7 +450,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	payloads := ToSyncedPayloads(res.Orders)
-	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
+	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertPlatformOrders(ctx, task.ShopID, shopRow.Platform, order.UpsertSourcePolling, payloads)
 	if errUp != nil {
 		return fail(errUp.Error())
 	}

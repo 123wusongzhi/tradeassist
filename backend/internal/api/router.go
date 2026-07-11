@@ -595,20 +595,29 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	// (platform_douyin_shop group). If secret is missing the verifier is still
 	// registered but Verify returns CodeVerifierNotConfigured.
 	if settingsSvc != nil {
+		appEnv := ""
+		if dep.Config != nil {
+			appEnv = dep.Config.AppEnv
+		}
 		if plain, err := settingsSvc.PlainByGroup(context.Background(), 0, "platform_douyin_shop"); err == nil {
 			appSecret := plain["app_secret"]
-			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifier(appSecret))
-			webhookRegistry.Register("douyin", webhook.NewDouyinVerifier(appSecret))
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifierWithEnv(appSecret, appEnv))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifierWithEnv(appSecret, appEnv))
 		} else {
-			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifier(""))
-			webhookRegistry.Register("douyin", webhook.NewDouyinVerifier(""))
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifierWithEnv("", appEnv))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifierWithEnv("", appEnv))
 		}
 	}
 	webhookSvc := &webhook.Service{
 		DB:          dep.DB,
 		Idempotency: idempotencySvc,
 		Verifiers:   webhookRegistry,
-		AppEnv:      "",
+		OrderHandler: &ordersync.DouyinOrderWebhookHandler{
+			DB:     dep.DB,
+			Shops:  shopSvc,
+			Orders: orderSvc,
+		},
+		AppEnv: "",
 	}
 	if dep.Config != nil {
 		webhookSvc.MaxPayloadBytes = dep.Config.WebhookMaxBodyBytes()

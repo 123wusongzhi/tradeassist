@@ -1101,6 +1101,21 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		result.ErrorMessage = code
 		return result
 	}
+	if idemJob != nil {
+		ok, reconcileErr := s.ReconcileTextApply(ctx, idemJob, item)
+		if ok {
+			result.Status = ItemApplied
+			result.StatusLabel = itemStatusLabel(ItemApplied)
+			return result
+		}
+		if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+			result.Status = ItemConflict
+			result.StatusLabel = itemStatusLabel(ItemConflict)
+			result.ErrorCode = product.CodeAIApplyReconciliationConflict
+			result.ErrorMessage = reconcileErr.Error()
+			return result
+		}
+	}
 	if idemJob == nil && replayRes != nil {
 		var refreshed AIProductTextItem
 		_ = s.DB.WithContext(ctx).First(&refreshed, "id = ?", item.ID).Error

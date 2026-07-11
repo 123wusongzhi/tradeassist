@@ -21,6 +21,21 @@ func OrderImport(platform, shopID, platformOrderID string) string {
 		norm(platform), norm(shopID), norm(platformOrderID))
 }
 
+// OrderImportRevision deduplicates a specific platform revision/update snapshot.
+func OrderImportRevision(platform, shopID, platformOrderID, revisionOrUpdatedAt string) string {
+	base := OrderImport(platform, shopID, platformOrderID)
+	rev := norm(revisionOrUpdatedAt)
+	if rev == "" {
+		return base
+	}
+	return fmt.Sprintf("%s:%s", base, rev)
+}
+
+// WebhookDouyin scopes webhook event dedup per shop when shop id is known.
+func WebhookDouyin(shopID, eventID string) string {
+	return fmt.Sprintf("webhook:douyin:%s:%s", norm(shopID), norm(eventID))
+}
+
 // OrderSync is kept for per-order sync side effects inside a running job.
 func OrderSync(platform, shopID, platformOrderID string) string {
 	return OrderImport(platform, shopID, platformOrderID)

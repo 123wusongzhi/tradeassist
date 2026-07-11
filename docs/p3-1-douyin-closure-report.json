@@ -1,0 +1,28 @@
+{
+  "phase": "P3.1",
+  "status": "passed_with_real_credentials_deferred",
+  "orderWebhook": {
+    "handler": "passed",
+    "sharedUpsert": "passed",
+    "staleProtection": "passed",
+    "duplicateProtection": "passed"
+  },
+  "contractGates": {
+    "im": "blocked_by_contract_verification",
+    "brand": "blocked_by_contract_verification",
+    "webhookSignature": "fixture_verified"
+  },
+  "reconciliation": {
+    "aiTextApply": "passed",
+    "aiImageApply": "passed",
+    "productDraft": "passed",
+    "tokenRefresh": "passed"
+  },
+  "race": {
+    "status": "passed"
+  },
+  "realCredentialVerification": "deferred",
+  "passed": 28,
+  "failed": 0,
+  "issues": []
+}

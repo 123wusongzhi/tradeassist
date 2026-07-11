@@ -434,6 +434,7 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 		RefreshTokenValue:     auth.RefreshToken,
 		AccessTokenExpiresAt:  auth.AccessTokenExpiresAt,
 		RefreshTokenExpiresAt: auth.RefreshTokenExpiresAt,
+		TokenVersion:          tok.TokenVersion,
 		PersistRefreshedToken: func(ctx context.Context, bundle *platformdouyin.TokenBundle) error {
 			if bundle == nil {
 				return nil
