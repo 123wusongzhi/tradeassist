@@ -310,7 +310,7 @@ func TestListAttachOperationProgressUsesFixedBatchQueries(t *testing.T) {
 	for i := 0; i < 25; i++ {
 		p := Product{
 			TenantID:    1,
-		Source:      "manual",
+			Source:      "manual",
 			Title:       fmt.Sprintf("Batch progress product %d", i),
 			Description: "Enough description text for list operation progress summary attachment.",
 			Currency:    "CNY",
