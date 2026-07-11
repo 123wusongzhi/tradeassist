@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -181,6 +182,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		)`)
 	}
 
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if scoped, err := adminperm.ApplyProductScope(c, s.DB, tx); err != nil {
 		return nil, err
 	} else {
@@ -288,8 +294,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		raw = datatypes.JSON(body.RawData)
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Product{
-		TenantID:      body.TenantID,
+		TenantID:      tid,
 		CreatedBy:     adminID,
 		Source:        source,
 		SourceURL:     strings.TrimSpace(body.SourceURL),
@@ -325,15 +336,19 @@ func (s *Service) Get(c *gin.Context, id uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).
+	tx := s.DB.WithContext(c.Request.Context()).
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC")
 		}).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
-		}).
-		First(&p, "id = ?", id).Error; err != nil {
+		})
+	if err := repository.FindByID(c.Request.Context(), tx, &p, tid, id); err != nil {
 		return nil, err
 	}
 	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
@@ -535,8 +550,15 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &p, tid, id); err != nil {
 		return nil, err
 	}
 
@@ -595,11 +617,18 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&Product{}, "id = ?", id)
-	if res.Error != nil {
-		return res.Error
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
 	}
-	if res.RowsAffected == 0 {
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+		return err
+	}
+	rows, err := repository.DeleteByID(c.Request.Context(), s.DB, &Product{}, tid, id)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	if s.OpLog != nil {

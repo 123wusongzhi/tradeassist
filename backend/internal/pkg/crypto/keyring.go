@@ -159,6 +159,32 @@ func IsEncrypted(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), encPrefix)
 }
 
+// ParseKeyID extracts key id from enc:v2 ciphertext.
+func ParseKeyID(encoded string) (string, bool) {
+	encoded = strings.TrimSpace(encoded)
+	if !strings.HasPrefix(encoded, encPrefix) {
+		return "", false
+	}
+	body := strings.TrimPrefix(encoded, encPrefix)
+	parts := strings.SplitN(body, ":", 3)
+	if len(parts) < 1 || parts[0] == "" {
+		return "", false
+	}
+	return parts[0], true
+}
+
+// PreviousKeyIDs returns configured previous key ids.
+func (kr *KeyRing) PreviousKeyIDs() []string {
+	if kr == nil || len(kr.PreviousKeys) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(kr.PreviousKeys))
+	for id := range kr.PreviousKeys {
+		out = append(out, id)
+	}
+	return out
+}
+
 func parseKeyMaterial(s string) ([]byte, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {

@@ -57,6 +57,9 @@ func (c *Config) Validate() error {
 	if err := c.validateAuthSecurity(); err != nil {
 		return err
 	}
+	if err := c.validateTenantIsolation(); err != nil {
+		return err
+	}
 
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()

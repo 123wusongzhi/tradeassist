@@ -16,7 +16,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/gorm"
 )
@@ -273,5 +276,11 @@ func testGinContext() *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{}"))
+	c.Set(ctxkey.TenantID, int64(1))
+	c.Set(ctxkey.AdminID, uuid.New().String())
+	c.Set("adminperm.principal", &adminperm.Principal{
+		Role: adminperm.RoleAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleAdmin),
+	})
+	security.SetGin(c, &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceAccessToken})
 	return c
 }

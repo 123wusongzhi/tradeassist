@@ -8,11 +8,12 @@ import (
 )
 
 const (
-	AuthSessionModeSecure       = "secure_session"
-	AuthSessionModeLegacy       = "legacy_local_storage"
-	ErrCodeInsecureAuthConfig   = "INSECURE_AUTH_CONFIGURATION"
-	ErrCodeInsecureCookieConfig = "INSECURE_COOKIE_CONFIGURATION"
-	ErrCodeKeyringConfigInvalid = "KEYRING_CONFIGURATION_INVALID"
+	AuthSessionModeSecure              = "secure_session"
+	AuthSessionModeLegacy              = "legacy_local_storage"
+	ErrCodeInsecureAuthConfig          = "INSECURE_AUTH_CONFIGURATION"
+	ErrCodeInsecureLegacyAuthForbidden = "INSECURE_LEGACY_AUTH_MODE_FORBIDDEN"
+	ErrCodeInsecureCookieConfig        = "INSECURE_COOKIE_CONFIGURATION"
+	ErrCodeKeyringConfigInvalid        = "KEYRING_CONFIGURATION_INVALID"
 )
 
 // AuthConfig holds Phase P4 authentication and session settings.
@@ -153,7 +154,7 @@ func (c *Config) validateAuthSecurity() error {
 	}
 	if IsStagingOrProduction(c.AppEnv) {
 		if c.Auth.SessionMode == AuthSessionModeLegacy {
-			return fmt.Errorf("%s: AUTH_SESSION_MODE=legacy_local_storage forbidden in staging/production", ErrCodeInsecureAuthConfig)
+			return fmt.Errorf("%s: AUTH_SESSION_MODE=legacy_local_storage forbidden in staging/production", ErrCodeInsecureLegacyAuthForbidden)
 		}
 		if !c.Auth.SecureCookie {
 			return fmt.Errorf("%s: AUTH_SECURE_COOKIE must be true in staging/production", ErrCodeInsecureCookieConfig)

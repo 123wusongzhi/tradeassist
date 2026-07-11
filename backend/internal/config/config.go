@@ -29,6 +29,7 @@ type Config struct {
 	JWTSecret            string
 	JWTExpHrs            int
 	Auth                 AuthConfig
+	Tenant               TenantConfig
 
 	// BootstrapAdminEmail / BootstrapAdminPhone / BootstrapAdminPassword seed the first admin when admin_users is empty (at least one contact required).
 	BootstrapAdminEmail    string
@@ -213,6 +214,7 @@ func Load() (*Config, error) {
 		JWTSecret: firstNonEmpty(os.Getenv("JWT_SECRET"), "change-me-in-development"),
 		JWTExpHrs: atoiOrDefault(os.Getenv("JWT_EXPIRE_HOURS"), 168),
 		Auth:      loadAuthConfig(appEnv),
+		Tenant:    loadTenantConfig(appEnv),
 
 		BootstrapAdminEmail:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_EMAIL")),
 		BootstrapAdminPhone:    strings.TrimSpace(os.Getenv("ADMIN_BOOTSTRAP_PHONE")),

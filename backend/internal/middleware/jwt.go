@@ -69,13 +69,41 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		}
 		c.Set(ctxkey.AdminID, claims.Subject)
 		c.Set(ctxkey.AdminUsername, claims.Username)
-		c.Set(ctxkey.TenantID, claims.TenantID)
+		tenantID := claims.TenantID
+		authSource := security.AuthSourceAccessToken
+		if cfg != nil {
+			resolved, src, err := cfg.ResolveRequestTenantID(claims.TenantID)
+			if err != nil && IsProductionLike(cfg, claims.TenantID) {
+				response.Fail(c, 403, response.CodeForbidden, err.Error())
+				c.Abort()
+				return
+			}
+			if resolved > 0 {
+				tenantID = resolved
+				if src != "" {
+					authSource = src
+				}
+			}
+		}
+		c.Set(ctxkey.TenantID, tenantID)
 		if sessID != uuid.Nil {
 			c.Set(ctxkey.SessionID, sessID.String())
 		}
-		security.SetGin(c, security.BuildTenantContext(c, claims.TenantID, uid, sessID, "", nil, nil))
+		tc := security.BuildTenantContext(c, tenantID, uid, sessID, "", nil, nil)
+		tc.AuthSource = authSource
+		security.SetGin(c, tc)
 		c.Next()
 	}
+}
+
+func IsProductionLike(cfg *config.Config, rawTenant int64) bool {
+	if cfg == nil {
+		return false
+	}
+	if config.IsStagingOrProduction(cfg.AppEnv) {
+		return true
+	}
+	return rawTenant <= 0 && !cfg.TenantFallbackEnabled()
 }
 
 // ReadRefreshCookie extracts refresh token from cookie.

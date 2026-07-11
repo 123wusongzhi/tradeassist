@@ -18,7 +18,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
 	"golang.org/x/image/webp"
 	"gorm.io/gorm"
@@ -95,6 +97,11 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		}
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+
 	plain, err := s.Settings.PlainByGroup(reqCtx, 0, "storage")
 	if err != nil {
 		return nil, err
@@ -105,7 +112,7 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 	}
 
 	day := time.Now().UTC().Format("2006/01/02")
-	objKey := fmt.Sprintf("%s/%s%s", day, uuid.NewString(), ext)
+	objKey := fmt.Sprintf("t%d/%s/%s%s", tid, day, uuid.NewString(), ext)
 	if strings.Contains(objKey, "..") {
 		return nil, fmt.Errorf("invalid object key")
 	}
@@ -120,13 +127,16 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 	}
 
 	row := &FileRecord{
-		OriginalName: strings.TrimSpace(originalName),
-		ObjectKey:    objKey,
-		PublicURL:    pubURL,
-		ContentType:  ct,
-		Size:         int64(len(data)),
-		StorageKind:  kind,
-		CreatedBy:    adminID,
+		TenantID:       tid,
+		OriginalName:   strings.TrimSpace(originalName),
+		ObjectKey:      objKey,
+		PublicURL:      pubURL,
+		ContentType:    ct,
+		Size:           int64(len(data)),
+		StorageKind:    kind,
+		SecurityStatus: SecurityPendingScan,
+		ScanStatus:     SecurityPendingScan,
+		CreatedBy:      adminID,
 	}
 	if err := s.DB.WithContext(reqCtx).Create(row).Error; err != nil {
 		_ = prov.Delete(reqCtx, objKey)
@@ -295,6 +305,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&FileRecord{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if v := strings.TrimSpace(q.ContentType); v != "" {
 		tx = tx.Where("content_type = ?", v)
 	}
@@ -337,6 +352,26 @@ func (s *Service) DeleteRecordByID(ctx context.Context, id uuid.UUID) error {
 	if err := s.DB.WithContext(ctx).Where("id = ?", id).First(&row).Error; err != nil {
 		return err
 	}
+	return s.deleteRecord(ctx, &row)
+}
+
+// DeleteRecordByTenant removes a tenant-scoped file row.
+func (s *Service) DeleteRecordByTenant(c *gin.Context, id uuid.UUID) error {
+	if s == nil || s.DB == nil || s.Settings == nil {
+		return fmt.Errorf("files: misconfigured")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var row FileRecord
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
+		return err
+	}
+	return s.deleteRecord(c.Request.Context(), &row)
+}
+
+func (s *Service) deleteRecord(ctx context.Context, row *FileRecord) error {
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return err
@@ -348,7 +383,7 @@ func (s *Service) DeleteRecordByID(ctx context.Context, id uuid.UUID) error {
 	if err := prov.Delete(ctx, row.ObjectKey); err != nil {
 		return err
 	}
-	return s.DB.WithContext(ctx).Delete(&FileRecord{}, "id = ?", id).Error
+	return s.DB.WithContext(ctx).Delete(&FileRecord{}, "id = ?", row.ID).Error
 }
 
 // DeleteStorageObject removes an object from configured storage (ignores empty keys).

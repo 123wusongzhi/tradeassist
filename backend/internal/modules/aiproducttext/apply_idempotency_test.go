@@ -14,6 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
 
@@ -49,6 +52,12 @@ func testGinContext() *gin.Context {
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	c.Request = req
+	c.Set(ctxkey.TenantID, int64(1))
+	c.Set(ctxkey.AdminID, uuid.New().String())
+	c.Set("adminperm.principal", &adminperm.Principal{
+		Role: adminperm.RoleAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleAdmin),
+	})
+	security.SetGin(c, &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceAccessToken})
 	return c
 }
 
@@ -62,6 +71,7 @@ func TestConcurrentApplySameItemOnce(t *testing.T) {
 	}
 
 	p := product.Product{
+		TenantID: 1,
 		Source:   "manual",
 		Title:    "Bluetooth earbuds",
 		Currency: "USD",

@@ -17,6 +17,7 @@ type TenantContext struct {
 	Permissions []string
 	ShopScope   []uuid.UUID
 	RequestID   string
+	AuthSource  string
 }
 
 type tenantCtxKey struct{}
@@ -73,13 +74,27 @@ func BuildTenantContext(c *gin.Context, tenantID int64, userID uuid.UUID, sessio
 		Permissions: perms,
 		ShopScope:   shopScope,
 		RequestID:   rid,
+		AuthSource:  AuthSourceAccessToken,
 	}
 }
 
 // WorkerTenantContext builds tenant context for background workers.
 func WorkerTenantContext(tenantID int64, userID uuid.UUID) *TenantContext {
 	return &TenantContext{
-		TenantID: tenantID,
-		UserID:   userID,
+		TenantID:   tenantID,
+		UserID:     userID,
+		AuthSource: AuthSourceWorker,
 	}
+}
+
+// RequireTenantContext returns tenant context or error when missing/invalid.
+func RequireTenantContext(ctx context.Context) (*TenantContext, error) {
+	tc := FromContext(ctx)
+	if tc == nil {
+		return nil, ErrTenantContextMissing
+	}
+	if tc.TenantID <= 0 {
+		return nil, ErrTenantContextMissing
+	}
+	return tc, nil
 }

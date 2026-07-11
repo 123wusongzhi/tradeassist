@@ -3,7 +3,6 @@ package security
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -141,10 +140,13 @@ func TenantScopedQuery(tx *gorm.DB, tenantID int64) *gorm.DB {
 func EnsureTenantMatch(ctx context.Context, resourceTenantID int64) error {
 	tc := FromContext(ctx)
 	if tc == nil {
-		return nil
+		return ErrTenantContextMissing
+	}
+	if tc.TenantID <= 0 {
+		return ErrTenantContextMissing
 	}
 	if tc.TenantID != resourceTenantID {
-		return fmt.Errorf("%w", ErrTenantAccessDenied)
+		return ErrTenantAccessDenied
 	}
 	return nil
 }

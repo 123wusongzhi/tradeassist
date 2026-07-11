@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -452,6 +453,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
 		return nil, err
 	} else {
@@ -762,9 +768,18 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 }
 
 func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, error) {
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return nil, err
+	}
+	var o Order
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
+		return nil, err
+	}
+	if o.ShopID != nil {
+		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			return nil, err
+		}
 	}
 	var items []OrderItem
 	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Find(&items).Error
@@ -799,8 +814,12 @@ func (s *Service) PeekOrderBeforeUpdate(c *gin.Context, orderID uuid.UUID) (*Ord
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
 		return nil, err
 	}
 	return &o, nil
@@ -838,9 +857,18 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return nil, err
+	}
+	var o Order
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
+		return nil, err
+	}
+	if o.ShopID != nil {
+		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			return nil, err
+		}
 	}
 
 	if strings.TrimSpace(body.CustomerName) != "" {
@@ -918,7 +946,7 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 		o.DeliveredAt = nil
 	}
 
-	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(&o).Error; err != nil {
 			return err
 		}
