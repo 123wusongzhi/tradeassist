@@ -3,10 +3,10 @@ package configstatus
 import "context"
 
 const (
-	StatusIntegrated           = "已接入"
-	StatusImplemented          = "已实现"
-	StatusAwaitingPlatform     = "等待真实平台适配"
-	StatusAwaitingFinalAccept  = "等待最终环境验收"
+	StatusIntegrated          = "已接入"
+	StatusImplemented         = "已实现"
+	StatusAwaitingPlatform    = "等待真实平台适配"
+	StatusAwaitingFinalAccept = "等待最终环境验收"
 )
 
 func (s *Service) p22AITextApplyItem(ctx context.Context) Item {
