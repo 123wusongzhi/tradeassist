@@ -26,8 +26,7 @@
   <a href="#screenshots">Screenshots</a> ·
   <a href="#core-capabilities">Core Capabilities</a> ·
   <a href="#architecture-and-stack">Architecture & Stack</a> ·
-  <a href="docs/README.md">Docs</a> ·
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="docs/README.md">Docs</a>
 </p>
 
 <p align="center">
@@ -38,7 +37,6 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **Phase P3 Completed** · **Production Capability Development In Progress** · **Douyin Production Adapter Implemented** · **Real Credential Verification Deferred** · **Core Reliability Foundation Ready** · **Infrastructure Foundation Ready** · **MVP Demo Ready** · **Tag deferred** · **not Production Ready** · **Douyin Release Candidate** · **Final Acceptance Deferred**. Code creates platform drafts only (no auto-list). Adapter code complete ≠ real Douyin E2E passed. See [`docs/P3_DOUYIN_ADAPTER_REPORT.md`](docs/P3_DOUYIN_ADAPTER_REPORT.md), [`docs/DOUYIN_PROVIDER_ARCHITECTURE.md`](docs/DOUYIN_PROVIDER_ARCHITECTURE.md).
 
 ## Positioning
 
@@ -93,7 +91,7 @@ The screenshots below come from the local development environment and show the m
 - Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center (single-product, multi-shop pre-check and batch draft creation), **multi-product batch publish wizard** (list multi-select → batches and sub-tasks; Phase A2.2 adds production-grade unified/override config UI, effective-config preview, and validation; A2.1 adds batch limits, explicit DB migration, idempotency tests, and production hardening), **batch AI title/description** (Phase A3.1: 4-step wizard → review workspace → conflict-safe apply and undo; **A3.1.1** failure task center integration and legacy entry cleanup; **A3.1.2** real Provider trial run and route smoke acceptance), **batch AI image processing** (Phase A3.2: 5-step wizard → image review workspace → apply/undo; quality check / white background / watermark removal; never auto-overwrites originals; **A3.2.1** real Provider trial, route smoke, apply/undo scripts — see `docs/BATCH_AI_IMAGE_UX_ACCEPTANCE.md`), **AI product operation workbench** (Phase A3.3: unified todos for AI text/image review, publish checks, listing batch issues, and failure tasks — see `docs/AI_OPERATION_WORKBENCH_DESIGN.md`), draft mapping, publish tasks, recovery paths, and manual correction; Douyin Shop supports real platform drafts; other platforms currently use local draft snapshots.
+- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
 ### Engineering and Extensibility
@@ -101,7 +99,7 @@ The screenshots below come from the local development environment and show the m
 - Provider abstractions for AI, storage, image, platform, and collector integrations.
 - Self-host-friendly setup with PostgreSQL + Redis and a full Docker Compose deployment path.
 - Monorepo structure for backend, admin, collector, and docs, making team collaboration easier.
-- Reliability foundation (P2.2): unified idempotency on critical writes; AI apply/undo; Webhook HTTP fast ACK; worker tasklease against stale writeback (**not Production Ready**).
+- Reliability foundation with unified idempotency on critical writes, AI apply/undo protection, Webhook fast ACK, and worker leases against stale writeback.
 
 ## Architecture and Stack
 
@@ -164,16 +162,6 @@ Further reading:
 - [docs/docker-deployment.md](docs/docker-deployment.md)
 - [docs/env.md](docs/env.md)
 
-## Current Priorities
-
-| Priority | Focus |
-| --- | --- |
-| Priority 1 | Strengthen the AI product-operations flow: collection, drafts, AI copy, image processing, and readiness checks. |
-| Priority 2 | Improve the cross-platform ERP MVP, with Douyin Shop as the first real platform loop. |
-| Not the current goal | Multi-warehouse, procurement, finance, heavy WMS / OMS, and complex BI are intentionally out of scope for now. |
-
-For more detail, see [docs/roadmap.md](docs/roadmap.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
-
 ## Documentation
 
 - [docs/README.md](docs/README.md): documentation hub.
@@ -194,8 +182,3 @@ For more detail, see [docs/roadmap.md](docs/roadmap.md) and [docs/PROGRESS.md](d
 ## License
 
 This project is open-sourced under the [Apache License 2.0](LICENSE).
-## P3.2 Safety Note
-
-Phase P3.2 adds multi-shop Douyin webhook routing: verified webhook payloads are resolved to a tenant, internal shop, platform shop ID, app key, and binding before persistence or order upsert. Webhook idempotency is now scoped by platform + tenant + platform shop + event ID, and implicit single-shop fallback is forbidden in staging/production.
-
-This is still not a Production Ready claim. Real Douyin credential E2E, production gray release, and tag creation remain separately gated; the Linux race result is recorded in [`docs/P3_2_RACE_TEST_REPORT.md`](docs/P3_2_RACE_TEST_REPORT.md). See also [`docs/P3_2_MULTI_SHOP_WEBHOOK_REPORT.md`](docs/P3_2_MULTI_SHOP_WEBHOOK_REPORT.md).
