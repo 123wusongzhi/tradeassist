@@ -7,23 +7,23 @@ import (
 )
 
 // TenantIDFromGin returns trusted tenant id from request context.
+// tenant_id=0 is valid for legacy single-tenant development data.
 func TenantIDFromGin(c *gin.Context) (int64, error) {
 	if c == nil {
 		return 0, errTenantContextMissing
 	}
-	if v, ok := c.Get(ctxkey.TenantID); ok {
-		switch tid := v.(type) {
-		case int64:
-			if tid > 0 {
-				return tid, nil
-			}
-		case int:
-			if tid > 0 {
-				return int64(tid), nil
-			}
-		}
+	v, ok := c.Get(ctxkey.TenantID)
+	if !ok {
+		return 0, errTenantContextMissing
 	}
-	return 0, errTenantContextMissing
+	switch tid := v.(type) {
+	case int64:
+		return tid, nil
+	case int:
+		return int64(tid), nil
+	default:
+		return 0, errTenantContextMissing
+	}
 }
 
 // ApplyTenantScope restricts query to current tenant for all roles.
