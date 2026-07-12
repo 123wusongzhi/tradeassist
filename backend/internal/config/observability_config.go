@@ -45,15 +45,15 @@ type ObservabilityConfig struct {
 // ValidProductionObservability returns production-safe observability defaults for tests.
 func ValidProductionObservability() ObservabilityConfig {
 	return ObservabilityConfig{
-		Enabled:             true,
-		Mode:                ObsModeHybrid,
-		LogFormat:           "json",
-		LogLevel:            "info",
-		MetricsEnabled:      true,
-		MetricsInternalOnly: true,
-		TracingEnabled:      false,
+		Enabled:              true,
+		Mode:                 ObsModeHybrid,
+		LogFormat:            "json",
+		LogLevel:             "info",
+		MetricsEnabled:       true,
+		MetricsInternalOnly:  true,
+		TracingEnabled:       false,
 		OTELTraceSampleRatio: 0.1,
-		AlertingEnabled:     true,
+		AlertingEnabled:      true,
 	}
 }
 
