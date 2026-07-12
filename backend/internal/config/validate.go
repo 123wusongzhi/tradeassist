@@ -152,7 +152,7 @@ func (c *Config) validateProduction() error {
 	if isWeakBootstrapPassword(c.BootstrapAdminPassword) {
 		return fmt.Errorf("%s: ADMIN_BOOTSTRAP_PASSWORD is too weak for production", ErrCodeConfigInsecureDefault)
 	}
-	return nil
+	return c.ValidateObservability()
 }
 
 func isInsecureSecret(s string) bool {

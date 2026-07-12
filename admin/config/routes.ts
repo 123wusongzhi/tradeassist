@@ -61,6 +61,12 @@ export default [
         component: './TaskCenter/Alerts',
       },
       {
+        path: '/ops/observability',
+        name: '可观测性中心',
+        icon: 'LineChartOutlined',
+        component: './Ops/Observability',
+      },
+      {
         path: '/ops/platform-runtime',
         name: '平台运行状态',
         icon: 'ApiOutlined',

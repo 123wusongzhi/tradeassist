@@ -74,6 +74,7 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 		StorageProvider:        "cos",
 		CORSAllowedOrigins:     []string{"https://admin.example.com"},
 		Auth:                   productionP4Auth(),
+		Observability:            ValidProductionObservability(),
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",

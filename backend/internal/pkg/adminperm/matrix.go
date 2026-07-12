@@ -34,6 +34,14 @@ const (
 	PermConfigManage          = "config.manage"
 	PermExportRead            = "export.read"
 	PermExportCreate          = "export.create"
+	// P5 observability permissions
+	PermObservabilityRead   = "observability.read"
+	PermObservabilityManage = "observability.manage"
+	PermAlertsRead          = "alerts.read"
+	PermAlertsAck           = "alerts.ack"
+	PermAlertsSilence       = "alerts.silence"
+	PermSLORead             = "slo.read"
+	PermSLOManage           = "slo.manage"
 )
 
 var allPermissions = []string{
@@ -66,6 +74,13 @@ var allPermissions = []string{
 	PermConfigManage,
 	PermExportRead,
 	PermExportCreate,
+	PermObservabilityRead,
+	PermObservabilityManage,
+	PermAlertsRead,
+	PermAlertsAck,
+	PermAlertsSilence,
+	PermSLORead,
+	PermSLOManage,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
@@ -91,6 +106,9 @@ var operatorPermissions = []string{
 	PermPIIReadMasked,
 	PermAuditRead,
 	PermConfigRead,
+	PermObservabilityRead,
+	PermAlertsRead,
+	PermSLORead,
 }
 
 var readonlyPermissions = []string{
@@ -103,6 +121,9 @@ var readonlyPermissions = []string{
 	PermPIIReadMasked,
 	PermAuditRead,
 	PermConfigRead,
+	PermObservabilityRead,
+	PermAlertsRead,
+	PermSLORead,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

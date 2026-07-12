@@ -163,6 +163,9 @@ type Config struct {
 	WebhookWorkerIntervalSeconds    int
 	DouyinWebhookTestShopBindingID  string
 	EnableDouyinWebhookDemoFallback bool
+
+	// P5 observability
+	Observability ObservabilityConfig
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -327,6 +330,7 @@ func Load() (*Config, error) {
 		DouyinWebhookTestShopBindingID:  strings.TrimSpace(os.Getenv("DOUYIN_WEBHOOK_TEST_SHOP_BINDING_ID")),
 		EnableDouyinWebhookDemoFallback: envBool(os.Getenv("ENABLE_DOUYIN_WEBHOOK_DEMO_FALLBACK"), false),
 	}
+	cfg.Observability = LoadObservabilityConfig(cfg.AppEnv, cfg.AppName, cfg.AppVersion)
 	// Test verifier must never run in production regardless of env flag.
 	if IsProduction(cfg.AppEnv) {
 		cfg.WebhookEnableTestVerifier = false

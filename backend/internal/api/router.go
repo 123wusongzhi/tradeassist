@@ -21,6 +21,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
@@ -37,6 +38,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -54,6 +56,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -152,6 +155,8 @@ type Deps struct {
 	MigrationsReady bool
 	// OpLog optional; when nil Register creates a default operation log service from DB.
 	OpLog *operationlog.Service
+	// Obs optional P5 observability facade.
+	Obs *observability.Observability
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
@@ -169,6 +174,25 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Redis:           dep.Redis,
 		MigrationsReady: dep.MigrationsReady,
 	})
+
+	if dep.Obs != nil && dep.Config != nil && dep.Config.Observability.MetricsEnabled {
+		metricsPath := strings.TrimSpace(dep.Config.Observability.MetricsPath)
+		if metricsPath == "" {
+			metricsPath = "/internal/metrics"
+		}
+		internal := r.Group(metricsPath)
+		internal.Use(middleware.MetricsGuard(dep.Config.Observability.MetricsInternalOnly, nil))
+		internal.GET("", observabilitymod.MetricsEndpoint(dep.Obs))
+	}
+
+	alertCooldown := 5 * time.Minute
+	alertRecovery := true
+	if dep.Config != nil {
+		if dep.Config.Observability.AlertDefaultCooldownSecs > 0 {
+			alertCooldown = time.Duration(dep.Config.Observability.AlertDefaultCooldownSecs) * time.Second
+		}
+		alertRecovery = dep.Config.Observability.AlertRecoveryEnabled
+	}
 
 	adminStore := &admin.Store{DB: dep.DB}
 	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore}
@@ -708,6 +732,10 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	exportSvc := &exportmod.Service{DB: dep.DB}
 	exportH := &exportmod.Handler{Svc: exportSvc}
 	exportmod.RegisterRoutes(authed, exportH)
+
+	alertSvc := alerting.NewService(dep.DB, alertCooldown, alertRecovery)
+	obsH := &observabilitymod.Handler{DB: dep.DB, Cfg: dep.Config, Obs: dep.Obs, Alert: alertSvc}
+	observabilitymod.Register(authed, obsH)
 
 	if dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv) {
 		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: dep.Config.AppEnv}

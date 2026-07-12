@@ -22,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
+	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
@@ -37,7 +38,10 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/logging"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	securitypkg "github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tracing"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
@@ -78,6 +82,47 @@ func main() {
 	}
 
 	log := logger.Init(cfg.AppEnv)
+	obsCfg := cfg.Observability
+	obs, err := observability.Init(observability.Config{
+		Enabled:         obsCfg.Enabled,
+		Mode:            obsCfg.Mode,
+		Environment:     obsCfg.Environment,
+		MetricsEnabled:  obsCfg.MetricsEnabled,
+		MetricsPath:     obsCfg.MetricsPath,
+		MetricsInternal: obsCfg.MetricsInternalOnly,
+		TracingEnabled:  obsCfg.TracingEnabled,
+		AlertingEnabled: obsCfg.AlertingEnabled,
+		Logger: logging.Config{
+			Format:         obsCfg.LogFormat,
+			Level:          obsCfg.LogLevel,
+			IncludeSource:  obsCfg.LogIncludeSource,
+			MaxFieldLength: obsCfg.LogMaxFieldLength,
+			Service:        obsCfg.OTELServiceName,
+			Version:        obsCfg.OTELServiceVersion,
+			Environment:    obsCfg.Environment,
+			FailSafe:       true,
+		},
+		Tracer: tracing.Config{
+			Enabled:       obsCfg.TracingEnabled,
+			ServiceName:   obsCfg.OTELServiceName,
+			Version:       obsCfg.OTELServiceVersion,
+			Environment:   obsCfg.Environment,
+			SampleRatio:   obsCfg.OTELTraceSampleRatio,
+			ExportStdout:  cfg.AppEnv == "development" && obsCfg.TracingEnabled,
+			OTLPEndpoint:  obsCfg.OTELExporterOTLPEndpoint,
+			ExportTimeout: obsCfg.ExportTimeout(),
+		},
+	})
+	if err != nil {
+		log.Error("observability_init_failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shCtx, shCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shCancel()
+		_ = obs.Shutdown(shCtx)
+	}()
+
 	log.Info("config_loaded", "summary", cfg.RedactedSummary().String())
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
@@ -115,6 +160,14 @@ func main() {
 		log.Error("encrypt_init_failed", "error", err)
 		os.Exit(1)
 	}
+
+	alertSeedCtx, alertSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := alerting.EnsureDefaultRules(alertSeedCtx, db); err != nil {
+		alertSeedCancel()
+		log.Error("alert_rules_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	alertSeedCancel()
 
 	imgSeedCtx, imgSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureImageDefaults(imgSeedCtx, db, enc); err != nil {
@@ -209,6 +262,8 @@ func main() {
 	engine.Use(
 		middleware.CORS(cfg),
 		middleware.RequestID(),
+		middleware.ContextCorrelation(),
+		middleware.ObservabilityHTTP(obs),
 		middleware.Recovery(log),
 		middleware.AccessLog(log),
 		securitypkg.SecurityHeaders(cfg),
@@ -223,6 +278,7 @@ func main() {
 		Encrypter:       enc,
 		OpLog:           opLogSvc,
 		MigrationsReady: true,
+		Obs:             obs,
 	})
 
 	workerReg := worker.NewRegistryFromConfig(db, opLogSvc, cfg, log)
