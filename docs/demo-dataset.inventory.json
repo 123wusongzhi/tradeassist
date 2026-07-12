@@ -11,19 +11,19 @@
                         "tag":  "low_stock_sku"
                     },
                     {
-                        "productId":  "3f13485d-6ebb-461b-b7ab-95a08145c2b8",
+                        "productId":  "2e018f84-8ef5-4554-8dd1-a90d2e030889",
                         "note":  "stock is 0",
                         "tag":  "zero_stock_sku"
                     },
                     {
-                        "orderId":  "15940d41-2827-4bf6-91c6-6ff4c0178c41",
-                        "deductResult":  "远程服务器返回错误: (400) 错误的请求。",
+                        "orderId":  "40c6870c-ab1a-4aa4-8809-9cc81faca5f7",
+                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
                         "note":  "manual deduct attempt on F2 normal order",
                         "tag":  "deduct_success_order"
                     },
                     {
                         "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",
-                        "deductResult":  "远程服务器返回错误: (400) 错误的请求。",
+                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
                         "note":  "SKU not matched blocks deduct",
                         "tag":  "deduct_blocked_unmatched_order"
                     },
@@ -43,6 +43,6 @@
                         "centerCount":  5
                     }
                 ],
-    "generatedAt":  "2026-07-12T01:45:13.3865454Z",
+    "generatedAt":  "2026-07-12T03:09:04.8313332Z",
     "note":  "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
 }

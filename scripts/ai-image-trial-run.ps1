@@ -5,13 +5,41 @@ param(
     [string]$ApiBase = "http://127.0.0.1:8080",
     [string]$Account = $env:ADMIN_BOOTSTRAP_EMAIL,
     [string]$Password = $env:ADMIN_BOOTSTRAP_PASSWORD,
-    [int]$PollSec = 5,
-    [int]$MaxWaitSec = 600,
+    [int]$PollSec = $(if ($env:AI_IMAGE_POLL_INTERVAL_SECONDS) { [int]$env:AI_IMAGE_POLL_INTERVAL_SECONDS } else { 5 }),
+    [int]$MaxWaitSec = $(if ($env:AI_IMAGE_TRIAL_TIMEOUT_SECONDS) { [int]$env:AI_IMAGE_TRIAL_TIMEOUT_SECONDS } else { 600 }),
     [string]$OutFile = "docs/ai-image-trial-run.json"
 )
 
 $ErrorActionPreference = "Stop"
 $ApiV1 = "$ApiBase/api/v1"
+$lastCompletedStage = "started"
+
+function Set-TrialStage {
+    param([string]$Stage)
+    $script:lastCompletedStage = $Stage
+    Write-Host "  stage=$Stage"
+}
+
+function Classify-TrialError {
+    param([string]$Message, $ProviderStatus = $null, $Detail = $null)
+    $m = if ($Message) { $Message.ToLowerInvariant() } else { "" }
+    if ($m -match "429|rate limit|too many requests|quota") { return "provider_rate_limited" }
+    if ($m -match "timeout|timed out|deadline exceeded|did not finish") { return "provider_timeout" }
+    if ($m -match "worker.*not.*running|pending/running=.*\/|running") { return "worker_not_running" }
+    if ($m -match "lease") { return "task_lease_lost" }
+    if ($m -match "storage|upload|object") { return "storage_blocked" }
+    if ($m -match "scan|security") { return "file_scan_blocked" }
+    if ($m -match "poll") { return "polling_bug" }
+    if ($Detail -and $Detail.items) {
+        $running = @($Detail.items | Where-Object { $_.status -in @("pending", "running") }).Count
+        if ($running -gt 0) { return "worker_stuck" }
+    }
+    if ($ProviderStatus -and (-not $ProviderStatus.configured -or -not $ProviderStatus.hasApiKey)) {
+        return "environment_blocked"
+    }
+    if ($m -match "not configured|noop|credential|api key|secret|settings") { return "environment_blocked" }
+    return "provider_failed"
+}
 
 function Import-DotEnv {
     param([string]$Path)
@@ -51,20 +79,27 @@ function Invoke-ApiJson {
 function Wait-BatchDone {
     param([string]$BatchId, [string]$Token, [int]$ExpectedItems)
     $deadline = (Get-Date).AddSeconds($MaxWaitSec)
+    $lastDetail = $null
     do {
         Start-Sleep -Seconds $PollSec
         $detail = Invoke-ApiJson -Method Get -Url "$ApiV1/products/ai-images/batches/$BatchId" -Token $Token
+        $lastDetail = $detail
         $pending = @($detail.items | Where-Object { $_.status -in @("pending", "running") })
         $status = $detail.status
         Write-Host "  batch $BatchId status=$status pending/running=$($pending.Count)/$ExpectedItems"
         if ($status -in @("completed", "partial_success", "failed", "success") -and $pending.Count -eq 0) {
+            Set-TrialStage "trial_completed"
             return $detail
         }
         $reviewReady = @($detail.items | Where-Object { $_.status -in @("pending_review", "failed", "rejected", "applied", "cancelled", "conflict") }).Count
         if ($reviewReady -ge $ExpectedItems -and $pending.Count -eq 0) {
+            Set-TrialStage "trial_completed"
             return $detail
         }
     } while ((Get-Date) -lt $deadline)
+    if ($lastDetail) {
+        $script:lastTimedOutDetail = $lastDetail
+    }
     throw "Batch $BatchId did not finish within ${MaxWaitSec}s"
 }
 
@@ -125,20 +160,26 @@ if (-not $Account -or -not $Password) {
 }
 
 Write-Host "Logging in..."
+Set-TrialStage "login_started"
 $login = Invoke-RestMethod -Method Post -Uri "$ApiV1/auth/login" -ContentType "application/json" `
     -Body (@{ account = $Account; password = $Password } | ConvertTo-Json)
 $token = $login.data.token
 if (-not $token) { Write-Error "login failed"; exit 1 }
+Set-TrialStage "login_completed"
 
 Write-Host "Checking image Provider config..."
 $provStatus = Get-ProviderStatus -Token $token
 Write-Host "  provider=$($provStatus.provider) configured=$($provStatus.configured) hasKey=$($provStatus.hasApiKey)"
+Set-TrialStage "provider_checked"
 
 if (-not $provStatus.configured) {
     $report = @{
         generatedAt = (Get-Date).ToUniversalTime().ToString("o")
         apiBase = $ApiBase
         conclusion = "blocked_by_image_provider"
+        finalStatus = "environment_blocked"
+        reasonCode = "environment_blocked"
+        lastCompletedStage = $lastCompletedStage
         providerStatus = $provStatus
         message = "Image provider not configured or noop. Configure in Settings > Image Processing."
         batches = @()
@@ -158,6 +199,7 @@ if ($candidates.Count -lt 3) {
     exit 2
 }
 Write-Host "  found $($candidates.Count) products with images"
+Set-TrialStage "source_images_discovered"
 
 $defaultOpts = @{
     language = "zh-CN"
@@ -191,7 +233,9 @@ function New-TrialBatch {
         idempotencyKey = $idem
     } | ConvertTo-Json -Depth 6
     Write-Host "Creating batch $Label (products=$($productIds.Count) images=$($imageIds.Count) ops=$($Ops -join ','))..."
+    Set-TrialStage "queued"
     $created = Invoke-ApiJson -Method Post -Url "$ApiV1/products/ai-images/batches" -Body $body -Token $token
+    Set-TrialStage "worker_claimed"
     $expectedItems = $imageIds.Count * $Ops.Count
     $detail = Wait-BatchDone -BatchId $created.id -Token $token -ExpectedItems $expectedItems
     return @{ label = $Label; batch = $detail; expectedItems = $expectedItems; ops = $Ops; imageIds = $imageIds }
@@ -224,19 +268,32 @@ try {
     $batches += New-TrialBatch -Label "I4-select-main" -ProductEntries $selectMainProducts -Ops @("select_best_main")
 } catch {
     $errMsg = $_.Exception.Message
+    $reason = Classify-TrialError -Message $errMsg -ProviderStatus $provStatus -Detail $script:lastTimedOutDetail
+    $final = if ($reason -eq "environment_blocked") { "environment_blocked" } elseif ($reason -in @("provider_timeout", "provider_rate_limited", "provider_failed")) { "passed_with_warning" } else { "code_failed" }
     $report = @{
         generatedAt = (Get-Date).ToUniversalTime().ToString("o")
-        conclusion = "blocked_by_image_provider"
+        conclusion = $final
+        finalStatus = $final
+        reasonCode = $reason
+        lastCompletedStage = $lastCompletedStage
         error = $errMsg
         providerStatus = $provStatus
+        evidence = @{
+            batchId = if ($script:lastTimedOutDetail) { $script:lastTimedOutDetail.id } else { "" }
+            status = if ($script:lastTimedOutDetail) { $script:lastTimedOutDetail.status } else { "" }
+            providerState = $provStatus.provider
+            lastErrorCode = $reason
+        }
         batches = $batches
         checkResults = $checkResults
     }
     $dir = Split-Path -Parent $OutFile
     if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
     $report | ConvertTo-Json -Depth 12 | Set-Content -Path $OutFile -Encoding UTF8
-    Write-Error $errMsg
-    exit 3
+    Write-Warning $errMsg
+    if ($final -eq "environment_blocked") { exit 3 }
+    if ($final -eq "passed_with_warning") { exit 5 }
+    exit 4
 }
 
 $itemResults = @()
@@ -275,6 +332,7 @@ foreach ($b in $batches) {
             qualityWarningCount = if ($it.qualityWarnings) { $it.qualityWarnings.Count } else { 0 }
             qualityWarnings = $it.qualityWarnings
             errorMessage = $it.errorMessage
+            errorClass = Classify-TrialError -Message $it.errorMessage -ProviderStatus $provStatus
             autoOverwrite = $overwritten
             productMainCount = $origMainCount
         }
@@ -297,6 +355,9 @@ $report = @{
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     apiBase = $ApiBase
     conclusion = $conclusion
+    finalStatus = $conclusion
+    reasonCode = if ($failedItems -gt 0) { "provider_failed" } else { "passed" }
+    lastCompletedStage = $lastCompletedStage
     providerStatus = $provStatus
     totalItems = $totalItems
     successItems = $successItems

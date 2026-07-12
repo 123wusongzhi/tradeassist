@@ -8,7 +8,36 @@ param(
     [string]$OutFile = "docs/demo-dataset.permissions.json"
 )
 
+$ErrorActionPreference = "Stop"
 $ApiV1 = "$ApiBase/api/v1"
+$PermissionTemplateVersion = if ($env:DEMO_PERMISSION_TEMPLATE_VERSION) { $env:DEMO_PERMISSION_TEMPLATE_VERSION } else { "p4-r-v1" }
+$PermissionSeedStats = [ordered]@{
+    status = "passed"
+    permissionTemplateVersion = $PermissionTemplateVersion
+    permissionsCreated = 0
+    permissionsUpdated = 0
+    rolePermissionsAdded = 0
+    rolePermissionsUnchanged = 0
+    shopGrantsAdded = 0
+    conflicts = 0
+    blockedReason = ""
+}
+$PermissionSeedExitCodes = @{
+    passed = 0
+    code_failed = 1
+    environment_blocked = 2
+    validation_conflict = 3
+    manual_action_required = 4
+}
+
+function Write-PermissionSeedResult {
+    param([string]$Status, [int]$ExitCode, [string]$BlockedReason = "")
+    $script:PermissionSeedStats.status = $Status
+    if ($BlockedReason) { $script:PermissionSeedStats.blockedReason = $BlockedReason }
+    $script:PermissionSeedStats.generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    $script:PermissionSeedStats | ConvertTo-Json -Depth 6
+    exit $ExitCode
+}
 
 function Import-DotEnv {
     param([string]$Path)
@@ -32,6 +61,12 @@ Import-DotEnv (Join-Path $repoRoot ".env")
 if (-not $AdminEmail) { $AdminEmail = $env:ADMIN_BOOTSTRAP_EMAIL }
 if (-not $AdminPassword) { $AdminPassword = $env:ADMIN_BOOTSTRAP_PASSWORD }
 
+$effectiveAppEnv = if ($env:APP_ENV) { $env:APP_ENV.Trim().ToLowerInvariant() } else { "development" }
+if ($effectiveAppEnv -in @("production", "staging") -and $env:ENABLE_DEMO_SEED -ne "true") {
+    Write-Error "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+    Write-PermissionSeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+}
+
 function Invoke-Api {
     param([string]$Method, [string]$Url, [string]$Body = $null, [string]$Token = $null)
     $headers = @{ Accept = "application/json" }
@@ -43,7 +78,7 @@ function Invoke-Api {
 
 if (-not $AdminEmail -or -not $AdminPassword) {
     Write-Error "Set ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD"
-    exit 1
+    Write-PermissionSeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "ADMIN_BOOTSTRAP_CREDENTIALS_MISSING"
 }
 
 $login = Invoke-Api -Method Post -Url "$ApiV1/auth/login" -Body (@{
@@ -61,9 +96,11 @@ function Ensure-User($email, $password, $displayName, $role) {
         $u = Invoke-Api -Method Post -Url "$ApiV1/admin/users" -Token $token -Body (@{
             email = $email; password = $password; displayName = $displayName; role = $role
         } | ConvertTo-Json)
+        $script:PermissionSeedStats.permissionsCreated++
         return $u.data
     } catch {
         $list = Invoke-Api -Method Get -Url "$ApiV1/admin/users?keyword=$email" -Token $token
+        $script:PermissionSeedStats.rolePermissionsUnchanged++
         return $list.data.list | Where-Object { $_.email -eq $email } | Select-Object -First 1
     }
 }
@@ -76,11 +113,13 @@ if ($authorizedShop -and $demoOp.id) {
     $items = @(@{ storeId = $authorizedShop.id; permissionScope = "operate" })
     Invoke-Api -Method Put -Url "$ApiV1/admin/users/$($demoOp.id)/store-permissions" -Token $token `
         -Body (@{ items = $items } | ConvertTo-Json -Depth 4) | Out-Null
+    $PermissionSeedStats.shopGrantsAdded++
 }
 if ($authorizedShop -and $demoRo.id) {
     $items = @(@{ storeId = $authorizedShop.id; permissionScope = "view" })
     Invoke-Api -Method Put -Url "$ApiV1/admin/users/$($demoRo.id)/store-permissions" -Token $token `
         -Body (@{ items = $items } | ConvertTo-Json -Depth 4) | Out-Null
+    $PermissionSeedStats.shopGrantsAdded++
 }
 
 Write-Host "F5 demo users seeded. Authorized shop:" $authorizedShop.shopName
@@ -90,7 +129,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $permOut = if ($OutFile) { Join-Path $repoRoot $OutFile } else { Join-Path $repoRoot "docs/demo-dataset.permissions.json" }
 @{
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
-    phase = "F7"
+    phase = "P4-R"
+    demo_permission_template_version = $PermissionTemplateVersion
     accounts = @{
         demo_admin = @{ email = "demo_admin@trademind.local"; password = "DemoAdmin123!"; role = "admin" }
         demo_operator = @{ email = "demo_operator@trademind.local"; password = "DemoOperator123!"; role = "operator"; authorizedShopId = $(if ($authorizedShop) { $authorizedShop.id } else { $null }) }
@@ -103,3 +143,4 @@ $permOut = if ($OutFile) { Join-Path $repoRoot $OutFile } else { Join-Path $repo
     note = "Passwords are demo-only; change in production."
 } | ConvertTo-Json -Depth 6 | Set-Content -Path $permOut -Encoding UTF8
 Write-Host "Wrote $permOut"
+Write-PermissionSeedResult -Status "passed" -ExitCode 0

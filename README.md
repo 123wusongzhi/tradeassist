@@ -37,6 +37,17 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
+## Release Status
+
+| Item | Status |
+| --- | --- |
+| Phase | Production Capability Development In Progress |
+| Demo | MVP Demo Ready |
+| Tag | Tag deferred |
+| Production | Not Production Ready |
+| Douyin | Douyin Release Candidate |
+| Final acceptance | Final Acceptance Deferred |
+
 
 ## 项目定位
 
@@ -132,6 +143,11 @@ pnpm dev:admin
 pnpm dev:collector
 pnpm build:admin
 pnpm build:collector
+pnpm seed:demo-data
+pnpm seed:demo-permissions
+pnpm verify:demo-data
+pnpm verify:demo-permissions
+pnpm check:p4-r
 ```
 
 ### Docker 部署

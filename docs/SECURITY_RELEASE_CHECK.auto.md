@@ -1,6 +1,6 @@
 ﻿# Security Release Check (Phase R1.2-Auto)
 
-> Generated: 2026-07-12T01:44:11.7364798Z
+> Generated: 2026-07-12T03:08:03.6032536Z
 > Release: MVP Demo Ready (Not Production Ready)
 
 ## Result: PASS
@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | 1 | .env not tracked by git | PASS | ok |
 | 2 | No API Key / secrets in README/docs/dist | PASS | ok |
-| 3 | .env keys aligned with .env.example | PASS | missing=10 optional keys (backend defaults apply) |
+| 3 | .env keys aligned with .env.example | PASS | missing=14 optional keys (backend defaults apply) |
 | 4 | go test safedownload SSRF | PASS | passed |
 | 5 | go test aiopsworkbench | PASS | passed |
 | 6 | go test aiproducttext | PASS | passed |

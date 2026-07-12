@@ -3,21 +3,21 @@
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "7a1cdf7b-8150-4505-9988-e6ac668fbd92",
+                        "conversationId":  "27ce08d2-7012-4f8a-88cf-20437a8ca3a4",
                         "note":  "customer conversation",
                         "tag":  "pending_reply_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "b0298716-761c-4d71-a75f-611e1a8c3f20",
+                        "conversationId":  "01593724-9c5e-4fbe-a649-a2b0915bd7d6",
                         "note":  "customer conversation",
                         "tag":  "order_linked_conversation"
                     },
                     {
                         "status":  "open",
                         "platform":  "manual",
-                        "conversationId":  "b6122986-9f44-4dd1-8b86-e2049ced7b40",
+                        "conversationId":  "41269cc5-1c39-4876-80b8-df2d25af6a98",
                         "note":  "customer conversation",
                         "tag":  "inventory_consult_conversation"
                     },
@@ -32,11 +32,11 @@
                         "tag":  "send_failure_requires_platform"
                     },
                     {
-                        "error":  "远程服务器返回错误: (400) 错误的请求。",
+                        "error":  "The remote server returned an error: (400) Bad Request.",
                         "note":  "AI provider not configured or generate failed",
                         "tag":  "ai_suggestion_skipped"
                     }
                 ],
-    "generatedAt":  "2026-07-12T01:45:13.9307440Z",
+    "generatedAt":  "2026-07-12T03:09:05.4213129Z",
     "note":  "F4+F7 customer service demo samples"
 }

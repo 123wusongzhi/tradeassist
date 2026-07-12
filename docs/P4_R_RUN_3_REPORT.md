@@ -2,6 +2,7 @@
 
 > Generated: 2026-07-12T03:11:29.5687896Z
 > API: http://127.0.0.1:8080 | Backend: reachable
+> Run command: `AI_IMAGE_TRIAL_TIMEOUT_SECONDS=120 AI_IMAGE_POLL_INTERVAL_SECONDS=5 pnpm demo:auto-acceptance`
 
 ## Phase
 

@@ -1,4 +1,14 @@
 ﻿{
+    "description":  "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions",
+    "demo_dataset_seeded_at":  "2026-07-12T03:09:05.4243139Z",
+    "demo_dataset_checksum":  "script:p4-r-v1",
+    "phase":  "P4-R",
+    "generatedAt":  "2026-07-12T03:09:05.4243139Z",
+    "accounts":  {
+                     "admin":  "demo_admin@trademind.local",
+                     "operator":  "demo_operator@trademind.local",
+                     "readonly":  "demo_readonly@trademind.local"
+                 },
     "datasets":  {
                      "products":  "docs/demo-dataset.json",
                      "customer":  "docs/demo-dataset.customer-service.json",
@@ -7,7 +17,7 @@
                      "inventory":  "docs/demo-dataset.inventory.json",
                      "permissions":  "docs/demo-dataset.permissions.json"
                  },
-    "description":  "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions",
+    "demo_dataset_version":  "p4-r-v1",
     "dashboardSamples":  {
                              "inventorySyncFailed":  "inventory sync failed sample",
                              "customerAiSuggestion":  "customer AI suggestion pending",
@@ -17,37 +27,30 @@
                              "orderPartialSuccess":  "order sync partial_success sample",
                              "configRisk":  "config status risk items"
                          },
-    "generatedAt":  "2026-07-12T01:45:13.9347478Z",
-    "accounts":  {
-                     "admin":  "demo_admin@trademind.local",
-                     "operator":  "demo_operator@trademind.local",
-                     "readonly":  "demo_readonly@trademind.local"
-                 },
-    "phase":  "F8",
     "edgeCaseSeed":  {
                          "phase":  "F8",
                          "samples":  [
                                          {
                                              "tag":  "order_sync_partial_success",
-                                             "id":  "e2c9090b-79d2-4373-a73c-e94fd3f2ddc9",
+                                             "id":  "81c7875f-762d-48f5-857f-ac92326b1abd",
                                              "note":  "订单同步 partial_success + 页级错误",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "inventory_sync_failed",
-                                             "id":  "3b1213bb-1c04-4c41-84ac-7b162891e5db",
+                                             "id":  "2658e812-e0c1-4409-8c81-b1818547b206",
                                              "note":  "库存同步失败（SKU 未绑定）",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "customer_reply_send_failed",
-                                             "id":  "77edc432-21d8-448b-94e2-7c653f0c5eba",
+                                             "id":  "2437b146-48a4-4e35-bed0-5bc52a0e6054",
                                              "note":  "客服发送失败 + 失败任务中心",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "platform_not_authorized",
-                                             "id":  "190640c6-3d18-4525-85e5-6be3915dd5ab",
+                                             "id":  "9737575b-3d10-4476-bad7-d91cb4d67187",
                                              "note":  "平台未授权店铺 + 客服失败分类",
                                              "status":  "created"
                                          }

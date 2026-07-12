@@ -6,6 +6,13 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P4-R - Demo regression stabilization (2026-07-12)
+
+- Added isolated Go test runner for `demo:auto-acceptance` so backend `.env` / process env does not pollute unit tests.
+- Added P4-R seed result semantics, demo dataset/template version markers, production seed guards, and verifier scripts.
+- Added AI image trial timeout classification with last completed stage and sanitized reason codes.
+- Added P4-R closure scan and documentation. Run 2 / Run 3 remain pending until executed against a running local demo backend.
+
 ### Phase P3.2 - Multi-shop Douyin webhook routing (2026-07-11)
 
 - Added `WebhookShopResolver` for Douyin webhook tenant/shop/app/binding resolution before ingest and order processing.

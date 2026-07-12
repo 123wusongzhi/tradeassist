@@ -12,6 +12,25 @@ param(
 
 $ErrorActionPreference = "Continue"
 $ApiV1 = "$ApiBase/api/v1"
+$DatasetVersion = if ($env:DEMO_DATASET_VERSION) { $env:DEMO_DATASET_VERSION } else { "p4-r-v1" }
+$SeedStats = [ordered]@{
+    status = "passed"
+    datasetVersion = $DatasetVersion
+    created = 0
+    updated = 0
+    unchanged = 0
+    conflicted = 0
+    blockedReason = ""
+}
+
+function Write-SeedResult {
+    param([string]$Status, [int]$ExitCode, [string]$BlockedReason = "")
+    $script:SeedStats.status = $Status
+    if ($BlockedReason) { $script:SeedStats.blockedReason = $BlockedReason }
+    $script:SeedStats.generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    $script:SeedStats | ConvertTo-Json -Depth 6
+    exit $ExitCode
+}
 
 function Import-DotEnv {
     param([string]$Path)
@@ -35,6 +54,12 @@ Import-DotEnv (Join-Path $repoRoot ".env")
 if (-not $Account) { $Account = $env:ADMIN_BOOTSTRAP_EMAIL }
 if (-not $Password) { $Password = $env:ADMIN_BOOTSTRAP_PASSWORD }
 
+$effectiveAppEnv = if ($env:APP_ENV) { $env:APP_ENV.Trim().ToLowerInvariant() } else { "development" }
+if ($effectiveAppEnv -in @("production", "staging") -and $env:ENABLE_DEMO_SEED -ne "true") {
+    Write-Error "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+    Write-SeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+}
+
 function Invoke-Api {
     param([string]$Method, [string]$Url, [string]$Body = $null, [string]$Token = $null)
     try {
@@ -52,7 +77,7 @@ function Invoke-Api {
 
 if (-not $Account -or -not $Password) {
     Write-Error "Set ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD"
-    exit 1
+    Write-SeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "ADMIN_BOOTSTRAP_CREDENTIALS_MISSING"
 }
 
 Write-Host "Logging in..."
@@ -62,6 +87,22 @@ $token = $login.data.token
 if (-not $token) { Write-Error "login failed"; exit 1 }
 
 function New-Product($bodyObj) {
+    $title = [string]$bodyObj.title
+    if (-not $bodyObj.sourceUrl -and $title) {
+        $key = ($title.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+        $bodyObj.sourceUrl = "demo://$DatasetVersion/product/$key"
+    }
+    if ($title) {
+        $existingList = Invoke-Api -Method Get -Url ($ApiV1 + "/products?page=1&pageSize=20&keyword=" + [uri]::EscapeDataString($title)) -Token $token
+        if ($existingList.list) {
+            $hit = @($existingList.list | Where-Object { $_.title -eq $title -or $_.sourceUrl -eq $bodyObj.sourceUrl } | Select-Object -First 1)
+            if ($hit) {
+                $script:SeedStats.unchanged++
+                return $hit[0]
+            }
+        }
+    }
+    $script:SeedStats.created++
     return Invoke-Api -Method Post -Url "$ApiV1/products" -Body ($bodyObj | ConvertTo-Json -Depth 8 -Compress) -Token $token
 }
 function Set-Product($id, $bodyObj) {
@@ -298,7 +339,7 @@ if (-not $SkipPublishBatches) {
             overrides = @{}
             includeWarnings = $true
             name = "R1 demo publish batch"
-            idempotencyKey = "r1-demo-publish-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            idempotencyKey = "$DatasetVersion-demo-publish-local-draft"
         } | ConvertTo-Json -Depth 8
         $created = Invoke-Api -Method Post -Url "$ApiV1/product-publish/batch-targets/create-drafts" -Body $body -Token $token
         if ($created.batchId) {
@@ -338,6 +379,16 @@ $taskSamples += @{
     sampleTodoIds = @($wbTodos.items | Select-Object -First 3 | ForEach-Object { $_.id })
     note = "aggregated todos from workbench"
 }
+if ($wbSummaryDto) {
+    $taskSamples += @{
+        type = "operation_workbench_summary"
+        aiTextReviewCount = [int64]$wbSummaryDto.aiTextReviewCount
+        aiImageReviewCount = [int64]$wbSummaryDto.aiImageReviewCount
+        publishCheckIssueCount = [int64]$wbSummaryDto.publishCheckIssueCount
+        publishTaskIssueCount = [int64]$wbSummaryDto.publishTaskIssueCount
+        note = "aggregated summary from workbench"
+    }
+}
 
 $localDraftTargetAvailable = $false
 $targetsForValidation = Invoke-Api -Method Get -Url "$ApiV1/product-publish/targets" -Token $token
@@ -362,7 +413,7 @@ if (-not $SkipAiBatches -and $aiTextReview.id) {
             productIds = @($aiTextReview.id)
             operationTypes = @("title")
             options = @{ language = "zh-CN"; platform = "douyin_shop"; tone = "professional" }
-            idempotencyKey = "r1-demo-ai-text-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            idempotencyKey = "$DatasetVersion-demo-ai-text-title"
         } | ConvertTo-Json -Depth 6
         $batch = Invoke-Api -Method Post -Url "$ApiV1/products/ai-text/batches" -Body $batchBody -Token $token
         if ($batch.id) {
@@ -397,7 +448,8 @@ function New-DemoOrder($bodyObj, $tag) {
 }
 
 $ordNormal = New-DemoOrder @{
-    platform = "manual"; orderNo = "F2-DEMO-NORMAL-$(Get-Random -Maximum 99999)"
+    platform = "manual"; orderNo = "F2-DEMO-NORMAL"
+    externalOrderId = "F2-DEMO-NORMAL"
     customerName = "Demo Buyer Normal"; status = "paid"; paymentStatus = "paid"
     fulfillmentStatus = "unfulfilled"; currency = "CNY"; totalAmount = 88.5
     items = @(@{ productTitle = "Demo matched item"; skuCode = "DEMO-SKU-OK"; quantity = 2; unitPrice = 44.25; totalPrice = 88.5 })
@@ -660,7 +712,10 @@ Write-Host "Wrote $dashboardOutFile with $($dashboardSamples.Count) dashboard sa
 
 $fullProjectIndex = Join-Path $repoRoot "docs/demo-dataset.full-project.json"
 @{
-    phase = "F8"
+    phase = "P4-R"
+    demo_dataset_version = $DatasetVersion
+    demo_dataset_seeded_at = (Get-Date).ToUniversalTime().ToString("o")
+    demo_dataset_checksum = "script:$DatasetVersion"
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     description = "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions"
     datasets = @{
@@ -720,6 +775,10 @@ $validation.passed = (
 )
 
 $report = @{
+    datasetVersion = $DatasetVersion
+    demo_dataset_version = $DatasetVersion
+    demo_dataset_seeded_at = (Get-Date).ToUniversalTime().ToString("o")
+    demo_dataset_checksum = "script:$DatasetVersion"
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     apiBase = $ApiBase
     productSlotCount = $productSlots.Count
@@ -744,7 +803,7 @@ if ($edgeSeed -and $edgeSeed.samples) {
     Write-Host ("F8 edge-case seed: " + @($edgeSeed.samples).Count + " samples")
     if (Test-Path $fullProjectIndex) {
         $fullProjectIndexObj = Get-Content $fullProjectIndex -Raw | ConvertFrom-Json
-        $fullProjectIndexObj.phase = "F8"
+        $fullProjectIndexObj.phase = "P4-R"
         $fullProjectIndexObj | Add-Member -NotePropertyName edgeCaseSeed -NotePropertyValue $edgeSeed -Force
         $fullProjectIndexObj | ConvertTo-Json -Depth 8 | Set-Content -Path $fullProjectIndex -Encoding UTF8
     }
@@ -755,6 +814,6 @@ if ($edgeSeed -and $edgeSeed.samples) {
 
 if (-not $validation.passed) {
     Write-Warning ('Demo data validation did not fully pass; see validation section in ' + $OutFile)
-    exit 2
+    Write-SeedResult -Status "passed_with_warning" -ExitCode 0
 }
-exit 0
+Write-SeedResult -Status "passed" -ExitCode 0

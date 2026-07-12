@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-07-12T03:12:51.601Z",
+  "phase": "P4-R",
+  "summary": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0
+  },
+  "checks": [
+    {
+      "id": "go-test-isolated-env",
+      "status": "passed",
+      "message": "demo:auto-acceptance runs go test through isolated env"
+    },
+    {
+      "id": "go-test-no-root-dotenv",
+      "status": "passed",
+      "message": "demo:auto-acceptance does not import root .env before go test"
+    },
+    {
+      "id": "seed-data-version",
+      "status": "passed",
+      "message": "demo data seed declares P4-R dataset version"
+    },
+    {
+      "id": "seed-data-exit-json",
+      "status": "passed",
+      "message": "demo data seed has structured exit result"
+    },
+    {
+      "id": "seed-permission-version",
+      "status": "passed",
+      "message": "permission seed declares P4-R template version"
+    },
+    {
+      "id": "seed-permission-exit-json",
+      "status": "passed",
+      "message": "permission seed has structured exit result"
+    },
+    {
+      "id": "verify-demo-data",
+      "status": "passed",
+      "message": "demo data verifier script exists"
+    },
+    {
+      "id": "verify-demo-permissions",
+      "status": "passed",
+      "message": "demo permissions verifier script exists"
+    },
+    {
+      "id": "production-demo-seed-forbidden",
+      "status": "passed",
+      "message": "seed scripts forbid production/staging by default"
+    },
+    {
+      "id": "ai-image-timeout-classification",
+      "status": "passed",
+      "message": "AI image trial records timeout/error classification and progress stage"
+    },
+    {
+      "id": "acceptance-result-model",
+      "status": "passed",
+      "message": "acceptance report distinguishes failed/blocked/deferred/code failed"
+    },
+    {
+      "id": "doc-P4_R_DEMO_REGRESSION_AUDIT.md",
+      "status": "passed",
+      "message": "docs/P4_R_DEMO_REGRESSION_AUDIT.md exists"
+    },
+    {
+      "id": "doc-P4_R_DEMO_SEED_ROOT_CAUSE.md",
+      "status": "passed",
+      "message": "docs/P4_R_DEMO_SEED_ROOT_CAUSE.md exists"
+    },
+    {
+      "id": "doc-P4_R_PERMISSION_SEED_ROOT_CAUSE.md",
+      "status": "passed",
+      "message": "docs/P4_R_PERMISSION_SEED_ROOT_CAUSE.md exists"
+    },
+    {
+      "id": "doc-P4_R_DEMO_DATA_VERSIONING.md",
+      "status": "passed",
+      "message": "docs/P4_R_DEMO_DATA_VERSIONING.md exists"
+    },
+    {
+      "id": "doc-P4_R_PERMISSION_TEMPLATE_VERSIONING.md",
+      "status": "passed",
+      "message": "docs/P4_R_PERMISSION_TEMPLATE_VERSIONING.md exists"
+    },
+    {
+      "id": "doc-P4_R_AI_IMAGE_TIMEOUT_ANALYSIS.md",
+      "status": "passed",
+      "message": "docs/P4_R_AI_IMAGE_TIMEOUT_ANALYSIS.md exists"
+    },
+    {
+      "id": "doc-P4_R_ACCEPTANCE_STEP_CLASSIFICATION.md",
+      "status": "passed",
+      "message": "docs/P4_R_ACCEPTANCE_STEP_CLASSIFICATION.md exists"
+    }
+  ]
+}

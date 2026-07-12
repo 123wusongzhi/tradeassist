@@ -82,6 +82,7 @@ __debug_bin*
 # Logs
 *.log
 /logs/
+/artifacts/
 
 # IDE / 编辑器
 .idea/

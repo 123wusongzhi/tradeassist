@@ -1,7 +1,4 @@
 ﻿{
-    "phase":  "F7",
-    "note":  "Passwords are demo-only; change in production.",
-    "generatedAt":  "2026-07-12T01:45:14.0973400Z",
     "negativeTests":  [
                           {
                               "account":  "demo_readonly",
@@ -9,7 +6,7 @@
                               "tag":  "readonly_write_blocked"
                           },
                           {
-                              "shopId":  "4877421d-0ed0-4fb4-aed8-b104c6a1d38c",
+                              "shopId":  "cfdf9750-0acd-4257-8857-072098dc47b1",
                               "account":  "demo_operator",
                               "expect":  "404 or 403",
                               "tag":  "operator_cross_store_denied"
@@ -18,7 +15,7 @@
     "accounts":  {
                      "demo_readonly":  {
                                            "email":  "demo_readonly@trademind.local",
-                                           "authorizedShopId":  "190640c6-3d18-4525-85e5-6be3915dd5ab",
+                                           "authorizedShopId":  "9737575b-3d10-4476-bad7-d91cb4d67187",
                                            "password":  "DemoReadonly123!",
                                            "role":  "readonly"
                                        },
@@ -29,9 +26,13 @@
                                     },
                      "demo_operator":  {
                                            "email":  "demo_operator@trademind.local",
-                                           "authorizedShopId":  "190640c6-3d18-4525-85e5-6be3915dd5ab",
+                                           "authorizedShopId":  "9737575b-3d10-4476-bad7-d91cb4d67187",
                                            "password":  "DemoOperator123!",
                                            "role":  "operator"
                                        }
-                 }
+                 },
+    "generatedAt":  "2026-07-12T03:09:05.6011992Z",
+    "note":  "Passwords are demo-only; change in production.",
+    "phase":  "P4-R",
+    "demo_permission_template_version":  "p4-r-v1"
 }

@@ -1,45 +1,47 @@
-﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
+﻿# TradeMind Phase P4-R Demo Regression Auto Acceptance Report
 
-> Generated: 2026-07-12T01:55:37.1860193Z
+> Generated: 2026-07-12T03:11:29.5687896Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
 
-**Phase F8.1-Auto** - Full-project demo smoke + static scans (not final manual acceptance)
+**Phase P4-R** - Demo regression stabilization with isolated Go test environment (not final manual acceptance)
 
 ## Summary
 
 | Metric | Value |
 | --- | --- |
-| Conclusion | **failed** |
-| Failed steps | 5 |
+| Conclusion | **passed_with_blocked** |
+| Failed steps | 0 |
 | Blocked steps | 1 |
+| Code failed | 0 |
+| Non-AI failed | 0 |
 
 ## Step results
 
-| Step | Status | Exit | Detail |
-| --- | --- | --- | --- |
-| go test regression | failed | 1 |  |
-| go build backend | passed | 0 |  |
-| pnpm build:admin | passed | 0 |  |
-| git diff --check | passed | 0 |  |
-| check-ui-copy | passed | 0 |  |
-| demo-empty-state-scan | passed | 0 |  |
-| demo-sensitive-confirm-scan | passed | 0 |  |
-| security-release-check | passed | 0 |  |
-| check-doc-links | failed | 1 |  |
-| demo-route-smoke | passed | 0 |  |
-| seed-demo-data | failed | 2 |  |
-| seed-demo-permissions | failed | 2 |  |
-| demo-dashboard-smoke | passed | 0 |  |
-| demo-rbac-smoke | passed | 0 |  |
-| demo-order-inventory-customer-smoke | passed | 0 |  |
-| ai-text-route-smoke | passed | 0 |  |
-| ai-text-trial-run | blocked | 3 | blocked_by_config_or_credentials |
-| ai-image-route-smoke | passed | 0 |  |
-| ai-image-trial-run | failed | 1 | Batch fd3aad93-3973-4c4b-9e69-e7e03dfaca19 did not finish within 600s |
-| publish-batch-perf | passed | 0 |  |
-| ai-operation-workbench-perf | passed | 0 |  |
+| Step | Category | Status | Exit | Reason | Detail |
+| --- | --- | --- | --- | --- | --- |
+| go test regression | code_check | passed | 0 | passed |  |
+| go build backend | build | passed | 0 | passed |  |
+| pnpm build:admin | build | passed | 0 | passed |  |
+| git diff --check | code_check | passed | 0 | passed |  |
+| check-ui-copy | code_check | passed | 0 | passed |  |
+| demo-empty-state-scan | smoke | passed | 0 | passed |  |
+| demo-sensitive-confirm-scan | smoke | passed | 0 | passed |  |
+| security-release-check | code_check | passed | 0 | passed |  |
+| check-doc-links | code_check | passed | 0 | passed |  |
+| demo-route-smoke | smoke | passed | 0 | passed |  |
+| seed-demo-data | seed | passed | 0 | passed |  |
+| seed-demo-permissions | seed | passed | 0 | passed |  |
+| demo-dashboard-smoke | smoke | passed | 0 | passed |  |
+| demo-rbac-smoke | smoke | passed | 0 | passed |  |
+| demo-order-inventory-customer-smoke | smoke | passed | 0 | passed |  |
+| ai-text-route-smoke | smoke | passed | 0 | passed |  |
+| ai-text-trial-run | external_provider | blocked | 3 | environment_blocked | blocked_by_config_or_credentials |
+| ai-image-route-smoke | smoke | passed | 0 | passed |  |
+| ai-image-trial-run | external_provider | warning | 5 | warning | completed_with_warning |
+| publish-batch-perf | smoke | passed | 0 | passed |  |
+| ai-operation-workbench-perf | smoke | passed | 0 | passed |  |
 
 ## Artifacts
 
