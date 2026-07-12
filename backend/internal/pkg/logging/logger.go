@@ -109,9 +109,11 @@ func (l *structuredLogger) With(fields ...Field) Logger {
 		return Default().With(fields...)
 	}
 	merged := append(append([]Field(nil), l.static...), fields...)
-	cp := *l
-	cp.static = merged
-	return &cp
+	return &structuredLogger{
+		base:   l.base,
+		cfg:    l.cfg,
+		static: merged,
+	}
 }
 
 func (l *structuredLogger) Debug(ctx context.Context, message string, fields ...Field) {
