@@ -58,6 +58,14 @@ type ListFailureParams struct {
 	Severity        string
 	RecoveryStatus  string
 	AllowedShopIDs  []uuid.UUID
+	TenantID        int64
+}
+
+func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.DB {
+	if p.TenantID > 0 {
+		return q.Where("tenant_id = ?", p.TenantID)
+	}
+	return q
 }
 
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {

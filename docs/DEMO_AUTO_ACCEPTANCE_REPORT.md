@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase F8.1 Full-Project Demo Auto Acceptance Report
 
-> Generated: 2026-07-11T10:43:52.8712409Z
+> Generated: 2026-07-12T01:55:37.1860193Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase
@@ -12,7 +12,7 @@
 | Metric | Value |
 | --- | --- |
 | Conclusion | **failed** |
-| Failed steps | 1 |
+| Failed steps | 5 |
 | Blocked steps | 1 |
 
 ## Step results
@@ -27,17 +27,17 @@
 | demo-empty-state-scan | passed | 0 |  |
 | demo-sensitive-confirm-scan | passed | 0 |  |
 | security-release-check | passed | 0 |  |
-| check-doc-links | passed | 0 |  |
+| check-doc-links | failed | 1 |  |
 | demo-route-smoke | passed | 0 |  |
-| seed-demo-data | passed | 0 |  |
-| seed-demo-permissions | passed | 0 |  |
+| seed-demo-data | failed | 2 |  |
+| seed-demo-permissions | failed | 2 |  |
 | demo-dashboard-smoke | passed | 0 |  |
 | demo-rbac-smoke | passed | 0 |  |
 | demo-order-inventory-customer-smoke | passed | 0 |  |
 | ai-text-route-smoke | passed | 0 |  |
 | ai-text-trial-run | blocked | 3 | blocked_by_config_or_credentials |
 | ai-image-route-smoke | passed | 0 |  |
-| ai-image-trial-run | passed | 0 |  |
+| ai-image-trial-run | failed | 1 | Batch fd3aad93-3973-4c4b-9e69-e7e03dfaca19 did not finish within 600s |
 | publish-batch-perf | passed | 0 |  |
 | ai-operation-workbench-perf | passed | 0 |  |
 

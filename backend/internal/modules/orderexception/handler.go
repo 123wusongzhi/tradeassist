@@ -314,7 +314,7 @@ func (h *Handler) RetryInventorySync(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid sourceId")
 		return
 	}
-	task, err := h.Cmds.RetryInventorySync(c.Request.Context(), tid, adminUUID(c))
+	task, err := h.Cmds.RetryInventorySync(c, tid, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 )
@@ -78,7 +79,7 @@ func (s *Service) failSyncJobCreate(ctx context.Context, job *syncJobAcquire, co
 	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
 }
 
-func (s *Service) resolveExistingSyncTask(ctx context.Context, res *idempotency.AcquireResult) (*TaskDTO, error) {
+func (s *Service) resolveExistingSyncTask(c *gin.Context, res *idempotency.AcquireResult) (*TaskDTO, error) {
 	if res == nil {
 		return nil, fmt.Errorf("%s", errOrderSyncInProgress)
 	}
@@ -93,7 +94,7 @@ func (s *Service) resolveExistingSyncTask(ctx context.Context, res *idempotency.
 	if err != nil {
 		return nil, fmt.Errorf("%s", errOrderSyncInProgress)
 	}
-	out, err := s.GetDTO(ctx, tid)
+	out, err := s.GetDTO(c, tid)
 	if err != nil {
 		return nil, fmt.Errorf("%s", errOrderSyncInProgress)
 	}

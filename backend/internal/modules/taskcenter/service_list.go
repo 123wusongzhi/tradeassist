@@ -52,6 +52,7 @@ func likePat(kw string) string {
 
 func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
 	q = s.applyMarkFilters(q, TaskTypeCollect, "collect_tasks.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -86,6 +87,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 
 func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
 	q = s.applyMarkFilters(q, TaskTypeImage, "image_tasks.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -120,6 +122,7 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 
 func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&ordersync.OrderSyncTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeOrderSync, "order_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
@@ -160,6 +163,7 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 
 func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customersync.CustomerMessageSyncTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeCustomerMessageSync, "customer_message_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
@@ -200,6 +204,7 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 
 func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeProductPublish, "product_publish_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
@@ -243,6 +248,7 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 
 func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{})
+	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
 	q = s.applyMarkFilters(q, TaskTypeInventorySync, "inventory_sync_tasks.id::text", p)
 	if sid := strings.TrimSpace(p.ShopID); sid != "" {
@@ -286,6 +292,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{})
+	q = s.applyTenantListFilter(q, p)
 	q = aiTextFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIText, "ai_product_text_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {
@@ -339,6 +346,7 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 
 func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{})
+	q = s.applyTenantListFilter(q, p)
 	q = aiImageFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
 	q = s.applyMarkFilters(q, TaskTypeAIImage, "ai_product_image_items.id::text", p)
 	if lk := likePat(p.Keyword); lk != "" {

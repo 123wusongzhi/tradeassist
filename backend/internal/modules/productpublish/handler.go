@@ -268,7 +268,8 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	tid, _ := adminperm.TenantIDFromGin(c)
+	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -315,7 +316,8 @@ func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	tid, _ := adminperm.TenantIDFromGin(c)
+	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		response.OK(c, gin.H{"recovered": true})
 		return

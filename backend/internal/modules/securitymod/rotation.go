@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/crypto"
 	"gorm.io/gorm"
 )
 
@@ -32,11 +31,7 @@ func (s *Service) StartRotation(ctx context.Context, startedBy uuid.UUID, dryRun
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
-	counts, _ := s.CountSecretReferencesByKeyID(ctx, kr.PreviousKeyIDs())
-	total := int64(0)
-	for _, c := range counts {
-		total += c.ReferenceCount
-	}
+	total, _ := s.countPendingReencrypt(ctx)
 	now := time.Now().UTC()
 	status := RotationPrepared
 	if dryRun {
@@ -88,60 +83,12 @@ func (s *Service) ResumeRotation(ctx context.Context, id uuid.UUID) error {
 		Update("status", RotationRunning).Error
 }
 
-// CountSecretReferencesByKeyID counts encrypted settings still using old keys.
+// CountSecretReferencesByKeyID aggregates old-key and legacy references across all secret targets.
 func (s *Service) CountSecretReferencesByKeyID(ctx context.Context, keyIDs []string) ([]SecretReferenceCount, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("security: unavailable")
 	}
-	out := make([]SecretReferenceCount, 0)
-	var rows []struct {
-		ID        int64
-		ItemValue string
-		TenantID  int64
-	}
-	if err := s.DB.WithContext(ctx).Table("settings").
-		Select("id, item_value, tenant_id").
-		Where("is_encrypted = ?", true).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	kr, _ := s.keyRing()
-	counts := map[string]*SecretReferenceCount{}
-	for _, r := range rows {
-		v := strings.TrimSpace(r.ItemValue)
-		if v == "" {
-			continue
-		}
-		kid, ok := crypto.ParseKeyID(v)
-		if !ok {
-			key := "unknown|settings|item_value|0"
-			if counts[key] == nil {
-				counts[key] = &SecretReferenceCount{TableName: "settings", FieldName: "item_value", TenantID: r.TenantID, KeyID: "unknown"}
-			}
-			counts[key].UnknownFormat++
-			continue
-		}
-		if kr != nil && kid == kr.ActiveID {
-			continue
-		}
-		if len(keyIDs) > 0 && !containsKey(keyIDs, kid) {
-			continue
-		}
-		key := fmt.Sprintf("%s|settings|item_value|%d", kid, r.TenantID)
-		if counts[key] == nil {
-			counts[key] = &SecretReferenceCount{TableName: "settings", FieldName: "item_value", TenantID: r.TenantID, KeyID: kid}
-		}
-		counts[key].ReferenceCount++
-		if kr != nil {
-			if _, err := kr.Decrypt(v); err != nil {
-				counts[key].DecryptFailures++
-			}
-		}
-	}
-	for _, c := range counts {
-		out = append(out, *c)
-	}
-	return out, nil
+	return s.aggregateSecretReferences(ctx, keyIDs)
 }
 
 func containsKey(ids []string, kid string) bool {
@@ -168,10 +115,12 @@ func (s *Service) VerifyRotation(ctx context.Context, id uuid.UUID) (bool, []Sec
 		return false, nil, err
 	}
 	remaining := int64(0)
+	unknown := int64(0)
 	for _, c := range counts {
 		remaining += c.ReferenceCount
+		unknown += c.UnknownFormat
 	}
-	ok := remaining == 0 && job.FailedRecords == 0
+	ok := remaining == 0 && unknown == 0 && job.FailedRecords == 0
 	status := RotationVerificationPending
 	if ok {
 		status = RotationVerified
@@ -190,7 +139,7 @@ func ternaryStatus(ok bool, yes, no string) string {
 	return no
 }
 
-// ProcessReencryptBatch re-encrypts one batch of settings rows for a rotation job.
+// ProcessReencryptBatch re-encrypts one batch across all registered secret targets.
 func (s *Service) ProcessReencryptBatch(ctx context.Context, rotationID uuid.UUID, batchSize int) (int, error) {
 	if s == nil || s.DB == nil || s.Cfg == nil {
 		return 0, fmt.Errorf("security: unavailable")
@@ -202,71 +151,43 @@ func (s *Service) ProcessReencryptBatch(ctx context.Context, rotationID uuid.UUI
 	if job.DryRun || job.Status != RotationRunning {
 		return 0, nil
 	}
-	kr, err := s.keyRing()
+	targets, kr, err := s.reencryptTargets()
 	if err != nil {
 		return 0, err
 	}
 	if batchSize <= 0 {
 		batchSize = 50
 	}
-	var rows []struct {
-		ID        int64
-		ItemValue string
+	idx := targetIndexByName(targets, job.TableScope)
+	if idx >= len(targets) {
+		idx = 0
+		job.TableScope = targets[0].Name()
 	}
-	q := s.DB.WithContext(ctx).Table("settings").
-		Select("id, item_value").
-		Where("is_encrypted = ?", true)
-	if job.LastCursor != "" {
-		q = q.Where("id > ?", job.LastCursor)
-	}
-	if err := q.Order("id ASC").Limit(batchSize).Find(&rows).Error; err != nil {
-		return 0, err
-	}
-	processed := 0
-	lastID := job.LastCursor
-	for _, r := range rows {
-		lastID = fmt.Sprintf("%d", r.ID)
-		v := strings.TrimSpace(r.ItemValue)
-		if v == "" {
-			job.SkippedRecords++
-			continue
-		}
-		kid, ok := crypto.ParseKeyID(v)
-		if !ok {
-			job.FailedRecords++
-			_ = s.recordFailure(ctx, rotationID, "settings", lastID, 0, "unknown", "secret_key_unknown", "unknown encryption format")
-			continue
-		}
-		if kid == kr.ActiveID {
-			job.SkippedRecords++
-			continue
-		}
-		plain, err := kr.Decrypt(v)
+	totalProcessed := 0
+	for idx < len(targets) {
+		job.TableScope = targets[idx].Name()
+		n, done, err := s.processTargetReencryptBatch(ctx, job, targets[idx], kr, batchSize-totalProcessed)
 		if err != nil {
-			job.FailedRecords++
-			_ = s.recordFailure(ctx, rotationID, "settings", lastID, 0, kid, "secret_ciphertext_invalid", "decrypt failed")
-			continue
+			return totalProcessed, err
 		}
-		cipher, err := kr.Encrypt(plain)
-		if err != nil {
-			job.FailedRecords++
-			_ = s.recordFailure(ctx, rotationID, "settings", lastID, 0, kid, "secret_reencrypt_failed", "encrypt failed")
-			continue
+		totalProcessed += n
+		if !done {
+			break
 		}
-		res := s.DB.WithContext(ctx).Table("settings").
-			Where("id = ? AND item_value = ?", r.ID, v).
-			Update("item_value", cipher)
-		if res.Error != nil || res.RowsAffected == 0 {
-			job.FailedRecords++
-			continue
+		job.LastCursor = ""
+		idx++
+		if totalProcessed >= batchSize {
+			break
 		}
-		job.ReencryptedRecords++
-		processed++
 	}
-	job.ProcessedRecords += int64(len(rows))
-	job.LastCursor = lastID
+	if idx >= len(targets) && job.LastCursor == "" {
+		now := time.Now().UTC()
+		job.Status = RotationCompleted
+		job.FinishedAt = &now
+	}
+	job.ProcessedRecords += int64(totalProcessed)
 	_ = s.DB.WithContext(ctx).Save(job).Error
-	return processed, nil
+	return totalProcessed, nil
 }
 
 func (s *Service) recordFailure(ctx context.Context, rotationID uuid.UUID, table, recordID string, tenantID int64, keyID, code, summary string) error {

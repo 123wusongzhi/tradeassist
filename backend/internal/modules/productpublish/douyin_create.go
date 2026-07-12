@@ -209,7 +209,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		return nil, err
 	}
 
-	out, err := s.GetDTO(ctx, task.ID)
+	out, err := s.GetDTO(ctx, task.TenantID, task.ID)
 	if err != nil {
 		return nil, err
 	}

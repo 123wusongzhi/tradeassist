@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 )
 
 func (s *Service) shopNameLookup(ctx context.Context, id uuid.UUID) string {
@@ -106,12 +107,12 @@ func firstNonEmpty(a, b string) string {
 	return strings.TrimSpace(b)
 }
 
-func (s *Service) GetDTO(ctx context.Context, taskID uuid.UUID) (TaskDTO, error) {
+func (s *Service) GetDTO(ctx context.Context, tenantID int64, taskID uuid.UUID) (TaskDTO, error) {
 	if s == nil || s.DB == nil {
 		return TaskDTO{}, fmt.Errorf("productpublish: no db")
 	}
 	var t ProductPublishTask
-	if err := s.DB.WithContext(ctx).First(&t, "id = ?", taskID).Error; err != nil {
+	if err := repository.FindByID(ctx, s.DB, &t, tenantID, taskID); err != nil {
 		return TaskDTO{}, err
 	}
 	return s.taskToDTO(ctx, &t), nil
@@ -133,6 +134,11 @@ func (s *Service) ListTasks(c *gin.Context, q ListTasksQuery) (*ListTasksResult,
 		ps = 100
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if q.ProductID != nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
 	}
@@ -183,7 +189,11 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, fmt.Errorf("productpublish: no db")
 	}
 	var task ProductPublishTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(task.Status) != TaskFailed {
@@ -245,7 +255,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	out, err := s.GetDTO(c.Request.Context(), tid, taskID)
 	return &out, err
 }
 

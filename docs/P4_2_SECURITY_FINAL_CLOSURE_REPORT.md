@@ -1,7 +1,7 @@
 # P4.2 Security Final Closure Report
 
 **Status:** passed_with_warnings
-**Generated:** 2026-07-11T14:57:26.641Z
+**Generated:** 2026-07-12T01:41:37.566Z
 **Platform:** win32
 
 | Check | Status | Message |

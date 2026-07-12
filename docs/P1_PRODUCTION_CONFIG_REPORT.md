@@ -1,6 +1,6 @@
 # P1 Production Config Scan Report
 
-Generated: 2026-07-11T12:25:37.743Z
+Generated: 2026-07-12T01:41:37.038Z
 
 **Overall:** passed_with_warning (17 passed, 3 warnings, 0 failed)
 

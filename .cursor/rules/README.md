@@ -22,6 +22,7 @@
 | `11-local-dev-postgres.mdc` | 本地与默认数据库统一采用 PostgreSQL |
 | `12-ai-coding-doc-sync.mdc` | AI 编程规则、配置与文档同步要求 |
 | `13-ai-workflow.mdc` | AI vibe coding 工作流、提示词优化、上下文节约和经验沉淀入口 |
+| `15-external-docs-no-phase-status.mdc` | 阶段状态不写 README 等对外主文档；进度写入 `docs/PROGRESS.md` 等内部文档 |
 
 ## 领域规则
 

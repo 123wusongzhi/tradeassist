@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -105,6 +106,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&CustomerConversation{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
 	}
@@ -378,8 +384,12 @@ func (s *Service) GetConversation(c *gin.Context, id uuid.UUID) (*ConversationDe
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
 		return nil, err
 	}
 	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {

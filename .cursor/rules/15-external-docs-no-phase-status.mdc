@@ -1,0 +1,26 @@
+---
+description: Do not put phase/stage status in public-facing markdown
+alwaysApply: true
+---
+
+# 对外文档不写阶段状态
+
+阶段状态、验收结论、关闭门结果等**开发进度信息**不得写入对外展示的主 Markdown。
+
+## 禁止写入（示例）
+
+- `README.md` / `README.en.md`
+- 仓库首页、产品介绍、面向访客/贡献者首屏会读到的主文档
+- 类似「当前阶段状态」「Phase P4 Fully Closed」「Tag deferred」「非 Production Ready」等进度横幅或状态清单
+
+## 应写入的位置
+
+- `docs/PROGRESS.md`（阶段与模块进度）
+- `docs/P4_*`、`docs/P*_*.md`、`docs/*-report.json`（阶段验证与关闭报告）
+- PR 描述、内部验收记录、变更说明（按需）
+
+## Cursor / AI 行为
+
+- 完成阶段验收、关闭验证门、安全审计后：**更新内部 docs**，**不要**主动把阶段状态同步到 `README.md` / `README.en.md`。
+- 用户**明确要求**更新主 README 对外状态时，才可修改；否则默认保持 README 为产品能力与快速开始导向。
+- `README` 仍可更新：功能说明、快速开始、架构概览、命令变更——但不承载阶段性 gate / closure / deferred 状态列表。

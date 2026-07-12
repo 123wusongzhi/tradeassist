@@ -6,14 +6,13 @@ Real Environment Security Verification: deferred
 
 ## Summary
 - passed: 28
-- warnings: 2
+- warnings: 1
 - failed: 0
 
 ## Checks
 - [passed] status-no-prod-ready: README.md ok
 - [warning] status-p4: README.md may need P4 status
 - [passed] status-no-prod-ready: docs/PROGRESS.md ok
-- [warning] status-p4: docs/PROGRESS.md may need P4 status
 - [passed] refresh-rotation: Refresh token rotation
 - [passed] reuse-detection: Token reuse detection
 - [passed] refresh-hash-storage: Refresh token hash storage

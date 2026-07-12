@@ -466,7 +466,7 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListTasks(c.Request.Context(), q)
+	res, err := h.Svc.ListTasks(c, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -493,7 +493,12 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id, uuid.Nil, "")
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id, uuid.Nil, "")
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -659,7 +664,7 @@ func (h *Handler) ListInventorySyncBatchTasks(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListInventorySyncBatchTasks(c.Request.Context(), id, q)
+	res, err := h.Svc.ListInventorySyncBatchTasks(c, id, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return

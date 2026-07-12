@@ -98,6 +98,9 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		return
 	}
 	if h.Svc != nil && h.Svc.DB != nil {
+		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+			p.TenantID = tid
+		}
 		if pr, err := adminperm.LoadPrincipal(c, h.Svc.DB); err == nil && pr != nil && !pr.IsAdmin() {
 			p.AllowedShopIDs = pr.AllowedStoreIDs()
 		}
@@ -143,6 +146,11 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 	p.RequireIgnored = mf.RequireIgnored
 	p.RequireHandled = mf.RequireHandled
+	if h.Svc != nil && h.Svc.DB != nil {
+		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+			p.TenantID = tid
+		}
+	}
 	su, err := h.Svc.Summary(c.Request.Context(), p)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

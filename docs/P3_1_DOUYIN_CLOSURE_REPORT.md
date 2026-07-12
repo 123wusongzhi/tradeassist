@@ -1,6 +1,6 @@
 # P3.1 Douyin Closure Report
 
-Generated: 2026-07-11T10:38:40.757Z
+Generated: 2026-07-12T01:41:37.342Z
 
 **Status:** passed_with_real_credentials_deferred
 

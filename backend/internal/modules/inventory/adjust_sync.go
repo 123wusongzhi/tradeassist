@@ -260,7 +260,7 @@ func (s *Service) CreatePublicationSKUInventoryTask(c *gin.Context, publicationS
 				task.ID.String(), prodSku.String(), body.Stock),
 		})
 	}
-	out, err := s.GetDTO(ctx, task.ID, prodSku, psku.SKUCode)
+	out, err := s.GetDTO(ctx, task.TenantID, task.ID, prodSku, psku.SKUCode)
 	return &out, err
 }
 
@@ -327,7 +327,7 @@ func (s *Service) CreateProductShopInventoryTasks(c *gin.Context, productID uuid
 		if err := s.persistTaskAndMaybeRun(ctx, &t, admin); err != nil {
 			return outDTOs, err
 		}
-		dto, err := s.GetDTO(ctx, t.ID, sid, psku.SKUCode)
+		dto, err := s.GetDTO(ctx, t.TenantID, t.ID, sid, psku.SKUCode)
 		if err != nil {
 			continue
 		}

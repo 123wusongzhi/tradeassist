@@ -37,8 +37,7 @@ func (s *Service) PrepareRotation(ctx context.Context) (*RotationStatus, error) 
 	if err != nil {
 		return nil, err
 	}
-	var pending int64
-	_ = s.DB.WithContext(ctx).Table("settings").Where("is_encrypted = ?", true).Count(&pending).Error
+	pending, _ := s.countPendingReencrypt(ctx)
 	return &RotationStatus{
 		ActiveKeyID:      kr.ActiveID,
 		PendingReencrypt: pending,
