@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/glebarez/sqlite"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/crypto"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
