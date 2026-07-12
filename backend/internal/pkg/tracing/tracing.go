@@ -1,8 +1,11 @@
 package tracing
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +30,9 @@ type Config struct {
 	ExportStdout  bool
 	OTLPEndpoint  string
 	ExportTimeout time.Duration
+	OnExportOK    func(int)
+	OnExportError func(int)
+	OnQueueDepth  func(int)
 }
 
 // Provider wraps OTel tracer provider with safe shutdown.
@@ -75,8 +81,9 @@ func Init(cfg Config) (*Provider, error) {
 		exporters = append(exporters, exp)
 	}
 	if ep := strings.TrimSpace(cfg.OTLPEndpoint); ep != "" {
-		// OTLP HTTP exporter deferred when dependency graph blocked; mark export blocked.
-		p.exportBlocked = true
+		exp := newHTTPSpanExporter(cfg)
+		exporters = append(exporters, exp)
+		p.exportBlocked = false
 	}
 	var spanExporter sdktrace.SpanExporter
 	if len(exporters) == 1 {
@@ -90,7 +97,12 @@ func Init(cfg Config) (*Provider, error) {
 	)
 	if spanExporter != nil {
 		tp = sdktrace.NewTracerProvider(
-			sdktrace.WithBatcher(spanExporter),
+			sdktrace.WithBatcher(spanExporter,
+				sdktrace.WithMaxQueueSize(1024),
+				sdktrace.WithMaxExportBatchSize(128),
+				sdktrace.WithBatchTimeout(2*time.Second),
+				sdktrace.WithExportTimeout(exportTimeout(cfg.ExportTimeout)),
+			),
 			sdktrace.WithResource(res),
 			sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRatio))),
 		)
@@ -115,6 +127,16 @@ func (p *Provider) ExportBlocked() bool {
 		return true
 	}
 	return p.exportBlocked
+}
+
+// ExportFailures reports exporter failures observed by the lightweight HTTP exporter.
+func (p *Provider) ExportFailures() int64 {
+	if p == nil {
+		return 0
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.exportFailures
 }
 
 // Shutdown flushes and shuts down tracer provider.
@@ -239,4 +261,115 @@ func LinkParent(ctx context.Context, tracer trace.Tracer, name, traceParent stri
 	})
 	ctx = trace.ContextWithSpanContext(ctx, sc)
 	return StartSpan(ctx, tracer, name, attrs...)
+}
+
+type httpSpanExporter struct {
+	endpoint string
+	client   *http.Client
+	cfg      Config
+}
+
+func newHTTPSpanExporter(cfg Config) *httpSpanExporter {
+	timeout := exportTimeout(cfg.ExportTimeout)
+	return &httpSpanExporter{
+		endpoint: normalizeEndpoint(cfg.OTLPEndpoint),
+		client:   &http.Client{Timeout: timeout},
+		cfg:      cfg,
+	}
+}
+
+func (e *httpSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.ReadOnlySpan) error {
+	if e == nil || e.endpoint == "" || len(spans) == 0 {
+		return nil
+	}
+	payload := make([]map[string]any, 0, len(spans))
+	for _, sp := range spans {
+		if sp == nil {
+			continue
+		}
+		sc := sp.SpanContext()
+		payload = append(payload, map[string]any{
+			"name":       sp.Name(),
+			"traceId":    sc.TraceID().String(),
+			"spanId":     sc.SpanID().String(),
+			"parentSpan": sp.Parent().SpanID().String(),
+			"startUnix":  sp.StartTime().UTC().UnixNano(),
+			"endUnix":    sp.EndTime().UTC().UnixNano(),
+			"attributes": safeAttrsForExport(sp.Attributes()),
+			"status":     sp.Status().Code.String(),
+		})
+	}
+	body, err := json.Marshal(map[string]any{
+		"resourceSpans": payload,
+	})
+	if err != nil {
+		e.recordFailure(len(spans))
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.endpoint, bytes.NewReader(body))
+	if err != nil {
+		e.recordFailure(len(spans))
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := e.client.Do(req)
+	if err != nil {
+		e.recordFailure(len(spans))
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		e.recordFailure(len(spans))
+		return fmt.Errorf("otlp http exporter status %d", resp.StatusCode)
+	}
+	if e.cfg.OnExportOK != nil {
+		e.cfg.OnExportOK(len(spans))
+	}
+	if e.cfg.OnQueueDepth != nil {
+		e.cfg.OnQueueDepth(0)
+	}
+	return nil
+}
+
+func (e *httpSpanExporter) Shutdown(ctx context.Context) error {
+	_ = ctx
+	return nil
+}
+
+func (e *httpSpanExporter) recordFailure(n int) {
+	if e != nil && e.cfg.OnExportError != nil {
+		e.cfg.OnExportError(n)
+	}
+}
+
+func safeAttrsForExport(attrs []attribute.KeyValue) map[string]string {
+	out := make(map[string]string, len(attrs))
+	for _, attr := range sanitizeAttrs(attrs) {
+		out[string(attr.Key)] = attr.Value.AsString()
+	}
+	return out
+}
+
+func normalizeEndpoint(raw string) string {
+	ep := strings.TrimSpace(raw)
+	if ep == "" {
+		return ""
+	}
+	if !strings.HasPrefix(ep, "http://") && !strings.HasPrefix(ep, "https://") {
+		ep = "http://" + ep
+	}
+	if strings.HasSuffix(ep, "/") {
+		ep = strings.TrimRight(ep, "/")
+	}
+	if !strings.HasSuffix(ep, "/v1/traces") {
+		ep += "/v1/traces"
+	}
+	return ep
+}
+
+func exportTimeout(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 10 * time.Second
+	}
+	return d
 }

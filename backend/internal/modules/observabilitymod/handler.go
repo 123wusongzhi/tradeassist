@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/database"
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
@@ -54,6 +55,8 @@ func (h *Handler) Overview(c *gin.Context) {
 		"metricsPath":       obs.MetricsPath,
 		"metricsInternal":   obs.MetricsInternalOnly,
 		"otelExportBlocked": h.exportBlocked(),
+		"runtimeStatus":     h.runtimeStatus(),
+		"telemetry":         h.telemetryStatus(),
 		"environment":       obs.Environment,
 		"timestamp":         time.Now().UTC().Format(time.RFC3339),
 	})
@@ -121,6 +124,59 @@ func (h *Handler) exportBlocked() bool {
 		return h.Obs.Tracer.ExportBlocked()
 	}
 	return true
+}
+
+func (h *Handler) runtimeStatus() gin.H {
+	status := gin.H{
+		"metricsRegistry":         "deferred",
+		"businessInstrumentation": "deferred",
+		"otlpExporter":            "deferred",
+		"alertEvaluator":          "deferred",
+		"alertDelivery":           "deferred",
+		"sloEvaluator":            "deferred",
+	}
+	if h == nil {
+		return status
+	}
+	if h.Obs != nil && h.Obs.Metrics != nil {
+		status["metricsRegistry"] = "active"
+	}
+	if h.Obs != nil && h.Obs.Tracer != nil && !h.Obs.Tracer.ExportBlocked() {
+		status["otlpExporter"] = "active"
+	}
+	if h.DB != nil {
+		var eval alerting.AlertEvaluationRun
+		if err := h.DB.Order("started_at DESC").First(&eval).Error; err == nil {
+			status["alertEvaluator"] = "active"
+			status["lastAlertEvaluationAt"] = eval.StartedAt.UTC().Format(time.RFC3339)
+			status["lastAlertEvaluationStatus"] = eval.Status
+		}
+		var delivery alerting.AlertDelivery
+		if err := h.DB.Order("created_at DESC").First(&delivery).Error; err == nil {
+			status["alertDelivery"] = "active"
+			status["lastAlertDeliveryAt"] = delivery.CreatedAt.UTC().Format(time.RFC3339)
+			status["lastAlertDeliveryStatus"] = delivery.Status
+		}
+		var snap database.SLOSnapshot
+		if err := h.DB.Order("recorded_at DESC").First(&snap).Error; err == nil {
+			status["sloEvaluator"] = "active"
+			status["lastSLOSnapshotAt"] = time.Unix(snap.RecordedAt, 0).UTC().Format(time.RFC3339)
+			status["lastSLOStatus"] = snap.Status
+		}
+	}
+	return status
+}
+
+func (h *Handler) telemetryStatus() gin.H {
+	out := gin.H{"dropped": 0, "exportFailures": 0, "exportSuccess": 0}
+	if h == nil || h.Obs == nil || h.Obs.Metrics == nil {
+		return out
+	}
+	values := h.Obs.Metrics.SnapshotValues()
+	out["dropped"] = values["telemetry_dropped_items_total"]
+	out["exportFailures"] = values["telemetry_export_failures_total"]
+	out["exportSuccess"] = values["telemetry_export_success_total"]
+	return out
 }
 
 // MetricsEndpoint is mounted separately on internal route.

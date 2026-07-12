@@ -29,6 +29,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
@@ -169,6 +170,14 @@ func main() {
 	}
 	alertSeedCancel()
 
+	sloSeedCtx, sloSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := observabilitymod.EnsureDefaultSLOs(sloSeedCtx, db); err != nil {
+		sloSeedCancel()
+		log.Error("slo_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	sloSeedCancel()
+
 	imgSeedCtx, imgSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureImageDefaults(imgSeedCtx, db, enc); err != nil {
 		imgSeedCancel()
@@ -308,6 +317,12 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
 
+	if sqlDB, err := db.DB(); err == nil {
+		observability.StartDBStatsCollector(workerCtx, &workerWG, log, sqlDB, obs.Catalog, "primary", 15*time.Second)
+	} else {
+		log.Warn("db_stats_collector_skipped", "error", err)
+	}
+
 	worker.StartStaleMarker(workerCtx, &workerWG, db, cfg, log)
 
 	taskreaper.Start(workerCtx, &workerWG, taskreaper.Deps{
@@ -324,6 +339,20 @@ func main() {
 
 	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
 	douyinruntime.StartDouyinAlertScanWorker(workerCtx, &workerWG, log, douyinRuntimeSvc, workerReg, cfg)
+	metricSamples := func() map[string]float64 {
+		if obs == nil || obs.Metrics == nil {
+			return map[string]float64{}
+		}
+		return obs.Metrics.SnapshotValues()
+	}
+	if cfg.Observability.AlertingEnabled {
+		alertSvc := alerting.NewService(db, time.Duration(cfg.Observability.AlertDefaultCooldownSecs)*time.Second, cfg.Observability.AlertRecoveryEnabled)
+		alerting.StartEvaluatorWorker(workerCtx, &workerWG, log, alertSvc, time.Minute, metricSamples)
+		alerting.StartDeliveryWorker(workerCtx, &workerWG, log, alertSvc, 30*time.Second)
+	}
+	if cfg.Observability.Enabled && cfg.Observability.MetricsEnabled {
+		observabilitymod.StartSLOEvaluatorWorker(workerCtx, &workerWG, log, db, obs.Catalog, time.Minute, metricSamples)
+	}
 	if webhookSvc != nil {
 		webhook.StartWorker(workerCtx, &workerWG, log, webhookSvc, cfg, workerReg)
 	}

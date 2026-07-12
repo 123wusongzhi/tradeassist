@@ -148,6 +148,22 @@ func (s *Service) Fire(ctx context.Context, ruleID, severity, module, summary, d
 	}
 	fp := Fingerprint(ruleID, module, summary)
 	now := time.Now().UTC()
+	if s.isSilenced(ctx, ruleID, now) {
+		return &AlertEvent{
+			ID:              uuid.New().String(),
+			Fingerprint:     fp,
+			RuleID:          ruleID,
+			Severity:        severity,
+			Status:          StatusSilenced,
+			Source:          "app",
+			Module:          module,
+			Summary:         summary,
+			SafeDetails:     sanitizeDetails(details),
+			FirstSeenAt:     now,
+			LastSeenAt:      now,
+			OccurrenceCount: 1,
+		}, nil
+	}
 	s.mu.Lock()
 	if cached, ok := s.cache[fp]; ok && cached.CooldownUntil != nil && now.Before(*cached.CooldownUntil) {
 		cached.OccurrenceCount++
@@ -241,6 +257,7 @@ func (s *Service) Silence(ctx context.Context, alertID, reason, by string, until
 	sil := AlertSilence{
 		ID:         uuid.New().String(),
 		AlertID:    alertID,
+		RuleID:     alertRuleID(ctx, s.DB, alertID),
 		Reason:     reason,
 		SilencedBy: by,
 		ExpiresAt:  until.UTC(),
@@ -271,9 +288,26 @@ func (s *Service) dispatch(ctx context.Context, ev AlertEvent) {
 		Summary:     ev.Summary,
 		SafeDetails: ev.SafeDetails,
 	}
-	for _, ch := range s.Channels {
-		_ = ch.Send(ctx, n)
+	s.enqueueAndSend(ctx, ev, n)
+}
+
+func (s *Service) isSilenced(ctx context.Context, ruleID string, now time.Time) bool {
+	var count int64
+	err := s.DB.WithContext(ctx).Model(&AlertSilence{}).
+		Where("rule_id = ? AND expires_at > ?", ruleID, now).
+		Count(&count).Error
+	return err == nil && count > 0
+}
+
+func alertRuleID(ctx context.Context, db *gorm.DB, alertID string) string {
+	if db == nil || strings.TrimSpace(alertID) == "" {
+		return ""
 	}
+	var ev AlertEvent
+	if err := db.WithContext(ctx).Select("rule_id").Where("id = ?", alertID).First(&ev).Error; err != nil {
+		return ""
+	}
+	return ev.RuleID
 }
 
 func sanitizeDetails(raw string) string {

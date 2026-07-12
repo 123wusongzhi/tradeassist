@@ -58,6 +58,22 @@ func Init(cfg Config) (*Observability, error) {
 		o.Catalog = cat
 	}
 	if cfg.TracingEnabled {
+		cfg.Tracer.OnExportOK = func(n int) {
+			if o.Catalog != nil && o.Catalog.TelemetryExportSuccess != nil && n > 0 {
+				o.Catalog.TelemetryExportSuccess.Add(float64(n))
+			}
+		}
+		cfg.Tracer.OnExportError = func(n int) {
+			o.RecordTelemetryExportFailure()
+			if n > 0 {
+				o.RecordTelemetryDropped(n)
+			}
+		}
+		cfg.Tracer.OnQueueDepth = func(n int) {
+			if o.Catalog != nil && o.Catalog.TelemetryQueueDepth != nil {
+				o.Catalog.TelemetryQueueDepth.Set(float64(n))
+			}
+		}
 		tp, err := tracing.Init(cfg.Tracer)
 		if err != nil {
 			return nil, err

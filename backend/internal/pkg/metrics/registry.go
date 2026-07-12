@@ -5,6 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
+	dto "github.com/prometheus/client_model/go"
 )
 
 // Registry wraps prometheus registry with cardinality validation.
@@ -199,4 +200,48 @@ func (r *Registry) IncCounter(name string, labelValues map[string]string) {
 		vals = append(vals, v)
 	}
 	vec.WithLabelValues(vals...).Inc()
+}
+
+// SnapshotValues returns aggregate metric samples by metric name.
+// It intentionally drops label dimensions so alert/SLO evaluators cannot depend
+// on high-cardinality data or expose raw tenant/shop/task identifiers.
+func (r *Registry) SnapshotValues() map[string]float64 {
+	out := make(map[string]float64)
+	if r == nil || r.prom == nil {
+		return out
+	}
+	families, err := r.prom.Gather()
+	if err != nil {
+		return out
+	}
+	for _, mf := range families {
+		name := mf.GetName()
+		if name == "" {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			out[name] += metricValue(m)
+		}
+	}
+	return out
+}
+
+func metricValue(m *dto.Metric) float64 {
+	if m == nil {
+		return 0
+	}
+	switch {
+	case m.Counter != nil:
+		return m.Counter.GetValue()
+	case m.Gauge != nil:
+		return m.Gauge.GetValue()
+	case m.Untyped != nil:
+		return m.Untyped.GetValue()
+	case m.Histogram != nil:
+		return float64(m.Histogram.GetSampleCount())
+	case m.Summary != nil:
+		return float64(m.Summary.GetSampleCount())
+	default:
+		return 0
+	}
 }

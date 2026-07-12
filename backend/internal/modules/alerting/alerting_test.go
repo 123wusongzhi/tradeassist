@@ -14,7 +14,7 @@ func TestAlertDeduplicationAndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := db.AutoMigrate(&AlertEvent{}, &AlertRule{}, &AlertSilence{}); err != nil {
+	if err := db.AutoMigrate(&AlertEvent{}, &AlertRule{}, &AlertSilence{}, &AlertDelivery{}, &AlertEvaluationRun{}); err != nil {
 		t.Fatal(err)
 	}
 	svc := NewService(db, time.Second, true)
@@ -39,6 +39,43 @@ func TestAlertDeduplicationAndRecovery(t *testing.T) {
 	}
 	if resolved.Status != StatusResolved {
 		t.Fatalf("expected resolved got %s", resolved.Status)
+	}
+}
+
+func TestAlertEvaluatorDeliveryAndRecovery(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&AlertEvent{}, &AlertRule{}, &AlertSilence{}, &AlertDelivery{}, &AlertEvaluationRun{}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	rule := AlertRule{ID: "ai_image_provider_timeout", Name: "AI image provider timeout", Metric: "ai_image_provider_timeouts_total", Condition: ">", Threshold: 0, Severity: SeverityWarning, Enabled: true}
+	if err := db.Create(&rule).Error; err != nil {
+		t.Fatal(err)
+	}
+	svc := NewService(db, time.Second, true)
+	run, err := svc.EvaluateRules(ctx, map[string]float64{"ai_image_provider_timeouts_total": 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.AlertsFired != 1 {
+		t.Fatalf("expected fired=1 got %+v", run)
+	}
+	var delivery AlertDelivery
+	if err := db.First(&delivery).Error; err != nil {
+		t.Fatal(err)
+	}
+	if delivery.Status != DeliveryDelivered {
+		t.Fatalf("expected delivered got %s", delivery.Status)
+	}
+	run, err = svc.EvaluateRules(ctx, map[string]float64{"ai_image_provider_timeouts_total": 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.AlertsResolved != 1 {
+		t.Fatalf("expected resolved=1 got %+v", run)
 	}
 }
 

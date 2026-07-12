@@ -26,6 +26,7 @@ type SLOSnapshot struct {
 	ErrorBudget float64
 	BurnRate    float64
 	Window      string `gorm:"size:32"`
+	Status      string `gorm:"size:32;index"`
 	RecordedAt  int64  `gorm:"index"`
 }
 
@@ -49,6 +50,8 @@ func migrateP5Observability(db *gorm.DB) error {
 		&alerting.AlertEvent{},
 		&alerting.AlertRule{},
 		&alerting.AlertSilence{},
+		&alerting.AlertEvaluationRun{},
+		&alerting.AlertDelivery{},
 		&SLODefinition{},
 		&SLOSnapshot{},
 		&ObservabilityCheckpoint{},
