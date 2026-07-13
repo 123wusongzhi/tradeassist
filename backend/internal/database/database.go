@@ -50,9 +50,18 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	maxOpen := cfg.P7.DBMaxOpenConnections
+	if maxOpen < 1 {
+		maxOpen = 100
+	}
+	maxIdle := cfg.P7.DBMaxIdleConnections
+	if maxIdle < 0 || maxIdle > maxOpen {
+		maxIdle = 10
+	}
+	sqlDB.SetMaxOpenConns(maxOpen)
+	sqlDB.SetMaxIdleConns(maxIdle)
+	sqlDB.SetConnMaxLifetime(durationSeconds(cfg.P7.DBConnMaxLifetimeSeconds, int(time.Hour/time.Second)))
+	sqlDB.SetConnMaxIdleTime(durationSeconds(cfg.P7.DBConnMaxIdleTimeSeconds, 900))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -62,6 +71,13 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	return db, nil
+}
+
+func durationSeconds(value int, fallback int) time.Duration {
+	if value <= 0 {
+		value = fallback
+	}
+	return time.Duration(value) * time.Second
 }
 
 // Close releases the underlying sql.DB pool.

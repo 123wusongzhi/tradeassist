@@ -278,6 +278,7 @@ func main() {
 		middleware.RequestID(),
 		middleware.ContextCorrelation(),
 		middleware.ObservabilityHTTP(obs),
+		middleware.RateLimit(cfg),
 		middleware.Recovery(log),
 		middleware.AccessLog(log),
 		securitypkg.SecurityHeaders(cfg),

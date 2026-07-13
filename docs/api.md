@@ -443,6 +443,24 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 
 P6-VR closure evidence is recorded in `docs/P6_VR_FINAL_CLOSURE_REPORT.md`: isolated restore, isolated release rollback, Linux race, and final gates passed. P6 still does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
 
+## P7 Performance / Capacity API Status
+
+P7 currently adds backend configuration, database tables, local rate-limit middleware and validation scripts, but does **not** expose public management APIs yet.
+
+Planned ops routes remain design-only until implemented with RBAC, re-authentication for writes and audit logging:
+
+| 方法 | 路径 | 状态 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/ops/performance/overview` | planned | 聚合 API / DB / Worker / Provider 性能概览。 |
+| `GET` | `/api/v1/ops/performance/regressions` | planned | 性能回归记录。 |
+| `GET` | `/api/v1/ops/capacity/overview` | planned | 数据规模、连接池、Worker 容量与扩容建议。 |
+| `GET` | `/api/v1/ops/rate-limits` | planned | 限流策略只读展示，不暴露 Redis key 或明文 PII。 |
+| `PUT` | `/api/v1/ops/rate-limits/:policyId` | planned | 高权限、重认证、审计后修改受控策略。 |
+| `GET` | `/api/v1/ops/quotas` | planned | Tenant / Shop / User / System 配额模板。 |
+| `POST` | `/api/v1/ops/profiling/cpu` | planned | 内部高权限 profiling，duration 有上限，不返回任意路径。 |
+
+Current code-level P7 endpoints affected: product and order list APIs reject excessive deep offset via P7 pagination guard; HTTP requests can be locally rate-limited when `RATE_LIMIT_ENABLED=true`.
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。

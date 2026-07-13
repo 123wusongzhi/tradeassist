@@ -1,0 +1,10 @@
+{
+  "title": "P7 Cache Performance",
+  "tags": ["trademind", "p7", "cache"],
+  "panels": [
+    { "title": "Cache Hit Rate", "type": "timeseries" },
+    { "title": "Cache Miss Rate", "type": "timeseries" },
+    { "title": "Singleflight Suppression", "type": "timeseries" },
+    { "title": "Cache Load Failures", "type": "timeseries" }
+  ]
+}

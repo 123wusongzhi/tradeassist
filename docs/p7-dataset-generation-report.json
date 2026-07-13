@@ -1,0 +1,32 @@
+{
+  "phase": "P7",
+  "status": "dry_run_passed",
+  "runId": "p7-2026-07-13T10-56-09-419Z",
+  "profile": "small",
+  "dryRun": true,
+  "datasetPlan": {
+    "inventoryRows": 10000,
+    "operationLogs": 50000,
+    "orderItems": 50000,
+    "orders": 20000,
+    "products": 10000,
+    "shops": 20,
+    "tasks": 20000,
+    "tenants": 10,
+    "webhooks": 20000
+  },
+  "rowsPlanned": 190060,
+  "rowsWritten": 0,
+  "startedAt": "2026-07-13T10:56:11Z",
+  "finishedAt": "2026-07-13T10:56:11Z",
+  "guards": [
+    "no production datasets",
+    "requires performance mode",
+    "requires mock external provider",
+    "requires trademind_p7_ database prefix for writes"
+  ],
+  "issues": null,
+  "command": "go run ./cmd/p7load --profile small --run-id p7-2026-07-13T10-56-09-419Z --dry-run=true",
+  "exitCode": 0,
+  "stderr": ""
+}

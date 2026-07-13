@@ -50,6 +50,8 @@ REDIS_PUBLISH_PORT=6379
 
 P5-V 可观测性默认使用 `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`。Docker 本地试用不配置真实 telemetry backend 时，`OTEL_EXPORTER_OTLP_ENDPOINT` 保持为空并视为 Deferred；不要把 Mock Collector 验证写成生产 collector 已上线。
 
+P7 性能数据集与负载测试只能在隔离 `APP_ENV=performance` 环境执行；普通 Docker 试用与生产部署必须保持 `PERFORMANCE_TEST_MODE=false`、`ALLOW_PERFORMANCE_DATASET=false`，不得把隔离压测描述为真实生产容量验证。
+
 ## 安全配置
 
 生产环境或公网部署前必须修改：

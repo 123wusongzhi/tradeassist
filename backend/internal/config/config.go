@@ -170,6 +170,8 @@ type Config struct {
 	Backup         BackupConfig
 	PostgresBackup PostgresBackupConfig
 	Release        ReleaseConfig
+	// P7 performance, capacity, pagination and limiting foundation.
+	P7 P7Config
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -338,6 +340,7 @@ func Load() (*Config, error) {
 	cfg.Backup = loadBackupConfig(cfg.AppEnv)
 	cfg.PostgresBackup = loadPostgresBackupConfig()
 	cfg.Release = loadReleaseConfig(cfg.AppEnv)
+	cfg.P7 = loadP7Config(cfg.AppEnv)
 	// Test verifier must never run in production regardless of env flag.
 	if IsProduction(cfg.AppEnv) {
 		cfg.WebhookEnableTestVerifier = false

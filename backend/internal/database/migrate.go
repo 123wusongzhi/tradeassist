@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/performance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/release"
@@ -177,6 +178,11 @@ func AutoMigrate(db *gorm.DB) error {
 		&release.Step{},
 		&release.Rollback{},
 		&disasterrecovery.Drill{},
+		&performance.TestRun{},
+		&performance.Regression{},
+		&performance.CapacitySnapshot{},
+		&performance.RateLimitPolicy{},
+		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
 	}
@@ -213,5 +219,8 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP42Security(db); err != nil {
 		return err
 	}
-	return migrateP5Observability(db)
+	if err := migrateP5Observability(db); err != nil {
+		return err
+	}
+	return migrateP7Performance(db)
 }

@@ -60,6 +60,9 @@ func (c *Config) Validate() error {
 	if err := c.validateTenantIsolation(); err != nil {
 		return err
 	}
+	if err := c.validateP7ProductionGuards(); err != nil {
+		return err
+	}
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()
 	}

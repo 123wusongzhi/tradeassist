@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -407,17 +408,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
-	page := q.Page
-	if page < 1 {
-		page = 1
+	paged, err := pagination.NormalizePage(q.Page, q.PageSize)
+	if err != nil {
+		return nil, err
 	}
-	ps := q.PageSize
-	if ps < 1 {
-		ps = 20
-	}
-	if ps > 100 {
-		ps = 100
-	}
+	page, ps := paged.Page, paged.Limit
 	tx := s.DB.WithContext(c.Request.Context()).Model(&Order{})
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -467,7 +462,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
 	}
-	offset := (page - 1) * ps
+	offset := paged.Offset
 	var rows []Order
 	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, err

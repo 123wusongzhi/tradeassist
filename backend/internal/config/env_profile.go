@@ -6,6 +6,7 @@ import "strings"
 const (
 	EnvDevelopment = "development"
 	EnvDemo        = "demo"
+	EnvPerformance = "performance"
 	EnvTest        = "test"
 	EnvStaging     = "staging"
 	EnvProduction  = "production"
@@ -38,7 +39,7 @@ func IsStagingOrProduction(env string) bool {
 // AllowsLocalStorage reports whether local storage provider is permitted.
 func AllowsLocalStorage(env string) bool {
 	switch NormalizeEnv(env) {
-	case EnvDevelopment, EnvDemo, EnvTest:
+	case EnvDevelopment, EnvDemo, EnvPerformance, EnvTest:
 		return true
 	default:
 		return false

@@ -45,6 +45,7 @@ The project currently serves two priorities: `AI product operations` and a `ligh
 | Demo | MVP Demo Ready |
 | Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
 | Backup / Release / DR | P6 fully closed; real production verification deferred |
+| Performance / Capacity | P7 foundation in progress; load / soak / race verification incomplete |
 | Tag | Tag deferred |
 | Production | Not Production Ready |
 | Douyin | Douyin Release Candidate |

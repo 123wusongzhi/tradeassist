@@ -6,6 +6,13 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P7 - Performance and capacity foundation started (2026-07-13)
+
+- Added P7 config and production guards for performance-test mode, datasets, pagination, DB pool, worker capacity, rate limits, cache, export and pprof.
+- Wired DB pool settings, bounded pagination helpers, local token-bucket HTTP rate limiting, P7 performance/capacity tables and guarded dataset-plan tooling.
+- Added P7 static capacity and regression gate scripts, P7 docs, dashboards, runbooks and env/API documentation.
+- Status: Phase P7 closure verification incomplete; real medium dataset, load test, soak test, Linux race, distributed limiter and management UI remain pending; no tag and not Production Ready.
+
 ### Phase P6-VR - Linux race remediation and P6 closure (2026-07-13)
 
 - Installed and verified WSL2 Ubuntu Go `go1.25.12` for the repository `go 1.25.0` requirement, with CGO and GCC available.

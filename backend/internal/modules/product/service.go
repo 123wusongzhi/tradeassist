@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
@@ -49,16 +50,14 @@ type DouyinImageUploader interface {
 }
 
 func clampPage(page, ps int) (int, int) {
-	if page < 1 {
-		page = 1
+	p, err := pagination.NormalizePage(page, ps)
+	if err != nil {
+		if page < 1 {
+			page = 1
+		}
+		return page, pagination.MaxLimit
 	}
-	if ps < 1 {
-		ps = 20
-	}
-	if ps > 100 {
-		ps = 100
-	}
-	return page, ps
+	return p.Page, p.Limit
 }
 
 func pickCoverURL(origin, pub string) string {
@@ -198,7 +197,11 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		return nil, err
 	}
 
-	offset := (page - 1) * ps
+	paged, err := pagination.NormalizePage(page, ps)
+	if err != nil {
+		return nil, err
+	}
+	offset := paged.Offset
 	var rows []Product
 	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
 		return nil, err
@@ -241,7 +244,6 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			CoverURL:  covers[r.ID],
 		})
 	}
-	var err error
 	items, err = s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
 	if err != nil {
 		return nil, err

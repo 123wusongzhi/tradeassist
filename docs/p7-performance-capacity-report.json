@@ -1,0 +1,301 @@
+{
+  "phase": "P7",
+  "status": "incomplete",
+  "failed": 5,
+  "passed": 53,
+  "results": [
+    {
+      "id": "p7-config",
+      "status": "passed",
+      "detail": "backend/internal/config/p7_config.go"
+    },
+    {
+      "id": "p7-production-guards",
+      "status": "passed",
+      "detail": "backend/internal/config/p7_config.go"
+    },
+    {
+      "id": "db-pool-configured",
+      "status": "passed",
+      "detail": "backend/internal/database/database.go"
+    },
+    {
+      "id": "pagination-package",
+      "status": "passed",
+      "detail": "backend/internal/pkg/pagination/pagination.go"
+    },
+    {
+      "id": "pagination-guards",
+      "status": "passed",
+      "detail": "backend/internal/pkg/pagination/pagination.go"
+    },
+    {
+      "id": "ratelimit-package",
+      "status": "passed",
+      "detail": "backend/internal/pkg/ratelimit/limiter.go"
+    },
+    {
+      "id": "http-rate-limit-middleware",
+      "status": "passed",
+      "detail": "backend/internal/middleware/ratelimit.go"
+    },
+    {
+      "id": "server-ratelimit-wired",
+      "status": "passed",
+      "detail": "backend/cmd/server/main.go"
+    },
+    {
+      "id": "p7-migration",
+      "status": "passed",
+      "detail": "backend/internal/database/migrate_p7.go"
+    },
+    {
+      "id": "p7-models",
+      "status": "passed",
+      "detail": "backend/internal/modules/performance/model.go"
+    },
+    {
+      "id": "p7-load-command",
+      "status": "passed",
+      "detail": "backend/cmd/p7load/main.go"
+    },
+    {
+      "id": "p7-load-guards",
+      "status": "passed",
+      "detail": "backend/cmd/p7load/main.go"
+    },
+    {
+      "id": "dataset-script",
+      "status": "passed",
+      "detail": "scripts/p7-generate-dataset.mjs"
+    },
+    {
+      "id": "doc:P7_PERFORMANCE_CAPACITY_AUDIT.md",
+      "status": "passed",
+      "detail": "docs/P7_PERFORMANCE_CAPACITY_AUDIT.md"
+    },
+    {
+      "id": "doc:P7_PERFORMANCE_ARCHITECTURE.md",
+      "status": "passed",
+      "detail": "docs/P7_PERFORMANCE_ARCHITECTURE.md"
+    },
+    {
+      "id": "doc:P7_PERFORMANCE_TARGETS.md",
+      "status": "passed",
+      "detail": "docs/P7_PERFORMANCE_TARGETS.md"
+    },
+    {
+      "id": "doc:P7_LARGE_DATASET_MATRIX.md",
+      "status": "passed",
+      "detail": "docs/P7_LARGE_DATASET_MATRIX.md"
+    },
+    {
+      "id": "doc:P7_DATABASE_INDEX_AUDIT.md",
+      "status": "passed",
+      "detail": "docs/P7_DATABASE_INDEX_AUDIT.md"
+    },
+    {
+      "id": "doc:P7_QUERY_PLAN_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P7_QUERY_PLAN_REPORT.md"
+    },
+    {
+      "id": "doc:P7_PAGINATION_DESIGN.md",
+      "status": "passed",
+      "detail": "docs/P7_PAGINATION_DESIGN.md"
+    },
+    {
+      "id": "doc:P7_DATABASE_POOL_AND_TRANSACTION.md",
+      "status": "passed",
+      "detail": "docs/P7_DATABASE_POOL_AND_TRANSACTION.md"
+    },
+    {
+      "id": "doc:P7_WORKER_CAPACITY.md",
+      "status": "passed",
+      "detail": "docs/P7_WORKER_CAPACITY.md"
+    },
+    {
+      "id": "doc:P7_BACKPRESSURE_DESIGN.md",
+      "status": "passed",
+      "detail": "docs/P7_BACKPRESSURE_DESIGN.md"
+    },
+    {
+      "id": "doc:P7_RATE_LIMIT_DESIGN.md",
+      "status": "passed",
+      "detail": "docs/P7_RATE_LIMIT_DESIGN.md"
+    },
+    {
+      "id": "doc:P7_PROVIDER_LIMITING.md",
+      "status": "passed",
+      "detail": "docs/P7_PROVIDER_LIMITING.md"
+    },
+    {
+      "id": "doc:P7_QUOTA_DESIGN.md",
+      "status": "passed",
+      "detail": "docs/P7_QUOTA_DESIGN.md"
+    },
+    {
+      "id": "doc:P7_CACHE_CONSISTENCY_POLICY.md",
+      "status": "passed",
+      "detail": "docs/P7_CACHE_CONSISTENCY_POLICY.md"
+    },
+    {
+      "id": "doc:P7_EXPORT_AND_UPLOAD_STREAMING.md",
+      "status": "passed",
+      "detail": "docs/P7_EXPORT_AND_UPLOAD_STREAMING.md"
+    },
+    {
+      "id": "doc:P7_MEMORY_BUDGET.md",
+      "status": "passed",
+      "detail": "docs/P7_MEMORY_BUDGET.md"
+    },
+    {
+      "id": "doc:P7_PROFILING_SECURITY.md",
+      "status": "passed",
+      "detail": "docs/P7_PROFILING_SECURITY.md"
+    },
+    {
+      "id": "doc:P7_CAPACITY_MODEL.md",
+      "status": "passed",
+      "detail": "docs/P7_CAPACITY_MODEL.md"
+    },
+    {
+      "id": "doc:P7_LOAD_TEST_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P7_LOAD_TEST_REPORT.md"
+    },
+    {
+      "id": "doc:P7_SOAK_TEST_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P7_SOAK_TEST_REPORT.md"
+    },
+    {
+      "id": "doc:P7_RACE_TEST_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P7_RACE_TEST_REPORT.md"
+    },
+    {
+      "id": "doc:P7_DEVELOPMENT_ACCEPTANCE_RUN_1.md",
+      "status": "passed",
+      "detail": "docs/P7_DEVELOPMENT_ACCEPTANCE_RUN_1.md"
+    },
+    {
+      "id": "doc:P7_DEVELOPMENT_ACCEPTANCE_RUN_2.md",
+      "status": "passed",
+      "detail": "docs/P7_DEVELOPMENT_ACCEPTANCE_RUN_2.md"
+    },
+    {
+      "id": "dashboard:performance-overview.json",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/performance-overview.json"
+    },
+    {
+      "id": "dashboard:database-capacity.json",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/database-capacity.json"
+    },
+    {
+      "id": "dashboard:rate-limit-and-backpressure.json",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/rate-limit-and-backpressure.json"
+    },
+    {
+      "id": "dashboard:worker-capacity.json",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/worker-capacity.json"
+    },
+    {
+      "id": "dashboard:cache-performance.json",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/cache-performance.json"
+    },
+    {
+      "id": "runbook:API_LATENCY_HIGH.md",
+      "status": "passed",
+      "detail": "docs/runbooks/API_LATENCY_HIGH.md"
+    },
+    {
+      "id": "runbook:DATABASE_POOL_SATURATED.md",
+      "status": "passed",
+      "detail": "docs/runbooks/DATABASE_POOL_SATURATED.md"
+    },
+    {
+      "id": "runbook:SLOW_QUERY_SPIKE.md",
+      "status": "passed",
+      "detail": "docs/runbooks/SLOW_QUERY_SPIKE.md"
+    },
+    {
+      "id": "runbook:WEBHOOK_BURST.md",
+      "status": "passed",
+      "detail": "docs/runbooks/WEBHOOK_BURST.md"
+    },
+    {
+      "id": "runbook:TASK_BACKLOG_HIGH.md",
+      "status": "passed",
+      "detail": "docs/runbooks/TASK_BACKLOG_HIGH.md"
+    },
+    {
+      "id": "runbook:PROVIDER_RATE_LIMITED.md",
+      "status": "passed",
+      "detail": "docs/runbooks/PROVIDER_RATE_LIMITED.md"
+    },
+    {
+      "id": "runbook:RATE_LIMIT_REJECTION_SPIKE.md",
+      "status": "passed",
+      "detail": "docs/runbooks/RATE_LIMIT_REJECTION_SPIKE.md"
+    },
+    {
+      "id": "runbook:CACHE_STAMPEDE.md",
+      "status": "passed",
+      "detail": "docs/runbooks/CACHE_STAMPEDE.md"
+    },
+    {
+      "id": "runbook:MEMORY_GROWTH.md",
+      "status": "passed",
+      "detail": "docs/runbooks/MEMORY_GROWTH.md"
+    },
+    {
+      "id": "runbook:GOROUTINE_LEAK.md",
+      "status": "passed",
+      "detail": "docs/runbooks/GOROUTINE_LEAK.md"
+    },
+    {
+      "id": "runbook:EXPORT_BACKLOG.md",
+      "status": "passed",
+      "detail": "docs/runbooks/EXPORT_BACKLOG.md"
+    },
+    {
+      "id": "runbook:CAPACITY_THRESHOLD_REACHED.md",
+      "status": "passed",
+      "detail": "docs/runbooks/CAPACITY_THRESHOLD_REACHED.md"
+    },
+    {
+      "id": "medium-dataset-validation",
+      "status": "failed",
+      "detail": "requires real medium dataset generation evidence"
+    },
+    {
+      "id": "load-test-passed",
+      "status": "failed",
+      "detail": "requires real load test p95 evidence"
+    },
+    {
+      "id": "soak-test-passed",
+      "status": "failed",
+      "detail": "requires real soak test evidence"
+    },
+    {
+      "id": "linux-race-passed",
+      "status": "failed",
+      "detail": "requires Linux/WSL2 race evidence"
+    },
+    {
+      "id": "development-acceptance",
+      "status": "failed",
+      "detail": "requires two demo:auto-acceptance runs with codeFailed/nonAiFailed=0"
+    }
+  ],
+  "realProductionPerformanceVerification": "deferred",
+  "realProductionCapacityVerification": "deferred",
+  "productionReady": false
+}

@@ -6,7 +6,7 @@
 
 - Node.js
 - pnpm `9.15+`
-- Go `1.22+`
+- Go `1.25+`
 - **二选一**（基础设施）：
   - Docker / Docker Compose（默认，`pnpm dev` 会自动 `docker compose up` 拉起 PostgreSQL / Redis）
   - 或本机已安装并运行 **PostgreSQL**（默认 `127.0.0.1:5432`）与 **Redis**（默认 `127.0.0.1:6379`），账号密码与 `.env` 一致
@@ -39,6 +39,9 @@ pnpm dev:infra
 pnpm dev:backend
 pnpm dev:admin
 pnpm dev:collector
+pnpm p7:dataset -- --profile small
+pnpm check:p7
+pnpm check:p7:regression
 pnpm dev:stop
 pnpm dev:reset
 ```
@@ -47,6 +50,8 @@ pnpm dev:reset
 
 - `pnpm check:dev`：检查 Node、pnpm、Go、Docker 或本机 PostgreSQL / Redis、环境变量等。
 - `pnpm dev:infra`：仅启动 PostgreSQL 与 Redis。
+- `pnpm p7:dataset -- --profile small`：运行 P7 数据集生成器 dry-run；写入隔离数据库需额外传 `--write` 并满足 performance 环境守卫。
+- `pnpm check:p7` / `pnpm check:p7:regression`：生成 P7 性能容量与回归门闸报告；真实负载 / Soak / Race 证据未齐时会失败。
 - `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）/ collector 端口上残留的上一进程，避免端口占用导致 backend 启动失败。
 - `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。
