@@ -60,7 +60,6 @@ func (c *Config) Validate() error {
 	if err := c.validateTenantIsolation(); err != nil {
 		return err
 	}
-
 	if !IsProduction(c.AppEnv) {
 		return c.validateNonProduction()
 	}
@@ -118,7 +117,7 @@ func (c *Config) validateNonProduction() error {
 	if c.EnableDemoSeed && c.EnableDevRoutes {
 		// allowed in dev/demo
 	}
-	return nil
+	return c.validateP6ProductionGuards()
 }
 
 func (c *Config) validateProduction() error {
@@ -152,7 +151,10 @@ func (c *Config) validateProduction() error {
 	if isWeakBootstrapPassword(c.BootstrapAdminPassword) {
 		return fmt.Errorf("%s: ADMIN_BOOTSTRAP_PASSWORD is too weak for production", ErrCodeConfigInsecureDefault)
 	}
-	return c.ValidateObservability()
+	if err := c.ValidateObservability(); err != nil {
+		return err
+	}
+	return c.validateP6ProductionGuards()
 }
 
 func isInsecureSecret(s string) bool {

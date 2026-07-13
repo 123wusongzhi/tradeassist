@@ -83,12 +83,12 @@
                         "tag":  "config_risk_kpi"
                     },
                     {
-                        "shopId":  "ee924b41-234e-40bf-8936-ab3ef24151a6",
+                        "shopId":  "9f5bb1f9-f303-4020-9b4d-bda2fba5bbce",
                         "result":  "ok",
                         "note":  "POST sync-orders on first shop",
                         "tag":  "order_sync_probe"
                     }
                 ],
-    "generatedAt":  "2026-07-13T04:54:59.9174491Z",
+    "generatedAt":  "2026-07-13T06:36:30.4321486Z",
     "note":  "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
 }

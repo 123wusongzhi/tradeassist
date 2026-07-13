@@ -44,6 +44,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 | Phase | Production Capability Development In Progress |
 | Demo | MVP Demo Ready |
 | Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
+| Backup / Release / DR | P6 foundation ready; closure verification incomplete |
 | Tag | Tag deferred |
 | Production | Not Production Ready |
 | Douyin | Douyin Release Candidate |

@@ -1,0 +1,11 @@
+{
+  "title": "TradeMind Disaster Recovery",
+  "description": "P6 disaster recovery drill dashboard definition without credentials.",
+  "panels": [
+    { "title": "DR drill result", "metric": "dr_drills_total", "labels": ["result", "environment_class"] },
+    { "title": "DR drill duration", "metric": "dr_drill_duration_seconds", "labels": ["result", "environment_class"] },
+    { "title": "DR drill failures", "metric": "dr_drill_failures_total", "labels": ["result", "environment_class"] },
+    { "title": "Last successful DR drill", "metric": "dr_last_success_timestamp", "labels": ["environment_class"] },
+    { "title": "Restore last success", "metric": "restore_last_success_timestamp", "labels": ["environment_class"] }
+  ]
+}

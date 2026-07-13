@@ -2,7 +2,7 @@
     "evidence":  {
                      "providerState":  "dashscope_image",
                      "status":  "running",
-                     "batchId":  "32eeb46c-897c-4f12-85e4-c86738d0f5ea",
+                     "batchId":  "410ee6a5-0f5c-4001-a428-7356928bc94f",
                      "lastErrorCode":  "provider_timeout"
                  },
     "finalStatus":  "passed_with_warning",
@@ -18,11 +18,11 @@
                                         }
                        },
     "conclusion":  "passed_with_warning",
-    "error":  "Batch 32eeb46c-897c-4f12-85e4-c86738d0f5ea did not finish within 600s",
+    "error":  "Batch 410ee6a5-0f5c-4001-a428-7356928bc94f did not finish within 600s",
     "batches":  [
 
                 ],
-    "generatedAt":  "2026-07-13T05:05:20.4946013Z",
+    "generatedAt":  "2026-07-13T06:46:51.9430197Z",
     "reasonCode":  "provider_timeout",
     "lastCompletedStage":  "worker_claimed",
     "checkResults":  [

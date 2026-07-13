@@ -1,5 +1,5 @@
 ﻿{
-    "totalExistingProducts":  1708,
+    "totalExistingProducts":  1712,
     "matrix":  [
                    {
                        "source":  "1688",
@@ -19,7 +19,7 @@
                        "actualStep":  "collect_review",
                        "warningCount":  3,
                        "productId":  "25373ccf-557c-4d8e-8120-8d25e92b7242",
-                       "skuCount":  27,
+                       "skuCount":  33,
                        "tag":  "1688_multi",
                        "blockerCount":  2,
                        "slot":  2,
@@ -79,7 +79,7 @@
                        "actualStep":  "collect_review",
                        "warningCount":  3,
                        "productId":  "25373ccf-557c-4d8e-8120-8d25e92b7242",
-                       "skuCount":  27,
+                       "skuCount":  33,
                        "tag":  "multi_sku",
                        "blockerCount":  2,
                        "slot":  7,
@@ -126,7 +126,7 @@
                        "note":  "Zero price SKU",
                        "actualStep":  "collect_review",
                        "warningCount":  4,
-                       "productId":  "89c0052d-602c-4a49-9cd0-a5469791ac84",
+                       "productId":  "e169f4b9-1866-4982-9e7c-1131b74cad63",
                        "skuCount":  1,
                        "tag":  "price_anomaly",
                        "blockerCount":  4,
@@ -138,7 +138,7 @@
                        "note":  "AI title field",
                        "actualStep":  "collect_review",
                        "warningCount":  1,
-                       "productId":  "5ec81f63-76ae-4781-b45a-62b24d6b149e",
+                       "productId":  "80e24d20-0752-4ea8-a4e6-1be6fe526458",
                        "skuCount":  0,
                        "tag":  "ai_title_generated",
                        "blockerCount":  6,
@@ -162,7 +162,7 @@
                        "note":  "AI + manual edit",
                        "actualStep":  "collect_review",
                        "warningCount":  1,
-                       "productId":  "5ec81f63-76ae-4781-b45a-62b24d6b149e",
+                       "productId":  "80e24d20-0752-4ea8-a4e6-1be6fe526458",
                        "skuCount":  0,
                        "tag":  "ai_applied_manual_edit",
                        "blockerCount":  6,
@@ -198,7 +198,7 @@
                        "note":  "Short description failed",
                        "actualStep":  "collect_review",
                        "warningCount":  2,
-                       "productId":  "5e5d3f63-a366-405b-8726-f511fad7e089",
+                       "productId":  "e7a9a2a2-af60-42be-9bee-43a52d82e97a",
                        "skuCount":  0,
                        "tag":  "publish_failed",
                        "blockerCount":  6,
@@ -222,7 +222,7 @@
                        "note":  "Douyin draft",
                        "actualStep":  "collect_review",
                        "warningCount":  1,
-                       "productId":  "5ec81f63-76ae-4781-b45a-62b24d6b149e",
+                       "productId":  "80e24d20-0752-4ea8-a4e6-1be6fe526458",
                        "skuCount":  0,
                        "tag":  "douyin_draft_ready",
                        "blockerCount":  6,
@@ -234,7 +234,7 @@
                        "note":  "Multi platform",
                        "actualStep":  "collect_review",
                        "warningCount":  1,
-                       "productId":  "5ec81f63-76ae-4781-b45a-62b24d6b149e",
+                       "productId":  "80e24d20-0752-4ea8-a4e6-1be6fe526458",
                        "skuCount":  0,
                        "tag":  "multi_platform",
                        "blockerCount":  6,
@@ -242,5 +242,5 @@
                        "completionPercent":  13
                    }
                ],
-    "generatedAt":  "2026-07-13T12:54:58.5532601+08:00"
+    "generatedAt":  "2026-07-13T14:36:28.9665563+08:00"
 }

@@ -54,23 +54,23 @@
                         },
                         {
                             "status":  "success",
-                            "batchId":  "ced6756e-c41e-4c4a-906b-90e69f27edcf",
+                            "batchId":  "4b72f464-f16b-4b51-874c-3f28318a4488",
                             "note":  "existing batch",
                             "type":  "publish_batch"
                         },
                         {
-                            "count":  400,
+                            "count":  404,
                             "taskType":  "ai_image",
                             "note":  "existing failure task",
                             "type":  "taskcenter_failure",
-                            "sampleId":  "064b570a-cae0-4ad3-a30d-739df15ec751"
+                            "sampleId":  "57dfbce1-dd87-47c9-aa64-1c639efe9681"
                         },
                         {
                             "summaryTodoSum":  1368,
                             "sampleTodoIds":  [
-                                                  "todo:publish_check:a9feee56-0fe0-430d-b9ca-c3e0a6cf9ed5:image.main_missing",
-                                                  "todo:publish_check:a9feee56-0fe0-430d-b9ca-c3e0a6cf9ed5:sku.none",
-                                                  "todo:publish_check:c2be0a25-5642-46e1-acb0-304c12ae4918:image.main_missing"
+                                                  "todo:publish_check:ce8eb590-3d07-471d-b187-4a3e433db194:image.main_missing",
+                                                  "todo:publish_check:ce8eb590-3d07-471d-b187-4a3e433db194:sku.none",
+                                                  "todo:publish_check:51f2b9d9-edbf-429f-a087-2045f3b791d0:image.main_missing"
                                               ],
                             "note":  "aggregated todos from workbench",
                             "type":  "operation_workbench_todos",
@@ -95,7 +95,7 @@
     "demo_dataset_version":  "p4-r-v1",
     "douyinStatus":  "Release Candidate",
     "releaseStatus":  "MVP Demo Ready",
-    "demo_dataset_seeded_at":  "2026-07-13T04:54:59.9315766Z",
+    "demo_dataset_seeded_at":  "2026-07-13T06:36:30.4459379Z",
     "note":  "Douyin remains Release Candidate; blocked_by_real_credentials expected without credentials",
     "productSlotCount":  20,
     "productSlots":  [
@@ -300,5 +300,5 @@
                              "note":  "multi platform targets"
                          }
                      ],
-    "generatedAt":  "2026-07-13T04:54:59.9315766Z"
+    "generatedAt":  "2026-07-13T06:36:30.4469379Z"
 }

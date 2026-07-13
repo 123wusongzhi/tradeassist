@@ -62,8 +62,27 @@ func productionP4Auth() AuthConfig {
 	}
 }
 
+func productionP6BackupRelease() (BackupConfig, ReleaseConfig) {
+	return BackupConfig{
+			Enabled:               true,
+			Mode:                  "object_storage",
+			StorageProvider:       "s3",
+			EncryptionEnabled:     true,
+			RetentionDaily:        14,
+			RetentionWeekly:       8,
+			RetentionMonthly:      12,
+			CommandTimeoutSeconds: 900,
+		}, ReleaseConfig{
+			Strategy:             "blue_green",
+			RequirePreBackup:     true,
+			HealthTimeoutSeconds: 120,
+			KeepCount:            5,
+		}
+}
+
 func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 	t.Parallel()
+	backupCfg, releaseCfg := productionP6BackupRelease()
 	cfg := &Config{
 		AppEnv:                 EnvProduction,
 		JWTSecret:              strings.Repeat("a", 48),
@@ -75,6 +94,8 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 		CORSAllowedOrigins:     []string{"https://admin.example.com"},
 		Auth:                   productionP4Auth(),
 		Observability:          ValidProductionObservability(),
+		Backup:                 backupCfg,
+		Release:                releaseCfg,
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",
@@ -170,6 +191,14 @@ func TestLoad_productionFromEnv(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://admin.example.com")
 	t.Setenv("AUTH_SESSION_MODE", "secure_session")
 	t.Setenv("AUTH_SECURE_COOKIE", "true")
+	t.Setenv("BACKUP_ENABLED", "true")
+	t.Setenv("BACKUP_MODE", "object_storage")
+	t.Setenv("BACKUP_STORAGE_PROVIDER", "s3")
+	t.Setenv("BACKUP_ENCRYPTION_ENABLED", "true")
+	t.Setenv("BACKUP_RETENTION_DAILY", "14")
+	t.Setenv("BACKUP_RETENTION_WEEKLY", "8")
+	t.Setenv("BACKUP_RETENTION_MONTHLY", "12")
+	t.Setenv("RELEASE_REQUIRE_PRE_BACKUP", "true")
 
 	cfg, err := Load()
 	if err != nil {

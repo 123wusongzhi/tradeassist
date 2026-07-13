@@ -42,6 +42,22 @@ const (
 	PermAlertsSilence       = "alerts.silence"
 	PermSLORead             = "slo.read"
 	PermSLOManage           = "slo.manage"
+	// P6 backup / restore / release / DR permissions
+	PermBackupRead      = "backup.read"
+	PermBackupCreate    = "backup.create"
+	PermBackupVerify    = "backup.verify"
+	PermBackupDownload  = "backup.download"
+	PermBackupDelete    = "backup.delete"
+	PermBackupHold      = "backup.hold"
+	PermRestoreRead     = "restore.read"
+	PermRestoreExecute  = "restore.execute"
+	PermRestoreVerify   = "restore.verify"
+	PermReleaseRead     = "release.read"
+	PermReleaseCreate   = "release.create"
+	PermReleaseExecute  = "release.execute"
+	PermReleaseRollback = "release.rollback"
+	PermDRRead          = "dr.read"
+	PermDRExecute       = "dr.execute"
 )
 
 var allPermissions = []string{
@@ -81,6 +97,21 @@ var allPermissions = []string{
 	PermAlertsSilence,
 	PermSLORead,
 	PermSLOManage,
+	PermBackupRead,
+	PermBackupCreate,
+	PermBackupVerify,
+	PermBackupDownload,
+	PermBackupDelete,
+	PermBackupHold,
+	PermRestoreRead,
+	PermRestoreExecute,
+	PermRestoreVerify,
+	PermReleaseRead,
+	PermReleaseCreate,
+	PermReleaseExecute,
+	PermReleaseRollback,
+	PermDRRead,
+	PermDRExecute,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
@@ -109,6 +140,10 @@ var operatorPermissions = []string{
 	PermObservabilityRead,
 	PermAlertsRead,
 	PermSLORead,
+	PermBackupRead,
+	PermRestoreRead,
+	PermReleaseRead,
+	PermDRRead,
 }
 
 var readonlyPermissions = []string{
@@ -124,6 +159,10 @@ var readonlyPermissions = []string{
 	PermObservabilityRead,
 	PermAlertsRead,
 	PermSLORead,
+	PermBackupRead,
+	PermRestoreRead,
+	PermReleaseRead,
+	PermDRRead,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

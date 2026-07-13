@@ -23,6 +23,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
+	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
@@ -31,6 +32,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
+	"github.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
 	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
@@ -48,6 +50,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/release"
+	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -742,6 +746,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	exportSvc := &exportmod.Service{DB: dep.DB}
 	exportH := &exportmod.Handler{Svc: exportSvc}
 	exportmod.RegisterRoutes(authed, exportH)
+
+	backupSvc := &backup.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, OpLog: opLogSvc, Metrics: metricCatalog}
+	backupH := &backup.Handler{Svc: backupSvc}
+	backup.Register(authed, backupH)
+	restoreSvc := &restore.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, Backup: backupSvc, OpLog: opLogSvc}
+	restoreH := &restore.Handler{Svc: restoreSvc}
+	restore.Register(authed, restoreH)
+	releaseSvc := &release.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc, OpLog: opLogSvc}
+	releaseH := &release.Handler{Svc: releaseSvc}
+	release.Register(authed, releaseH)
+	drSvc := &disasterrecovery.Service{DB: dep.DB, Cfg: dep.Config}
+	drH := &disasterrecovery.Handler{Svc: drSvc}
+	disasterrecovery.Register(authed, drH)
 
 	alertSvc := alerting.NewService(dep.DB, alertCooldown, alertRecovery)
 	obsH := &observabilitymod.Handler{DB: dep.DB, Cfg: dep.Config, Obs: dep.Obs, Alert: alertSvc}

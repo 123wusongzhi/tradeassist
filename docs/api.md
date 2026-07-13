@@ -417,6 +417,32 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+## P6 Backup / Restore / Release / DR API
+
+All P6 write operations require Bearer authentication and backend RBAC. The frontend never receives shell commands, full backup paths, storage secrets or database credentials.
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/ops/backups` | `backup.read` | 备份记录列表；不返回完整对象路径。 |
+| `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。 |
+| `GET` | `/api/v1/ops/backups/:id` | `backup.read` | 备份详情。 |
+| `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验。 |
+| `POST` | `/api/v1/ops/backups/:id/hold` | `backup.hold` | 添加手动保留。 |
+| `DELETE` | `/api/v1/ops/backups/:id` | `backup.delete` | 删除非运行、非 hold 的备份记录。 |
+| `GET` | `/api/v1/ops/restores` | `restore.read` | 恢复验证列表。 |
+| `POST` | `/api/v1/ops/restores` | `restore.execute` | 创建隔离恢复验证；production 目标默认拒绝。 |
+| `GET` | `/api/v1/ops/restores/:id` | `restore.read` | 恢复验证详情。 |
+| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 写入恢复完整性验证。 |
+| `GET` | `/api/v1/ops/releases` | `release.read` | 发布记录列表。 |
+| `POST` | `/api/v1/ops/releases` | `release.create` | 创建发布记录和 manifest 摘要。 |
+| `GET` | `/api/v1/ops/releases/:id` | `release.read` | 发布详情。 |
+| `POST` | `/api/v1/ops/releases/:id/execute` | `release.execute` | 执行受控发布状态机。 |
+| `POST` | `/api/v1/ops/releases/:id/rollback` | `release.rollback` | 应用层回滚；禁止自动数据库恢复。 |
+| `GET` | `/api/v1/ops/dr/status` | `dr.read` | 灾备状态与 Deferred 项。 |
+| `POST` | `/api/v1/ops/dr/drills` | `dr.execute` | 记录隔离演练；必须确认隔离环境。 |
+
+P6 does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。

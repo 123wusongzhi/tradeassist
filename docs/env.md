@@ -126,6 +126,9 @@ docker compose -f docker-compose.full.yml up -d --build
 | `INVENTORY_SYNC_*` | `INVENTORY_SYNC_QUEUE_ENABLED` | backend | 库存同步任务。 |
 | `WORKER_*` | `WORKER_HEARTBEAT_ENABLED`、`WORKER_REAPER_ENABLED` | backend | 多实例 Worker 心跳、过期判断和回收。 |
 | `TASK_ALERT_*` | `TASK_ALERT_SCAN_ENABLED`、`TASK_ALERT_SCAN_INTERVAL_SECONDS` | backend | 任务告警扫描。 |
+| `BACKUP_*` | `BACKUP_ENABLED`、`BACKUP_MODE`、`BACKUP_STORAGE_PROVIDER`、`BACKUP_ENCRYPTION_ENABLED`、`BACKUP_RETENTION_DAILY` | backend | P6 备份、加密、校验、保留与恢复演练门闸。生产环境要求加密开启，且不得使用本地单副本。 |
+| `POSTGRES_*` | `POSTGRES_BACKUP_FORMAT`、`POSTGRES_PG_DUMP_PATH`、`POSTGRES_PG_RESTORE_PATH`、`POSTGRES_WAL_ARCHIVE_ENABLED`、`POSTGRES_PITR_ENABLED` | backend | PostgreSQL 逻辑备份与 PITR 基础配置。真实生产 PITR 演练保持 Deferred。 |
+| `RELEASE_*` | `RELEASE_ENABLED`、`RELEASE_ROOT`、`RELEASE_REQUIRE_PRE_BACKUP`、`RELEASE_STRATEGY`、`RELEASE_ROLLBACK_ON_FAILURE` | backend | P6 发布制品、发布前备份、受控发布与应用回滚配置。生产发布必须要求发布前备份。 |
 
 新增队列变量时，还要同步健康检查说明、任务中心页面和 `docs/PROGRESS.md`。
 

@@ -1,6 +1,6 @@
 ﻿# TradeMind Phase P4-R Demo Regression Auto Acceptance Report
 
-> Generated: 2026-07-13T05:05:22.8419963Z
+> Generated: 2026-07-13T06:46:55.0788962Z
 > API: http://127.0.0.1:8080 | Backend: reachable
 
 ## Phase

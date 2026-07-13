@@ -6,6 +6,13 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P6 - Backup, restore, release rollback and DR foundation (2026-07-13)
+
+- Added P6 backend modules for backup, restore safety gates, release state machine, application rollback boundary, and DR drill status.
+- Added chunked AES-GCM backup encryption, checksum helpers, safe PostgreSQL command builders, PITR target validation, WAL continuity checks, and release manifest helpers.
+- Added P6 environment variables, RBAC permissions, Admin ops pages, API docs, dashboards, runbooks, and static gate script.
+- Status remains closure-incomplete until isolated restore/release drills, Linux race, full gates, builds, and demo acceptance runs pass.
+
 ### Phase P5-V - Standard OTLP closure gate (2026-07-13)
 
 - Replaced the tracing custom HTTP span JSON payload with a standard OTLP/HTTP JSON TraceService export request.

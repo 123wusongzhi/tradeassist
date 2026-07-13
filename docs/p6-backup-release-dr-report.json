@@ -1,0 +1,299 @@
+{
+  "phase": "P6",
+  "status": "static_scan_passed",
+  "failed": 0,
+  "passed": 58,
+  "results": [
+    {
+      "name": "backup-module",
+      "status": "passed",
+      "detail": "backend/internal/modules/backup/service.go exists"
+    },
+    {
+      "name": "restore-module",
+      "status": "passed",
+      "detail": "backend/internal/modules/restore/service.go exists"
+    },
+    {
+      "name": "release-module",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/service.go exists"
+    },
+    {
+      "name": "dr-module",
+      "status": "passed",
+      "detail": "backend/internal/modules/disasterrecovery/service.go exists"
+    },
+    {
+      "name": "backup-runtime",
+      "status": "passed",
+      "detail": "backend/internal/pkg/backupruntime/encryption.go exists"
+    },
+    {
+      "name": "artifact-package",
+      "status": "passed",
+      "detail": "backend/internal/pkg/artifact/manifest.go exists"
+    },
+    {
+      "name": "backup-config",
+      "status": "passed",
+      "detail": "backend/internal/config/p6_config.go contains required markers"
+    },
+    {
+      "name": "production-backup-guard",
+      "status": "passed",
+      "detail": "backend/internal/config/p6_config.go contains required markers"
+    },
+    {
+      "name": "backup-encryption",
+      "status": "passed",
+      "detail": "backend/internal/pkg/backupruntime/encryption.go contains required markers"
+    },
+    {
+      "name": "backup-manifest",
+      "status": "passed",
+      "detail": "backend/internal/modules/backup/model.go contains required markers"
+    },
+    {
+      "name": "checksum-verification",
+      "status": "passed",
+      "detail": "backend/internal/pkg/backupruntime/checksum.go contains required markers"
+    },
+    {
+      "name": "pg-restore-list-verification",
+      "status": "passed",
+      "detail": "backend/internal/pkg/backupruntime/postgres.go contains required markers"
+    },
+    {
+      "name": "retention-policy",
+      "status": "passed",
+      "detail": "backend/internal/modules/backup/model.go contains required markers"
+    },
+    {
+      "name": "restore-safety-gate",
+      "status": "passed",
+      "detail": "backend/internal/modules/restore/service.go contains required markers"
+    },
+    {
+      "name": "pitr-design",
+      "status": "passed",
+      "detail": "docs/P6_POSTGRES_PITR_DESIGN.md contains required markers"
+    },
+    {
+      "name": "wal-template-foundation",
+      "status": "passed",
+      "detail": "backend/internal/pkg/backupruntime/postgres.go contains required markers"
+    },
+    {
+      "name": "release-manifest",
+      "status": "passed",
+      "detail": "backend/internal/pkg/artifact/manifest.go contains required markers"
+    },
+    {
+      "name": "artifact-checksums",
+      "status": "passed",
+      "detail": "backend/internal/pkg/artifact/manifest.go contains required markers"
+    },
+    {
+      "name": "dependency-manifest",
+      "status": "passed",
+      "detail": "docs/P6_RELEASE_MANIFEST.md contains required markers"
+    },
+    {
+      "name": "migration-compatibility",
+      "status": "passed",
+      "detail": "docs/P6_DATABASE_MIGRATION_COMPATIBILITY.md contains required markers"
+    },
+    {
+      "name": "pre-release-backup",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/service.go contains required markers"
+    },
+    {
+      "name": "release-preflight",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/service.go contains required markers"
+    },
+    {
+      "name": "blue-green-foundation",
+      "status": "passed",
+      "detail": "docs/P6_BLUE_GREEN_RELEASE.md contains required markers"
+    },
+    {
+      "name": "automatic-application-rollback",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/service.go contains required markers"
+    },
+    {
+      "name": "database-auto-restore-forbidden",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/model.go contains required markers"
+    },
+    {
+      "name": "backup-metrics",
+      "status": "passed",
+      "detail": "backend/internal/pkg/metrics/catalog.go contains required markers"
+    },
+    {
+      "name": "restore-metrics",
+      "status": "passed",
+      "detail": "backend/internal/pkg/metrics/catalog.go contains required markers"
+    },
+    {
+      "name": "release-metrics",
+      "status": "passed",
+      "detail": "backend/internal/pkg/metrics/catalog.go contains required markers"
+    },
+    {
+      "name": "alert-rules",
+      "status": "passed",
+      "detail": "backend/internal/modules/alerting/rules.go contains required markers"
+    },
+    {
+      "name": "dashboard-backup-and-restore",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/backup-and-restore.json exists"
+    },
+    {
+      "name": "dashboard-releases-and-rollbacks",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/releases-and-rollbacks.json exists"
+    },
+    {
+      "name": "dashboard-disaster-recovery",
+      "status": "passed",
+      "detail": "deploy/observability/dashboards/disaster-recovery.json exists"
+    },
+    {
+      "name": "admin-page-Backups",
+      "status": "passed",
+      "detail": "admin/src/pages/Ops/Backups/index.tsx exists"
+    },
+    {
+      "name": "admin-page-Restores",
+      "status": "passed",
+      "detail": "admin/src/pages/Ops/Restores/index.tsx exists"
+    },
+    {
+      "name": "admin-page-Releases",
+      "status": "passed",
+      "detail": "admin/src/pages/Ops/Releases/index.tsx exists"
+    },
+    {
+      "name": "admin-page-DisasterRecovery",
+      "status": "passed",
+      "detail": "admin/src/pages/Ops/DisasterRecovery/index.tsx exists"
+    },
+    {
+      "name": "ops-api-routes-backup",
+      "status": "passed",
+      "detail": "backend/internal/modules/backup/handler.go contains required markers"
+    },
+    {
+      "name": "ops-api-routes-restore",
+      "status": "passed",
+      "detail": "backend/internal/modules/restore/handler.go contains required markers"
+    },
+    {
+      "name": "ops-api-routes-release",
+      "status": "passed",
+      "detail": "backend/internal/modules/release/handler.go contains required markers"
+    },
+    {
+      "name": "ops-api-routes-dr",
+      "status": "passed",
+      "detail": "backend/internal/modules/disasterrecovery/handler.go contains required markers"
+    },
+    {
+      "name": "runbook-BACKUP_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/BACKUP_FAILED.md exists"
+    },
+    {
+      "name": "runbook-BACKUP_TOO_OLD",
+      "status": "passed",
+      "detail": "docs/runbooks/BACKUP_TOO_OLD.md exists"
+    },
+    {
+      "name": "runbook-BACKUP_VERIFICATION_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/BACKUP_VERIFICATION_FAILED.md exists"
+    },
+    {
+      "name": "runbook-BACKUP_STORAGE_UNAVAILABLE",
+      "status": "passed",
+      "detail": "docs/runbooks/BACKUP_STORAGE_UNAVAILABLE.md exists"
+    },
+    {
+      "name": "runbook-RESTORE_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/RESTORE_FAILED.md exists"
+    },
+    {
+      "name": "runbook-RESTORE_VALIDATION_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/RESTORE_VALIDATION_FAILED.md exists"
+    },
+    {
+      "name": "runbook-WAL_ARCHIVE_INTERRUPTED",
+      "status": "passed",
+      "detail": "docs/runbooks/WAL_ARCHIVE_INTERRUPTED.md exists"
+    },
+    {
+      "name": "runbook-RELEASE_PREFLIGHT_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/RELEASE_PREFLIGHT_FAILED.md exists"
+    },
+    {
+      "name": "runbook-MIGRATION_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/MIGRATION_FAILED.md exists"
+    },
+    {
+      "name": "runbook-DEPLOYMENT_HEALTH_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/DEPLOYMENT_HEALTH_FAILED.md exists"
+    },
+    {
+      "name": "runbook-AUTOMATIC_ROLLBACK_FAILED",
+      "status": "passed",
+      "detail": "docs/runbooks/AUTOMATIC_ROLLBACK_FAILED.md exists"
+    },
+    {
+      "name": "runbook-DISASTER_RECOVERY",
+      "status": "passed",
+      "detail": "docs/runbooks/DISASTER_RECOVERY.md exists"
+    },
+    {
+      "name": "doc-P6_BACKUP_RELEASE_DR_AUDIT.md",
+      "status": "passed",
+      "detail": "docs/P6_BACKUP_RELEASE_DR_AUDIT.md exists"
+    },
+    {
+      "name": "doc-P6_ISOLATED_RESTORE_DRILL_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P6_ISOLATED_RESTORE_DRILL_REPORT.md exists"
+    },
+    {
+      "name": "doc-P6_RELEASE_ROLLBACK_DRILL_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P6_RELEASE_ROLLBACK_DRILL_REPORT.md exists"
+    },
+    {
+      "name": "doc-P6_RACE_TEST_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P6_RACE_TEST_REPORT.md exists"
+    },
+    {
+      "name": "no-tag",
+      "status": "passed",
+      "detail": "docs/P6_BACKUP_RELEASE_DR_REPORT.md has no forbidden markers"
+    },
+    {
+      "name": "no-secret-leakage",
+      "status": "passed",
+      "detail": "docs/p6-backup-release-dr-report.json has no forbidden markers"
+    }
+  ],
+  "note": "P6 static gate passed. Closure still requires isolated drills and Linux race verification."
+}

@@ -166,6 +166,10 @@ type Config struct {
 
 	// P5 observability
 	Observability ObservabilityConfig
+	// P6 backup, restore, release and DR foundation.
+	Backup         BackupConfig
+	PostgresBackup PostgresBackupConfig
+	Release        ReleaseConfig
 }
 
 // DBConfig selects PostgreSQL (default) or MySQL via GORM.
@@ -331,6 +335,9 @@ func Load() (*Config, error) {
 		EnableDouyinWebhookDemoFallback: envBool(os.Getenv("ENABLE_DOUYIN_WEBHOOK_DEMO_FALLBACK"), false),
 	}
 	cfg.Observability = LoadObservabilityConfig(cfg.AppEnv, cfg.AppName, cfg.AppVersion)
+	cfg.Backup = loadBackupConfig(cfg.AppEnv)
+	cfg.PostgresBackup = loadPostgresBackupConfig()
+	cfg.Release = loadReleaseConfig(cfg.AppEnv)
 	// Test verifier must never run in production regardless of env flag.
 	if IsProduction(cfg.AppEnv) {
 		cfg.WebhookEnableTestVerifier = false

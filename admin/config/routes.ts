@@ -67,6 +67,30 @@ export default [
         component: './Ops/Observability',
       },
       {
+        path: '/ops/backups',
+        name: '备份管理',
+        icon: 'DatabaseOutlined',
+        component: './Ops/Backups',
+      },
+      {
+        path: '/ops/restores',
+        name: '恢复验证',
+        icon: 'SafetyCertificateOutlined',
+        component: './Ops/Restores',
+      },
+      {
+        path: '/ops/releases',
+        name: '发布回滚',
+        icon: 'BranchesOutlined',
+        component: './Ops/Releases',
+      },
+      {
+        path: '/ops/disaster-recovery',
+        name: '灾备演练',
+        icon: 'DeploymentUnitOutlined',
+        component: './Ops/DisasterRecovery',
+      },
+      {
         path: '/ops/platform-runtime',
         name: '平台运行状态',
         icon: 'ApiOutlined',

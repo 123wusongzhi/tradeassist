@@ -9,6 +9,8 @@ User=trademind
 Group=trademind
 WorkingDirectory=/opt/trademind/current/backend
 EnvironmentFile=-/etc/trademind/trademind.env
+# P6 release note: /opt/trademind/current is a controlled release link. Rollback
+# switches it back to previous application artifacts; database restore is manual.
 ExecStartPre=/opt/trademind/current/deploy/scripts/check-readiness.sh --pre-start
 ExecStart=/opt/trademind/current/backend/bin/server
 Restart=on-failure

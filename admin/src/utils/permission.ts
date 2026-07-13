@@ -25,6 +25,21 @@ export const PERMISSIONS = {
   OPERATIONLOG_VIEW: 'operationlog.view',
   STORE_VIEW: 'store.view',
   STORE_OPERATE: 'store.operate',
+  OBSERVABILITY_READ: 'observability.read',
+  BACKUP_READ: 'backup.read',
+  BACKUP_CREATE: 'backup.create',
+  BACKUP_VERIFY: 'backup.verify',
+  BACKUP_HOLD: 'backup.hold',
+  BACKUP_DELETE: 'backup.delete',
+  RESTORE_READ: 'restore.read',
+  RESTORE_EXECUTE: 'restore.execute',
+  RESTORE_VERIFY: 'restore.verify',
+  RELEASE_READ: 'release.read',
+  RELEASE_CREATE: 'release.create',
+  RELEASE_EXECUTE: 'release.execute',
+  RELEASE_ROLLBACK: 'release.rollback',
+  DR_READ: 'dr.read',
+  DR_EXECUTE: 'dr.execute',
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -48,6 +63,11 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
     PERMISSIONS.STORE_OPERATE,
+    PERMISSIONS.OBSERVABILITY_READ,
+    PERMISSIONS.BACKUP_READ,
+    PERMISSIONS.RESTORE_READ,
+    PERMISSIONS.RELEASE_READ,
+    PERMISSIONS.DR_READ,
   ],
   readonly: [
     PERMISSIONS.PRODUCT_VIEW,
@@ -56,6 +76,11 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.CUSTOMER_VIEW,
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
+    PERMISSIONS.OBSERVABILITY_READ,
+    PERMISSIONS.BACKUP_READ,
+    PERMISSIONS.RESTORE_READ,
+    PERMISSIONS.RELEASE_READ,
+    PERMISSIONS.DR_READ,
   ],
 };
 
