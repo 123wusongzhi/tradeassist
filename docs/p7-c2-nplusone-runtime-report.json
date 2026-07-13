@@ -1,0 +1,55 @@
+{
+  "phase": "P7-C2",
+  "status": "failed",
+  "generatedAt": "2026-07-13T15:54:55.613Z",
+  "scenarios": [
+    {
+      "scenario": "orders_with_items",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 0,
+      "linearGrowthDetected": null,
+      "tenantScopePassed": false,
+      "status": "blocked",
+      "issue": "Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet."
+    },
+    {
+      "scenario": "products_with_skus",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 0,
+      "linearGrowthDetected": null,
+      "tenantScopePassed": false,
+      "status": "blocked",
+      "issue": "Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet."
+    },
+    {
+      "scenario": "users_with_role_permissions",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 0,
+      "linearGrowthDetected": null,
+      "tenantScopePassed": false,
+      "status": "blocked",
+      "issue": "Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet."
+    },
+    {
+      "scenario": "tasks_with_resource",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 0,
+      "linearGrowthDetected": null,
+      "tenantScopePassed": false,
+      "status": "blocked",
+      "issue": "Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet."
+    }
+  ],
+  "linearGrowthDetected": null,
+  "dryRun": false,
+  "issues": [
+    "orders_with_items: Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet.",
+    "products_with_skus: Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet.",
+    "users_with_role_permissions: Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet.",
+    "tasks_with_resource: Instrumented DB/Query Counter harness has not been wired to real Service/Repository calls yet."
+  ]
+}

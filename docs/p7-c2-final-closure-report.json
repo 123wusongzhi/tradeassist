@@ -1,0 +1,202 @@
+{
+  "phase": "P7-C2",
+  "status": "incomplete",
+  "generatedAt": "2026-07-13T16:03:53.741Z",
+  "failed": 17,
+  "passed": 17,
+  "checks": [
+    {
+      "id": "33-partial-classification-exists",
+      "status": "passed",
+      "detail": "classification count must be 33"
+    },
+    {
+      "id": "mandatory-partial-zero",
+      "status": "failed",
+      "detail": "mandatoryPartial=11"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "passed",
+      "detail": "mandatoryMissing=0"
+    },
+    {
+      "id": "dataset-resume-passed",
+      "status": "passed",
+      "detail": "dataset resume status=passed"
+    },
+    {
+      "id": "dataset-interrupted-after-rows",
+      "status": "passed",
+      "detail": "rowsBeforeInterruption=3150"
+    },
+    {
+      "id": "dataset-resume-inserted",
+      "status": "passed",
+      "detail": "resumeInsertedRows=1897000"
+    },
+    {
+      "id": "dataset-final-count",
+      "status": "passed",
+      "detail": "finalActualRows=1900150"
+    },
+    {
+      "id": "dataset-no-duplicates-failures",
+      "status": "passed",
+      "detail": "duplicate=0 failed=0"
+    },
+    {
+      "id": "dataset-fingerprint-stable",
+      "status": "passed",
+      "detail": "fingerprintStable=true"
+    },
+    {
+      "id": "product-pagination-passed",
+      "status": "failed",
+      "detail": "product=failed"
+    },
+    {
+      "id": "order-pagination-passed",
+      "status": "failed",
+      "detail": "order=failed"
+    },
+    {
+      "id": "inventory-pagination-passed",
+      "status": "failed",
+      "detail": "inventory=failed"
+    },
+    {
+      "id": "task-pagination-passed",
+      "status": "failed",
+      "detail": "task=failed"
+    },
+    {
+      "id": "webhook-pagination-passed",
+      "status": "failed",
+      "detail": "webhook=failed"
+    },
+    {
+      "id": "operationLog-pagination-passed",
+      "status": "failed",
+      "detail": "operationLog=failed"
+    },
+    {
+      "id": "cursor-tamper-rejected",
+      "status": "failed",
+      "detail": "tamper rejected must be true"
+    },
+    {
+      "id": "wrong-version-rejected",
+      "status": "failed",
+      "detail": "wrong version rejected must be true"
+    },
+    {
+      "id": "cross-tenant-rejected",
+      "status": "failed",
+      "detail": "cross tenant rejected must be true"
+    },
+    {
+      "id": "cross-shop-rejected",
+      "status": "failed",
+      "detail": "cross shop rejected must be true"
+    },
+    {
+      "id": "deep-offset-rejected",
+      "status": "failed",
+      "detail": "deep offset rejected must be true"
+    },
+    {
+      "id": "query-plan-passed",
+      "status": "failed",
+      "detail": "queryPlan=failed"
+    },
+    {
+      "id": "query-plan-no-large-seq-scan",
+      "status": "failed",
+      "detail": "unintendedLargeTableSeqScan=null"
+    },
+    {
+      "id": "query-plan-no-disk-spill",
+      "status": "failed",
+      "detail": "unresolvedDiskSpill=null"
+    },
+    {
+      "id": "nplusone-passed",
+      "status": "failed",
+      "detail": "nplusone=failed"
+    },
+    {
+      "id": "nplusone-no-linear-growth",
+      "status": "failed",
+      "detail": "linear query growth must be false"
+    },
+    {
+      "id": "race-mapped-11",
+      "status": "passed",
+      "detail": "mapped=11"
+    },
+    {
+      "id": "race-executed-11",
+      "status": "passed",
+      "detail": "executed=11"
+    },
+    {
+      "id": "race-skipped-zero",
+      "status": "passed",
+      "detail": "skipped=0"
+    },
+    {
+      "id": "race-no-data-races-deadlocks",
+      "status": "passed",
+      "detail": "dataRaces=0 deadlocks=0"
+    },
+    {
+      "id": "race-combined-matrix-passed",
+      "status": "passed",
+      "detail": "combinedMatrix=passed"
+    },
+    {
+      "id": "no-production-resource-access",
+      "status": "passed",
+      "detail": "production resource access must be false"
+    },
+    {
+      "id": "no-real-provider",
+      "status": "passed",
+      "detail": "real provider access must be false"
+    },
+    {
+      "id": "no-real-douyin-write",
+      "status": "passed",
+      "detail": "real douyin write must be false"
+    },
+    {
+      "id": "not-production-ready",
+      "status": "passed",
+      "detail": "P7-C2 does not mark Production Ready"
+    }
+  ],
+  "p7CClosureGate": "pending",
+  "loadBaselineSoak": "pending_p7_v2",
+  "realProductionPerformanceVerification": "deferred",
+  "productionReady": false,
+  "issues": [
+    "mandatory-partial-zero: mandatoryPartial=11",
+    "product-pagination-passed: product=failed",
+    "order-pagination-passed: order=failed",
+    "inventory-pagination-passed: inventory=failed",
+    "task-pagination-passed: task=failed",
+    "webhook-pagination-passed: webhook=failed",
+    "operationLog-pagination-passed: operationLog=failed",
+    "cursor-tamper-rejected: tamper rejected must be true",
+    "wrong-version-rejected: wrong version rejected must be true",
+    "cross-tenant-rejected: cross tenant rejected must be true",
+    "cross-shop-rejected: cross shop rejected must be true",
+    "deep-offset-rejected: deep offset rejected must be true",
+    "query-plan-passed: queryPlan=failed",
+    "query-plan-no-large-seq-scan: unintendedLargeTableSeqScan=null",
+    "query-plan-no-disk-spill: unresolvedDiskSpill=null",
+    "nplusone-passed: nplusone=failed",
+    "nplusone-no-linear-growth: linear query growth must be false"
+  ]
+}

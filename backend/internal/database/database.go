@@ -32,9 +32,13 @@ func Open(cfg *config.Config) (*gorm.DB, error) {
 			cfg.DB.User, cfg.DB.Password, cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
 		dialector = gmysql.Open(dsn)
 	case "postgres":
+		password := ""
+		if cfg.DB.Password != "" {
+			password = fmt.Sprintf(" password=%s", cfg.DB.Password)
+		}
 		dsn := fmt.Sprintf(
-			"host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=%s",
-			cfg.DB.Host, cfg.DB.User, cfg.DB.Password, cfg.DB.Name, cfg.DB.Port, cfg.DB.Timezone,
+			"host=%s user=%s%s dbname=%s port=%d sslmode=disable TimeZone=%s",
+			cfg.DB.Host, cfg.DB.User, password, cfg.DB.Name, cfg.DB.Port, cfg.DB.Timezone,
 		)
 		dialector = gpostgres.Open(dsn)
 	default:

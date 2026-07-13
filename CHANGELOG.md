@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P7-C2 - Runtime evidence and Linux race closure attempt (2026-07-13)
+
+- Added P7-C2 isolated runtime environment start/stop, Medium dataset resume drill, WSL/Linux race, capability evidence, pagination runtime, query-plan, N+1, and final closure gate scripts.
+- Executed Medium Dataset Resume Drill against isolated WSL PostgreSQL 14: `plannedRows=1,900,150`, interrupted at `3,150` rows, resumed to `actualRows=1,900,150`, `duplicateRows=0`, idempotency rerun inserted `0` rows, fingerprint stable.
+- Executed WSL2 Linux race matrix: baseline `go mod verify`, `go test ./...`, `go build ./cmd/server/... ./cmd/p7load`, plus 11/11 mapped race package groups passed with `dataRaces=0` and `deadlocks=0`.
+- Normalized mandatory capability evidence from 33 partial items to 11 remaining partial/blocking items, and updated P7-C closure reports to reject stale or shallow evidence.
+- Status: Phase P7-C2 remains incomplete; six business keyset cursor pagination runtime checks fail, Query Plan and N+1 are blocked on pagination evidence, provider concurrency limit/adaptive slowdown/permission cache invalidation still lack code evidence; no load/soak/P8/tag and not Production Ready.
+
 ### Phase P7-C - Capability closure preflight (2026-07-13)
 
 - Added signed cursor encoding for P7 pagination and a production guard requiring `PAGINATION_CURSOR_SIGNING_KEY`.
