@@ -1,5 +1,5 @@
 ﻿{
-    "generatedAt":  "2026-07-13T06:36:29.6927542Z",
+    "generatedAt":  "2026-07-13T09:55:40.4649327Z",
     "note":  "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev",
     "orders":  [
                    {

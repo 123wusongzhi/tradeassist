@@ -191,10 +191,18 @@ func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, e
 		} else {
 			v.ChecksumPassed = true
 		}
+		if v.ChecksumPassed {
+			if err := s.verifyPgRestoreList(ctx, row, artifact.LocalPath); err != nil {
+				v.Status = VerificationFailed
+				v.ErrorSummary = backupruntime.RedactCommandOutput(err.Error())
+			} else {
+				v.PGRestoreListed = true
+			}
+		}
 	}
-	v.ManifestPassed = len(row.ManifestJSON) > 0 && row.Checksum != ""
+	v.ManifestPassed = len(row.ManifestJSON) > 0 && row.Checksum != "" && ManifestChecksumValid(row.ManifestJSON)
 	v.EncryptionPassed = row.Encrypted
-	if !v.ManifestPassed || !v.EncryptionPassed {
+	if !v.ManifestPassed || !v.EncryptionPassed || !v.PGRestoreListed {
 		v.Status = VerificationFailed
 	}
 	if err := s.DB.WithContext(ctx).Create(v).Error; err != nil {
@@ -203,6 +211,66 @@ func (s *Service) Verify(ctx context.Context, backupID string) (*Verification, e
 	row.VerificationStatus = v.Status
 	_ = s.DB.WithContext(ctx).Save(row).Error
 	return v, nil
+}
+
+func (s *Service) verifyPgRestoreList(ctx context.Context, row *Job, artifactPath string) error {
+	if s == nil || s.Cfg == nil {
+		return fmt.Errorf("backup verification config unavailable")
+	}
+	backupPath := artifactPath
+	cleanup := false
+	if row.Encrypted {
+		var manifest Manifest
+		if err := json.Unmarshal(row.ManifestJSON, &manifest); err != nil {
+			return fmt.Errorf("backup manifest invalid: %w", err)
+		}
+		if strings.TrimSpace(manifest.WrappedDataKey) == "" {
+			return fmt.Errorf("backup manifest missing wrapped data key")
+		}
+		tmpDir, err := os.MkdirTemp("", "trademind-p6v-verify-*")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(tmpDir) }()
+		backupPath = filepath.Join(tmpDir, row.BackupID+".dump")
+		if err := backupruntime.DecryptFile(artifactPath, backupPath, backupruntime.Envelope{WrappedDataKey: manifest.WrappedDataKey}, s.Enc); err != nil {
+			return err
+		}
+		cleanup = true
+	}
+	if cleanup {
+		defer func() { _ = os.Remove(backupPath) }()
+	}
+	binary, args, err := backupruntime.RestoreListCommand(s.Cfg.PostgresBackup.PGRestorePath, backupPath)
+	if err != nil {
+		return err
+	}
+	timeout := time.Duration(s.Cfg.Backup.CommandTimeoutSeconds) * time.Second
+	return backupruntime.RunCommand(ctx, timeout, binary, args, nil)
+}
+
+// ManifestChecksumValid verifies the embedded checksum without exposing storage
+// paths or credentials. The checksum is computed over the manifest with the
+// ManifestChecksum field empty, matching buildManifest.
+func ManifestChecksumValid(raw []byte) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var m Manifest
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return false
+	}
+	expected := strings.TrimSpace(m.ManifestChecksum)
+	if expected == "" {
+		return false
+	}
+	m.ManifestChecksum = ""
+	body, err := json.Marshal(m)
+	if err != nil {
+		return false
+	}
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:]) == expected
 }
 
 func (s *Service) Hold(ctx context.Context, backupID string, req HoldRequest, actor *uuid.UUID) (*RetentionHold, error) {

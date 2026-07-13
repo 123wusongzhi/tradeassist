@@ -1,7 +1,7 @@
 {
   "phase": "P4-V",
   "status": "passed_with_warnings",
-  "generatedAt": "2026-07-13T06:15:22.868Z",
+  "generatedAt": "2026-07-13T09:30:18.467Z",
   "platform": "win32",
   "tenantIsolation": {
     "sqlScopeReport": true,

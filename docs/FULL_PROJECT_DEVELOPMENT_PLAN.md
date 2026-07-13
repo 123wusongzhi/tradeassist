@@ -3,7 +3,7 @@
 > **Phase F1**（2026-06-29）完成全项目功能缺口审计与路线规划。
 > **Phase F8**（2026-06-30）功能冻结与 P0/P1 清零完成。
 > **Phase F9**（2026-07-07）最终总体验收完成。**F1–F9 ✅** · **Tag deferred**。
-> **当前状态**：**Production Capability Development In Progress** · **P6 Backup / Release / DR Foundation Ready** · **Phase P6 Closure Verification Incomplete** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许**
+> **当前状态**：**Production Capability Development In Progress** · **Phase P6 Fully Closed** · **Linux Race Verification Passed** · **MVP Demo Ready** · **非 Production Ready** · 抖店 **Release Candidate** · 灰度 **不允许**
 
 ## 阶段总览
 

@@ -157,6 +157,9 @@ requireText('ops-api-routes-dr', 'backend/internal/modules/disasterrecovery/hand
   'P6_ISOLATED_RESTORE_DRILL_REPORT.md',
   'P6_RELEASE_ROLLBACK_DRILL_REPORT.md',
   'P6_RACE_TEST_REPORT.md',
+  'P6_VR_LINUX_RACE_ENVIRONMENT_AUDIT.md',
+  'P6_VR_LINUX_RACE_REMEDIATION_REPORT.md',
+  'P6_VR_FINAL_CLOSURE_REPORT.md',
 ].forEach((name) => requireFile(`doc-${name}`, `docs/${name}`));
 forbidText('no-tag', 'docs/P6_BACKUP_RELEASE_DR_REPORT.md', ['Production Ready\n', 'Phase P6 Completed\n']);
 forbidText('no-secret-leakage', 'docs/p6-backup-release-dr-report.json', [
@@ -176,7 +179,7 @@ const report = {
   results,
   note:
     failed === 0
-      ? 'P6 static gate passed. Closure still requires isolated drills and Linux race verification.'
+      ? 'P6 static gate passed. P6-VR closure evidence is recorded separately; real production verification remains deferred.'
       : 'Phase P6 Incomplete. Fix failed static checks before closure.',
 };
 
@@ -187,19 +190,19 @@ fs.writeFileSync(
 
 ${failed === 0 ? 'Phase P6 Static Gate Passed' : 'Phase P6 Incomplete'}
 
-Phase P6 Closure Verification Incomplete
+P6-VR Closure Evidence Recorded
 
 | Check | Status | Detail |
 | --- | --- | --- |
 ${results.map((r) => `| ${r.name} | ${r.status} | ${r.detail.replace(/\|/g, '/')} |`).join('\n')}
 
-Closure blockers that remain outside this static scan:
+Closure evidence outside this static scan:
 
-- isolated PostgreSQL restore drill
-- isolated release rollback drill
-- Linux race verification
+- isolated PostgreSQL restore drill: passed in P6-V report
+- isolated release rollback drill: passed in P6-V report
+- Linux race verification: passed in P6-VR report
 
-Real production backup, restore, PITR drill, release and Douyin credential E2E remain Deferred.
+Real production backup, restore, PITR drill, release, telemetry, and Douyin credential E2E remain Deferred. Tag remains deferred. This report does not mark the project Production Ready.
 `,
 );
 

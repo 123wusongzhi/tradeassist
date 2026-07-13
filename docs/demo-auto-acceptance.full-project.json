@@ -2,8 +2,8 @@
     "automatableConclusion":  "passed_with_blocked",
     "steps":  [
                   {
-                      "finishedAt":  "2026-07-13T06:34:48.9055944Z",
-                      "durationMs":  848,
+                      "finishedAt":  "2026-07-13T09:54:03.5663118Z",
+                      "durationMs":  10682,
                       "category":  "code_check",
                       "name":  "go test regression",
                       "reasonCode":  "passed",
@@ -13,8 +13,8 @@
                       "logFile":  "artifacts/demo-acceptance/go-test.log"
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:34:49.2454208Z",
-                      "durationMs":  327,
+                      "finishedAt":  "2026-07-13T09:54:04.3475944Z",
+                      "durationMs":  764,
                       "category":  "build",
                       "name":  "go build backend",
                       "reasonCode":  "passed",
@@ -24,8 +24,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:22.8692491Z",
-                      "durationMs":  33620,
+                      "finishedAt":  "2026-07-13T09:54:35.9104753Z",
+                      "durationMs":  31562,
                       "category":  "build",
                       "name":  "pnpm build:admin",
                       "reasonCode":  "passed",
@@ -35,8 +35,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:22.9236132Z",
-                      "durationMs":  53,
+                      "finishedAt":  "2026-07-13T09:54:35.9711919Z",
+                      "durationMs":  60,
                       "category":  "code_check",
                       "name":  "git diff --check",
                       "reasonCode":  "passed",
@@ -46,8 +46,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:23.1432576Z",
-                      "durationMs":  216,
+                      "finishedAt":  "2026-07-13T09:54:36.1214595Z",
+                      "durationMs":  148,
                       "category":  "code_check",
                       "name":  "check-ui-copy",
                       "reasonCode":  "passed",
@@ -57,8 +57,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:23.2472561Z",
-                      "durationMs":  101,
+                      "finishedAt":  "2026-07-13T09:54:36.2025891Z",
+                      "durationMs":  79,
                       "category":  "smoke",
                       "name":  "demo-empty-state-scan",
                       "reasonCode":  "passed",
@@ -68,8 +68,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:23.2832580Z",
-                      "durationMs":  32,
+                      "finishedAt":  "2026-07-13T09:54:36.2285884Z",
+                      "durationMs":  24,
                       "category":  "smoke",
                       "name":  "demo-sensitive-confirm-scan",
                       "reasonCode":  "passed",
@@ -79,8 +79,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:35:30.7639287Z",
-                      "durationMs":  7480,
+                      "finishedAt":  "2026-07-13T09:54:42.1233612Z",
+                      "durationMs":  5892,
                       "category":  "code_check",
                       "name":  "security-release-check",
                       "reasonCode":  "passed",
@@ -90,8 +90,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:27.6967308Z",
-                      "durationMs":  56932,
+                      "finishedAt":  "2026-07-13T09:55:38.5463563Z",
+                      "durationMs":  56422,
                       "category":  "code_check",
                       "name":  "check-doc-links",
                       "reasonCode":  "passed",
@@ -101,8 +101,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:28.3237836Z",
-                      "durationMs":  624,
+                      "finishedAt":  "2026-07-13T09:55:39.1807940Z",
+                      "durationMs":  631,
                       "category":  "smoke",
                       "name":  "demo-route-smoke",
                       "reasonCode":  "passed",
@@ -112,8 +112,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:30.4718053Z",
-                      "durationMs":  2147,
+                      "finishedAt":  "2026-07-13T09:55:41.2558322Z",
+                      "durationMs":  2073,
                       "category":  "seed",
                       "name":  "seed-demo-data",
                       "reasonCode":  "passed",
@@ -123,8 +123,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:30.6027360Z",
-                      "durationMs":  130,
+                      "finishedAt":  "2026-07-13T09:55:41.3896386Z",
+                      "durationMs":  133,
                       "category":  "seed",
                       "name":  "seed-demo-permissions",
                       "reasonCode":  "passed",
@@ -134,8 +134,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:31.1695790Z",
-                      "durationMs":  565,
+                      "finishedAt":  "2026-07-13T09:55:41.9212842Z",
+                      "durationMs":  531,
                       "category":  "smoke",
                       "name":  "demo-dashboard-smoke",
                       "reasonCode":  "passed",
@@ -145,8 +145,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:31.3728943Z",
-                      "durationMs":  200,
+                      "finishedAt":  "2026-07-13T09:55:42.1212175Z",
+                      "durationMs":  199,
                       "category":  "smoke",
                       "name":  "demo-rbac-smoke",
                       "reasonCode":  "passed",
@@ -156,8 +156,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:31.5148623Z",
-                      "durationMs":  141,
+                      "finishedAt":  "2026-07-13T09:55:42.2514540Z",
+                      "durationMs":  129,
                       "category":  "smoke",
                       "name":  "demo-order-inventory-customer-smoke",
                       "reasonCode":  "passed",
@@ -167,8 +167,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:31.6784224Z",
-                      "durationMs":  161,
+                      "finishedAt":  "2026-07-13T09:55:42.4076600Z",
+                      "durationMs":  154,
                       "category":  "smoke",
                       "name":  "ai-text-route-smoke",
                       "reasonCode":  "passed",
@@ -178,8 +178,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:46.9447881Z",
-                      "durationMs":  15264,
+                      "finishedAt":  "2026-07-13T09:55:57.6922972Z",
+                      "durationMs":  15283,
                       "category":  "external_provider",
                       "name":  "ai-text-trial-run",
                       "reasonCode":  "environment_blocked",
@@ -189,8 +189,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:36:47.1998593Z",
-                      "durationMs":  253,
+                      "finishedAt":  "2026-07-13T09:55:57.8339666Z",
+                      "durationMs":  139,
                       "category":  "smoke",
                       "name":  "ai-image-route-smoke",
                       "reasonCode":  "passed",
@@ -200,8 +200,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:46:51.9470181Z",
-                      "durationMs":  604745,
+                      "finishedAt":  "2026-07-13T10:06:02.0137884Z",
+                      "durationMs":  604179,
                       "category":  "external_provider",
                       "name":  "ai-image-trial-run",
                       "reasonCode":  "warning",
@@ -211,8 +211,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:46:53.2915378Z",
-                      "durationMs":  1341,
+                      "finishedAt":  "2026-07-13T10:06:03.2468022Z",
+                      "durationMs":  1231,
                       "category":  "smoke",
                       "name":  "publish-batch-perf",
                       "reasonCode":  "passed",
@@ -222,8 +222,8 @@
                       "logFile":  ""
                   },
                   {
-                      "finishedAt":  "2026-07-13T06:46:55.0778939Z",
-                      "durationMs":  1784,
+                      "finishedAt":  "2026-07-13T10:06:04.7083280Z",
+                      "durationMs":  1460,
                       "category":  "smoke",
                       "name":  "ai-operation-workbench-perf",
                       "reasonCode":  "passed",
@@ -233,7 +233,7 @@
                       "logFile":  ""
                   }
               ],
-    "finishedAt":  "2026-07-13T06:46:55.0788962Z",
+    "finishedAt":  "2026-07-13T10:06:04.7089726Z",
     "finalStatus":  {
                         "release":  "MVP Demo Ready",
                         "douyin":  "Douyin Release Candidate",
@@ -241,7 +241,7 @@
                         "tag":  "Tag deferred",
                         "stage":  "Production Capability Development In Progress"
                     },
-    "startedAt":  "2026-07-13T06:34:47.9509202Z",
+    "startedAt":  "2026-07-13T09:53:52.7680814Z",
     "manualTestItems":  [
                             "Real preprod SSH deployment",
                             "Nginx / HTTPS",
@@ -289,7 +289,7 @@
                             "apiBase":  "http://127.0.0.1:8080",
                             "hostname":  "SK-20250814VKAY",
                             "appEnv":  null,
-                            "startedAt":  "2026-07-13T06:34:47.9509202Z",
+                            "startedAt":  "2026-07-13T09:53:52.7680814Z",
                             "phase":  "Phase P4-R",
                             "goTestEnvMode":  "isolated_test_env"
                         },

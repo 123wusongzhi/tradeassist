@@ -6,12 +6,28 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P6-VR - Linux race remediation and P6 closure (2026-07-13)
+
+- Installed and verified WSL2 Ubuntu Go `go1.25.12` for the repository `go 1.25.0` requirement, with CGO and GCC available.
+- Hardened `scripts/p6-v-linux-race.mjs` to distinguish environment blockers from test/build/race failures and to record real command exit codes, stdout/stderr tails, run ID, baseline, per-package race results, and combined race matrix.
+- Hardened `scripts/p6-v-final-closure-gate.mjs` to validate the Linux race report fields instead of accepting a shallow status.
+- Executed WSL2 Linux baseline and race matrix: `go mod verify`, `go test ./...`, `go build ./cmd/server/... ./cmd/p6drill`, 9 race package groups, and combined race matrix all passed with `dataRaces=0`.
+- Status: Phase P6 fully closed; real production backup, restore, PITR, release, telemetry, and Douyin credential verification remain deferred; no tag and not Production Ready.
+
+### Phase P6-V - Isolated restore and release rollback drills (2026-07-13)
+
+- Added `p6drill` CLI plus P6-V restore, release rollback, race, and final gate scripts.
+- Executed isolated PostgreSQL restore drill with real `pg_dump`, encrypted artifact verification, `pg_restore --list`, `pg_restore`, integrity comparison, audit chain validation, and six negative restore safety tests.
+- Executed isolated release rollback drill through the existing release service and confirmed database auto-restore/down migration boundaries.
+- Fixed fresh PostgreSQL migration ordering for Douyin 10.2 indexes and stabilized operation log hash-chain timestamps for restore verification.
+- Follow-up P6-VR remediated the WSL Go 1.18.1 environment blocker and passed Linux race verification.
+
 ### Phase P6 - Backup, restore, release rollback and DR foundation (2026-07-13)
 
 - Added P6 backend modules for backup, restore safety gates, release state machine, application rollback boundary, and DR drill status.
 - Added chunked AES-GCM backup encryption, checksum helpers, safe PostgreSQL command builders, PITR target validation, WAL continuity checks, and release manifest helpers.
 - Added P6 environment variables, RBAC permissions, Admin ops pages, API docs, dashboards, runbooks, and static gate script.
-- Status remains closure-incomplete until isolated restore/release drills, Linux race, full gates, builds, and demo acceptance runs pass.
+- Follow-up P6-V and P6-VR closure evidence passed; real production verification remains deferred.
 
 ### Phase P5-V - Standard OTLP closure gate (2026-07-13)
 

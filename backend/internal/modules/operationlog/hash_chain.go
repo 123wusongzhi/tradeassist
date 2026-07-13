@@ -20,6 +20,10 @@ func (s *Service) appendHashChain(tx *gorm.DB, row *OperationLog) error {
 	if row == nil {
 		return nil
 	}
+	if row.CreatedAt.IsZero() {
+		row.CreatedAt = time.Now().UTC()
+	}
+	row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
 	partition := chainPartition(row.TenantID, row.CreatedAt)
 	row.ChainPartition = partition
 	row.HashVersion = hashChainVersion

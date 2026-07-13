@@ -1,0 +1,57 @@
+{
+  "phase": "P6-VR",
+  "generatedAt": "2026-07-13T10:08:43.795Z",
+  "status": "phase_p6_fully_closed_with_real_production_verification_deferred",
+  "phaseP6FullyClosed": true,
+  "linuxRaceVerification": "passed",
+  "developmentAcceptance": "passed",
+  "isolatedRestoreDrill": "passed",
+  "restoreIntegrityVerification": "passed",
+  "isolatedReleaseRollbackDrill": "passed",
+  "applicationRollback": "ready",
+  "race": {
+    "runner": "WSL2 Ubuntu",
+    "distribution": "Ubuntu 22.04.5 LTS",
+    "kernel": "Linux SK-20250814VKAY 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux",
+    "requiredGoVersion": "go1.25.0",
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "goPath": "/usr/local/go/bin/go",
+    "goos": "linux",
+    "goarch": "amd64",
+    "cgoEnabled": true,
+    "gccVersion": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "dataRaces": 0,
+    "deadlocks": 0,
+    "packagesPassed": 9,
+    "packagesFailed": 0,
+    "combinedMatrix": "passed",
+    "exitCode": 0
+  },
+  "gates": {
+    "p6vFinal": {
+      "failed": 0,
+      "passed": 31
+    }
+  },
+  "demoAcceptance": {
+    "conclusion": "passed_with_blocked",
+    "failed": 0,
+    "codeFailed": 0,
+    "nonAiFailed": 0,
+    "blocked": 1,
+    "warning": 1,
+    "latestFinishedAt": "2026-07-13T10:06:04.7089726Z"
+  },
+  "deferred": {
+    "realProductionBackupVerification": true,
+    "realProductionRestoreVerification": true,
+    "realPitrDrill": true,
+    "realProductionReleaseVerification": true,
+    "realEnvironmentTelemetryVerification": true,
+    "douyinRealCredentialVerification": true,
+    "finalAcceptance": true,
+    "tag": true
+  },
+  "productionReady": false,
+  "tagCreated": false
+}

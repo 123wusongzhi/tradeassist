@@ -2,7 +2,7 @@
 
 Phase P6 Static Gate Passed
 
-Phase P6 Closure Verification Incomplete
+P6-VR Closure Evidence Recorded
 
 | Check | Status | Detail |
 | --- | --- | --- |
@@ -62,13 +62,16 @@ Phase P6 Closure Verification Incomplete
 | doc-P6_ISOLATED_RESTORE_DRILL_REPORT.md | passed | docs/P6_ISOLATED_RESTORE_DRILL_REPORT.md exists |
 | doc-P6_RELEASE_ROLLBACK_DRILL_REPORT.md | passed | docs/P6_RELEASE_ROLLBACK_DRILL_REPORT.md exists |
 | doc-P6_RACE_TEST_REPORT.md | passed | docs/P6_RACE_TEST_REPORT.md exists |
+| doc-P6_VR_LINUX_RACE_ENVIRONMENT_AUDIT.md | passed | docs/P6_VR_LINUX_RACE_ENVIRONMENT_AUDIT.md exists |
+| doc-P6_VR_LINUX_RACE_REMEDIATION_REPORT.md | passed | docs/P6_VR_LINUX_RACE_REMEDIATION_REPORT.md exists |
+| doc-P6_VR_FINAL_CLOSURE_REPORT.md | passed | docs/P6_VR_FINAL_CLOSURE_REPORT.md exists |
 | no-tag | passed | docs/P6_BACKUP_RELEASE_DR_REPORT.md has no forbidden markers |
 | no-secret-leakage | passed | docs/p6-backup-release-dr-report.json has no forbidden markers |
 
-Closure blockers that remain outside this static scan:
+Closure evidence outside this static scan:
 
-- isolated PostgreSQL restore drill
-- isolated release rollback drill
-- Linux race verification
+- isolated PostgreSQL restore drill: passed in P6-V report
+- isolated release rollback drill: passed in P6-V report
+- Linux race verification: passed in P6-VR report
 
-Real production backup, restore, PITR drill, release and Douyin credential E2E remain Deferred.
+Real production backup, restore, PITR drill, release, telemetry, and Douyin credential E2E remain Deferred. Tag remains deferred. This report does not mark the project Production Ready.

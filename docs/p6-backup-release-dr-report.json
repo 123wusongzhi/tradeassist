@@ -2,7 +2,7 @@
   "phase": "P6",
   "status": "static_scan_passed",
   "failed": 0,
-  "passed": 58,
+  "passed": 61,
   "results": [
     {
       "name": "backup-module",
@@ -285,6 +285,21 @@
       "detail": "docs/P6_RACE_TEST_REPORT.md exists"
     },
     {
+      "name": "doc-P6_VR_LINUX_RACE_ENVIRONMENT_AUDIT.md",
+      "status": "passed",
+      "detail": "docs/P6_VR_LINUX_RACE_ENVIRONMENT_AUDIT.md exists"
+    },
+    {
+      "name": "doc-P6_VR_LINUX_RACE_REMEDIATION_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P6_VR_LINUX_RACE_REMEDIATION_REPORT.md exists"
+    },
+    {
+      "name": "doc-P6_VR_FINAL_CLOSURE_REPORT.md",
+      "status": "passed",
+      "detail": "docs/P6_VR_FINAL_CLOSURE_REPORT.md exists"
+    },
+    {
       "name": "no-tag",
       "status": "passed",
       "detail": "docs/P6_BACKUP_RELEASE_DR_REPORT.md has no forbidden markers"
@@ -295,5 +310,5 @@
       "detail": "docs/p6-backup-release-dr-report.json has no forbidden markers"
     }
   ],
-  "note": "P6 static gate passed. Closure still requires isolated drills and Linux race verification."
+  "note": "P6 static gate passed. P6-VR closure evidence is recorded separately; real production verification remains deferred."
 }

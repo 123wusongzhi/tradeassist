@@ -1,0 +1,171 @@
+{
+  "phase": "P6-VR",
+  "generatedAt": "2026-07-13T10:08:43.795Z",
+  "status": "passed_with_real_production_verification_deferred",
+  "failed": 0,
+  "passed": 31,
+  "checks": [
+    {
+      "name": "isolated-restore-drill",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "backup-encrypted",
+      "status": "passed",
+      "detail": "true"
+    },
+    {
+      "name": "backup-checksum",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "backup-manifest",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "pg-restore-list",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "restore-integrity",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "restore-cleanup",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "negative-tests-complete",
+      "status": "passed",
+      "detail": "required P6-V negative tests must all pass"
+    },
+    {
+      "name": "release-rollback-drill",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "database-auto-restore-forbidden",
+      "status": "passed",
+      "detail": "false"
+    },
+    {
+      "name": "down-migration-forbidden",
+      "status": "passed",
+      "detail": "false"
+    },
+    {
+      "name": "linux-race-report-present",
+      "status": "passed",
+      "detail": "present"
+    },
+    {
+      "name": "linux-race-run-id",
+      "status": "passed",
+      "detail": "p6-vr-2026-07-13T09-22-23-945Z"
+    },
+    {
+      "name": "linux-race-generated-at",
+      "status": "passed",
+      "detail": "2026-07-13T09:22:23.945Z"
+    },
+    {
+      "name": "linux-race-runner",
+      "status": "passed",
+      "detail": "WSL2 Ubuntu"
+    },
+    {
+      "name": "linux-race-status",
+      "status": "passed",
+      "detail": "passed / passed"
+    },
+    {
+      "name": "linux-race-environment-not-blocked",
+      "status": "passed",
+      "detail": "false"
+    },
+    {
+      "name": "linux-race-exit-code",
+      "status": "passed",
+      "detail": "0"
+    },
+    {
+      "name": "linux-race-go-version",
+      "status": "passed",
+      "detail": "go version go1.25.12 linux/amd64 required go1.25.0"
+    },
+    {
+      "name": "linux-race-cgo",
+      "status": "passed",
+      "detail": "true"
+    },
+    {
+      "name": "linux-race-gcc",
+      "status": "passed",
+      "detail": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+    },
+    {
+      "name": "linux-race-baseline-mod-verify",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "linux-race-baseline-test",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "linux-race-baseline-build",
+      "status": "passed",
+      "detail": "passed"
+    },
+    {
+      "name": "linux-race-data-races",
+      "status": "passed",
+      "detail": "0"
+    },
+    {
+      "name": "linux-race-deadlocks",
+      "status": "passed",
+      "detail": "0"
+    },
+    {
+      "name": "linux-race-packages",
+      "status": "passed",
+      "detail": "9/9"
+    },
+    {
+      "name": "linux-race-combined-matrix",
+      "status": "passed",
+      "detail": "passed / 0"
+    },
+    {
+      "name": "no-production-db-access",
+      "status": "passed",
+      "detail": "reports use isolated/deferred production fields only"
+    },
+    {
+      "name": "no-tag",
+      "status": "passed",
+      "detail": "tag remains deferred"
+    },
+    {
+      "name": "not-production-ready",
+      "status": "passed",
+      "detail": "Production Ready is not asserted by this gate"
+    }
+  ],
+  "realProductionBackupVerification": "deferred",
+  "realProductionRestoreVerification": "deferred",
+  "realPitrDrill": "deferred",
+  "realProductionReleaseVerification": "deferred",
+  "realEnvironmentTelemetryVerification": "deferred",
+  "douyinRealCredentialVerification": "deferred",
+  "issues": []
+}

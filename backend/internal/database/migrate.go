@@ -113,9 +113,6 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateLegacyProductTextColumns(db); err != nil {
 		return err
 	}
-	if err := migrateDouyinPhase102Indexes(db); err != nil {
-		return err
-	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&admin.UserStorePermission{},
@@ -181,6 +178,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&release.Rollback{},
 		&disasterrecovery.Drill{},
 	); err != nil {
+		return err
+	}
+	if err := migrateDouyinPhase102Indexes(db); err != nil {
 		return err
 	}
 	if err := migratePublishBatchA21(db); err != nil {

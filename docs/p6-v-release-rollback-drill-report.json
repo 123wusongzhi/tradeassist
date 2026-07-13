@@ -1,0 +1,18 @@
+{
+  "phase": "P6-V",
+  "environment": "isolated",
+  "status": "passed",
+  "preflight": "passed",
+  "preReleaseBackup": "verified",
+  "migrationCompatibility": "passed",
+  "versionBReadiness": "passed",
+  "trafficSwitchSimulation": "passed",
+  "controlledFailure": "passed",
+  "applicationRollback": "passed",
+  "versionAfterRollback": "p6v-a",
+  "databaseRestoreExecuted": false,
+  "destructiveDownMigrationExecuted": false,
+  "concurrentReleaseLock": "passed",
+  "cleanup": "passed",
+  "releaseId": "rel_a56e971fa4da4a6ab080ef9d4a620839"
+}

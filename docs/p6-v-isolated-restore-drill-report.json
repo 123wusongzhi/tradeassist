@@ -1,0 +1,249 @@
+{
+  "phase": "P6-V",
+  "runId": "p6v_94a95882fca9",
+  "environment": "isolated",
+  "sourceDatabaseHash": "0dde4bf685cbc215f9baf2efcb2a3eaa2cd5018757c885b8244cd3c998aef2a1",
+  "restoreDatabaseHash": "2dc14f4ec1675b473b1f982f05f9b1ac70af209ec29ce50c99a038607826c345",
+  "backup": {
+    "status": "passed",
+    "encrypted": true,
+    "checksum": "passed",
+    "manifest": "passed",
+    "pgRestoreList": "passed",
+    "artifactSize": 321876
+  },
+  "negativeTests": {
+    "checksumRejected": true,
+    "ciphertextRejected": true,
+    "manifestRejected": true,
+    "nonEmptyTargetRejected": true,
+    "productionTargetRejected": true,
+    "unverifiedRejected": true
+  },
+  "restore": {
+    "status": "passed",
+    "integrity": "passed",
+    "tenantIsolation": "passed",
+    "shopScope": "passed",
+    "rbac": "passed",
+    "auditChain": "passed",
+    "secretFormat": "passed",
+    "objectInventory": "passed"
+  },
+  "temporaryPlaintextFilesRemaining": 0,
+  "cleanupStatus": "passed",
+  "realProductionRestoreVerification": "deferred",
+  "commands": [
+    {
+      "name": "initdb",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\initdb.exe -D C:\\Users\\Administrator\\AppData\\Local\\Temp\\trademind-p6v_94a95882fca9-OZZrkS\\pgdata -U p6v_user --pwfile C:\\Users\\Administrator\\AppData\\Local\\Temp\\trademind-p6v_94a95882fca9-OZZrkS\\pwfile --auth-host=scram-sha-256 --auth-local=trust",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:48.794Z",
+      "completedAt": "2026-07-13T08:18:51.877Z",
+      "stdout": "The files belonging to this database system will be owned by user \"Administrator\".\r\nThis user must also own the server process.\r\n\r\nThe database cluster will be initialized with locale \"Chinese (Simplified)_China.936\".\r\nEncoding \"GBK\" implied by locale is not allowed as a server-side encoding.\r\nThe default database encoding will be set to \"UTF8\" instead.\r\nThe default text search configuration will be set to \"simple\".\r\n\r\nData page checksums are disabled.\r\n\r\ncreating directory C:/Users/Administrator/AppData/Local/Temp/trademind-p6v_94a95882fca9-OZZrkS/pgdata ... ok\r\ncreating subdirectories ... ok\r\nselecting dynamic shared memory implementation ... windows\r\nselecting default \"max_connections\" ... 100\r\nselecting default \"shared_buffers\" ... 128MB\r\nselecting default time zone ... Asia/Shanghai\r\ncreating configuration files ... ok\r\nrunning bootstrap script ... ok\r\nperforming post-bootstrap initialization ... ok\r\nsyncing data to disk ... ok\r\n\r\nSuccess. You can now start the database server using:\r\n\r\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\17^\\bin^\\pg^_ctl^\" -D ^\"C^:^\\Users^\\Administrator^\\AppData^\\Local^\\Temp^\\trademind^-p6v^_94a95882fca9^-OZZrkS^\\pgdata^\" -l logfile start\r\n\r\n",
+      "stderr": "initdb: could not find suitable text search configuration for locale \"Chinese (Simplified)_China.936\"\r\n"
+    },
+    {
+      "name": "pg_ctl-start",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe -D C:\\Users\\Administrator\\AppData\\Local\\Temp\\trademind-p6v_94a95882fca9-OZZrkS\\pgdata -l C:\\Users\\Administrator\\AppData\\Local\\Temp\\trademind-p6v_94a95882fca9-OZZrkS\\postgres.log -o -p 51818 -h 127.0.0.1 -W start",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:51.924Z",
+      "completedAt": "2026-07-13T08:18:51.945Z",
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "pg-isready",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_isready.exe -h 127.0.0.1 -p 51818",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:51.994Z",
+      "completedAt": "2026-07-13T08:18:52.544Z",
+      "stdout": "127.0.0.1:51818 - accepting connections\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "psql-version",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe --version",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:52.591Z",
+      "completedAt": "2026-07-13T08:18:52.600Z",
+      "stdout": "psql (PostgreSQL) 17.9\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_source_p6v_94a95882fca9",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:52.647Z",
+      "completedAt": "2026-07-13T08:18:52.777Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:52.824Z",
+      "completedAt": "2026-07-13T08:18:53.049Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9_unverified",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.098Z",
+      "completedAt": "2026-07-13T08:18:53.249Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9_checksum",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.303Z",
+      "completedAt": "2026-07-13T08:18:53.416Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9_manifest",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.461Z",
+      "completedAt": "2026-07-13T08:18:53.573Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9_cipher",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.619Z",
+      "completedAt": "2026-07-13T08:18:53.738Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE trademind_p6v_restore_p6v_94a95882fca9_nonempty",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.783Z",
+      "completedAt": "2026-07-13T08:18:53.924Z",
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 51818 -U p6v_user -d trademind_p6v_restore_p6v_94a95882fca9_nonempty -v ON_ERROR_STOP=1 -c CREATE TABLE p6v_existing_data(id integer primary key)",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:53.970Z",
+      "completedAt": "2026-07-13T08:18:54.014Z",
+      "stdout": "CREATE TABLE\r\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-seed",
+      "command": "go run ./cmd/p6drill seed",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:54.168Z",
+      "completedAt": "2026-07-13T08:18:56.008Z",
+      "stdout": "\r\n2026/07/13 16:18:55 \u001b[31;1mD:/project/trademind-ai/backend/internal/modules/operationlog/hash_chain.go:32 \u001b[35;1mrecord not found\n\u001b[0m\u001b[33m[0.607ms] \u001b[34;1m[rows:0]\u001b[0m SELECT * FROM \"operation_logs\" WHERE chain_partition = 't1001:2026-07-13' ORDER BY created_at DESC,\"operation_logs\".\"id\" LIMIT 1\n{\n  \"environment\": \"test\",\n  \"markerHash\": \"72e183b173ab8a886702a76c3f3ca2f2350820128d06887bc99738127a741919\",\n  \"status\": \"passed\",\n  \"summary\": {\n    \"operationLogCount\": 1,\n    \"orderCount\": 1,\n    \"p6vMarkerHash\": \"72e183b173ab8a886702a76c3f3ca2f2350820128d06887bc99738127a741919\",\n    \"productCount\": 1,\n    \"shopCount\": 2,\n    \"tenantCount\": 2,\n    \"userCount\": 1\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-backup",
+      "command": "go run ./cmd/p6drill backup",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:56.165Z",
+      "completedAt": "2026-07-13T08:18:56.587Z",
+      "stdout": "{\n  \"artifactSize\": 321876,\n  \"backupId\": \"bk_36b51e6fbd4545c2a0df78254a19c318\",\n  \"checksum\": \"eb8a628c1ccd5e2ee513ee58d731107394102e4e185a4d5ae73cb7d7c4bb00b1\",\n  \"encrypted\": true,\n  \"status\": \"completed\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-verify",
+      "command": "go run ./cmd/p6drill verify --backup-id bk_36b51e6fbd4545c2a0df78254a19c318",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:56.747Z",
+      "completedAt": "2026-07-13T08:18:57.037Z",
+      "stdout": "{\n  \"backupId\": \"bk_36b51e6fbd4545c2a0df78254a19c318\",\n  \"checksum\": true,\n  \"encryption\": true,\n  \"manifest\": true,\n  \"pgRestoreList\": true,\n  \"status\": \"passed\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-backup-unverified",
+      "command": "go run ./cmd/p6drill backup",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:57.193Z",
+      "completedAt": "2026-07-13T08:18:57.603Z",
+      "stdout": "{\n  \"artifactSize\": 322972,\n  \"backupId\": \"bk_38cd109ea9714959bfbf45d6d72e42e2\",\n  \"checksum\": \"68cf26f1209f7885f011e049f54b849dd1f31d88f32daaea28637c3e17f79d9d\",\n  \"encrypted\": true,\n  \"status\": \"completed\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-negative",
+      "command": "go run ./cmd/p6drill negative --backup-id bk_36b51e6fbd4545c2a0df78254a19c318 --unverified-backup-id bk_38cd109ea9714959bfbf45d6d72e42e2 --unverified-db trademind_p6v_restore_p6v_94a95882fca9_unverified --checksum-db trademind_p6v_restore_p6v_94a95882fca9_checksum --manifest-db trademind_p6v_restore_p6v_94a95882fca9_manifest --cipher-db trademind_p6v_restore_p6v_94a95882fca9_cipher --non-empty-db trademind_p6v_restore_p6v_94a95882fca9_nonempty",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:57.759Z",
+      "completedAt": "2026-07-13T08:18:58.234Z",
+      "stdout": "{\n  \"negativeTests\": {\n    \"checksumRejected\": true,\n    \"ciphertextRejected\": true,\n    \"manifestRejected\": true,\n    \"nonEmptyTargetRejected\": true,\n    \"productionTargetRejected\": true,\n    \"unverifiedRejected\": true\n  },\n  \"status\": \"passed\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-restore",
+      "command": "go run ./cmd/p6drill restore --backup-id bk_36b51e6fbd4545c2a0df78254a19c318 --target-db trademind_p6v_restore_p6v_94a95882fca9",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:58.388Z",
+      "completedAt": "2026-07-13T08:18:59.278Z",
+      "stdout": "{\n  \"restoreId\": \"rs_3344e5fa11244f80b3a8216b2d390ed6\",\n  \"safetyGate\": \"passed\",\n  \"status\": \"completed\",\n  \"targetHash\": \"2dc14f4ec1675b473b1f982f05f9b1ac70af209ec29ce50c99a038607826c345\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-validate-restore",
+      "command": "go run ./cmd/p6drill validate",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:59.438Z",
+      "completedAt": "2026-07-13T08:18:59.715Z",
+      "stdout": "{\n  \"auditChain\": true,\n  \"status\": \"passed\",\n  \"summary\": {\n    \"operationLogCount\": 1,\n    \"orderCount\": 1,\n    \"p6vMarkerHash\": \"72e183b173ab8a886702a76c3f3ca2f2350820128d06887bc99738127a741919\",\n    \"productCount\": 1,\n    \"shopCount\": 2,\n    \"tenantCount\": 2,\n    \"userCount\": 1\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "p6drill-release-rollback",
+      "command": "go run ./cmd/p6drill release",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:18:59.879Z",
+      "completedAt": "2026-07-13T08:19:00.540Z",
+      "stdout": "{\n  \"databaseRestore\": false,\n  \"preBackupId\": \"bk_5ef0ec615f574adaa2eccd1650d3c64a\",\n  \"releaseId\": \"rel_a56e971fa4da4a6ab080ef9d4a620839\",\n  \"state\": \"rolled_back\",\n  \"status\": \"passed\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "name": "pg_ctl-stop",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe -D C:\\Users\\Administrator\\AppData\\Local\\Temp\\trademind-p6v_94a95882fca9-OZZrkS\\pgdata -m fast -w stop",
+      "exitCode": 0,
+      "startedAt": "2026-07-13T08:19:00.588Z",
+      "completedAt": "2026-07-13T08:19:07.029Z",
+      "stdout": "waiting for server to shut down......... done\r\nserver stopped\r\n",
+      "stderr": ""
+    }
+  ],
+  "postgresVersion": "psql (PostgreSQL) 17.9",
+  "preRestoreSummaryHash": "da796f3f50937c3776b3168d2540ec217f88bb62d079c4a897a7b7cac1a479b3",
+  "postRestoreSummaryHash": "da796f3f50937c3776b3168d2540ec217f88bb62d079c4a897a7b7cac1a479b3",
+  "releaseRollback": {
+    "phase": "P6-V",
+    "environment": "isolated",
+    "status": "passed",
+    "preflight": "passed",
+    "preReleaseBackup": "verified",
+    "migrationCompatibility": "passed",
+    "versionBReadiness": "passed",
+    "trafficSwitchSimulation": "passed",
+    "controlledFailure": "passed",
+    "applicationRollback": "passed",
+    "versionAfterRollback": "p6v-a",
+    "databaseRestoreExecuted": false,
+    "destructiveDownMigrationExecuted": false,
+    "concurrentReleaseLock": "passed",
+    "cleanup": "passed",
+    "releaseId": "rel_a56e971fa4da4a6ab080ef9d4a620839"
+  },
+  "status": "passed"
+}

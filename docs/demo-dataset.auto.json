@@ -54,31 +54,31 @@
                         },
                         {
                             "status":  "success",
-                            "batchId":  "4b72f464-f16b-4b51-874c-3f28318a4488",
+                            "batchId":  "8e3c2bba-f0b9-48de-9b24-4291f0dbd85e",
                             "note":  "existing batch",
                             "type":  "publish_batch"
                         },
                         {
-                            "count":  404,
+                            "count":  408,
                             "taskType":  "ai_image",
                             "note":  "existing failure task",
                             "type":  "taskcenter_failure",
-                            "sampleId":  "57dfbce1-dd87-47c9-aa64-1c639efe9681"
+                            "sampleId":  "01af1bba-f1e8-47aa-a2f5-2a89e6b3e45b"
                         },
                         {
-                            "summaryTodoSum":  1368,
+                            "summaryTodoSum":  1371,
                             "sampleTodoIds":  [
-                                                  "todo:publish_check:ce8eb590-3d07-471d-b187-4a3e433db194:image.main_missing",
-                                                  "todo:publish_check:ce8eb590-3d07-471d-b187-4a3e433db194:sku.none",
-                                                  "todo:publish_check:51f2b9d9-edbf-429f-a087-2045f3b791d0:image.main_missing"
+                                                  "todo:publish_check:72d281f1-f6fb-4eb2-b3f2-499b98ec927b:image.main_missing",
+                                                  "todo:publish_check:72d281f1-f6fb-4eb2-b3f2-499b98ec927b:sku.none",
+                                                  "todo:publish_check:44eaa569-cfc6-4b90-88bd-f3354c4255b8:image.main_missing"
                                               ],
                             "note":  "aggregated todos from workbench",
                             "type":  "operation_workbench_todos",
-                            "todosTotal":  1465
+                            "todosTotal":  1468
                         },
                         {
                             "publishTaskIssueCount":  0,
-                            "publishCheckIssueCount":  641,
+                            "publishCheckIssueCount":  644,
                             "aiTextReviewCount":  375,
                             "note":  "aggregated summary from workbench",
                             "type":  "operation_workbench_summary",
@@ -95,7 +95,7 @@
     "demo_dataset_version":  "p4-r-v1",
     "douyinStatus":  "Release Candidate",
     "releaseStatus":  "MVP Demo Ready",
-    "demo_dataset_seeded_at":  "2026-07-13T06:36:30.4459379Z",
+    "demo_dataset_seeded_at":  "2026-07-13T09:55:41.2252973Z",
     "note":  "Douyin remains Release Candidate; blocked_by_real_credentials expected without credentials",
     "productSlotCount":  20,
     "productSlots":  [
@@ -300,5 +300,5 @@
                              "note":  "multi platform targets"
                          }
                      ],
-    "generatedAt":  "2026-07-13T06:36:30.4469379Z"
+    "generatedAt":  "2026-07-13T09:55:41.2252973Z"
 }

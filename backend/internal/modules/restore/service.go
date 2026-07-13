@@ -4,7 +4,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,6 +17,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/backupruntime"
+	"gorm.io/datatypes"
+	gpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -84,9 +89,13 @@ func (s *Service) Create(ctx context.Context, req CreateRequest, actor *uuid.UUI
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		return nil, err
 	}
-	// Actual pg_restore is intentionally operator-triggered in an isolated DB. This
-	// code-level foundation records the safe execution plan and keeps production
-	// restore deferred unless an isolated target is provided.
+	if err := s.runPgRestore(ctx, row, req.TargetDatabaseName); err != nil {
+		row.Status = StatusFailed
+		row.ErrorSummary = backupruntime.RedactCommandOutput(err.Error())
+		row.CompletedAt = ptrTime(time.Now().UTC())
+		_ = s.DB.WithContext(ctx).Save(row).Error
+		return row, err
+	}
 	row.Status = StatusCompleted
 	row.CompletedAt = ptrTime(time.Now().UTC())
 	return row, s.DB.WithContext(ctx).Save(row).Error
@@ -125,31 +134,153 @@ func (s *Service) safetyGate(ctx context.Context, req CreateRequest) error {
 		return fmt.Errorf("restore service unavailable")
 	}
 	if strings.EqualFold(req.TargetEnvironment, "production") {
-		return fmt.Errorf("restore to production is forbidden in P6 code phase")
+		return fmt.Errorf("RESTORE_TARGET_FORBIDDEN: restore to production is forbidden in P6-V")
+	}
+	if s.Cfg != nil && config.IsProduction(s.Cfg.AppEnv) {
+		return fmt.Errorf("RESTORE_APP_ENV_FORBIDDEN: P6-V restore drill is forbidden in production")
 	}
 	if !req.TargetIsIsolated {
-		return fmt.Errorf("target environment must be isolated")
+		return fmt.Errorf("RESTORE_TARGET_NOT_ISOLATED: target environment must be isolated")
 	}
 	if strings.TrimSpace(req.TargetDatabaseName) == "" || strings.EqualFold(req.TargetDatabaseName, "first") {
-		return fmt.Errorf("target database must be explicit")
+		return fmt.Errorf("RESTORE_TARGET_NOT_EXPLICIT: target database must be explicit")
+	}
+	if !strings.HasPrefix(strings.TrimSpace(req.TargetDatabaseName), "trademind_p6v_restore_") {
+		return fmt.Errorf("RESTORE_TARGET_PREFIX_REJECTED: target database must use trademind_p6v_restore_ prefix")
 	}
 	if !req.OperatorReauthenticated || !req.HighRiskConfirmed {
-		return fmt.Errorf("operator reauthentication and high-risk confirmation are required")
+		return fmt.Errorf("RESTORE_CONFIRMATION_REQUIRED: operator reauthentication and high-risk confirmation are required")
 	}
 	var bk backup.Job
 	if err := s.DB.WithContext(ctx).Where("backup_id = ?", req.BackupID).First(&bk).Error; err != nil {
 		return err
 	}
 	if bk.Status != backup.StatusCompleted || bk.VerificationStatus != backup.VerificationPassed {
-		return fmt.Errorf("backup must be completed and verified before restore")
+		return fmt.Errorf("RESTORE_BACKUP_NOT_VERIFIED: backup must be completed and verified before restore")
 	}
 	if bk.Checksum == "" {
-		return fmt.Errorf("backup checksum is required before restore")
+		return fmt.Errorf("RESTORE_BACKUP_CHECKSUM_REQUIRED: backup checksum is required before restore")
 	}
 	if bk.Encrypted && bk.EncryptionKeyID == "" {
-		return fmt.Errorf("encrypted backup is missing key reference")
+		return fmt.Errorf("RESTORE_BACKUP_KEY_REQUIRED: encrypted backup is missing key reference")
+	}
+	if !backup.ManifestChecksumValid(bk.ManifestJSON) {
+		return fmt.Errorf("RESTORE_MANIFEST_CHECKSUM_MISMATCH: backup manifest checksum mismatch")
+	}
+	if err := s.ensureTargetDatabaseEmpty(ctx, req.TargetDatabaseName); err != nil {
+		return err
 	}
 	_ = backupruntime.RedactCommandOutput("restore target checked")
+	return nil
+}
+
+func (s *Service) runPgRestore(ctx context.Context, row *Job, targetDB string) error {
+	if s == nil || s.DB == nil || s.Cfg == nil {
+		return fmt.Errorf("restore service unavailable")
+	}
+	var artifact backup.Artifact
+	if err := s.DB.WithContext(ctx).Where("backup_id = ?", row.BackupID).Order("created_at DESC").First(&artifact).Error; err != nil {
+		return err
+	}
+	if strings.TrimSpace(artifact.LocalPath) == "" {
+		return fmt.Errorf("RESTORE_ARTIFACT_UNAVAILABLE: backup artifact local path is unavailable")
+	}
+	if err := backupruntime.VerifySHA256File(artifact.LocalPath, artifact.SHA256, 1); err != nil {
+		return fmt.Errorf("RESTORE_CHECKSUM_MISMATCH: %w", err)
+	}
+	var bk backup.Job
+	if err := s.DB.WithContext(ctx).Where("backup_id = ?", row.BackupID).First(&bk).Error; err != nil {
+		return err
+	}
+	plainPath := artifact.LocalPath
+	cleanupPlain := false
+	if bk.Encrypted {
+		var manifest backup.Manifest
+		if err := json.Unmarshal(bk.ManifestJSON, &manifest); err != nil {
+			return fmt.Errorf("RESTORE_MANIFEST_INVALID: %w", err)
+		}
+		if strings.TrimSpace(manifest.WrappedDataKey) == "" {
+			return fmt.Errorf("RESTORE_ENCRYPTION_METADATA_MISSING: wrapped data key is required")
+		}
+		tmpDir, err := os.MkdirTemp("", "trademind-p6v-restore-*")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = os.RemoveAll(tmpDir) }()
+		plainPath = filepath.Join(tmpDir, row.RestoreID+".dump")
+		env := backupruntime.Envelope{WrappedDataKey: manifest.WrappedDataKey}
+		if err := backupruntime.DecryptFile(artifact.LocalPath, plainPath, env, s.Enc); err != nil {
+			return fmt.Errorf("RESTORE_DECRYPT_INTEGRITY_FAILED: %w", err)
+		}
+		cleanupPlain = true
+	}
+	if cleanupPlain {
+		defer func() { _ = os.Remove(plainPath) }()
+	}
+	listBinary, listArgs, err := backupruntime.RestoreListCommand(s.Cfg.PostgresBackup.PGRestorePath, plainPath)
+	if err != nil {
+		return err
+	}
+	timeout := time.Duration(s.Cfg.Backup.CommandTimeoutSeconds) * time.Second
+	if err := backupruntime.RunCommand(ctx, timeout, listBinary, listArgs, nil); err != nil {
+		return fmt.Errorf("RESTORE_LIST_FAILED: %w", err)
+	}
+	row.Status = StatusRunning
+	if err := s.DB.WithContext(ctx).Save(row).Error; err != nil {
+		return err
+	}
+	binary, args, env, err := backupruntime.RestoreCommand(s.Cfg.PostgresBackup.PGRestorePath, plainPath, backupruntime.PostgresTarget{
+		Host: s.Cfg.DB.Host, Port: s.Cfg.DB.Port, User: s.Cfg.DB.User, Password: s.Cfg.DB.Password, Database: targetDB,
+	})
+	if err != nil {
+		return err
+	}
+	if err := backupruntime.RunCommand(ctx, timeout, binary, args, env); err != nil {
+		return fmt.Errorf("RESTORE_COMMAND_FAILED: %w", err)
+	}
+	report, _ := json.Marshal(map[string]any{
+		"pgRestoreList": "passed",
+		"pgRestore":     "passed",
+		"targetHash":    hashTarget(targetDB),
+	})
+	row.ReportJSON = datatypes.JSON(report)
+	return nil
+}
+
+func (s *Service) ensureTargetDatabaseEmpty(ctx context.Context, targetDB string) error {
+	if s == nil || s.Cfg == nil {
+		return fmt.Errorf("restore config unavailable")
+	}
+	if s.Cfg.DB.Driver != "postgres" {
+		return nil
+	}
+	dsn := fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%d sslmode=disable TimeZone=%s",
+		s.Cfg.DB.Host, s.Cfg.DB.User, s.Cfg.DB.Password, targetDB, s.Cfg.DB.Port, s.Cfg.DB.Timezone,
+	)
+	db, err := gorm.Open(gpostgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("RESTORE_TARGET_CONNECT_FAILED: %w", err)
+	}
+	sqlDB, err := db.DB()
+	if err == nil {
+		defer func() { _ = sqlDB.Close() }()
+	}
+	var count int64
+	err = db.WithContext(ctx).Raw(`
+		SELECT count(*)
+		FROM information_schema.tables
+		WHERE table_schema = 'public'
+		  AND table_type = 'BASE TABLE'
+		  AND table_name NOT LIKE 'pg_%'
+		  AND table_name NOT LIKE 'sql_%'
+	`).Scan(&count).Error
+	if err != nil {
+		return fmt.Errorf("RESTORE_TARGET_INSPECT_FAILED: %w", err)
+	}
+	if count > 0 {
+		return fmt.Errorf("RESTORE_TARGET_NOT_EMPTY: target database contains business tables/data")
+	}
 	return nil
 }
 

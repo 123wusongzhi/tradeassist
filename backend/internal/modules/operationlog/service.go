@@ -132,6 +132,7 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 	row := &OperationLog{
 		AdminUserID: adminID,
 		Username:    username,
+		TenantID:    opts.TenantID,
 		Action:      strings.TrimSpace(opts.Action),
 		Resource:    strings.TrimSpace(opts.Resource),
 		ResourceID:  strings.TrimSpace(opts.ResourceID),
@@ -140,8 +141,14 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 		RequestID:   "",
 		Status:      strings.TrimSpace(opts.Status),
 		Message:     truncateRunes(opts.Message, 2000),
+		CreatedAt:   time.Now().UTC(),
 	}
-	return s.DB.WithContext(ctx).Create(row).Error
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.appendHashChain(tx, row); err != nil {
+			return err
+		}
+		return tx.Create(row).Error
+	})
 }
 
 // ListQuery binds query params for listing operation logs.

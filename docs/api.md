@@ -441,7 +441,7 @@ All P6 write operations require Bearer authentication and backend RBAC. The fron
 | `GET` | `/api/v1/ops/dr/status` | `dr.read` | 灾备状态与 Deferred 项。 |
 | `POST` | `/api/v1/ops/dr/drills` | `dr.execute` | 记录隔离演练；必须确认隔离环境。 |
 
-P6 does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
+P6-VR closure evidence is recorded in `docs/P6_VR_FINAL_CLOSURE_REPORT.md`: isolated restore, isolated release rollback, Linux race, and final gates passed. P6 still does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
 
 ## 修改 API 时的同步要求
 
