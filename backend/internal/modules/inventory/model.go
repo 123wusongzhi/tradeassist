@@ -13,7 +13,7 @@ type InventoryChangeLog struct {
 	model.HardDeleteBase
 	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	ProductID        uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
-	ProductSKUID     uuid.UUID  `gorm:"type:char(36);index;not null" json:"productSkuId"`
+	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id;type:char(36);index;not null" json:"productSkuId"`
 	ChangeType       string     `gorm:"size:48;index;not null" json:"changeType"`
 	BeforeStock      int        `gorm:"not null" json:"beforeStock"`
 	AfterStock       int        `gorm:"not null" json:"afterStock"`
@@ -61,7 +61,7 @@ type InventorySyncTask struct {
 	BatchID          *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
 	BatchNo          string         `gorm:"size:64;index" json:"batchNo,omitempty"`
 	ProductID        uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
-	ProductSKUID     *uuid.UUID     `gorm:"type:char(36);index" json:"productSkuId,omitempty"`
+	ProductSKUID     *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
 	PublicationID    *uuid.UUID     `gorm:"type:char(36);index" json:"publicationId,omitempty"`
 	PublicationSkuID *uuid.UUID     `gorm:"type:char(36);index" json:"publicationSkuId,omitempty"`
 	ShopID           uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`

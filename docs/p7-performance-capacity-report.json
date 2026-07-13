@@ -1,8 +1,8 @@
 {
   "phase": "P7",
   "status": "incomplete",
-  "failed": 5,
-  "passed": 53,
+  "failed": 4,
+  "passed": 54,
   "results": [
     {
       "id": "p7-config",
@@ -271,7 +271,7 @@
     },
     {
       "id": "medium-dataset-validation",
-      "status": "failed",
+      "status": "passed",
       "detail": "requires real medium dataset generation evidence"
     },
     {

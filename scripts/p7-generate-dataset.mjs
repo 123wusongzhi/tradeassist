@@ -4,13 +4,18 @@ import path from 'node:path';
 
 const root = process.cwd();
 const docs = path.join(root, 'docs');
-const reportPath = path.join(docs, 'p7-dataset-generation-report.json');
-const mdPath = path.join(docs, 'P7_DATASET_GENERATION_REPORT.md');
+const legacyReportPath = path.join(docs, 'p7-dataset-generation-report.json');
+const legacyMdPath = path.join(docs, 'P7_DATASET_GENERATION_REPORT.md');
+const vReportPath = path.join(docs, 'p7-v-medium-dataset-report.json');
+const vMdPath = path.join(docs, 'P7_V_MEDIUM_DATASET_REPORT.md');
 
 const args = process.argv.slice(2);
 const profile = valueOf('--profile') || 'small';
-const dryRun = !args.includes('--write');
-const runId = valueOf('--run-id') || `p7-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+const execute = args.includes('--execute') || args.includes('--write');
+const cleanupOnly = args.includes('--cleanup-only');
+const dryRun = !execute && !cleanupOnly;
+const runId = valueOf('--run-id') || `p7v-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+const batchSize = valueOf('--batch-size') || '';
 
 function valueOf(name) {
   const idx = args.indexOf(name);
@@ -20,53 +25,105 @@ function valueOf(name) {
   return hit ? hit.slice(prefix.length) : '';
 }
 
-const goArgs = ['run', './cmd/p7load', '--profile', profile, '--run-id', runId];
-if (dryRun) goArgs.push('--dry-run=true');
-else goArgs.push('--dry-run=false');
+function parseJSON(stdout) {
+  const trimmed = stdout.trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(trimmed.slice(start, end + 1));
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
 
+const goArgs = ['run', './cmd/p7load', '--profile', profile, '--run-id', runId];
+if (execute) goArgs.push('--execute');
+if (cleanupOnly) goArgs.push('--cleanup-only');
+if (dryRun) goArgs.push('--dry-run=true');
+if (batchSize) goArgs.push('--batch-size', batchSize);
+
+const started = new Date();
 const res = spawnSync('go', goArgs, {
   cwd: path.join(root, 'backend'),
   env: process.env,
   encoding: 'utf8',
-  timeout: 5 * 60 * 1000,
+  timeout: 6 * 60 * 60 * 1000,
+  maxBuffer: 20 * 1024 * 1024,
 });
 
-let parsed = null;
-try {
-  parsed = JSON.parse(res.stdout.trim());
-} catch {
-  parsed = {
-    phase: 'P7',
-    status: 'command_failed',
-    runId,
-    profile,
-    dryRun,
-    issues: ['p7load did not return JSON'],
-    stdout: res.stdout.slice(0, 2000),
-    stderr: res.stderr.slice(0, 2000),
-  };
-}
+const parsed = parseJSON(res.stdout) || {
+  phase: 'P7-V',
+  status: 'command_failed',
+  runId,
+  profile,
+  dryRun,
+  issues: ['p7load did not return JSON'],
+  stdout: res.stdout.slice(0, 4000),
+  stderr: res.stderr.slice(0, 4000),
+};
+
 parsed.command = `go ${goArgs.join(' ')}`;
 parsed.exitCode = res.status ?? 1;
-parsed.stderr = res.stderr ? res.stderr.slice(0, 2000) : '';
+parsed.stderr = res.stderr ? res.stderr.slice(0, 4000) : '';
+parsed.scriptStartedAt = started.toISOString();
+parsed.scriptFinishedAt = new Date().toISOString();
 
 fs.mkdirSync(docs, { recursive: true });
-fs.writeFileSync(reportPath, `${JSON.stringify(parsed, null, 2)}\n`);
-fs.writeFileSync(mdPath, `# P7 Dataset Generation Report
+fs.writeFileSync(legacyReportPath, `${JSON.stringify(parsed, null, 2)}\n`);
+fs.writeFileSync(legacyMdPath, markdown(parsed, 'P7 Dataset Generation Report'));
 
-Status: ${parsed.status}
+if (profile.toLowerCase() === 'medium' || execute || cleanupOnly) {
+  fs.writeFileSync(vReportPath, `${JSON.stringify(parsed, null, 2)}\n`);
+  fs.writeFileSync(vMdPath, markdown(parsed, 'P7-V Medium Dataset Report'));
+}
 
-| Field | Value |
-| --- | --- |
-| Run ID | ${parsed.runId || runId} |
-| Profile | ${parsed.profile || profile} |
-| Dry run | ${String(parsed.dryRun)} |
-| Rows planned | ${String(parsed.rowsPlanned || 0)} |
-| Rows written | ${String(parsed.rowsWritten || 0)} |
-| Exit code | ${String(parsed.exitCode)} |
-
-This report is generated from the guarded P7 loader. A dry run or a plan-only DB record is not large dataset validation.
-`);
-
-console.log(JSON.stringify({ phase: 'P7', status: parsed.status, exitCode: parsed.exitCode, report: path.relative(root, reportPath) }, null, 2));
+console.log(JSON.stringify({
+  phase: 'P7-V',
+  status: parsed.status,
+  exitCode: parsed.exitCode,
+  report: path.relative(root, profile.toLowerCase() === 'medium' || execute || cleanupOnly ? vReportPath : legacyReportPath),
+}, null, 2));
 process.exit(res.status ?? 1);
+
+function markdown(data, title) {
+  const rows = [
+    ['Run ID', data.runId || runId],
+    ['Profile', data.profile || profile],
+    ['Dry run', String(Boolean(data.dryRun))],
+    ['Planned rows', String(data.plannedRows ?? data.rowsPlanned ?? 0)],
+    ['Inserted rows', String(data.insertedRows ?? data.rowsWritten ?? 0)],
+    ['Existing rows', String(data.existingRows ?? 0)],
+    ['Skipped rows', String(data.skippedRows ?? 0)],
+    ['Failed rows', String(data.failedRows ?? 0)],
+    ['Actual rows', String(data.actualRows ?? data.rowsWritten ?? 0)],
+    ['Batch count', String(data.batchCount ?? 0)],
+    ['Duration ms', String(data.durationMs ?? 0)],
+    ['Peak memory bytes', String(data.peakMemoryBytes ?? 0)],
+    ['Cleanup status', data.cleanupStatus || 'not_requested'],
+    ['Dataset fingerprint', data.datasetFingerprint || ''],
+    ['Exit code', String(data.exitCode ?? 1)],
+  ];
+  const lines = [
+    `# ${title}`,
+    '',
+    `Status: ${data.status}`,
+    '',
+    '| Field | Value |',
+    '| --- | --- |',
+    ...rows.map(([k, v]) => `| ${k} | ${String(v).replaceAll('|', '\\|')} |`),
+    '',
+    'This report is generated by the guarded P7-V loader. A dry run is not medium dataset validation, and isolated performance data must not be described as real production capacity verification.',
+  ];
+  if (Array.isArray(data.issues) && data.issues.length > 0) {
+    lines.push('', '## Issues', '', ...data.issues.map((issue) => `- ${String(issue).replace(/\r?\n/g, ' ')}`));
+  }
+  return `${lines.join('\n')}\n`;
+}

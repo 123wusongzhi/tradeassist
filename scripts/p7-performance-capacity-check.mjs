@@ -126,13 +126,14 @@ for (const rel of [
   requireFile(`runbook:${path.basename(rel)}`, rel);
 }
 
-const dataset = readJSON('docs/p7-dataset-generation-report.json');
-check('medium-dataset-validation', dataset?.status === 'dataset_generated' && dataset?.profile === 'medium' && Number(dataset?.rowsWritten || 0) > 0, 'requires real medium dataset generation evidence');
-const load = readJSON('docs/p7-load-test-report.json');
-check('load-test-passed', load?.status === 'passed' && Number(load?.api?.p95 || 0) > 0, 'requires real load test p95 evidence');
-const soak = readJSON('docs/p7-soak-test-report.json');
-check('soak-test-passed', soak?.status === 'passed' && soak?.memoryLeak === false && soak?.goroutineLeak === false, 'requires real soak test evidence');
-const race = readJSON('docs/p7-race-test-report.json');
+const dataset = readJSON('docs/p7-v-medium-dataset-report.json') || readJSON('docs/p7-dataset-generation-report.json');
+check('medium-dataset-validation', dataset?.status === 'dataset_generated' && dataset?.profile === 'medium' && Number(dataset?.insertedRows ?? dataset?.rowsWritten ?? dataset?.actualRows ?? 0) > 0 && Number(dataset?.failedRows || 0) === 0, 'requires real medium dataset generation evidence');
+const load = readJSON('docs/p7-v-current-load-report.json') || readJSON('docs/p7-load-test-report.json');
+const loadHasP95 = Number(load?.api?.p95 || 0) > 0 || (Array.isArray(load?.scenarios) && load.scenarios.some((s) => Number(s.p95 || 0) > 0));
+check('load-test-passed', load?.status === 'passed' && loadHasP95, 'requires real load test p95 evidence');
+const soak = readJSON('docs/p7-v-soak-test-report.json') || readJSON('docs/p7-soak-test-report.json');
+check('soak-test-passed', soak?.status === 'passed' && (soak?.memoryLeak === false || soak?.unboundedMemoryGrowth === false) && soak?.goroutineLeak === false, 'requires real soak test evidence');
+const race = readJSON('docs/p7-v-race-test-report.json') || readJSON('docs/p7-race-test-report.json');
 check('linux-race-passed', race?.status === 'passed' && Number(race?.dataRaces || -1) === 0, 'requires Linux/WSL2 race evidence');
 const acceptance = readJSON('docs/p7-development-acceptance-report.json');
 check('development-acceptance', acceptance?.run1CodeFailed === 0 && acceptance?.run2CodeFailed === 0 && acceptance?.run1NonAiFailed === 0 && acceptance?.run2NonAiFailed === 0, 'requires two demo:auto-acceptance runs with codeFailed/nonAiFailed=0');

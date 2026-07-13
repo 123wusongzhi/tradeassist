@@ -2,7 +2,7 @@
   "phase": "P7",
   "status": "incomplete",
   "failed": 6,
-  "passed": 0,
+  "passed": 1,
   "regressionThresholdPct": 20,
   "errorRateThreshold": 0.01,
   "checks": [
@@ -33,8 +33,13 @@
     },
     {
       "id": "current-load-report",
-      "status": "failed",
+      "status": "passed",
       "detail": "docs/p7-load-test-report.json"
+    },
+    {
+      "id": "current-metrics-present",
+      "status": "failed",
+      "detail": "load report must include metrics with baseline/current p95 and error rate"
     }
   ]
 }

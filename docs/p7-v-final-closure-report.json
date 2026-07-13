@@ -1,0 +1,265 @@
+{
+  "phase": "P7-V",
+  "status": "incomplete",
+  "failed": 20,
+  "passed": 19,
+  "checks": [
+    {
+      "id": "capability-audit-exists",
+      "status": "passed",
+      "detail": "docs/p7-v-capability-completeness-audit.json contains capability matrix",
+      "evidence": ""
+    },
+    {
+      "id": "mandatory-capabilities-implemented",
+      "status": "failed",
+      "detail": "all mandatory P7-V capabilities implemented or explicitly not_applicable",
+      "evidence": ""
+    },
+    {
+      "id": "no-unexplained-na",
+      "status": "passed",
+      "detail": "not_applicable entries explain reason",
+      "evidence": ""
+    },
+    {
+      "id": "no-partial-or-missing",
+      "status": "failed",
+      "detail": "no unclosed partial/missing capability",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-report",
+      "status": "passed",
+      "detail": "medium dataset JSON report exists",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-executed",
+      "status": "passed",
+      "detail": "profile=medium and dryRun=false",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-inserted",
+      "status": "passed",
+      "detail": "insertedRows or existingRows > 0",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-failed-zero",
+      "status": "passed",
+      "detail": "failedRows=0",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-counts-match",
+      "status": "passed",
+      "detail": "actualRows equals plannedRows",
+      "evidence": ""
+    },
+    {
+      "id": "medium-dataset-fingerprint",
+      "status": "passed",
+      "detail": "dataset fingerprint present",
+      "evidence": ""
+    },
+    {
+      "id": "dataset-integrity-passed",
+      "status": "passed",
+      "detail": "dataset integrity passed",
+      "evidence": ""
+    },
+    {
+      "id": "dataset-idempotency-passed",
+      "status": "passed",
+      "detail": "dataset idempotency passed",
+      "evidence": ""
+    },
+    {
+      "id": "dataset-resume-passed",
+      "status": "failed",
+      "detail": "dataset resume passed",
+      "evidence": ""
+    },
+    {
+      "id": "pagination-runtime-passed",
+      "status": "failed",
+      "detail": "pagination runtime passed",
+      "evidence": ""
+    },
+    {
+      "id": "cursor-tamper-rejected",
+      "status": "failed",
+      "detail": "tampered cursor rejected",
+      "evidence": ""
+    },
+    {
+      "id": "cross-tenant-rejected",
+      "status": "failed",
+      "detail": "cross-tenant cursor rejected",
+      "evidence": ""
+    },
+    {
+      "id": "deep-offset-guard",
+      "status": "failed",
+      "detail": "deep offset guard passed",
+      "evidence": ""
+    },
+    {
+      "id": "query-plan-passed",
+      "status": "failed",
+      "detail": "query plan runtime report passed",
+      "evidence": ""
+    },
+    {
+      "id": "n-plus-one-passed",
+      "status": "failed",
+      "detail": "N+1 runtime check passed",
+      "evidence": ""
+    },
+    {
+      "id": "load-baseline-exists",
+      "status": "failed",
+      "detail": "initial baseline exists and passed",
+      "evidence": ""
+    },
+    {
+      "id": "current-load-exists",
+      "status": "failed",
+      "detail": "current load report exists and passed",
+      "evidence": ""
+    },
+    {
+      "id": "load-environment-comparable",
+      "status": "failed",
+      "detail": "baseline/current dataset fingerprint comparable",
+      "evidence": ""
+    },
+    {
+      "id": "load-scenarios-executed",
+      "status": "failed",
+      "detail": "all load scenarios executed",
+      "evidence": ""
+    },
+    {
+      "id": "load-percentiles-present",
+      "status": "passed",
+      "detail": "p50/p95/p99 present",
+      "evidence": ""
+    },
+    {
+      "id": "load-error-rate-present",
+      "status": "passed",
+      "detail": "error rate present",
+      "evidence": ""
+    },
+    {
+      "id": "regression-gate-passed",
+      "status": "failed",
+      "detail": "P7 regression gate failed=0",
+      "evidence": ""
+    },
+    {
+      "id": "soak-passed",
+      "status": "failed",
+      "detail": "soak test passed",
+      "evidence": ""
+    },
+    {
+      "id": "soak-duration",
+      "status": "failed",
+      "detail": "soak duration >= 30 minutes",
+      "evidence": ""
+    },
+    {
+      "id": "soak-memory-stable",
+      "status": "passed",
+      "detail": "unbounded memory growth=false",
+      "evidence": ""
+    },
+    {
+      "id": "soak-goroutine-stable",
+      "status": "passed",
+      "detail": "goroutine leak=false",
+      "evidence": ""
+    },
+    {
+      "id": "soak-recovered",
+      "status": "passed",
+      "detail": "connections/inflight recovered and shutdown passed",
+      "evidence": ""
+    },
+    {
+      "id": "linux-race-passed",
+      "status": "failed",
+      "detail": "Linux/WSL2 race executed and passed",
+      "evidence": ""
+    },
+    {
+      "id": "linux-race-zero",
+      "status": "passed",
+      "detail": "dataRaces=0 and deadlocks=0",
+      "evidence": ""
+    },
+    {
+      "id": "p7-static-gate-passed",
+      "status": "failed",
+      "detail": "P7 capacity/static gate failed=0",
+      "evidence": ""
+    },
+    {
+      "id": "demo-run-1-passed",
+      "status": "failed",
+      "detail": "demo:auto-acceptance run 1 codeFailed/nonAiFailed=0",
+      "evidence": ""
+    },
+    {
+      "id": "demo-run-2-passed",
+      "status": "failed",
+      "detail": "demo:auto-acceptance run 2 codeFailed/nonAiFailed=0",
+      "evidence": ""
+    },
+    {
+      "id": "no-production-load",
+      "status": "passed",
+      "detail": "no production load test requested or recorded",
+      "evidence": ""
+    },
+    {
+      "id": "no-real-provider",
+      "status": "passed",
+      "detail": "P7-V remains mock provider only",
+      "evidence": ""
+    },
+    {
+      "id": "no-production-ready",
+      "status": "passed",
+      "detail": "Production Ready remains false/deferred",
+      "evidence": ""
+    }
+  ],
+  "capabilityAudit": {
+    "mandatoryImplemented": 24,
+    "partial": 33,
+    "missing": 0
+  },
+  "dataset": {
+    "profile": "medium",
+    "dryRun": false,
+    "plannedRows": 1900150,
+    "insertedRows": 1900150,
+    "failedRows": 0,
+    "integrity": "passed",
+    "idempotency": "passed",
+    "resume": "pending",
+    "cleanup": "not_requested",
+    "fingerprint": "dd691cc86f40107647c81533c829d04be44de704737f9522cdfa855863ccaa9c"
+  },
+  "realProductionPerformanceVerification": "deferred",
+  "realProductionCapacityVerification": "deferred",
+  "realProductionPeakLoadVerification": "deferred",
+  "douyinRealCredentialVerification": "deferred",
+  "productionReady": false,
+  "tag": "deferred"
+}

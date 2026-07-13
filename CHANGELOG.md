@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P7-V - Medium dataset and closure gate hardening (2026-07-13)
+
+- Reworked `p7load` from a plan-only recorder into a guarded PostgreSQL dataset loader with batch writes, idempotent reruns, run-scoped cleanup, real row counts and deterministic dataset fingerprints.
+- Added P7-V scripts for isolated performance environment startup/cleanup, capability audit, k6 load harness, soak harness, WSL/Linux race matrix and final closure gating.
+- Executed an isolated local PostgreSQL Medium dataset run: `plannedRows=1,900,150`, `insertedRows=1,900,150`, `actualRows=1,900,150`, `failedRows=0`; idempotency rerun passed with unchanged fingerprint.
+- Fixed a real migration/model issue exposed by the Medium run by pinning `product_sku_id` / `external_sku_id` GORM column names on order and inventory models.
+- Status: Phase P7-V remains incomplete; capability audit has partial items, k6 is unavailable, Soak is not executed for 30 minutes, regression baseline/current comparison is incomplete, and Linux Race is blocked by missing `internal/pkg/cache` coverage; no tag and not Production Ready.
+
 ### Phase P7 - Performance and capacity foundation started (2026-07-13)
 
 - Added P7 config and production guards for performance-test mode, datasets, pagination, DB pool, worker capacity, rate limits, cache, export and pprof.

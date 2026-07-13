@@ -1,4 +1,4 @@
-# P7 Dataset Generation Report
+# P7-V Medium Dataset Report
 
 Status: dataset_generated
 

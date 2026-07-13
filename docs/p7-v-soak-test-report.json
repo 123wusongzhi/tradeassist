@@ -1,0 +1,33 @@
+{
+  "phase": "P7-V",
+  "status": "blocked",
+  "runId": "p7v-medium-20260713",
+  "baseUrl": "http://127.0.0.1:8080/",
+  "durationMinutes": 0,
+  "startedAt": "2026-07-13T12:03:40.175Z",
+  "finishedAt": "2026-07-13T12:03:40.176Z",
+  "requests": 0,
+  "failures": 0,
+  "errorRate": 0,
+  "memoryPeakBytes": 0,
+  "goroutinePeak": 0,
+  "activeHandlePeak": 0,
+  "unboundedMemoryGrowth": false,
+  "goroutineLeak": false,
+  "connectionsRecovered": true,
+  "inflightRecovered": true,
+  "shutdownPassed": true,
+  "samples": [],
+  "environment": {
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "cpuCores": 12,
+    "memory": 17010700288,
+    "node": "v22.15.0"
+  },
+  "issues": [
+    "duration-minutes must be 1..120, got 0"
+  ],
+  "productionReady": false,
+  "realProductionPerformanceVerification": "deferred"
+}

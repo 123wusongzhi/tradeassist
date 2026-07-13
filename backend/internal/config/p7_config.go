@@ -61,7 +61,7 @@ func loadP7Config(appEnv string) P7Config {
 		ExternalProviderMode:       strings.ToLower(strings.TrimSpace(firstNonEmpty(getenv("EXTERNAL_PROVIDER_MODE"), "real"))),
 		DouyinWriteEnabled:         envBool(getenv("DOUYIN_WRITE_ENABLED"), false),
 		AutoListingEnabled:         envBool(getenv("AUTO_LISTING_ENABLED"), false),
-		PerformanceDatasetMaxRows:  atoiOrDefault(getenv("PERFORMANCE_DATASET_MAX_ROWS"), 100000),
+		PerformanceDatasetMaxRows:  atoiOrDefault(getenv("PERFORMANCE_DATASET_MAX_ROWS"), 2000000),
 		PerformanceTestMaxVUs:      atoiOrDefault(getenv("PERFORMANCE_TEST_MAX_VUS"), 50),
 		PerformanceTestMaxDuration: atoiOrDefault(getenv("PERFORMANCE_TEST_MAX_DURATION_SECONDS"), 1800),
 

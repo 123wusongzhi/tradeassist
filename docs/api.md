@@ -445,7 +445,7 @@ P6-VR closure evidence is recorded in `docs/P6_VR_FINAL_CLOSURE_REPORT.md`: isol
 
 ## P7 Performance / Capacity API Status
 
-P7 currently adds backend configuration, database tables, local rate-limit middleware and validation scripts, but does **not** expose public management APIs yet.
+P7 currently adds backend configuration, database tables, local rate-limit middleware, guarded dataset / load / soak / race scripts and validation gates, but does **not** expose public management APIs yet. P7-V has real isolated Medium dataset evidence (`insertedRows=1,900,150`, `failedRows=0`), while load, soak, regression and final closure remain incomplete and must not be described as production performance verification.
 
 Planned ops routes remain design-only until implemented with RBAC, re-authentication for writes and audit logging:
 
