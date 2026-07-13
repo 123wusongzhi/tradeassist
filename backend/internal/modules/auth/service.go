@@ -8,6 +8,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +17,7 @@ type LoginService struct {
 	Cfg      *config.Config
 	Admins   *admin.Store
 	Sessions *SessionService
+	Metrics  *metrics.Catalog
 }
 
 // LoginResult is returned to HTTP layer.
@@ -39,11 +41,14 @@ func (s *LoginService) Login(ctx context.Context, account, password, ip, userAge
 	if s == nil || s.Admins == nil || s.Cfg == nil {
 		return nil, fmt.Errorf("auth: misconfigured")
 	}
+	s.ObserveAuth("login_attempt", "success", "attempt", "password")
 	if s.Sessions != nil && (s.Cfg.UsesSecureSession() || s.Cfg.Auth.SessionMode == config.AuthSessionModeSecure) {
 		res, err := s.Sessions.CreateSession(ctx, account, password, ip, userAgent)
 		if err != nil {
+			s.ObserveAuth("login_failure", "failure", classifyAuthReason(err), "password")
 			return nil, err
 		}
+		s.ObserveAuth("login_success", "success", "success", "password")
 		return &LoginResult{
 			Token:        res.AccessToken,
 			RefreshToken: res.RefreshToken,
@@ -51,7 +56,13 @@ func (s *LoginService) Login(ctx context.Context, account, password, ip, userAge
 			User:         res.User,
 		}, nil
 	}
-	return s.legacyLogin(ctx, account, password)
+	res, err := s.legacyLogin(ctx, account, password)
+	if err != nil {
+		s.ObserveAuth("login_failure", "failure", classifyAuthReason(err), "password")
+		return nil, err
+	}
+	s.ObserveAuth("login_success", "success", "success", "password")
+	return res, nil
 }
 
 func (s *LoginService) legacyLogin(ctx context.Context, account, password string) (*LoginResult, error) {

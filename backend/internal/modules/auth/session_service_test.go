@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -17,7 +18,8 @@ import (
 )
 
 func TestRefreshTokenConcurrentRotation(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	testID := uuid.NewString()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", testID)), &gorm.Config{})
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}
@@ -26,10 +28,11 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 	}
 	hash, _ := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.DefaultCost)
 	uid := uuid.New()
+	email := fmt.Sprintf("test-%s@example.com", testID)
 	if err := db.Create(&admin.AdminUser{
 		Base:         model.Base{ID: uid},
-		Username:     "testuser",
-		Email:        "test@example.com",
+		Username:     "testuser-" + testID,
+		Email:        email,
 		PasswordHash: string(hash),
 		Role:         "admin",
 		Status:       "active",
@@ -45,7 +48,7 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 		},
 	}
 	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
-	res, err := svc.CreateSession(context.Background(), "test@example.com", "test-password-123", "127.0.0.1", "test")
+	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +85,7 @@ func TestHashTokenStable(t *testing.T) {
 }
 
 func TestLoginGuardLockout(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
 	}

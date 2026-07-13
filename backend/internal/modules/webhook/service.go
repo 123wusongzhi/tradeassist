@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -26,6 +27,7 @@ type Service struct {
 	Verifiers       *Registry
 	ShopResolver    WebhookShopResolver
 	OrderHandler    OrderEventHandler
+	Metrics         *metrics.Catalog
 	MaxPayloadBytes int64
 	MaxClockSkew    time.Duration
 	AppEnv          string
@@ -96,6 +98,7 @@ func (s *Service) ValidateTimestamp(ts time.Time, required bool) error {
 
 // Ingest stores webhook event idempotently and returns fast ACK metadata.
 func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult, error) {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("webhook: unavailable")
 	}
@@ -104,9 +107,11 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		return nil, fmt.Errorf("platform is required")
 	}
 	if len(req.Payload) > int(s.maxPayload()) {
+		s.ObserveWebhook(platform, req.EventType, "payload_rejected", "failure", CodePayloadTooLarge, 0)
 		return nil, newCodeError(CodePayloadTooLarge, http.StatusRequestEntityTooLarge, CodePayloadTooLarge)
 	}
 	if err := s.ValidateTimestamp(req.Timestamp, !req.Timestamp.IsZero()); err != nil {
+		s.ObserveWebhook(platform, req.EventType, "replay_rejected", "failure", CodeTimestampExpired, 0)
 		return nil, err
 	}
 	eventID := strings.TrimSpace(req.EventID)
@@ -121,6 +126,8 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	var existing Event
 	err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&existing).Error
 	if err == nil {
+		s.ObserveWebhook(platform, req.EventType, "duplicate", "duplicate", "", 0)
+		s.ObserveWebhook(platform, req.EventType, "request", "success", "", time.Since(start))
 		return &IngestResult{EventID: eventID, Status: existing.Status, Duplicate: true}, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -176,11 +183,13 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	}).Create(&ev)
 	if createRes.Error != nil {
 		s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
+		s.ObserveWebhook(platform, req.EventType, "request", "failure", CodeStoreFailed, time.Since(start))
 		return nil, createRes.Error
 	}
 
 	if err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&ev).Error; err != nil {
 		s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
+		s.ObserveWebhook(platform, req.EventType, "request", "failure", CodeStoreFailed, time.Since(start))
 		return nil, err
 	}
 
@@ -194,6 +203,8 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 				ResourceID:      eventID,
 			})
 		}
+		s.ObserveWebhook(platform, req.EventType, "duplicate", "duplicate", "", 0)
+		s.ObserveWebhook(platform, req.EventType, "request", "success", "", time.Since(start))
 		return &IngestResult{EventID: eventID, Status: ev.Status, Duplicate: true}, nil
 	}
 
@@ -209,6 +220,8 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		}
 	}
 
+	s.ObserveWebhook(platform, req.EventType, "persisted", "success", "", 0)
+	s.ObserveWebhook(platform, req.EventType, "request", "success", "", time.Since(start))
 	return &IngestResult{EventID: eventID, Status: ev.Status, Duplicate: false}, nil
 }
 

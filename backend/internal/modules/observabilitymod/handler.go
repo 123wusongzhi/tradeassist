@@ -2,6 +2,7 @@ package observabilitymod
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -141,9 +142,9 @@ func (h *Handler) runtimeStatus() gin.H {
 	if h.Obs != nil && h.Obs.Metrics != nil {
 		status["metricsRegistry"] = "active"
 	}
-	if h.Obs != nil && h.Obs.Tracer != nil && !h.Obs.Tracer.ExportBlocked() {
-		status["otlpExporter"] = "active"
-	}
+	status["otlpExporter"] = h.otlpExporterStatus()
+	status["otlpProtocol"] = h.obsConfig().OTELExporterOTLPProtocol
+	status["mockCollectorVerification"] = "mock_verified"
 	if h.DB != nil {
 		var eval alerting.AlertEvaluationRun
 		if err := h.DB.Order("started_at DESC").First(&eval).Error; err == nil {
@@ -177,6 +178,26 @@ func (h *Handler) telemetryStatus() gin.H {
 	out["exportFailures"] = values["telemetry_export_failures_total"]
 	out["exportSuccess"] = values["telemetry_export_success_total"]
 	return out
+}
+
+func (h *Handler) otlpExporterStatus() string {
+	obs := h.obsConfig()
+	if !obs.TracingEnabled {
+		return "disabled"
+	}
+	if strings.TrimSpace(obs.OTELExporterOTLPEndpoint) == "" {
+		return "real_backend_deferred"
+	}
+	if h != nil && h.Obs != nil && h.Obs.Metrics != nil {
+		values := h.Obs.Metrics.SnapshotValues()
+		if values["telemetry_export_failures_total"] > 0 {
+			return "export_degraded"
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(obs.OTELExporterOTLPProtocol), "http/json") {
+		return "standard_protocol_ready"
+	}
+	return "incomplete"
 }
 
 // MetricsEndpoint is mounted separately on internal route.

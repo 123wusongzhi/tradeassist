@@ -56,6 +56,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
@@ -195,8 +196,12 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	adminStore := &admin.Store{DB: dep.DB}
-	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore}
-	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc}
+	var metricCatalog *metrics.Catalog
+	if dep.Obs != nil {
+		metricCatalog = dep.Obs.Catalog
+	}
+	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
 	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := dep.OpLog
 	if opLogSvc == nil {
@@ -215,7 +220,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	if dep.Config != nil {
 		maxUp = dep.Config.MaxUploadBytes()
 	}
-	fileSvc := &files.Service{DB: dep.DB, Redis: dep.Redis, Settings: settingsSvc, MaxBytes: maxUp}
+	fileSvc := &files.Service{DB: dep.DB, Redis: dep.Redis, Settings: settingsSvc, MaxBytes: maxUp, Metrics: metricCatalog}
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
@@ -298,6 +303,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Products:    productSvc,
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	aiProductTextH := &aiproducttext.Handler{Svc: aiProductTextSvc}
 
@@ -308,6 +314,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Image:       imageTaskSvc,
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
@@ -392,6 +399,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Settings:    settingsSvc,
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	if dep.Config != nil {
 		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
@@ -417,6 +425,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Inventory:   inventorySvc,
 		OpLog:       opLogSvc,
 		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	if dep.Config != nil {
 		orderSyncSvc.QueueEnabled = dep.Config.OrderSyncQueueEnabled
@@ -645,6 +654,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		DB:          dep.DB,
 		Idempotency: idempotencySvc,
 		Verifiers:   webhookRegistry,
+		Metrics:     metricCatalog,
 		ShopResolver: &webhook.DBWebhookShopResolver{
 			DB: dep.DB,
 			AppEnv: func() string {
@@ -725,7 +735,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
 
-	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc}
+	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc, Metrics: metricCatalog}
 	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
 	securitymod.RegisterRoutes(authed, secH)
 

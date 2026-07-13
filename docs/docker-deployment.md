@@ -48,6 +48,8 @@ REDIS_PUBLISH_PORT=6379
 
 完整环境变量说明见 [env.md](env.md)。修改 Docker 变量时必须同步 `.env.docker.example`、`docker-compose.full.yml`、本文档和 `docs/env.md`。
 
+P5-V 可观测性默认使用 `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`。Docker 本地试用不配置真实 telemetry backend 时，`OTEL_EXPORTER_OTLP_ENDPOINT` 保持为空并视为 Deferred；不要把 Mock Collector 验证写成生产 collector 已上线。
+
 ## 安全配置
 
 生产环境或公网部署前必须修改：

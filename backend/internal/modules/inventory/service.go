@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -28,6 +29,7 @@ type Service struct {
 	Settings     *settings.Service
 	OpLog        *operationlog.Service
 	Idempotency  *idempotency.Service
+	Metrics      *metrics.Catalog
 	QueueEnabled bool
 	QueueName    string
 	TaskTimeout  time.Duration

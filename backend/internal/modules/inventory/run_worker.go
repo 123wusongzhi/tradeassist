@@ -38,6 +38,7 @@ func (s *Service) appendChange(ctx context.Context, productID uuid.UUID, skuID u
 
 // ProcessQueuedTask executes one outbound sync with DB leases + changelog side effects.
 func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("inventory: no db")
 	}
@@ -127,6 +128,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
 			douyinmetrics.RecordInventorySync("failed")
 		}
+		s.ObserveInventory(taskRow.Platform, "push", "push_failure", "failure", classifyInventoryError(msg), 1, time.Since(start))
 		s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 		return fmt.Errorf("%s", msg)
 	}
@@ -206,6 +208,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		Options:           options,
 	})
 	if err != nil {
+		if isInventoryTimeout(err.Error()) {
+			s.ObserveInventory(taskRow.Platform, "push", "unknown_result", "unknown_result", "provider_timeout", 1, time.Since(start))
+		}
 		return fail(err.Error())
 	}
 	beforeMirror := derefStock(psku.Stock)
@@ -272,6 +277,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			douyinmetrics.RecordInventorySync("success")
 		}
 	}
+	s.ObserveInventory(taskRow.Platform, "push", "push", "success", "", 1, time.Since(start))
 	s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 	return nil
 }

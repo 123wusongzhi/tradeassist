@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
@@ -82,6 +83,7 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 	if ev == nil {
 		return nil
 	}
+	start := time.Now()
 	if ev.Status == StatusProcessed || ev.Status == StatusIgnored || ev.Status == StatusDuplicate {
 		return nil
 	}
@@ -139,6 +141,7 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 	if err := s.handlePlatformEvent(ctx, ev); err != nil {
 		_ = s.markFailed(ctx, ev.ID, StatusFailedRetryable, "WEBHOOK_PROCESS_FAILED", err.Error())
 		s.failProcess(ctx, idemJob, "WEBHOOK_PROCESS_FAILED", true)
+		s.ObserveWebhook(ev.Platform, ev.EventType, "processed", "failure", "process_failed", time.Since(start))
 		return err
 	}
 
@@ -151,6 +154,7 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 		"updated_at":    processedAt,
 	}).Error; err != nil {
 		s.failProcess(ctx, idemJob, "WEBHOOK_MARK_PROCESSED_FAILED", true)
+		s.ObserveWebhook(ev.Platform, ev.EventType, "processed", "failure", "mark_processed_failed", time.Since(start))
 		return err
 	}
 
@@ -162,6 +166,13 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 			ResourceType:    "webhook_event",
 			ResourceID:      ev.EventID,
 		})
+	}
+	lag := time.Duration(0)
+	if !ev.CreatedAt.IsZero() {
+		lag = processedAt.Sub(ev.CreatedAt)
+	}
+	if s != nil && s.Metrics != nil {
+		s.Metrics.ObserveWebhookProcessed(safeWebhookPlatform(ev.Platform), eventGroup(ev.EventType), "success", "", time.Since(start), lag)
 	}
 	return nil
 }

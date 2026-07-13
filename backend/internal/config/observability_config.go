@@ -33,8 +33,13 @@ type ObservabilityConfig struct {
 	OTELServiceVersion       string
 	OTELExporterOTLPEndpoint string
 	OTELExporterOTLPProtocol string
+	OTELExporterOTLPHeaders  string
+	OTELExporterOTLPInsecure bool
 	OTELTraceSampleRatio     float64
 	OTELExportTimeoutSeconds int
+	OTELExportQueueSize      int
+	OTELExportBatchSize      int
+	OTELExportRetryMax       int
 	AlertingEnabled          bool
 	AlertDefaultCooldownSecs int
 	AlertRecoveryEnabled     bool
@@ -83,9 +88,14 @@ func LoadObservabilityConfig(appEnv string, appName, appVersion string) Observab
 		OTELServiceName:          firstNonEmpty(os.Getenv("OTEL_SERVICE_NAME"), firstNonEmpty(appName, "trademind-api")),
 		OTELServiceVersion:       firstNonEmpty(os.Getenv("OTEL_SERVICE_VERSION"), appVersion),
 		OTELExporterOTLPEndpoint: strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")),
-		OTELExporterOTLPProtocol: firstNonEmpty(os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL"), "http/protobuf"),
+		OTELExporterOTLPProtocol: firstNonEmpty(os.Getenv("OTEL_EXPORTER_OTLP_PROTOCOL"), "http/json"),
+		OTELExporterOTLPHeaders:  strings.TrimSpace(os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")),
+		OTELExporterOTLPInsecure: envBool(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE"), appEnv == EnvDevelopment || appEnv == EnvTest),
 		OTELTraceSampleRatio:     sampleRatio,
 		OTELExportTimeoutSeconds: atoiOrDefault(os.Getenv("OTEL_EXPORT_TIMEOUT_SECONDS"), 10),
+		OTELExportQueueSize:      boundedInt(os.Getenv("OTEL_EXPORT_QUEUE_SIZE"), 1024, 1, 10000),
+		OTELExportBatchSize:      boundedInt(os.Getenv("OTEL_EXPORT_BATCH_SIZE"), 128, 1, 10000),
+		OTELExportRetryMax:       boundedInt(os.Getenv("OTEL_EXPORT_RETRY_MAX"), 2, 0, 5),
 		AlertingEnabled:          alertingEnabled,
 		AlertDefaultCooldownSecs: atoiOrDefault(os.Getenv("ALERT_DEFAULT_COOLDOWN_SECONDS"), 300),
 		AlertRecoveryEnabled:     envBool(os.Getenv("ALERT_RECOVERY_ENABLED"), true),
@@ -164,6 +174,15 @@ func (c *Config) ValidateObservability() error {
 	if obs.OTELTraceSampleRatio > 0.5 {
 		return fmt.Errorf("OTEL_TRACE_SAMPLE_RATIO exceeds production safe upper bound")
 	}
+	if obs.OTELExportTimeoutSeconds > 30 {
+		return fmt.Errorf("OTEL_EXPORT_TIMEOUT_SECONDS exceeds production safe upper bound")
+	}
+	if obs.OTELExportQueueSize > 10000 {
+		return fmt.Errorf("OTEL_EXPORT_QUEUE_SIZE exceeds production safe upper bound")
+	}
+	if obs.OTELExportBatchSize > obs.OTELExportQueueSize {
+		return fmt.Errorf("OTEL_EXPORT_BATCH_SIZE must not exceed OTEL_EXPORT_QUEUE_SIZE")
+	}
 	return nil
 }
 
@@ -172,5 +191,19 @@ func (o ObservabilityConfig) ExportTimeout() time.Duration {
 	if o.OTELExportTimeoutSeconds <= 0 {
 		return 10 * time.Second
 	}
+	if o.OTELExportTimeoutSeconds > 30 {
+		return 30 * time.Second
+	}
 	return time.Duration(o.OTELExportTimeoutSeconds) * time.Second
+}
+
+func boundedInt(raw string, def, min, max int) int {
+	v := atoiOrDefault(raw, def)
+	if v < min {
+		return min
+	}
+	if v > max {
+		return max
+	}
+	return v
 }

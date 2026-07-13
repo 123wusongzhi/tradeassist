@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -33,6 +34,7 @@ type Service struct {
 	Redis    *rdb.Client
 	Settings *settings.Service
 	MaxBytes int64
+	Metrics  *metrics.Catalog
 }
 
 // UploadResult is returned to the HTTP layer after a successful upload.

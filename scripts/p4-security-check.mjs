@@ -31,7 +31,7 @@ function warn(id, message, detail) { add(id, 'warning', message, detail); }
 // Status copy
 for (const f of ['README.md', 'docs/PROGRESS.md']) {
   const t = read(f);
-  if ((t.includes('Production Ready') && !t.includes('非 Production Ready')) || t.includes('Penetration Test Passed')) fail('status-no-prod-ready', `${f} must not claim Production Ready`);
+  if ((t.includes('Production Ready') && !t.includes('非 Production Ready') && !t.includes('Not Production Ready')) || t.includes('Penetration Test Passed')) fail('status-no-prod-ready', `${f} must not claim Production Ready`);
   else pass('status-no-prod-ready', `${f} ok`);
   if (!t.includes('Security Foundation Implemented') && !t.includes('Phase P4')) warn('status-p4', `${f} may need P4 status`);
 }

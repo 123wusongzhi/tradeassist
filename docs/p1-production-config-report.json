@@ -1,12 +1,12 @@
 {
-  "generatedAt": "2026-07-12T01:41:37.038Z",
+  "generatedAt": "2026-07-13T05:09:34.907Z",
   "phase": "P1",
   "overall": "passed_with_warning",
   "summary": {
-    "passed": 17,
-    "warnings": 3,
+    "passed": 18,
+    "warnings": 1,
     "failed": 0,
-    "total": 20
+    "total": 19
   },
   "checks": [
     {
@@ -15,19 +15,14 @@
       "message": "README.md ok"
     },
     {
-      "id": "status-tag-deferred",
-      "status": "warning",
-      "message": "README.md missing Tag deferred"
-    },
-    {
       "id": "status-not-prod",
       "status": "warning",
       "message": "README.md missing 非 Production Ready"
     },
     {
       "id": "status-p1",
-      "status": "warning",
-      "message": "README.md may need P1 status line"
+      "status": "passed",
+      "message": "README.md reflects P1"
     },
     {
       "id": "status-no-demo-tag",

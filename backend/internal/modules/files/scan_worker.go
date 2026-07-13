@@ -44,6 +44,7 @@ func (s *Service) EnqueueSecurityScan(ctx context.Context, tenantID int64, asset
 	if err != nil {
 		return err
 	}
+	s.ObserveFileScan("basic", "enqueue", "queued", "unknown", 0)
 	return s.Redis.LPush(ctx, fileScanQueueName, string(b)).Err()
 }
 
@@ -96,6 +97,7 @@ func buildFileScanner(cfg *config.Config) filescanner.FileScanner {
 }
 
 func (s *Service) processScanPayload(ctx context.Context, log *slog.Logger, scanner filescanner.FileScanner, payload string) error {
+	start := time.Now()
 	var msg ScanQueueMessage
 	if err := json.Unmarshal([]byte(payload), &msg); err != nil {
 		return err
@@ -118,6 +120,11 @@ func (s *Service) processScanPayload(ctx context.Context, log *slog.Logger, scan
 	if row.SecurityStatus != SecurityPendingScan && row.SecurityStatus != SecurityScanFailed {
 		return nil
 	}
+	mimeGroup := mimeGroup(row.ContentType)
+	if !row.CreatedAt.IsZero() {
+		s.ObserveFileScan("basic", "queue_age", "claimed", mimeGroup, time.Since(row.CreatedAt))
+	}
+	s.ObserveFileScan("basic", "claim", "claimed", mimeGroup, 0)
 	next, err := TransitionSecurityStatus(row.SecurityStatus, SecurityScanning)
 	if err != nil {
 		return err
@@ -130,11 +137,13 @@ func (s *Service) processScanPayload(ctx context.Context, log *slog.Logger, scan
 	if scanErr != nil {
 		_ = s.DB.WithContext(wctx).Model(&FileRecord{}).Where("id = ?", assetID).
 			Updates(map[string]any{"security_status": SecurityScanFailed, "scan_status": SecurityScanFailed})
+		s.ObserveFileScan("basic", "result", "failure", mimeGroup, time.Since(start))
 		return scanErr
 	}
 	final := mapResultStatus(result.Status)
 	_ = s.DB.WithContext(wctx).Model(&FileRecord{}).Where("id = ? AND tenant_id = ?", assetID, msg.TenantID).
 		Updates(map[string]any{"security_status": final, "scan_status": final})
+	s.ObserveFileScan("basic", "result", final, mimeGroup, time.Since(start))
 	return nil
 }
 

@@ -22,6 +22,25 @@ function severityColor(sev: string) {
   }
 }
 
+function otlpStatusMeta(status?: string) {
+  switch (status) {
+    case 'standard_protocol_ready':
+      return { color: 'green', text: '标准协议就绪' };
+    case 'mock_verified':
+      return { color: 'cyan', text: '模拟接收端已验证' };
+    case 'real_backend_deferred':
+      return { color: 'gold', text: '真实后端待接入' };
+    case 'export_degraded':
+      return { color: 'orange', text: '导出降级' };
+    case 'disabled':
+      return { color: 'default', text: '未启用' };
+    case 'incomplete':
+      return { color: 'red', text: '未完成' };
+    default:
+      return { color: 'default', text: status || '-' };
+  }
+}
+
 export default function ObservabilityCenterPage() {
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
@@ -60,80 +79,96 @@ export default function ObservabilityCenterPage() {
     >
       <Spin spinning={loading}>
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Alert
-          type="info"
-          showIcon
-          message="代码级可观测性已就绪；真实生产监控平台验证保持 Deferred。"
-        />
-        <Card title="系统概览">
-          <Descriptions column={2} size="small">
-            <Descriptions.Item label="模式">{overview?.mode ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="环境">{overview?.environment ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="指标">
-              {overview?.metricsEnabled ? '已启用' : '未启用'}
-            </Descriptions.Item>
-            <Descriptions.Item label="链路追踪">
-              {overview?.tracingEnabled ? '已启用' : '未启用'}
-            </Descriptions.Item>
-            <Descriptions.Item label="指标路径">{overview?.metricsPath ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="内部保护">
-              {overview?.metricsInternal ? '是' : '否'}
-            </Descriptions.Item>
-            <Descriptions.Item label="遥测导出">
-              {overview?.otelExportBlocked ? '环境未配置' : '已配置'}
-            </Descriptions.Item>
-          </Descriptions>
-        </Card>
-        <Row gutter={16}>
-          <Col span={8}>
-            <Card title="API 状态">请求量 / 错误率 / p95 延迟（聚合接口）</Card>
-          </Col>
-          <Col span={8}>
-            <Card title="后台任务进程">队列积压 / 死信 / 租约丢失</Card>
-          </Col>
-          <Col span={8}>
-            <Card title="安全状态">登录异常 / Refresh Reuse / Audit Chain</Card>
-          </Col>
-        </Row>
-        <Card title="最近告警">
-          <Table<AlertEvent>
-            rowKey="id"
-            dataSource={alerts}
-            pagination={{ pageSize: 10 }}
-            columns={[
-              { title: '规则', dataIndex: 'ruleId', width: 180 },
-              {
-                title: '级别',
-                dataIndex: 'severity',
-                width: 100,
-                render: (v: string) => <Tag color={severityColor(v)}>{v}</Tag>,
-              },
-              { title: '状态', dataIndex: 'status', width: 120 },
-              { title: '模块', dataIndex: 'module', width: 120 },
-              { title: '摘要', dataIndex: 'summary' },
-              { title: '次数', dataIndex: 'occurrenceCount', width: 80 },
-              {
-                title: '操作',
-                width: 180,
-                render: (_, row) => (
-                  <Space>
-                    <Button size="small" onClick={() => void ackAlert(row.id).then(load)}>
-                      确认
-                    </Button>
-                    <Button
-                      size="small"
-                      onClick={() =>
-                        void silenceAlert(row.id, { reason: 'operator silence', durationHours: 4 }).then(load)
-                      }
-                    >
-                      静默
-                    </Button>
-                  </Space>
-                ),
-              },
-            ]}
+          <Alert
+            type="info"
+            showIcon
+            message="代码级可观测性已就绪；真实生产监控平台验证保持待接入状态。"
           />
-        </Card>
+          <Card title="系统概览">
+            <Descriptions column={2} size="small">
+              <Descriptions.Item label="模式">{overview?.mode ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="环境">{overview?.environment ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="指标">
+                {overview?.metricsEnabled ? '已启用' : '未启用'}
+              </Descriptions.Item>
+              <Descriptions.Item label="链路追踪">
+                {overview?.tracingEnabled ? '已启用' : '未启用'}
+              </Descriptions.Item>
+              <Descriptions.Item label="指标路径">{overview?.metricsPath ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label="内部保护">
+                {overview?.metricsInternal ? '是' : '否'}
+              </Descriptions.Item>
+              <Descriptions.Item label="遥测导出">
+                {(() => {
+                  const meta = otlpStatusMeta(overview?.runtimeStatus?.otlpExporter);
+                  return <Tag color={meta.color}>{meta.text}</Tag>;
+                })()}
+              </Descriptions.Item>
+              <Descriptions.Item label="协议">
+                {overview?.runtimeStatus?.otlpProtocol ?? '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="协议测试">
+                {(() => {
+                  const meta = otlpStatusMeta(overview?.runtimeStatus?.mockCollectorVerification);
+                  return <Tag color={meta.color}>{meta.text}</Tag>;
+                })()}
+              </Descriptions.Item>
+              <Descriptions.Item label="导出结果">
+                成功 {overview?.telemetry?.exportSuccess ?? 0} / 失败{' '}
+                {overview?.telemetry?.exportFailures ?? 0} / 丢弃 {overview?.telemetry?.dropped ?? 0}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+          <Row gutter={16}>
+            <Col span={8}>
+              <Card title="API 状态">请求量 / 错误率 / p95 延迟（聚合接口）</Card>
+            </Col>
+            <Col span={8}>
+              <Card title="后台任务进程">队列积压 / 死信 / 租约丢失</Card>
+            </Col>
+            <Col span={8}>
+              <Card title="安全状态">登录异常 / Refresh Reuse / Audit Chain</Card>
+            </Col>
+          </Row>
+          <Card title="最近告警">
+            <Table<AlertEvent>
+              rowKey="id"
+              dataSource={alerts}
+              pagination={{ pageSize: 10 }}
+              columns={[
+                { title: '规则', dataIndex: 'ruleId', width: 180 },
+                {
+                  title: '级别',
+                  dataIndex: 'severity',
+                  width: 100,
+                  render: (v: string) => <Tag color={severityColor(v)}>{v}</Tag>,
+                },
+                { title: '状态', dataIndex: 'status', width: 120 },
+                { title: '模块', dataIndex: 'module', width: 120 },
+                { title: '摘要', dataIndex: 'summary' },
+                { title: '次数', dataIndex: 'occurrenceCount', width: 80 },
+                {
+                  title: '操作',
+                  width: 180,
+                  render: (_, row) => (
+                    <Space>
+                      <Button size="small" onClick={() => void ackAlert(row.id).then(load)}>
+                        确认
+                      </Button>
+                      <Button
+                        size="small"
+                        onClick={() =>
+                          void silenceAlert(row.id, { reason: 'operator silence', durationHours: 4 }).then(load)
+                        }
+                      >
+                        静默
+                      </Button>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          </Card>
         </Space>
       </Spin>
     </TmPageContainer>

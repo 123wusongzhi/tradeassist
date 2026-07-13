@@ -8,14 +8,16 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/crypto"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/gorm"
 )
 
 // Service provides key rotation and audit integrity operations.
 type Service struct {
-	DB     *gorm.DB
-	Cfg    *config.Config
-	OpLogs *operationlog.Service
+	DB      *gorm.DB
+	Cfg     *config.Config
+	OpLogs  *operationlog.Service
+	Metrics *metrics.Catalog
 }
 
 // RotationStatus summarizes master key rotation readiness.
@@ -56,6 +58,9 @@ func (s *Service) VerifyAuditIntegrity(ctx context.Context, days int) (int, erro
 	to := time.Now().UTC()
 	from := to.Add(-time.Duration(days) * 24 * time.Hour)
 	n, _, err := s.OpLogs.VerifyChain(ctx, 0, from, to)
+	if err != nil || n > 0 {
+		s.ObserveSecurity("operationlog", "audit_chain_mismatch", "failure", "critical")
+	}
 	return n, err
 }
 

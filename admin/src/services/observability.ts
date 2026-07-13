@@ -9,6 +9,17 @@ export type ObservabilityOverview = {
   metricsPath: string;
   metricsInternal: boolean;
   otelExportBlocked: boolean;
+  runtimeStatus?: {
+    otlpExporter?: string;
+    otlpProtocol?: string;
+    mockCollectorVerification?: string;
+    [key: string]: string | number | undefined;
+  };
+  telemetry?: {
+    dropped?: number;
+    exportFailures?: number;
+    exportSuccess?: number;
+  };
   environment: string;
   timestamp: string;
 };

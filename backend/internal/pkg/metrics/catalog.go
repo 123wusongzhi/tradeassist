@@ -53,27 +53,78 @@ type Catalog struct {
 	WebhookTenantMismatch     *prometheus.CounterVec
 	WebhookDuplicateEvents    *prometheus.CounterVec
 	OrderSyncRunsTotal        *prometheus.CounterVec
+	OrderSyncOrdersReceived   *prometheus.CounterVec
+	OrderSyncOrdersCreated    *prometheus.CounterVec
+	OrderSyncOrdersUpdated    *prometheus.CounterVec
+	OrderSyncStaleUpdates     *prometheus.CounterVec
+	OrderSyncDuplicates       *prometheus.CounterVec
 	OrderSyncFailuresTotal    *prometheus.CounterVec
+	OrderSyncDuration         *prometheus.HistogramVec
+	OrderSyncCursorLag        *prometheus.HistogramVec
+	OrderSyncLastSuccess      *prometheus.GaugeVec
 	InventoryAdjustmentsTotal *prometheus.CounterVec
+	InventoryDeductionsTotal  *prometheus.CounterVec
+	InventoryCompensations    *prometheus.CounterVec
+	InventoryPushTotal        *prometheus.CounterVec
+	InventoryPushFailures     *prometheus.CounterVec
 	InventoryUnknownResults   *prometheus.CounterVec
+	InventoryVersionConflicts *prometheus.CounterVec
+	InventoryNegativePrevent  *prometheus.CounterVec
+	InventorySyncDuration     *prometheus.HistogramVec
 	AITextRequestsTotal       *prometheus.CounterVec
+	AITextRequestDuration     *prometheus.HistogramVec
 	AITextProviderTimeouts    *prometheus.CounterVec
+	AITextProviderFailures    *prometheus.CounterVec
 	AITextEnvironmentBlocked  *prometheus.CounterVec
+	AITextBatchesTotal        *prometheus.CounterVec
+	AITextBatchDuration       *prometheus.HistogramVec
+	AITextApplyTotal          *prometheus.CounterVec
+	AITextApplyConflicts      *prometheus.CounterVec
+	AITextReconciliation      *prometheus.CounterVec
 	AIImageRequestsTotal      *prometheus.CounterVec
+	AIImageRequestDuration    *prometheus.HistogramVec
 	AIImageProviderTimeouts   *prometheus.CounterVec
+	AIImageProviderFailures   *prometheus.CounterVec
 	AIImageEnvironmentBlocked *prometheus.CounterVec
+	AIImageBatchesTotal       *prometheus.CounterVec
+	AIImageBatchDuration      *prometheus.HistogramVec
 	AIImageTaskStageDuration  *prometheus.HistogramVec
 	AIImageTaskStuckTotal     *prometheus.CounterVec
+	AIImageAssetsCreated      *prometheus.CounterVec
+	AIImageScanWaitSeconds    *prometheus.HistogramVec
+	AIImageApplyTotal         *prometheus.CounterVec
+	AIImageReconciliation     *prometheus.CounterVec
 	FileScanTasksTotal        *prometheus.CounterVec
 	FileScanDurationSeconds   *prometheus.HistogramVec
+	FileScanResultsTotal      *prometheus.CounterVec
 	FileScanQueueAgeSeconds   *prometheus.HistogramVec
 	FileScanFailuresTotal     *prometheus.CounterVec
+	FileQuarantinedTotal      *prometheus.CounterVec
+	FileRejectedTotal         *prometheus.CounterVec
 	FileScanStuckTotal        *prometheus.CounterVec
+	FileAssetsByStatus        *prometheus.GaugeVec
 	SecretRotationJobsTotal   *prometheus.CounterVec
 	SecretRotationFailures    *prometheus.CounterVec
+	SecretRotationUnknown     *prometheus.CounterVec
+	SecretRotationOldKeyRefs  *prometheus.CounterVec
+	AuthorizationDeniedTotal  *prometheus.CounterVec
 	AuthLoginAttemptsTotal    *prometheus.CounterVec
+	AuthLoginFailuresTotal    *prometheus.CounterVec
+	AuthLoginRateLimited      *prometheus.CounterVec
+	AuthAccountLocked         *prometheus.CounterVec
+	AuthSessionsActive        *prometheus.GaugeVec
+	AuthSessionsRevoked       *prometheus.CounterVec
+	AuthRefreshTotal          *prometheus.CounterVec
 	AuthRefreshReuseTotal     prometheus.Counter
+	AuthTokenValidationFail   *prometheus.CounterVec
+	AuthReauthRequired        *prometheus.CounterVec
 	TenantAccessDeniedTotal   *prometheus.CounterVec
+	ShopAccessDeniedTotal     *prometheus.CounterVec
+	IDORAttemptsTotal         *prometheus.CounterVec
+	SystemContextDenied       *prometheus.CounterVec
+	CSRFRejectedTotal         *prometheus.CounterVec
+	OriginRejectedTotal       *prometheus.CounterVec
+	OpenRedirectRejected      *prometheus.CounterVec
 	AuditChainMismatchTotal   prometheus.Counter
 	SecurityEventsTotal       *prometheus.CounterVec
 	TelemetryExportFailures   prometheus.Counter
@@ -316,9 +367,41 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.OrderSyncOrdersReceived, err = c.reg.Counter("order_sync_orders_received_total", "Order sync orders received", "platform", "source", "result")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncOrdersCreated, err = c.reg.Counter("order_sync_orders_created_total", "Order sync orders created", "platform", "source", "result")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncOrdersUpdated, err = c.reg.Counter("order_sync_orders_updated_total", "Order sync orders updated", "platform", "source", "result")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncStaleUpdates, err = c.reg.Counter("order_sync_stale_updates_total", "Order sync stale updates", "platform", "source")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncDuplicates, err = c.reg.Counter("order_sync_duplicates_total", "Order sync duplicate events", "platform", "source")
+	if err != nil {
+		return err
+	}
 	c.OrderSyncFailuresTotal, err = c.reg.Counter(
 		"order_sync_failures_total", "Order sync failures",
 		"platform", "source", "error_class")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncDuration, err = c.reg.Histogram("order_sync_duration_seconds", "Order sync duration", defaultBuckets, "platform", "source", "result")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncCursorLag, err = c.reg.Histogram("order_sync_cursor_lag_seconds", "Order sync cursor lag", defaultBuckets, "platform", "source")
+	if err != nil {
+		return err
+	}
+	c.OrderSyncLastSuccess, err = c.reg.Gauge("order_sync_last_success_timestamp", "Order sync last success unix timestamp", "platform", "source")
 	if err != nil {
 		return err
 	}
@@ -328,9 +411,37 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.InventoryDeductionsTotal, err = c.reg.Counter("inventory_deductions_total", "Inventory deductions", "platform", "operation", "result", "error_class")
+	if err != nil {
+		return err
+	}
+	c.InventoryCompensations, err = c.reg.Counter("inventory_compensations_total", "Inventory compensations", "platform", "operation", "result", "error_class")
+	if err != nil {
+		return err
+	}
+	c.InventoryPushTotal, err = c.reg.Counter("inventory_push_total", "Inventory provider pushes", "platform", "operation", "result", "error_class")
+	if err != nil {
+		return err
+	}
+	c.InventoryPushFailures, err = c.reg.Counter("inventory_push_failures_total", "Inventory provider push failures", "platform", "operation", "error_class")
+	if err != nil {
+		return err
+	}
 	c.InventoryUnknownResults, err = c.reg.Counter(
 		"inventory_unknown_results_total", "Inventory write requests with unknown result",
 		"platform", "operation", "error_class")
+	if err != nil {
+		return err
+	}
+	c.InventoryVersionConflicts, err = c.reg.Counter("inventory_version_conflicts_total", "Inventory version conflicts", "platform", "operation")
+	if err != nil {
+		return err
+	}
+	c.InventoryNegativePrevent, err = c.reg.Counter("inventory_negative_prevented_total", "Inventory negative stock prevented", "platform", "operation")
+	if err != nil {
+		return err
+	}
+	c.InventorySyncDuration, err = c.reg.Histogram("inventory_sync_duration_seconds", "Inventory sync duration", defaultBuckets, "platform", "operation", "result", "error_class")
 	if err != nil {
 		return err
 	}
@@ -340,9 +451,17 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.AITextRequestDuration, err = c.reg.Histogram("ai_text_request_duration_seconds", "AI text request duration", defaultBuckets, "provider", "operation", "result", "error_class")
+	if err != nil {
+		return err
+	}
 	c.AITextProviderTimeouts, err = c.reg.Counter(
 		"ai_text_provider_timeouts_total", "AI text provider timeouts",
 		"provider", "operation", "error_class")
+	if err != nil {
+		return err
+	}
+	c.AITextProviderFailures, err = c.reg.Counter("ai_text_provider_failures_total", "AI text provider failures", "provider", "operation", "error_class")
 	if err != nil {
 		return err
 	}
@@ -352,9 +471,33 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.AITextBatchesTotal, err = c.reg.Counter("ai_text_batches_total", "AI text batches", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AITextBatchDuration, err = c.reg.Histogram("ai_text_batch_duration_seconds", "AI text batch duration", defaultBuckets, "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AITextApplyTotal, err = c.reg.Counter("ai_text_apply_total", "AI text apply operations", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AITextApplyConflicts, err = c.reg.Counter("ai_text_apply_conflicts_total", "AI text apply conflicts", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AITextReconciliation, err = c.reg.Counter("ai_text_reconciliation_total", "AI text reconciliation", "operation", "result")
+	if err != nil {
+		return err
+	}
 	c.AIImageRequestsTotal, err = c.reg.Counter(
 		"ai_image_requests_total", "AI image requests",
 		"provider", "operation", "result", "error_class")
+	if err != nil {
+		return err
+	}
+	c.AIImageRequestDuration, err = c.reg.Histogram("ai_image_request_duration_seconds", "AI image request duration", defaultBuckets, "provider", "operation", "result", "error_class")
 	if err != nil {
 		return err
 	}
@@ -364,9 +507,21 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.AIImageProviderFailures, err = c.reg.Counter("ai_image_provider_failures_total", "AI image provider failures", "provider", "operation", "error_class")
+	if err != nil {
+		return err
+	}
 	c.AIImageEnvironmentBlocked, err = c.reg.Counter(
 		"ai_image_environment_blocked_total", "AI image environment blocked",
 		"provider", "operation", "error_class")
+	if err != nil {
+		return err
+	}
+	c.AIImageBatchesTotal, err = c.reg.Counter("ai_image_batches_total", "AI image batches", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AIImageBatchDuration, err = c.reg.Histogram("ai_image_batch_duration_seconds", "AI image batch duration", defaultBuckets, "operation", "result")
 	if err != nil {
 		return err
 	}
@@ -381,6 +536,22 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.AIImageAssetsCreated, err = c.reg.Counter("ai_image_assets_created_total", "AI image assets created", "provider", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AIImageScanWaitSeconds, err = c.reg.Histogram("ai_image_scan_wait_seconds", "AI image scan wait duration", defaultBuckets, "provider", "operation")
+	if err != nil {
+		return err
+	}
+	c.AIImageApplyTotal, err = c.reg.Counter("ai_image_apply_total", "AI image apply operations", "operation", "result")
+	if err != nil {
+		return err
+	}
+	c.AIImageReconciliation, err = c.reg.Counter("ai_image_reconciliation_total", "AI image reconciliation", "operation", "result")
+	if err != nil {
+		return err
+	}
 	c.FileScanTasksTotal, err = c.reg.Counter(
 		"file_scan_tasks_total", "File scan tasks",
 		"scanner", "result", "mime_group")
@@ -388,6 +559,10 @@ func (c *Catalog) registerAll() error {
 		return err
 	}
 	c.FileScanDurationSeconds, err = c.reg.Histogram("file_scan_duration_seconds", "File scan duration", defaultBuckets, "scanner", "result", "mime_group")
+	if err != nil {
+		return err
+	}
+	c.FileScanResultsTotal, err = c.reg.Counter("file_scan_results_total", "File scan results", "scanner", "result", "mime_group")
 	if err != nil {
 		return err
 	}
@@ -399,7 +574,19 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.FileQuarantinedTotal, err = c.reg.Counter("file_quarantined_total", "Files quarantined", "scanner", "mime_group")
+	if err != nil {
+		return err
+	}
+	c.FileRejectedTotal, err = c.reg.Counter("file_rejected_total", "Files rejected", "scanner", "mime_group")
+	if err != nil {
+		return err
+	}
 	c.FileScanStuckTotal, err = c.reg.Counter("file_scan_stuck_total", "File scan stuck tasks", "scanner", "mime_group")
+	if err != nil {
+		return err
+	}
+	c.FileAssetsByStatus, err = c.reg.Gauge("file_assets_by_security_status", "File assets by security status", "security_status", "mime_group")
 	if err != nil {
 		return err
 	}
@@ -413,9 +600,45 @@ func (c *Catalog) registerAll() error {
 	if err != nil {
 		return err
 	}
+	c.SecretRotationUnknown, err = c.reg.Counter("secret_rotation_unknown_formats_total", "Secret rotation unknown formats", "target", "result", "status")
+	if err != nil {
+		return err
+	}
+	c.SecretRotationOldKeyRefs, err = c.reg.Counter("secret_rotation_old_key_references", "Secret rotation old key references", "target", "result", "status")
+	if err != nil {
+		return err
+	}
+	c.AuthorizationDeniedTotal, err = c.reg.Counter("authorization_denied_total", "Authorization denied events", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
 	c.AuthLoginAttemptsTotal, err = c.reg.Counter(
 		"auth_login_attempts_total", "Auth login attempts",
 		"result", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthLoginFailuresTotal, err = c.reg.Counter("auth_login_failures_total", "Auth login failures", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthLoginRateLimited, err = c.reg.Counter("auth_login_rate_limited_total", "Auth login rate limited", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthAccountLocked, err = c.reg.Counter("auth_account_locked_total", "Auth account locked", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthSessionsActive, err = c.reg.Gauge("auth_sessions_active", "Active auth sessions", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthSessionsRevoked, err = c.reg.Counter("auth_sessions_revoked_total", "Auth sessions revoked", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthRefreshTotal, err = c.reg.Counter("auth_refresh_total", "Auth refresh attempts", "result", "reason", "auth_mode")
 	if err != nil {
 		return err
 	}
@@ -428,9 +651,41 @@ func (c *Catalog) registerAll() error {
 		Help: "Audit chain mismatch events",
 	})
 	c.reg.prom.MustRegister(c.AuthRefreshReuseTotal, c.AuditChainMismatchTotal)
+	c.AuthTokenValidationFail, err = c.reg.Counter("auth_token_validation_failures_total", "Auth token validation failures", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
+	c.AuthReauthRequired, err = c.reg.Counter("auth_reauthentication_required_total", "Auth reauthentication required", "reason", "auth_mode")
+	if err != nil {
+		return err
+	}
 	c.TenantAccessDeniedTotal, err = c.reg.Counter(
 		"tenant_access_denied_total", "Tenant access denied events",
 		"module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.ShopAccessDeniedTotal, err = c.reg.Counter("shop_access_denied_total", "Shop access denied events", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.IDORAttemptsTotal, err = c.reg.Counter("idor_attempts_total", "IDOR attempts", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.SystemContextDenied, err = c.reg.Counter("system_context_denied_total", "System context denied events", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.CSRFRejectedTotal, err = c.reg.Counter("csrf_rejected_total", "CSRF rejected events", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.OriginRejectedTotal, err = c.reg.Counter("origin_rejected_total", "Origin rejected events", "module", "result", "severity")
+	if err != nil {
+		return err
+	}
+	c.OpenRedirectRejected, err = c.reg.Counter("open_redirect_rejected_total", "Open redirect rejected events", "module", "result", "severity")
 	if err != nil {
 		return err
 	}
@@ -617,6 +872,420 @@ func (c *Catalog) ObserveWebhookProcessed(platform, eventGroup, result, errorCla
 	}
 	if lag > 0 && c.WebhookProcessingLag != nil {
 		c.WebhookProcessingLag.WithLabelValues(platform, eventGroup).Observe(lag.Seconds())
+	}
+}
+
+// ObserveWebhook records webhook receive, validation, persistence and worker outcomes.
+func (c *Catalog) ObserveWebhook(platform, eventGroup, event, result, errorClass string, dur time.Duration) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	ec := NormalizeResult(errorClass)
+	switch event {
+	case "request":
+		if c.WebhookRequestsTotal != nil {
+			c.WebhookRequestsTotal.WithLabelValues(platform, eventGroup, res, ec).Inc()
+		}
+	case "signature_failure":
+		if c.WebhookSignatureFailures != nil {
+			c.WebhookSignatureFailures.WithLabelValues(platform, eventGroup, ec).Inc()
+		}
+	case "replay_rejected":
+		if c.WebhookReplayRejected != nil {
+			c.WebhookReplayRejected.WithLabelValues(platform, eventGroup, ec).Inc()
+		}
+	case "payload_rejected":
+		if c.WebhookPayloadRejected != nil {
+			c.WebhookPayloadRejected.WithLabelValues(platform, eventGroup, ec).Inc()
+		}
+	case "persisted":
+		if c.WebhookEventsPersisted != nil {
+			c.WebhookEventsPersisted.WithLabelValues(platform, eventGroup, res).Inc()
+		}
+	case "unknown":
+		if c.WebhookUnknownEvents != nil {
+			c.WebhookUnknownEvents.WithLabelValues(platform, eventGroup).Inc()
+		}
+	case "shop_resolution_failure":
+		if c.WebhookShopResolutionFail != nil {
+			c.WebhookShopResolutionFail.WithLabelValues(platform, eventGroup, ec).Inc()
+		}
+	case "tenant_mismatch":
+		if c.WebhookTenantMismatch != nil {
+			c.WebhookTenantMismatch.WithLabelValues(platform, eventGroup).Inc()
+		}
+	case "duplicate":
+		if c.WebhookDuplicateEvents != nil {
+			c.WebhookDuplicateEvents.WithLabelValues(platform, eventGroup).Inc()
+		}
+	case "processed":
+		c.ObserveWebhookProcessed(platform, eventGroup, res, ec, dur, 0)
+	}
+}
+
+// ObserveOrder records order sync counters and durations.
+func (c *Catalog) ObserveOrder(platform, source, event, result, errorClass string, count int, dur time.Duration, cursorLag time.Duration) {
+	if c == nil {
+		return
+	}
+	if count <= 0 {
+		count = 1
+	}
+	res := NormalizeResult(result)
+	ec := NormalizeResult(errorClass)
+	add := float64(count)
+	switch event {
+	case "run":
+		if c.OrderSyncRunsTotal != nil {
+			c.OrderSyncRunsTotal.WithLabelValues(platform, source, res).Add(add)
+		}
+		if c.OrderSyncDuration != nil && dur > 0 {
+			c.OrderSyncDuration.WithLabelValues(platform, source, res).Observe(dur.Seconds())
+		}
+		if res == "success" && c.OrderSyncLastSuccess != nil {
+			c.OrderSyncLastSuccess.WithLabelValues(platform, source).Set(float64(time.Now().UTC().Unix()))
+		}
+	case "received":
+		if c.OrderSyncOrdersReceived != nil {
+			c.OrderSyncOrdersReceived.WithLabelValues(platform, source, res).Add(add)
+		}
+	case "created":
+		if c.OrderSyncOrdersCreated != nil {
+			c.OrderSyncOrdersCreated.WithLabelValues(platform, source, res).Add(add)
+		}
+	case "updated":
+		if c.OrderSyncOrdersUpdated != nil {
+			c.OrderSyncOrdersUpdated.WithLabelValues(platform, source, res).Add(add)
+		}
+	case "stale":
+		if c.OrderSyncStaleUpdates != nil {
+			c.OrderSyncStaleUpdates.WithLabelValues(platform, source).Add(add)
+		}
+	case "duplicate":
+		if c.OrderSyncDuplicates != nil {
+			c.OrderSyncDuplicates.WithLabelValues(platform, source).Add(add)
+		}
+	case "failure":
+		if c.OrderSyncFailuresTotal != nil {
+			c.OrderSyncFailuresTotal.WithLabelValues(platform, source, ec).Add(add)
+		}
+	}
+	if cursorLag > 0 && c.OrderSyncCursorLag != nil {
+		c.OrderSyncCursorLag.WithLabelValues(platform, source).Observe(cursorLag.Seconds())
+	}
+}
+
+// ObserveInventory records local and provider inventory operations.
+func (c *Catalog) ObserveInventory(platform, operation, event, result, errorClass string, count int, dur time.Duration) {
+	if c == nil {
+		return
+	}
+	if count <= 0 {
+		count = 1
+	}
+	res := NormalizeResult(result)
+	ec := NormalizeResult(errorClass)
+	add := float64(count)
+	switch event {
+	case "adjust":
+		if c.InventoryAdjustmentsTotal != nil {
+			c.InventoryAdjustmentsTotal.WithLabelValues(platform, operation, res, ec).Add(add)
+		}
+	case "deduct":
+		if c.InventoryDeductionsTotal != nil {
+			c.InventoryDeductionsTotal.WithLabelValues(platform, operation, res, ec).Add(add)
+		}
+	case "compensate":
+		if c.InventoryCompensations != nil {
+			c.InventoryCompensations.WithLabelValues(platform, operation, res, ec).Add(add)
+		}
+	case "push":
+		if c.InventoryPushTotal != nil {
+			c.InventoryPushTotal.WithLabelValues(platform, operation, res, ec).Add(add)
+		}
+	case "push_failure":
+		if c.InventoryPushFailures != nil {
+			c.InventoryPushFailures.WithLabelValues(platform, operation, ec).Add(add)
+		}
+	case "unknown_result":
+		if c.InventoryUnknownResults != nil {
+			c.InventoryUnknownResults.WithLabelValues(platform, operation, ec).Add(add)
+		}
+	case "version_conflict":
+		if c.InventoryVersionConflicts != nil {
+			c.InventoryVersionConflicts.WithLabelValues(platform, operation).Add(add)
+		}
+	case "negative_prevented":
+		if c.InventoryNegativePrevent != nil {
+			c.InventoryNegativePrevent.WithLabelValues(platform, operation).Add(add)
+		}
+	}
+	if dur > 0 && c.InventorySyncDuration != nil {
+		c.InventorySyncDuration.WithLabelValues(platform, operation, res, ec).Observe(dur.Seconds())
+	}
+}
+
+// ObserveAIText records AI text generation, batch, apply and reconciliation outcomes.
+func (c *Catalog) ObserveAIText(provider, operation, event, result, errorClass string, dur time.Duration) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	ec := NormalizeResult(errorClass)
+	switch event {
+	case "request":
+		if c.AITextRequestsTotal != nil {
+			c.AITextRequestsTotal.WithLabelValues(provider, operation, res, ec).Inc()
+		}
+		if c.AITextRequestDuration != nil && dur > 0 {
+			c.AITextRequestDuration.WithLabelValues(provider, operation, res, ec).Observe(dur.Seconds())
+		}
+	case "timeout":
+		if c.AITextProviderTimeouts != nil {
+			c.AITextProviderTimeouts.WithLabelValues(provider, operation, ec).Inc()
+		}
+	case "failure":
+		if c.AITextProviderFailures != nil {
+			c.AITextProviderFailures.WithLabelValues(provider, operation, ec).Inc()
+		}
+	case "environment_blocked":
+		if c.AITextEnvironmentBlocked != nil {
+			c.AITextEnvironmentBlocked.WithLabelValues(provider, operation, ec).Inc()
+		}
+	case "batch":
+		if c.AITextBatchesTotal != nil {
+			c.AITextBatchesTotal.WithLabelValues(operation, res).Inc()
+		}
+		if c.AITextBatchDuration != nil && dur > 0 {
+			c.AITextBatchDuration.WithLabelValues(operation, res).Observe(dur.Seconds())
+		}
+	case "apply":
+		if c.AITextApplyTotal != nil {
+			c.AITextApplyTotal.WithLabelValues(operation, res).Inc()
+		}
+	case "apply_conflict":
+		if c.AITextApplyConflicts != nil {
+			c.AITextApplyConflicts.WithLabelValues(operation, res).Inc()
+		}
+	case "reconcile":
+		if c.AITextReconciliation != nil {
+			c.AITextReconciliation.WithLabelValues(operation, res).Inc()
+		}
+	}
+}
+
+// ObserveAIImage records AI image provider, batch, stage, asset and apply outcomes.
+func (c *Catalog) ObserveAIImage(provider, operation, event, result, errorClass string, dur time.Duration) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	ec := NormalizeResult(errorClass)
+	switch event {
+	case "request":
+		if c.AIImageRequestsTotal != nil {
+			c.AIImageRequestsTotal.WithLabelValues(provider, operation, res, ec).Inc()
+		}
+		if c.AIImageRequestDuration != nil && dur > 0 {
+			c.AIImageRequestDuration.WithLabelValues(provider, operation, res, ec).Observe(dur.Seconds())
+		}
+	case "timeout":
+		c.ObserveAIImageProviderTimeout(provider, operation, ec)
+	case "failure":
+		if c.AIImageProviderFailures != nil {
+			c.AIImageProviderFailures.WithLabelValues(provider, operation, ec).Inc()
+		}
+	case "environment_blocked":
+		if c.AIImageEnvironmentBlocked != nil {
+			c.AIImageEnvironmentBlocked.WithLabelValues(provider, operation, ec).Inc()
+		}
+	case "batch":
+		if c.AIImageBatchesTotal != nil {
+			c.AIImageBatchesTotal.WithLabelValues(operation, res).Inc()
+		}
+		if c.AIImageBatchDuration != nil && dur > 0 {
+			c.AIImageBatchDuration.WithLabelValues(operation, res).Observe(dur.Seconds())
+		}
+	case "stage":
+		if c.AIImageTaskStageDuration != nil && dur > 0 {
+			c.AIImageTaskStageDuration.WithLabelValues(operation, res).Observe(dur.Seconds())
+		}
+	case "stuck":
+		if c.AIImageTaskStuckTotal != nil {
+			c.AIImageTaskStuckTotal.WithLabelValues(operation, res).Inc()
+		}
+	case "asset_created":
+		if c.AIImageAssetsCreated != nil {
+			c.AIImageAssetsCreated.WithLabelValues(provider, operation, res).Inc()
+		}
+	case "scan_wait":
+		if c.AIImageScanWaitSeconds != nil && dur > 0 {
+			c.AIImageScanWaitSeconds.WithLabelValues(provider, operation).Observe(dur.Seconds())
+		}
+	case "apply":
+		if c.AIImageApplyTotal != nil {
+			c.AIImageApplyTotal.WithLabelValues(operation, res).Inc()
+		}
+	case "reconcile":
+		if c.AIImageReconciliation != nil {
+			c.AIImageReconciliation.WithLabelValues(operation, res).Inc()
+		}
+	}
+}
+
+// ObserveFileScan records file security scan lifecycle outcomes.
+func (c *Catalog) ObserveFileScan(scanner, event, result, mimeGroup string, dur time.Duration) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	if mimeGroup == "" {
+		mimeGroup = "unknown"
+	}
+	switch event {
+	case "enqueue", "claim":
+		if c.FileScanTasksTotal != nil {
+			c.FileScanTasksTotal.WithLabelValues(scanner, event, mimeGroup).Inc()
+		}
+	case "result":
+		if c.FileScanResultsTotal != nil {
+			c.FileScanResultsTotal.WithLabelValues(scanner, res, mimeGroup).Inc()
+		}
+		if c.FileScanDurationSeconds != nil && dur > 0 {
+			c.FileScanDurationSeconds.WithLabelValues(scanner, res, mimeGroup).Observe(dur.Seconds())
+		}
+		if res == "failure" && c.FileScanFailuresTotal != nil {
+			c.FileScanFailuresTotal.WithLabelValues(scanner, res, mimeGroup).Inc()
+		}
+		if res == "quarantined" && c.FileQuarantinedTotal != nil {
+			c.FileQuarantinedTotal.WithLabelValues(scanner, mimeGroup).Inc()
+		}
+		if res == "rejected" && c.FileRejectedTotal != nil {
+			c.FileRejectedTotal.WithLabelValues(scanner, mimeGroup).Inc()
+		}
+	case "queue_age":
+		if c.FileScanQueueAgeSeconds != nil && dur > 0 {
+			c.FileScanQueueAgeSeconds.WithLabelValues(scanner, mimeGroup).Observe(dur.Seconds())
+		}
+	case "stuck":
+		if c.FileScanStuckTotal != nil {
+			c.FileScanStuckTotal.WithLabelValues(scanner, mimeGroup).Inc()
+		}
+	}
+	if c.FileAssetsByStatus != nil && res != "" {
+		c.FileAssetsByStatus.WithLabelValues(res, mimeGroup).Inc()
+	}
+}
+
+// ObserveSecurity records security denial and integrity events.
+func (c *Catalog) ObserveSecurity(module, event, result, severity string) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	if severity == "" {
+		severity = "warning"
+	}
+	if c.SecurityEventsTotal != nil {
+		c.SecurityEventsTotal.WithLabelValues(event, res, severity, module).Inc()
+	}
+	switch event {
+	case "authorization_denied":
+		if c.AuthorizationDeniedTotal != nil {
+			c.AuthorizationDeniedTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "tenant_access_denied":
+		if c.TenantAccessDeniedTotal != nil {
+			c.TenantAccessDeniedTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "shop_access_denied":
+		if c.ShopAccessDeniedTotal != nil {
+			c.ShopAccessDeniedTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "idor_attempt":
+		if c.IDORAttemptsTotal != nil {
+			c.IDORAttemptsTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "system_context_denied":
+		if c.SystemContextDenied != nil {
+			c.SystemContextDenied.WithLabelValues(module, res, severity).Inc()
+		}
+	case "csrf_rejected":
+		if c.CSRFRejectedTotal != nil {
+			c.CSRFRejectedTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "origin_rejected":
+		if c.OriginRejectedTotal != nil {
+			c.OriginRejectedTotal.WithLabelValues(module, res, severity).Inc()
+		}
+	case "open_redirect_rejected":
+		if c.OpenRedirectRejected != nil {
+			c.OpenRedirectRejected.WithLabelValues(module, res, severity).Inc()
+		}
+	case "audit_chain_mismatch":
+		if c.AuditChainMismatchTotal != nil {
+			c.AuditChainMismatchTotal.Inc()
+		}
+	}
+}
+
+// ObserveAuth records login, session, refresh and token validation events.
+func (c *Catalog) ObserveAuth(event, result, reason, authMode string) {
+	if c == nil {
+		return
+	}
+	res := NormalizeResult(result)
+	if reason == "" {
+		reason = "unknown"
+	}
+	if authMode == "" {
+		authMode = "password"
+	}
+	switch event {
+	case "login_attempt", "login_success":
+		if c.AuthLoginAttemptsTotal != nil {
+			c.AuthLoginAttemptsTotal.WithLabelValues(res, reason, authMode).Inc()
+		}
+	case "login_failure":
+		if c.AuthLoginFailuresTotal != nil {
+			c.AuthLoginFailuresTotal.WithLabelValues(reason, authMode).Inc()
+		}
+	case "rate_limited":
+		if c.AuthLoginRateLimited != nil {
+			c.AuthLoginRateLimited.WithLabelValues(reason, authMode).Inc()
+		}
+	case "account_locked":
+		if c.AuthAccountLocked != nil {
+			c.AuthAccountLocked.WithLabelValues(reason, authMode).Inc()
+		}
+	case "session_created":
+		if c.AuthSessionsActive != nil {
+			c.AuthSessionsActive.WithLabelValues(authMode).Inc()
+		}
+	case "session_revoked":
+		if c.AuthSessionsRevoked != nil {
+			c.AuthSessionsRevoked.WithLabelValues(reason, authMode).Inc()
+		}
+		if c.AuthSessionsActive != nil {
+			c.AuthSessionsActive.WithLabelValues(authMode).Dec()
+		}
+	case "refresh":
+		if c.AuthRefreshTotal != nil {
+			c.AuthRefreshTotal.WithLabelValues(res, reason, authMode).Inc()
+		}
+	case "refresh_reuse":
+		if c.AuthRefreshReuseTotal != nil {
+			c.AuthRefreshReuseTotal.Inc()
+		}
+	case "token_validation_failure":
+		if c.AuthTokenValidationFail != nil {
+			c.AuthTokenValidationFail.WithLabelValues(reason, authMode).Inc()
+		}
+	case "reauthentication_required":
+		if c.AuthReauthRequired != nil {
+			c.AuthReauthRequired.WithLabelValues(reason, authMode).Inc()
+		}
 	}
 }
 

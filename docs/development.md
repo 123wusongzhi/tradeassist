@@ -85,6 +85,7 @@ Copy-Item .env.example .env
 - `APP_HTTP_ADDR=:8080`
 - `COLLECTOR_HTTP_ADDR=:3100`
 - `COLLECTOR_BASE_URL=http://127.0.0.1:3100`
+- `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`（P5-V 标准 OTLP/HTTP JSON；真实 backend 未配置时 `TRACING_ENABLED=false`）
 
 完整变量说明见 [env.md](env.md)。新增或修改变量时，还要按 [module-map.md](module-map.md) 检查 Docker、README、部署文档和代码默认值。
 

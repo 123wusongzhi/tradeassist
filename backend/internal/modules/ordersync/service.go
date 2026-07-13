@@ -18,6 +18,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -117,6 +118,7 @@ type Service struct {
 	Inventory   *inventory.Service
 	OpLog       *operationlog.Service
 	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 
 	QueueEnabled bool
 	QueueName    string
@@ -334,6 +336,7 @@ func (s *Service) enqueue(ctx context.Context, taskID uuid.UUID) error {
 
 // ProcessQueuedTask executes one task (worker or inline dev mode).
 func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("ordersync: no db")
 	}
@@ -408,6 +411,8 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				})
 			}
 		}
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "failure", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -452,10 +457,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	payloads := ToSyncedPayloads(res.Orders)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "received", "success", "", len(payloads), 0, 0)
 	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertPlatformOrders(ctx, task.ShopID, shopRow.Platform, order.UpsertSourcePolling, payloads)
 	if errUp != nil {
 		return fail(errUp.Error())
 	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "created", "success", "", createdN, 0, 0)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "updated", "success", "", updatedN, 0, 0)
 
 	ordersSeen := 0
 	linesTotal := 0
@@ -618,6 +626,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			douyinmetrics.RecordOrderSyncOutcome(totalFetched, createdN, updatedN, finalStatus == StatusPartialSuccess, unmatchedN, deductedStockItems)
 		}
 	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "success", "", 1, time.Since(start), 0)
 	return nil
 }
 

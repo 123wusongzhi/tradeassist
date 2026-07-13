@@ -6,6 +6,19 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P5-V - Standard OTLP closure gate (2026-07-13)
+
+- Replaced the tracing custom HTTP span JSON payload with a standard OTLP/HTTP JSON TraceService export request.
+- Added strict Mock Collector protocol tests, retry/failure classification coverage, golden OTLP fixture, and P5-V final observability gate script.
+- Added P5-V audit, dependency matrix, protocol implementation, protocol test, race, frontend/collector, demo acceptance, and final observability reports.
+- Status remains closure-incomplete until Linux race, frontend/collector builds, two demo acceptance runs, and all P1-P5-V scans pass.
+
+### Phase P5.2 - Business instrumentation observability (2026-07-12)
+
+- Wired real metrics from HTTP client, webhook, order sync, inventory, AI text, AI image, file scan, security, and auth services into the shared metrics catalog.
+- Added P5.2 observability unit tests, static scan, smoke script, metric/dashboard validation docs, and final report.
+- Status remains closure-incomplete for standard OTLP HTTP exporter, Linux race verification, demo acceptance, and real telemetry/alert-channel verification.
+
 ### Phase P4-R - Demo regression stabilization (2026-07-12)
 
 - Added isolated Go test runner for `demo:auto-acceptance` so backend `.env` / process env does not pollute unit tests.

@@ -56,7 +56,7 @@ requireText('otlp-http-exporter', 'backend/internal/pkg/tracing/tracing.go', [
   'normalizeEndpoint',
 ], 'OTLP HTTP exporter implemented without genproto dependency');
 requireText('otlp-mock-test', 'backend/internal/pkg/tracing/tracing_test.go', [
-  'TestHTTPExporterSendsSpanToMockCollector',
+  'TestHTTPExporterSendsStandardOTLPToMockCollector',
 ], 'Mock collector test exists');
 requireText('telemetry-failure-safe', 'backend/internal/pkg/observability/observability.go', [
   'RecordTelemetryExportFailure',

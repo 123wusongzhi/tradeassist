@@ -1,7 +1,7 @@
 # P4.1 Security Closure Report
 
 **Status:** passed_with_real_environment_verification_deferred
-**Generated:** 2026-07-12T01:41:37.512Z
+**Generated:** 2026-07-13T05:09:35.261Z
 
 | Check | Status | Message |
 | --- | --- | --- |

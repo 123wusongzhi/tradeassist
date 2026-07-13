@@ -1,9 +1,9 @@
 ﻿{
     "description":  "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions",
-    "demo_dataset_seeded_at":  "2026-07-12T03:09:05.4243139Z",
+    "demo_dataset_seeded_at":  "2026-07-13T04:54:59.9194508Z",
     "demo_dataset_checksum":  "script:p4-r-v1",
     "phase":  "P4-R",
-    "generatedAt":  "2026-07-12T03:09:05.4243139Z",
+    "generatedAt":  "2026-07-13T04:54:59.9194508Z",
     "accounts":  {
                      "admin":  "demo_admin@trademind.local",
                      "operator":  "demo_operator@trademind.local",
@@ -32,25 +32,25 @@
                          "samples":  [
                                          {
                                              "tag":  "order_sync_partial_success",
-                                             "id":  "81c7875f-762d-48f5-857f-ac92326b1abd",
+                                             "id":  "964f967e-e13a-4176-b129-9b68143472c9",
                                              "note":  "订单同步 partial_success + 页级错误",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "inventory_sync_failed",
-                                             "id":  "2658e812-e0c1-4409-8c81-b1818547b206",
+                                             "id":  "277bdd06-56b8-4f0f-b783-8d42dddbd423",
                                              "note":  "库存同步失败（SKU 未绑定）",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "customer_reply_send_failed",
-                                             "id":  "2437b146-48a4-4e35-bed0-5bc52a0e6054",
+                                             "id":  "eda45149-5508-46a3-89ec-9ee2c3ec6234",
                                              "note":  "客服发送失败 + 失败任务中心",
                                              "status":  "created"
                                          },
                                          {
                                              "tag":  "platform_not_authorized",
-                                             "id":  "9737575b-3d10-4476-bad7-d91cb4d67187",
+                                             "id":  "858e7b5e-5767-49e8-aeef-ca1425f1309a",
                                              "note":  "平台未授权店铺 + 客服失败分类",
                                              "status":  "created"
                                          }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +30,12 @@ type Config struct {
 	SampleRatio   float64
 	ExportStdout  bool
 	OTLPEndpoint  string
+	OTLPProtocol  string
+	OTLPHeaders   string
 	ExportTimeout time.Duration
+	QueueSize     int
+	BatchSize     int
+	RetryMax      int
 	OnExportOK    func(int)
 	OnExportError func(int)
 	OnQueueDepth  func(int)
@@ -96,10 +102,12 @@ func Init(cfg Config) (*Provider, error) {
 		sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.SampleRatio))),
 	)
 	if spanExporter != nil {
+		queueSize := boundedQueueSize(cfg.QueueSize)
+		batchSize := boundedBatchSize(cfg.BatchSize, queueSize)
 		tp = sdktrace.NewTracerProvider(
 			sdktrace.WithBatcher(spanExporter,
-				sdktrace.WithMaxQueueSize(1024),
-				sdktrace.WithMaxExportBatchSize(128),
+				sdktrace.WithMaxQueueSize(queueSize),
+				sdktrace.WithMaxExportBatchSize(batchSize),
 				sdktrace.WithBatchTimeout(2*time.Second),
 				sdktrace.WithExportTimeout(exportTimeout(cfg.ExportTimeout)),
 			),
@@ -265,6 +273,7 @@ func LinkParent(ctx context.Context, tracer trace.Tracer, name, traceParent stri
 
 type httpSpanExporter struct {
 	endpoint string
+	headers  http.Header
 	client   *http.Client
 	cfg      Config
 }
@@ -273,6 +282,7 @@ func newHTTPSpanExporter(cfg Config) *httpSpanExporter {
 	timeout := exportTimeout(cfg.ExportTimeout)
 	return &httpSpanExporter{
 		endpoint: normalizeEndpoint(cfg.OTLPEndpoint),
+		headers:  parseOTLPHeaders(cfg.OTLPHeaders),
 		client:   &http.Client{Timeout: timeout},
 		cfg:      cfg,
 	}
@@ -282,48 +292,55 @@ func (e *httpSpanExporter) ExportSpans(ctx context.Context, spans []sdktrace.Rea
 	if e == nil || e.endpoint == "" || len(spans) == 0 {
 		return nil
 	}
-	payload := make([]map[string]any, 0, len(spans))
-	for _, sp := range spans {
-		if sp == nil {
-			continue
-		}
-		sc := sp.SpanContext()
-		payload = append(payload, map[string]any{
-			"name":       sp.Name(),
-			"traceId":    sc.TraceID().String(),
-			"spanId":     sc.SpanID().String(),
-			"parentSpan": sp.Parent().SpanID().String(),
-			"startUnix":  sp.StartTime().UTC().UnixNano(),
-			"endUnix":    sp.EndTime().UTC().UnixNano(),
-			"attributes": safeAttrsForExport(sp.Attributes()),
-			"status":     sp.Status().Code.String(),
-		})
-	}
-	body, err := json.Marshal(map[string]any{
-		"resourceSpans": payload,
-	})
+	body, err := json.Marshal(buildOTLPTraceExportRequest(spans))
 	if err != nil {
 		e.recordFailure(len(spans))
 		return err
 	}
+	var lastErr error
+	attempts := retryAttempts(e.cfg.RetryMax)
+	for attempt := 0; attempt <= attempts; attempt++ {
+		if attempt > 0 {
+			if err := sleepBackoff(ctx, attempt); err != nil {
+				e.recordFailure(len(spans))
+				return err
+			}
+		}
+		err := e.exportOnce(ctx, body, len(spans))
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if !isRetryableExportError(err) {
+			break
+		}
+	}
+	e.recordFailure(len(spans))
+	return lastErr
+}
+
+func (e *httpSpanExporter) exportOnce(ctx context.Context, body []byte, spanCount int) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, e.endpoint, bytes.NewReader(body))
 	if err != nil {
-		e.recordFailure(len(spans))
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	for k, vals := range e.headers {
+		for _, v := range vals {
+			req.Header.Add(k, v)
+		}
+	}
 	resp, err := e.client.Do(req)
 	if err != nil {
-		e.recordFailure(len(spans))
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		e.recordFailure(len(spans))
-		return fmt.Errorf("otlp http exporter status %d", resp.StatusCode)
+		return exportStatusError(resp.StatusCode)
 	}
 	if e.cfg.OnExportOK != nil {
-		e.cfg.OnExportOK(len(spans))
+		e.cfg.OnExportOK(spanCount)
 	}
 	if e.cfg.OnQueueDepth != nil {
 		e.cfg.OnQueueDepth(0)
@@ -342,12 +359,287 @@ func (e *httpSpanExporter) recordFailure(n int) {
 	}
 }
 
-func safeAttrsForExport(attrs []attribute.KeyValue) map[string]string {
-	out := make(map[string]string, len(attrs))
-	for _, attr := range sanitizeAttrs(attrs) {
-		out[string(attr.Key)] = attr.Value.AsString()
+type otlpTraceExportRequest struct {
+	ResourceSpans []otlpResourceSpans `json:"resourceSpans"`
+}
+
+type otlpResourceSpans struct {
+	Resource   otlpResource     `json:"resource"`
+	ScopeSpans []otlpScopeSpans `json:"scopeSpans"`
+}
+
+type otlpResource struct {
+	Attributes []otlpKeyValue `json:"attributes,omitempty"`
+}
+
+type otlpScopeSpans struct {
+	Scope otlpInstrumentationScope `json:"scope"`
+	Spans []otlpSpan               `json:"spans"`
+}
+
+type otlpInstrumentationScope struct {
+	Name    string `json:"name"`
+	Version string `json:"version,omitempty"`
+}
+
+type otlpSpan struct {
+	TraceID           string         `json:"traceId"`
+	SpanID            string         `json:"spanId"`
+	ParentSpanID      string         `json:"parentSpanId,omitempty"`
+	Name              string         `json:"name"`
+	Kind              int            `json:"kind"`
+	StartTimeUnixNano string         `json:"startTimeUnixNano"`
+	EndTimeUnixNano   string         `json:"endTimeUnixNano"`
+	Attributes        []otlpKeyValue `json:"attributes,omitempty"`
+	Events            []otlpEvent    `json:"events,omitempty"`
+	Status            otlpStatus     `json:"status,omitempty"`
+}
+
+type otlpEvent struct {
+	TimeUnixNano string         `json:"timeUnixNano"`
+	Name         string         `json:"name"`
+	Attributes   []otlpKeyValue `json:"attributes,omitempty"`
+}
+
+type otlpStatus struct {
+	Code    int    `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
+}
+
+type otlpKeyValue struct {
+	Key   string       `json:"key"`
+	Value otlpAnyValue `json:"value"`
+}
+
+type otlpAnyValue struct {
+	StringValue *string         `json:"stringValue,omitempty"`
+	BoolValue   *bool           `json:"boolValue,omitempty"`
+	IntValue    *string         `json:"intValue,omitempty"`
+	DoubleValue *float64        `json:"doubleValue,omitempty"`
+	ArrayValue  *otlpArrayValue `json:"arrayValue,omitempty"`
+}
+
+type otlpArrayValue struct {
+	Values []otlpAnyValue `json:"values"`
+}
+
+func buildOTLPTraceExportRequest(spans []sdktrace.ReadOnlySpan) otlpTraceExportRequest {
+	scopeSpans := make(map[string]*otlpScopeSpans)
+	resourceAttrs := []attribute.KeyValue{
+		semconv.ServiceName("trademind-api"),
+	}
+	for _, sp := range spans {
+		if sp == nil {
+			continue
+		}
+		if res := sp.Resource(); res != nil {
+			resourceAttrs = res.Attributes()
+		}
+		scope := sp.InstrumentationScope()
+		scopeName := strings.TrimSpace(scope.Name)
+		if scopeName == "" {
+			scopeName = "trademind"
+		}
+		key := scopeName + "\x00" + scope.Version
+		bucket := scopeSpans[key]
+		if bucket == nil {
+			bucket = &otlpScopeSpans{
+				Scope: otlpInstrumentationScope{Name: scopeName, Version: scope.Version},
+				Spans: make([]otlpSpan, 0, len(spans)),
+			}
+			scopeSpans[key] = bucket
+		}
+		bucket.Spans = append(bucket.Spans, spanToOTLP(sp))
+	}
+	out := otlpResourceSpans{
+		Resource:   otlpResource{Attributes: attrsToOTLP(resourceAttrs)},
+		ScopeSpans: make([]otlpScopeSpans, 0, len(scopeSpans)),
+	}
+	for _, ss := range scopeSpans {
+		out.ScopeSpans = append(out.ScopeSpans, *ss)
+	}
+	return otlpTraceExportRequest{ResourceSpans: []otlpResourceSpans{out}}
+}
+
+func spanToOTLP(sp sdktrace.ReadOnlySpan) otlpSpan {
+	sc := sp.SpanContext()
+	status := sp.Status()
+	parentSpanID := ""
+	if parent := sp.Parent(); parent.IsValid() {
+		parentSpanID = parent.SpanID().String()
+	}
+	return otlpSpan{
+		TraceID:           sc.TraceID().String(),
+		SpanID:            sc.SpanID().String(),
+		ParentSpanID:      parentSpanID,
+		Name:              sp.Name(),
+		Kind:              int(sp.SpanKind()),
+		StartTimeUnixNano: strconv.FormatInt(sp.StartTime().UTC().UnixNano(), 10),
+		EndTimeUnixNano:   strconv.FormatInt(sp.EndTime().UTC().UnixNano(), 10),
+		Attributes:        attrsToOTLP(sp.Attributes()),
+		Events:            eventsToOTLP(sp.Events()),
+		Status:            otlpStatus{Code: statusCodeToOTLP(status.Code), Message: safeStatusMessage(status.Description)},
+	}
+}
+
+func attrsToOTLP(attrs []attribute.KeyValue) []otlpKeyValue {
+	safe := sanitizeAttrs(attrs)
+	if len(safe) == 0 {
+		return nil
+	}
+	out := make([]otlpKeyValue, 0, len(safe))
+	for _, attr := range safe {
+		out = append(out, otlpKeyValue{
+			Key:   string(attr.Key),
+			Value: anyValueToOTLP(attr.Value),
+		})
 	}
 	return out
+}
+
+func eventsToOTLP(events []sdktrace.Event) []otlpEvent {
+	if len(events) == 0 {
+		return nil
+	}
+	out := make([]otlpEvent, 0, len(events))
+	for _, event := range events {
+		attrs := attrsToOTLP(event.Attributes)
+		if len(attrs) == 0 && shouldDropEventName(event.Name) {
+			continue
+		}
+		out = append(out, otlpEvent{
+			TimeUnixNano: strconv.FormatInt(event.Time.UTC().UnixNano(), 10),
+			Name:         safeEventName(event.Name),
+			Attributes:   attrs,
+		})
+	}
+	return out
+}
+
+func anyValueToOTLP(v attribute.Value) otlpAnyValue {
+	switch v.Type() {
+	case attribute.BOOL:
+		b := v.AsBool()
+		return otlpAnyValue{BoolValue: &b}
+	case attribute.INT64:
+		i := strconv.FormatInt(v.AsInt64(), 10)
+		return otlpAnyValue{IntValue: &i}
+	case attribute.FLOAT64:
+		f := v.AsFloat64()
+		return otlpAnyValue{DoubleValue: &f}
+	case attribute.STRING:
+		s := v.AsString()
+		return otlpAnyValue{StringValue: &s}
+	case attribute.BOOLSLICE:
+		vals := make([]otlpAnyValue, 0, len(v.AsBoolSlice()))
+		for _, item := range v.AsBoolSlice() {
+			b := item
+			vals = append(vals, otlpAnyValue{BoolValue: &b})
+		}
+		return otlpAnyValue{ArrayValue: &otlpArrayValue{Values: vals}}
+	case attribute.INT64SLICE:
+		vals := make([]otlpAnyValue, 0, len(v.AsInt64Slice()))
+		for _, item := range v.AsInt64Slice() {
+			i := strconv.FormatInt(item, 10)
+			vals = append(vals, otlpAnyValue{IntValue: &i})
+		}
+		return otlpAnyValue{ArrayValue: &otlpArrayValue{Values: vals}}
+	case attribute.FLOAT64SLICE:
+		vals := make([]otlpAnyValue, 0, len(v.AsFloat64Slice()))
+		for _, item := range v.AsFloat64Slice() {
+			f := item
+			vals = append(vals, otlpAnyValue{DoubleValue: &f})
+		}
+		return otlpAnyValue{ArrayValue: &otlpArrayValue{Values: vals}}
+	case attribute.STRINGSLICE:
+		vals := make([]otlpAnyValue, 0, len(v.AsStringSlice()))
+		for _, item := range v.AsStringSlice() {
+			s := item
+			vals = append(vals, otlpAnyValue{StringValue: &s})
+		}
+		return otlpAnyValue{ArrayValue: &otlpArrayValue{Values: vals}}
+	default:
+		s := v.Emit()
+		return otlpAnyValue{StringValue: &s}
+	}
+}
+
+func statusCodeToOTLP(code codes.Code) int {
+	switch code {
+	case codes.Ok:
+		return 1
+	case codes.Error:
+		return 2
+	default:
+		return 0
+	}
+}
+
+func safeStatusMessage(message string) string {
+	for _, f := range forbiddenAttrKeys {
+		if strings.Contains(strings.ToLower(message), f) {
+			return "redacted"
+		}
+	}
+	return message
+}
+
+func shouldDropEventName(name string) bool {
+	lower := strings.ToLower(name)
+	for _, f := range forbiddenAttrKeys {
+		if strings.Contains(lower, f) {
+			return true
+		}
+	}
+	return false
+}
+
+func safeEventName(name string) string {
+	if shouldDropEventName(name) {
+		return "redacted"
+	}
+	return name
+}
+
+type exportStatusError int
+
+func (e exportStatusError) Error() string {
+	return fmt.Sprintf("otlp http exporter status %d", int(e))
+}
+
+func isRetryableExportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if status, ok := err.(exportStatusError); ok {
+		return status == http.StatusTooManyRequests || int(status) >= 500
+	}
+	return true
+}
+
+func retryAttempts(max int) int {
+	if max < 0 {
+		return 0
+	}
+	if max > 5 {
+		return 5
+	}
+	return max
+}
+
+func sleepBackoff(ctx context.Context, attempt int) error {
+	d := time.Duration(attempt*attempt) * 25 * time.Millisecond
+	if d > 250*time.Millisecond {
+		d = 250 * time.Millisecond
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func normalizeEndpoint(raw string) string {
@@ -367,9 +659,53 @@ func normalizeEndpoint(raw string) string {
 	return ep
 }
 
+func parseOTLPHeaders(raw string) http.Header {
+	headers := http.Header{}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(part, "=")
+		if !ok {
+			continue
+		}
+		key := http.CanonicalHeaderKey(strings.TrimSpace(k))
+		value := strings.TrimSpace(v)
+		if key == "" || value == "" || strings.EqualFold(key, "authorization") || strings.EqualFold(key, "cookie") {
+			continue
+		}
+		headers.Add(key, value)
+	}
+	return headers
+}
+
 func exportTimeout(d time.Duration) time.Duration {
 	if d <= 0 {
 		return 10 * time.Second
 	}
+	if d > 30*time.Second {
+		return 30 * time.Second
+	}
 	return d
+}
+
+func boundedQueueSize(size int) int {
+	if size <= 0 {
+		return 1024
+	}
+	if size > 10000 {
+		return 10000
+	}
+	return size
+}
+
+func boundedBatchSize(size int, queueSize int) int {
+	if size <= 0 {
+		size = 128
+	}
+	if size > queueSize {
+		return queueSize
+	}
+	return size
 }

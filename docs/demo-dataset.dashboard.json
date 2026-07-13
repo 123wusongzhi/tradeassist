@@ -43,7 +43,7 @@
                         "tag":  "product_drafts_kpi"
                     },
                     {
-                        "workbenchTodoSum":  1366,
+                        "workbenchTodoSum":  1368,
                         "note":  "AI pending review kpi",
                         "tag":  "ai_pending_review_kpi"
                     },
@@ -83,12 +83,12 @@
                         "tag":  "config_risk_kpi"
                     },
                     {
-                        "shopId":  "cfdf9750-0acd-4257-8857-072098dc47b1",
+                        "shopId":  "ee924b41-234e-40bf-8936-ab3ef24151a6",
                         "result":  "ok",
                         "note":  "POST sync-orders on first shop",
                         "tag":  "order_sync_probe"
                     }
                 ],
-    "generatedAt":  "2026-07-12T03:09:05.4223120Z",
+    "generatedAt":  "2026-07-13T04:54:59.9174491Z",
     "note":  "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
 }

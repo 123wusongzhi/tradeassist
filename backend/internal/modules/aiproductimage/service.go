@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -41,6 +42,7 @@ type Service struct {
 	Image       *imagetask.Service
 	OpLog       *operationlog.Service
 	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 }
 
 const (
@@ -542,6 +544,7 @@ func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotenc
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
 	if !s.imageConfigured(ctx) {
+		s.ObserveAIImage("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 图片服务未配置，请先在「设置 → 图片 AI」完成配置")
 	}
 	productIDs, err := parseProductIDs(req.ProductIDs)
@@ -622,6 +625,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
 		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
+		s.ObserveAIImage("internal", "batch_create", "batch", "failure", "database", 0)
 		return nil, err
 	}
 
@@ -668,6 +672,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		})
 	}
 
+	s.ObserveAIImage("internal", "batch_create", "batch", "success", "", 0)
 	go s.runGeneration(detachedGinContext(c), batch.ID, req.Options, adminID)
 	return batch, nil
 }
@@ -696,6 +701,7 @@ func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, opts ImageGen
 
 func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts ImageGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	start := time.Now()
 	var item AIProductImageItem
 	if err := s.DB.WithContext(ctx).First(&item, "id = ?", seed.ID).Error; err != nil {
 		return
@@ -749,12 +755,18 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 		return
 	}
 	if err := s.Image.FinalizeNewImageTask(ctx, c, task); err != nil {
+		s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", "enqueue_failed", time.Since(start))
 		s.failItem(ctx, item.ID, "enqueue_failed", truncateMsg(err.Error(), 500))
 		return
 	}
 
 	finished, runErr := s.waitForImageTask(ctx, task.ID, 5*time.Minute)
 	if runErr != nil {
+		if isAIImageTimeout(runErr.Error()) {
+			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "timeout", "timeout", "provider_timeout", time.Since(start))
+		} else {
+			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", classifyAIImageError(runErr.Error()), time.Since(start))
+		}
 		s.failItem(ctx, item.ID, "generation_failed", truncateMsg(runErr.Error(), 500))
 		return
 	}
@@ -812,6 +824,7 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 		}
 	}
 	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
+	s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "request", "success", "", time.Since(start))
 }
 
 func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) (*imagetask.ImageTask, error) {
@@ -842,6 +855,9 @@ func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeou
 
 func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg string) {
 	norm := NormalizeItemErrorCode(code, msg)
+	if norm == CodeProviderTimeout {
+		s.ObserveAIImage("configured", "generation", "timeout", "timeout", "provider_timeout", 0)
+	}
 	userMsg := msg
 	if m := WarningCodeMessage(norm); m != "" {
 		userMsg = m

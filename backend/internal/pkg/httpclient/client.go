@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/taskretry"
 )
 
@@ -40,11 +41,14 @@ func DefaultConfig() Config {
 
 // Client wraps http.Client with timeout, size limits, and structured errors.
 type Client struct {
-	cfg     Config
-	http    *http.Client
-	log     *slog.Logger
-	breaker *CircuitBreaker
-	sem     chan struct{}
+	cfg       Config
+	http      *http.Client
+	log       *slog.Logger
+	breaker   *CircuitBreaker
+	sem       chan struct{}
+	metrics   *metrics.Catalog
+	provider  string
+	operation string
 }
 
 // New builds a Client from config. maxConcurrent 0 = unlimited.
@@ -91,12 +95,23 @@ func (c *Client) SetCircuitBreaker(b *CircuitBreaker) {
 	}
 }
 
+// SetObservability attaches the shared metrics catalog for outbound provider calls.
+func (c *Client) SetObservability(cat *metrics.Catalog, provider, operation string) {
+	if c == nil {
+		return
+	}
+	c.metrics = cat
+	c.provider = controlled(provider, "unknown")
+	c.operation = controlled(operation, "request")
+}
+
 // Do executes an HTTP request with optional concurrency gate.
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if c == nil || c.http == nil {
 		return nil, fmt.Errorf("httpclient: unavailable")
 	}
 	if c.breaker != nil && !c.breaker.Allow() {
+		c.observeProvider("circuit_open", "circuit_open", 0, false)
 		return nil, fmt.Errorf("circuit_open: provider temporarily unavailable")
 	}
 	if c.sem != nil {
@@ -133,26 +148,34 @@ func (c *Client) DoWithRetry(ctx context.Context, build func(attempt int) (*http
 	if policy.MaxAttempts <= 0 {
 		policy = taskretry.DefaultPolicy()
 	}
+	start := time.Now()
 	var lastErr error
 	for attempt := 1; attempt <= policy.MaxAttempts; attempt++ {
 		req, err := build(attempt)
 		if err != nil {
+			c.observeProvider("contract_mismatch", "contract_mismatch", time.Since(start), false)
 			return nil, err
 		}
 		resp, err := c.Do(ctx, req)
 		if err == nil && resp.StatusCode < 500 && resp.StatusCode != http.StatusTooManyRequests {
+			c.observeProvider("success", "", time.Since(start), false)
 			return resp, nil
 		}
 		if err != nil {
 			lastErr = err
 			cls := taskretry.Classify(err, 0)
 			if !policy.ShouldRetry(attempt, cls.Retryable) {
+				c.observeProvider(resultFromError(err), errorClassFromError(err), time.Since(start), isTimeoutErr(err))
 				return nil, err
+			}
+			if attempt > 1 {
+				c.observeProviderRetry(resultFromError(err), errorClassFromError(err))
 			}
 			wait := policy.NextRunAt(attempt, 0).Sub(time.Now().UTC())
 			if wait > 0 {
 				select {
 				case <-ctx.Done():
+					c.observeProvider("timeout", "timeout", time.Since(start), true)
 					return nil, ctx.Err()
 				case <-time.After(wait):
 				}
@@ -169,21 +192,104 @@ func (c *Client) DoWithRetry(ctx context.Context, build func(attempt int) (*http
 		lastErr = fmt.Errorf("http %d", resp.StatusCode)
 		cls := taskretry.Classify(lastErr, resp.StatusCode)
 		if !policy.ShouldRetry(attempt, cls.Retryable) {
+			c.observeProvider(resultFromStatus(resp.StatusCode), errorClassFromStatus(resp.StatusCode), time.Since(start), false)
 			return resp, lastErr
+		}
+		if attempt > 1 {
+			c.observeProviderRetry(resultFromStatus(resp.StatusCode), errorClassFromStatus(resp.StatusCode))
 		}
 		wait := policy.NextRunAt(attempt, retryAfter).Sub(time.Now().UTC())
 		if wait > 0 {
 			select {
 			case <-ctx.Done():
+				c.observeProvider("timeout", "timeout", time.Since(start), true)
 				return nil, ctx.Err()
 			case <-time.After(wait):
 			}
 		}
 	}
 	if lastErr != nil {
+		c.observeProvider(resultFromError(lastErr), errorClassFromError(lastErr), time.Since(start), isTimeoutErr(lastErr))
 		return nil, lastErr
 	}
+	c.observeProvider("failure", "max_attempts", time.Since(start), false)
 	return nil, fmt.Errorf("httpclient: max attempts reached")
+}
+
+func (c *Client) observeProvider(result, errorClass string, dur time.Duration, timeout bool) {
+	if c == nil || c.metrics == nil {
+		return
+	}
+	c.metrics.ObserveProvider(controlled(c.provider, "unknown"), controlled(c.operation, "request"), result, errorClass, dur, timeout)
+}
+
+func (c *Client) observeProviderRetry(result, errorClass string) {
+	if c == nil || c.metrics == nil {
+		return
+	}
+	c.metrics.ObserveProviderRetry(controlled(c.provider, "unknown"), controlled(c.operation, "request"), result, errorClass)
+}
+
+func controlled(v, fallback string) string {
+	v = strings.TrimSpace(strings.ToLower(v))
+	if v == "" {
+		return fallback
+	}
+	return v
+}
+
+func resultFromStatus(code int) string {
+	switch {
+	case code == http.StatusTooManyRequests:
+		return "rate_limited"
+	case code >= 500:
+		return "failure"
+	default:
+		return "unknown"
+	}
+}
+
+func errorClassFromStatus(code int) string {
+	switch {
+	case code == http.StatusTooManyRequests:
+		return "rate_limited"
+	case code >= 500:
+		return "provider_5xx"
+	default:
+		return "http_status"
+	}
+}
+
+func resultFromError(err error) string {
+	if isTimeoutErr(err) {
+		return "timeout"
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "circuit") {
+		return "circuit_open"
+	}
+	return "failure"
+}
+
+func errorClassFromError(err error) string {
+	if isTimeoutErr(err) {
+		return "timeout"
+	}
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "circuit") {
+		return "circuit_open"
+	}
+	return "network_error"
+}
+
+func isTimeoutErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	if ne, ok := err.(net.Error); ok && ne.Timeout() {
+		return true
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "timeout") || strings.Contains(strings.ToLower(err.Error()), "deadline exceeded")
 }
 
 // ReadLimitedBody reads response body up to MaxResponseBytes.

@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -46,6 +47,7 @@ type Service struct {
 	Products    *product.Service
 	OpLog       *operationlog.Service
 	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 }
 
 func (s *Service) batchMaxSize(ctx context.Context) int {
@@ -452,6 +454,7 @@ func sourceHashForProduct(p *product.Product, op string) string {
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductTextBatch, error) {
 	ctx := c.Request.Context()
 	if !s.aiConfigured() {
+		s.ObserveAIText("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 服务未配置")
 	}
 	ids, err := parseProductIDs(req.ProductIDs)
@@ -509,6 +512,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
 		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
+		s.ObserveAIText("internal", "batch_create", "batch", "failure", "database", 0)
 		return nil, err
 	}
 
@@ -552,6 +556,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		})
 	}
 
+	s.ObserveAIText("internal", "batch_create", "batch", "success", "", 0)
 	go s.runGeneration(detachedGinContext(c), batch.ID, ids, ops, req.Options, adminID)
 	return batch, nil
 }
@@ -593,6 +598,7 @@ func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, ids []uuid.UU
 
 func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op string, titleBody product.OptimizeTitleBody, descBody product.GenerateDescriptionBody, opts TextGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	start := time.Now()
 	var item AIProductTextItem
 	if err := s.DB.WithContext(ctx).
 		Where("batch_id = ? AND product_id = ? AND operation_type = ?", batchID, productID, op).
@@ -639,7 +645,13 @@ func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op st
 		updates["status"] = ItemFailed
 		updates["error_message"] = truncateMsg(runErr.Error(), 500)
 		updates["error_code"] = "generation_failed"
+		if isAITextTimeout(runErr.Error()) {
+			s.ObserveAIText("configured", op, "timeout", "timeout", "provider_timeout", time.Since(start))
+		} else {
+			s.ObserveAIText("configured", op, "failure", "failure", classifyAITextError(runErr.Error()), time.Since(start))
+		}
 	} else {
+		s.ObserveAIText("configured", op, "request", "success", "", time.Since(start))
 		var p product.Product
 		_ = s.DB.WithContext(ctx).Select("title").First(&p, "id = ?", productID).Error
 		warnings := checkTitleQuality(generatedText, opts, opts.ForbiddenWords)
@@ -1069,6 +1081,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		targetVersion = item.ProductUpdatedAt.UTC().Format(time.RFC3339Nano)
 		if !allowReplay && !textVersionMatches(*item.ProductUpdatedAt, prod.UpdatedAt) {
 			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
 			result.ErrorCode = ErrCodeTargetVersionConflict
@@ -1106,9 +1119,11 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		if ok {
 			result.Status = ItemApplied
 			result.StatusLabel = itemStatusLabel(ItemApplied)
+			s.ObserveAIText("internal", item.OperationType, "reconcile", "success", "", 0)
 			return result
 		}
 		if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+			s.ObserveAIText("internal", item.OperationType, "reconcile", "failure", "conflict", 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
 			result.ErrorCode = product.CodeAIApplyReconciliationConflict
@@ -1155,6 +1170,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		if strings.Contains(msg, "content conflict") {
 			s.failTextApply(ctx, idemJob, ErrCodeTargetVersionConflict, false)
 			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
 			result.ErrorCode = ErrCodeTargetVersionConflict
@@ -1162,6 +1178,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 			return result
 		}
 		s.failTextApply(ctx, idemJob, "AI_TEXT_APPLY_FAILED", true)
+		s.ObserveAIText("internal", item.OperationType, "apply", "failure", "apply_failed", 0)
 		result.Status = "failed"
 		result.StatusLabel = "失败"
 		result.ErrorMessage = msg
@@ -1198,6 +1215,7 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 
 	result.Status = ItemApplied
 	result.StatusLabel = itemStatusLabel(ItemApplied)
+	s.ObserveAIText("internal", item.OperationType, "apply", "success", "", 0)
 	return result
 }
 

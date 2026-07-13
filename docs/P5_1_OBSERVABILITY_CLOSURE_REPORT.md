@@ -1,15 +1,15 @@
 # P5.1 Observability Closure Report
 
 Phase: P5.1
-Status: incomplete
+Status: passed_with_real_environment_telemetry_verification_deferred
 Real Environment Telemetry Verification: deferred
 External Alert Channel Verification: deferred
 Production SLO Verification: deferred
 
 ## Summary
-- passed: 28
+- passed: 37
 - warnings: 0
-- failed: 9
+- failed: 0
 
 ## Checks
 - [passed] db-runtime-collector: DB runtime collector exists
@@ -25,15 +25,15 @@ Production SLO Verification: deferred
 - [passed] slo-evaluator: SLO evaluator and budget/burn-rate logic exists
 - [passed] slo-wired: SLO evaluator wired in server
 - [passed] slo-test: SLO calculation tests exist
-- [failed] business-httpclient: httpclient real business instrumentation is still missing
-- [failed] business-webhook: webhook real business instrumentation is still missing
-- [failed] business-ordersync: ordersync real business instrumentation is still missing
-- [failed] business-inventory: inventory real business instrumentation is still missing
-- [failed] business-ai-text: ai-text real business instrumentation is still missing
-- [failed] business-ai-image: ai-image real business instrumentation is still missing
-- [failed] business-file-scan: file-scan real business instrumentation is still missing
-- [failed] business-security: security real business instrumentation is still missing
-- [failed] business-auth: auth real business instrumentation is still missing
+- [passed] business-httpclient: httpclient real instrumentation detected
+- [passed] business-webhook: webhook real instrumentation detected
+- [passed] business-ordersync: ordersync real instrumentation detected
+- [passed] business-inventory: inventory real instrumentation detected
+- [passed] business-ai-text: ai-text real instrumentation detected
+- [passed] business-ai-image: ai-image real instrumentation detected
+- [passed] business-file-scan: file-scan real instrumentation detected
+- [passed] business-security: security real instrumentation detected
+- [passed] business-auth: auth real instrumentation detected
 - [passed] catalog-db_connections_open: db_connections_open
 - [passed] catalog-db_query_duration_seconds: db_query_duration_seconds
 - [passed] catalog-alert_deliveries: alert_deliveries
@@ -51,4 +51,4 @@ Production SLO Verification: deferred
 - [passed] doc-P5_1_DEVELOPMENT_ACCEPTANCE_REPORT.md: docs/P5_1_DEVELOPMENT_ACCEPTANCE_REPORT.md
 
 ## Conclusion
-Phase P5.1 Incomplete. Phase P5 Closure Verification Incomplete. Do not mark Business Instrumentation Ready or Phase P5 Fully Closed until failed items are fixed and validated.
+Phase P5.1 code-level closure passed. Do not mark Production Ready; real telemetry, external channels, and production SLO verification remain deferred.

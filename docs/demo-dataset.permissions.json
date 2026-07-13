@@ -6,7 +6,7 @@
                               "tag":  "readonly_write_blocked"
                           },
                           {
-                              "shopId":  "cfdf9750-0acd-4257-8857-072098dc47b1",
+                              "shopId":  "ee924b41-234e-40bf-8936-ab3ef24151a6",
                               "account":  "demo_operator",
                               "expect":  "404 or 403",
                               "tag":  "operator_cross_store_denied"
@@ -15,7 +15,7 @@
     "accounts":  {
                      "demo_readonly":  {
                                            "email":  "demo_readonly@trademind.local",
-                                           "authorizedShopId":  "9737575b-3d10-4476-bad7-d91cb4d67187",
+                                           "authorizedShopId":  "858e7b5e-5767-49e8-aeef-ca1425f1309a",
                                            "password":  "DemoReadonly123!",
                                            "role":  "readonly"
                                        },
@@ -26,12 +26,12 @@
                                     },
                      "demo_operator":  {
                                            "email":  "demo_operator@trademind.local",
-                                           "authorizedShopId":  "9737575b-3d10-4476-bad7-d91cb4d67187",
+                                           "authorizedShopId":  "858e7b5e-5767-49e8-aeef-ca1425f1309a",
                                            "password":  "DemoOperator123!",
                                            "role":  "operator"
                                        }
                  },
-    "generatedAt":  "2026-07-12T03:09:05.6011992Z",
+    "generatedAt":  "2026-07-13T04:55:00.0654394Z",
     "note":  "Passwords are demo-only; change in production.",
     "phase":  "P4-R",
     "demo_permission_template_version":  "p4-r-v1"

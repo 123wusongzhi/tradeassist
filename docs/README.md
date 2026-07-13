@@ -38,6 +38,8 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [P5_1_EXECUTION_CLOSURE_AUDIT.md](P5_1_EXECUTION_CLOSURE_AUDIT.md) | P5.1 执行闭环审计矩阵，禁止把 registered 当作 instrumented | 开发者 / AI Agent |
 | [P5_1_BUSINESS_INSTRUMENTATION.md](P5_1_BUSINESS_INSTRUMENTATION.md) | P5.1 业务埋点真实接线状态与剩余缺口 | 开发者 / AI Agent |
 | [P5_1_DATABASE_OBSERVABILITY.md](P5_1_DATABASE_OBSERVABILITY.md) / [P5_1_OTLP_DEPENDENCY_RESOLUTION.md](P5_1_OTLP_DEPENDENCY_RESOLUTION.md) | P5.1 DB runtime/query 观测与 OTLP 依赖冲突处理 | 后端 / AI Agent |
+| [P5_2_FINAL_OBSERVABILITY_REPORT.md](P5_2_FINAL_OBSERVABILITY_REPORT.md) | P5.2 九类业务埋点接线与最终可观测性验证报告，区分 code-level passed 与未关闭门禁 | 后端 / AI Agent |
+| [P5_V_FINAL_VERIFICATION_AUDIT.md](P5_V_FINAL_VERIFICATION_AUDIT.md) / [P5_V_OTLP_PROTOCOL_IMPLEMENTATION.md](P5_V_OTLP_PROTOCOL_IMPLEMENTATION.md) / [P5_V_FINAL_OBSERVABILITY_REPORT.md](P5_V_FINAL_OBSERVABILITY_REPORT.md) | P5-V 标准 OTLP/HTTP JSON 实现、Mock Collector 协议测试与最终关闭验证门；真实 telemetry backend 仍 Deferred | 后端 / AI Agent |
 | [WORKBENCH_URL_STATE_DESIGN.md](WORKBENCH_URL_STATE_DESIGN.md) | H1.1 工作台 URL 状态保持设计与已接入页面 | 前端 / AI Agent |
 | [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) | Phase F1 全项目 34 模块功能地图与完成度 | 产品 / 开发者 / AI Agent |
 | [FULL_PROJECT_MVP_MAIN_FLOW.md](FULL_PROJECT_MVP_MAIN_FLOW.md) | Phase F1 MVP 主链路 16 步定义 | 产品 / 开发者 |

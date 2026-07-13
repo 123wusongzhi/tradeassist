@@ -1,6 +1,6 @@
 # P3 抖店 Adapter 实施报告
 
-Generated: 2026-07-12T01:41:37.291Z
+Generated: 2026-07-13T05:09:35.088Z
 
 **Overall:** passed_with_real_credentials_deferred (49 passed, 0 warnings, 0 failed)
 

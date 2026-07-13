@@ -17,10 +17,12 @@ import (
 
 // AdjustSKUStock updates local SKU snapshot and optionally enqueues platform pushes for eligible mappings.
 func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid.UUID, body AdjustStockBody, admin *uuid.UUID) (*product.ProductSKU, error) {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
 	if body.Stock < 0 {
+		s.ObserveInventory("local", "adjust", "negative_prevented", "failure", "validation", 1, 0)
 		return nil, fmt.Errorf("stock must be >= 0")
 	}
 	body.Reason = clampStr(body.Reason, 128)
@@ -43,6 +45,7 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 
 	if err := tx.Model(&product.ProductSKU{}).Where("id = ? AND product_id = ?", skuID, productID).
 		Updates(map[string]any{"stock": body.Stock, "updated_at": time.Now().UTC()}).Error; err != nil {
+		s.ObserveInventory("local", "adjust", "adjust", "failure", "database", 1, time.Since(start))
 		return nil, err
 	}
 	logRow := InventoryChangeLog{
@@ -63,6 +66,7 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 		return nil, err
 	}
 	if err := tx.Commit().Error; err != nil {
+		s.ObserveInventory("local", "adjust", "adjust", "failure", "database", 1, time.Since(start))
 		return nil, err
 	}
 	tx = nil
@@ -81,9 +85,11 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	if body.Sync {
 		n, syncErr := s.CreateInventorySyncTasksForSKUStock(ctx, productID, skuID, body.Stock, admin)
 		if syncErr != nil {
+			s.ObserveInventory("local", "push", "push_failure", "failure", "enqueue_failed", 1, time.Since(start))
 			return nil, syncErr
 		}
 		if n == 0 {
+			s.ObserveInventory("local", "push", "push_failure", "failure", "no_mapping", 1, time.Since(start))
 			return nil, fmt.Errorf("sync requested but no linked publication SKU rows eligible for inventory sync")
 		}
 	}
@@ -92,6 +98,7 @@ func (s *Service) AdjustSKUStock(c *gin.Context, productID uuid.UUID, skuID uuid
 	if err := s.DB.WithContext(ctx).First(&updated, "id = ?", skuID).Error; err != nil {
 		return nil, err
 	}
+	s.ObserveInventory("local", "adjust", "adjust", "success", "", 1, time.Since(start))
 	return &updated, nil
 }
 

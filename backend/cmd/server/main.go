@@ -111,7 +111,12 @@ func main() {
 			SampleRatio:   obsCfg.OTELTraceSampleRatio,
 			ExportStdout:  cfg.AppEnv == "development" && obsCfg.TracingEnabled,
 			OTLPEndpoint:  obsCfg.OTELExporterOTLPEndpoint,
+			OTLPProtocol:  obsCfg.OTELExporterOTLPProtocol,
+			OTLPHeaders:   obsCfg.OTELExporterOTLPHeaders,
 			ExportTimeout: obsCfg.ExportTimeout(),
+			QueueSize:     obsCfg.OTELExportQueueSize,
+			BatchSize:     obsCfg.OTELExportBatchSize,
+			RetryMax:      obsCfg.OTELExportRetryMax,
 		},
 	})
 	if err != nil {

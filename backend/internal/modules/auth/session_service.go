@@ -12,15 +12,17 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // SessionService manages sessions and refresh token rotation.
 type SessionService struct {
-	Cfg    *config.Config
-	DB     *gorm.DB
-	Admins *admin.Store
+	Cfg     *config.Config
+	DB      *gorm.DB
+	Admins  *admin.Store
+	Metrics *metrics.Catalog
 }
 
 // LoginSessionResult is returned after successful credential verification.
@@ -116,6 +118,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 	if err != nil {
 		return nil, err
 	}
+	s.ObserveAuth("session_created", "success", "created", "password")
 
 	label := u.LoginLabel()
 	dn := u.DisplayName
@@ -261,8 +264,14 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		return nil
 	})
 	if err != nil {
+		reason := classifyAuthReason(err)
+		s.ObserveAuth("refresh", "failure", reason, "refresh_token")
+		if err.Error() == ErrRefreshTokenReused {
+			s.ObserveAuth("refresh_reuse", "failure", "reuse_detected", "refresh_token")
+		}
 		return nil, err
 	}
+	s.ObserveAuth("refresh", "success", "success", "refresh_token")
 	return result, nil
 }
 
@@ -300,7 +309,7 @@ func (s *SessionService) RevokeSession(ctx context.Context, sessionID, userID uu
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("auth: misconfigured")
 	}
-	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var sess AuthSession
 		if err := tx.First(&sess, "id = ?", sessionID).Error; err != nil {
 			return err
@@ -310,6 +319,10 @@ func (s *SessionService) RevokeSession(ctx context.Context, sessionID, userID uu
 		}
 		return s.revokeSessionTx(tx, sessionID, reason)
 	})
+	if err == nil {
+		s.ObserveAuth("session_revoked", "success", safeAuthReason(reason), "password")
+	}
+	return err
 }
 
 // RevokeOtherSessions revokes all sessions except current.
