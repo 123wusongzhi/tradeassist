@@ -80,6 +80,41 @@ func productionP6BackupRelease() (BackupConfig, ReleaseConfig) {
 		}
 }
 
+func productionP7() P7Config {
+	return P7Config{
+		PaginationDefaultLimit:     50,
+		PaginationMaxLimit:         200,
+		PaginationMaxOffset:        10000,
+		PaginationCursorSigningKey: strings.Repeat("c", 48),
+		DBMaxOpenConnections:       100,
+		DBMaxIdleConnections:       10,
+		DBConnMaxLifetimeSeconds:   3600,
+		DBConnMaxIdleTimeSeconds:   900,
+		DBQueryTimeoutMs:           5000,
+		DBTransactionTimeoutMs:     10000,
+		WorkerConcurrencyDefault:   2,
+		WorkerQueueCapacity:        1000,
+		WorkerMaxInflight:          100,
+		WorkerPrefetch:             10,
+		WorkerShutdownTimeoutSecs:  60,
+		RateLimitEnabled:           true,
+		RateLimitMode:              "local",
+		RateLimitRedisPrefix:       "trademind:ratelimit",
+		RateLimitFailMode:          "closed",
+		RateLimitLocalFallback:     true,
+		RateLimitPolicyVersion:     "p7-default-v1",
+		CacheEnabled:               true,
+		CacheDefaultTTLSeconds:     300,
+		CacheMaxEntries:            10000,
+		CacheSingleflightEnabled:   true,
+		ExportBatchSize:            500,
+		ExportMaxRows:              100000,
+		ExportMaxBytes:             104857600,
+		ExportMaxConcurrent:        2,
+		PprofInternalOnly:          true,
+	}
+}
+
 func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 	t.Parallel()
 	backupCfg, releaseCfg := productionP6BackupRelease()
@@ -96,6 +131,7 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 		Observability:          ValidProductionObservability(),
 		Backup:                 backupCfg,
 		Release:                releaseCfg,
+		P7:                     productionP7(),
 		DB: DBConfig{
 			Driver: "postgres",
 			User:   "u",
@@ -199,6 +235,7 @@ func TestLoad_productionFromEnv(t *testing.T) {
 	t.Setenv("BACKUP_RETENTION_WEEKLY", "8")
 	t.Setenv("BACKUP_RETENTION_MONTHLY", "12")
 	t.Setenv("RELEASE_REQUIRE_PRE_BACKUP", "true")
+	t.Setenv("PAGINATION_CURSOR_SIGNING_KEY", strings.Repeat("c", 48))
 
 	cfg, err := Load()
 	if err != nil {

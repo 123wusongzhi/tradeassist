@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P7-C - Capability closure preflight (2026-07-13)
+
+- Added signed cursor encoding for P7 pagination and a production guard requiring `PAGINATION_CURSOR_SIGNING_KEY`.
+- Added `backend/internal/pkg/cache` with bounded TTL entries, invalidation, negative cache, tenant-scoped keys and singleflight loading.
+- Added guarded `p7load` interruption flags for dataset resume drills: `--fail-after-batches` and `--stop-after-rows`.
+- Added P7-C resume, pagination runtime, query-plan, N+1, Linux race and closure gate scripts plus generated incomplete/blocking evidence reports.
+- Status: Phase P7-C remains incomplete; 33 mandatory partial items remain in the source audit, Medium runtime verification and Linux race still need execution in the isolated environment; no tag and not Production Ready.
+
 ### Phase P7-V - Medium dataset and closure gate hardening (2026-07-13)
 
 - Reworked `p7load` from a plan-only recorder into a guarded PostgreSQL dataset loader with batch writes, idempotent reruns, run-scoped cleanup, real row counts and deterministic dataset fingerprints.

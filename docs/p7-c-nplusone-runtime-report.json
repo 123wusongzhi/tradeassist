@@ -1,0 +1,42 @@
+{
+  "phase": "P7-C",
+  "status": "blocked",
+  "generatedAt": "2026-07-13T13:35:49.274Z",
+  "checks": [
+    {
+      "name": "100 Orders + Order Items",
+      "resultRows": 0,
+      "queryCount": 0,
+      "expectedMaxQueries": 0,
+      "queriesPerRow": 0,
+      "status": "pending"
+    },
+    {
+      "name": "100 Products + SKU",
+      "resultRows": 0,
+      "queryCount": 0,
+      "expectedMaxQueries": 0,
+      "queriesPerRow": 0,
+      "status": "pending"
+    },
+    {
+      "name": "100 Users + Role/Permission",
+      "resultRows": 0,
+      "queryCount": 0,
+      "expectedMaxQueries": 0,
+      "queriesPerRow": 0,
+      "status": "pending"
+    },
+    {
+      "name": "100 Tasks + Resource",
+      "resultRows": 0,
+      "queryCount": 0,
+      "expectedMaxQueries": 0,
+      "queriesPerRow": 0,
+      "status": "pending"
+    }
+  ],
+  "issues": [
+    "N+1 runtime verification was not executed because no instrumented isolated database runtime was provided."
+  ]
+}

@@ -40,3 +40,23 @@ func TestCursorScope(t *testing.T) {
 		t.Fatalf("unexpected tie id %q", p.TieID)
 	}
 }
+
+func TestCursorTamperRejected(t *testing.T) {
+	cur, err := EncodeCursor(CursorPayload{
+		TenantID:  7,
+		ShopID:    "shop-a",
+		SortField: "created_at",
+		SortValue: "2026-07-13T00:00:00Z",
+		TieID:     "row-a",
+	})
+	if err != nil {
+		t.Fatalf("EncodeCursor: %v", err)
+	}
+	tampered := cur[:len(cur)-1] + "A"
+	if tampered == cur {
+		tampered = cur[:len(cur)-1] + "B"
+	}
+	if _, err := DecodeCursor(tampered, 7, "shop-a"); err == nil {
+		t.Fatal("expected tampered cursor to be rejected")
+	}
+}

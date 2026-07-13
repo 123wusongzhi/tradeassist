@@ -84,6 +84,7 @@ func TestValidate_storageProductionCOSPassesBase(t *testing.T) {
 		Observability:          ValidProductionObservability(),
 		Backup:                 backupCfg,
 		Release:                releaseCfg,
+		P7:                     productionP7(),
 		DB:                     DBConfig{Driver: "postgres", User: "u", Name: "db"},
 	}
 	if err := cfg.Validate(); err != nil {

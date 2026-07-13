@@ -17,9 +17,10 @@ type P7Config struct {
 	PerformanceTestMaxVUs      int
 	PerformanceTestMaxDuration int
 
-	PaginationDefaultLimit int
-	PaginationMaxLimit     int
-	PaginationMaxOffset    int
+	PaginationDefaultLimit     int
+	PaginationMaxLimit         int
+	PaginationMaxOffset        int
+	PaginationCursorSigningKey string
 
 	DBMaxOpenConnections      int
 	DBMaxIdleConnections      int
@@ -65,9 +66,10 @@ func loadP7Config(appEnv string) P7Config {
 		PerformanceTestMaxVUs:      atoiOrDefault(getenv("PERFORMANCE_TEST_MAX_VUS"), 50),
 		PerformanceTestMaxDuration: atoiOrDefault(getenv("PERFORMANCE_TEST_MAX_DURATION_SECONDS"), 1800),
 
-		PaginationDefaultLimit: atoiOrDefault(getenv("PAGINATION_DEFAULT_LIMIT"), 50),
-		PaginationMaxLimit:     atoiOrDefault(getenv("PAGINATION_MAX_LIMIT"), 200),
-		PaginationMaxOffset:    atoiOrDefault(getenv("PAGINATION_MAX_OFFSET"), 10000),
+		PaginationDefaultLimit:     atoiOrDefault(getenv("PAGINATION_DEFAULT_LIMIT"), 50),
+		PaginationMaxLimit:         atoiOrDefault(getenv("PAGINATION_MAX_LIMIT"), 200),
+		PaginationMaxOffset:        atoiOrDefault(getenv("PAGINATION_MAX_OFFSET"), 10000),
+		PaginationCursorSigningKey: strings.TrimSpace(getenv("PAGINATION_CURSOR_SIGNING_KEY")),
 
 		DBMaxOpenConnections:      atoiOrDefault(getenv("DB_MAX_OPEN_CONNECTIONS"), 100),
 		DBMaxIdleConnections:      atoiOrDefault(getenv("DB_MAX_IDLE_CONNECTIONS"), 10),
@@ -116,6 +118,9 @@ func (c *Config) validateP7ProductionGuards() error {
 		}
 		if p.PprofEnabled && !p.PprofInternalOnly {
 			return fmt.Errorf("%s: PPROF_INTERNAL_ONLY must be true when PPROF_ENABLED=true in production", ErrCodeProductionDevRouteEnabled)
+		}
+		if strings.TrimSpace(p.PaginationCursorSigningKey) == "" {
+			return fmt.Errorf("%s: PAGINATION_CURSOR_SIGNING_KEY is required in production", ErrCodeConfigInvalid)
 		}
 		if !p.RateLimitEnabled && strings.TrimSpace(getenv("RATE_LIMIT_DISABLE_APPROVAL")) == "" {
 			return fmt.Errorf("%s: RATE_LIMIT_ENABLED=false in production requires RATE_LIMIT_DISABLE_APPROVAL", ErrCodeConfigInvalid)

@@ -1,0 +1,180 @@
+{
+  "phase": "P7-C",
+  "status": "incomplete",
+  "generatedAt": "2026-07-13T13:43:48.716Z",
+  "failed": 6,
+  "passed": 3,
+  "checks": [
+    {
+      "id": "mandatory-partial-zero",
+      "status": "failed",
+      "detail": "mandatoryPartial=33"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "passed",
+      "detail": "mandatoryMissing=0"
+    },
+    {
+      "id": "dataset-resume-report-passed",
+      "status": "failed",
+      "detail": "dataset resume status=blocked"
+    },
+    {
+      "id": "pagination-runtime-passed",
+      "status": "failed",
+      "detail": "pagination status=blocked"
+    },
+    {
+      "id": "query-plan-passed",
+      "status": "failed",
+      "detail": "query plan status=blocked"
+    },
+    {
+      "id": "nplusone-passed",
+      "status": "failed",
+      "detail": "n+1 status=blocked"
+    },
+    {
+      "id": "cache-package-mapped",
+      "status": "passed",
+      "detail": "backend/internal/pkg/cache"
+    },
+    {
+      "id": "race-package-mapping-complete",
+      "status": "passed",
+      "detail": "11/11 mapped"
+    },
+    {
+      "id": "linux-race-passed",
+      "status": "failed",
+      "detail": "race status=blocked"
+    }
+  ],
+  "capabilityAudit": {
+    "total": 57,
+    "mandatoryImplemented": 24,
+    "mandatoryPartial": 33,
+    "mandatoryMissing": 0,
+    "notApplicable": 0
+  },
+  "runtime": {
+    "datasetResume": "blocked",
+    "pagination": "blocked",
+    "queryPlan": "blocked",
+    "nPlusOne": "blocked",
+    "race": "blocked"
+  },
+  "cache": {
+    "phase": "P7-C",
+    "status": "cache_required_implemented",
+    "decision": "cache_required",
+    "evidence": [
+      "CACHE_* configuration is present in .env.example, .env.production.example and backend/internal/config/p7_config.go.",
+      "P7-V audit marks cache TTL and entry bound as implemented and several cache capabilities as partial.",
+      "backend/internal/pkg/cache now provides TTL, max entries, invalidation, negative cache and singleflight primitives."
+    ],
+    "package": "backend/internal/pkg/cache",
+    "testPackage": "backend/internal/pkg/cache/..."
+  },
+  "raceMapping": {
+    "mandatoryCapabilitiesMapped": true,
+    "packages": [
+      {
+        "capability": "pagination/cursor",
+        "expectedPackage": "./internal/pkg/pagination/...",
+        "actualPackage": "./internal/pkg/pagination/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "ratelimit",
+        "expectedPackage": "./internal/pkg/ratelimit/...",
+        "actualPackage": "./internal/pkg/ratelimit/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "cache/singleflight",
+        "expectedPackage": "./internal/pkg/cache/...",
+        "actualPackage": "./internal/pkg/cache/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "httpclient/provider limiter",
+        "expectedPackage": "./internal/pkg/httpclient/...",
+        "actualPackage": "./internal/pkg/httpclient/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "taskcenter/worker",
+        "expectedPackage": "./internal/modules/taskcenter/...",
+        "actualPackage": "./internal/modules/taskcenter/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "webhook",
+        "expectedPackage": "./internal/modules/webhook/...",
+        "actualPackage": "./internal/modules/webhook/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "inventory",
+        "expectedPackage": "./internal/modules/inventory/...",
+        "actualPackage": "./internal/modules/inventory/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "auth",
+        "expectedPackage": "./internal/modules/admin/...",
+        "actualPackage": "./internal/modules/admin/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "export/files",
+        "expectedPackage": "./internal/modules/exportmod/...",
+        "actualPackage": "./internal/modules/exportmod/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "operationlog",
+        "expectedPackage": "./internal/modules/operationlog/...",
+        "actualPackage": "./internal/modules/operationlog/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      },
+      {
+        "capability": "dataset generator runtime",
+        "expectedPackage": "./cmd/p7load/...",
+        "actualPackage": "./cmd/p7load/...",
+        "status": "mapped",
+        "reason": "Existing package mapped for race execution.",
+        "mandatory": true
+      }
+    ]
+  },
+  "loadSoakFinalVerification": "pending_p7_v2",
+  "realProductionPerformanceVerification": "deferred",
+  "realProductionCapacityVerification": "deferred",
+  "realProductionPeakLoadVerification": "deferred",
+  "douyinRealCredentialVerification": "deferred",
+  "tag": "deferred",
+  "productionReady": false
+}

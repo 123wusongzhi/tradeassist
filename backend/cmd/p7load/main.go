@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -66,23 +67,28 @@ type report struct {
 	StartedAt          string         `json:"startedAt"`
 	FinishedAt         string         `json:"finishedAt"`
 	Guards             []string       `json:"guards"`
+	FailureInjection   map[string]int `json:"failureInjection,omitempty"`
 	Issues             []string       `json:"issues"`
 }
 
 type loader struct {
-	db        *gorm.DB
-	runID     string
-	runKey    string
-	plan      datasetPlan
-	batchSize int
-	report    *report
-	now       time.Time
+	db               *gorm.DB
+	runID            string
+	runKey           string
+	plan             datasetPlan
+	batchSize        int
+	failAfterBatches int
+	stopAfterRows    int64
+	report           *report
+	now              time.Time
 }
 
 type skuRef struct {
 	ID        uuid.UUID
 	ProductID uuid.UUID
 }
+
+var errControlledInterruption = errors.New("controlled P7 dataset interruption")
 
 func main() {
 	profile := flag.String("profile", "small", "small|medium|large|stress")
@@ -91,6 +97,8 @@ func main() {
 	execute := flag.Bool("execute", false, "execute dataset generation; equivalent to --dry-run=false")
 	cleanupOnly := flag.Bool("cleanup-only", false, "delete only rows that belong to the current run id")
 	batchSize := flag.Int("batch-size", 1000, "bounded rows per transaction")
+	failAfterBatches := flag.Int("fail-after-batches", 0, "performance-mode only: exit after N successful batches for resume drills")
+	stopAfterRows := flag.Int64("stop-after-rows", 0, "performance-mode only: exit after at least N inserted rows for resume drills")
 	flag.Parse()
 
 	start := time.Now().UTC()
@@ -157,13 +165,21 @@ func main() {
 	}
 
 	ld := &loader{
-		db:        db,
-		runID:     id,
-		runKey:    safeRunKey(id),
-		plan:      plan,
-		batchSize: boundedBatchSize(*batchSize),
-		report:    &rep,
-		now:       start.Truncate(time.Second),
+		db:               db,
+		runID:            id,
+		runKey:           safeRunKey(id),
+		plan:             plan,
+		batchSize:        boundedBatchSize(*batchSize),
+		failAfterBatches: max(0, *failAfterBatches),
+		stopAfterRows:    max64(0, *stopAfterRows),
+		report:           &rep,
+		now:              start.Truncate(time.Second),
+	}
+	if ld.failAfterBatches > 0 || ld.stopAfterRows > 0 {
+		rep.FailureInjection = map[string]int{
+			"failAfterBatches": ld.failAfterBatches,
+			"stopAfterRows":    int(ld.stopAfterRows),
+		}
 	}
 	if *cleanupOnly {
 		if err := ld.cleanup(context.Background()); err != nil {
@@ -188,6 +204,16 @@ func main() {
 	}
 	rep.ExistingRows = sumCounts(before)
 	if err := ld.generate(ctx); err != nil {
+		if errors.Is(err, errControlledInterruption) {
+			after, countErr := ld.counts(ctx)
+			if countErr == nil {
+				rep.Counts = after
+				rep.ActualRows = sumCounts(after)
+				rep.DatasetFingerprint = fingerprint(id, plan, after)
+			}
+			finish(&rep, "controlled_interruption", err)
+			os.Exit(75)
+		}
 		rep.FailedRows = rows - rep.InsertedRows - rep.ExistingRows
 		finish(&rep, "dataset_generation_failed", err)
 		os.Exit(1)
@@ -755,6 +781,12 @@ func (l *loader) batchFrom(existing int, target int, fn func(start, end int) err
 		}
 		l.report.InsertedRows += int64(end - start)
 		l.report.BatchCount++
+		if l.failAfterBatches > 0 && l.report.BatchCount >= l.failAfterBatches {
+			return fmt.Errorf("%w after %d batches", errControlledInterruption, l.report.BatchCount)
+		}
+		if l.stopAfterRows > 0 && l.report.InsertedRows >= l.stopAfterRows {
+			return fmt.Errorf("%w after %d inserted rows", errControlledInterruption, l.report.InsertedRows)
+		}
 	}
 	return nil
 }
@@ -977,6 +1009,13 @@ func operationResource(i int) string {
 }
 
 func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func max64(a, b int64) int64 {
 	if a > b {
 		return a
 	}

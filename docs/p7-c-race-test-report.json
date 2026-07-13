@@ -1,0 +1,12 @@
+{
+  "phase": "P7-C",
+  "status": "blocked",
+  "environmentBlocked": true,
+  "allMandatoryCapabilitiesMapped": true,
+  "dataRaces": null,
+  "deadlocks": null,
+  "exitCode": null,
+  "issues": [
+    "Linux race verification must run under WSL2/Linux; current Node platform is not linux."
+  ]
+}
