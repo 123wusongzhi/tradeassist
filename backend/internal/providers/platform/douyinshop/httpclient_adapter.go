@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httpclient"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/providerlimit"
 )
 
 var (
@@ -14,6 +15,19 @@ var (
 	sharedHTTPDoer HTTPDoer
 	sharedBreaker  *httpclient.CircuitBreaker
 	sharedMaxConc  = 16
+	sharedLimiter  = providerlimit.NewRegistry(providerlimit.Config{
+		DefaultConcurrency: 8,
+		ProviderOverrides: map[providerlimit.ProviderName]int{
+			providerlimit.ProviderDouyinShop: 16,
+		},
+		OperationOverrides: map[providerlimit.ProviderOperation]int{
+			providerlimit.OperationTokenRefresh: 4,
+			providerlimit.OperationDraftWrite:   4,
+		},
+		MaxEntries: 32,
+		EntryTTL:   10 * time.Minute,
+		MaxWait:    30 * time.Second,
+	})
 )
 
 // SetSharedHTTPConcurrency configures the shared Douyin outbound concurrency gate (0 = unlimited).
@@ -37,6 +51,7 @@ func SharedHTTPDoer() HTTPDoer {
 	cli := httpclient.New(cfg, slog.Default(), sharedMaxConc)
 	br := httpclient.NewCircuitBreaker(5, 30*time.Second)
 	cli.SetCircuitBreaker(br)
+	cli.SetProviderLimit(sharedLimiter, providerlimit.ProviderDouyinShop, providerlimit.OperationRequest)
 	sharedBreaker = br
 	sharedHTTPDoer = &httpDoerAdapter{cli: cli}
 	return sharedHTTPDoer

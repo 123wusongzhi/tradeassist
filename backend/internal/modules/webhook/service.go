@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -49,6 +50,145 @@ type IngestResult struct {
 	EventID   string `json:"eventId"`
 	Status    string `json:"status"`
 	Duplicate bool   `json:"duplicate"`
+}
+
+type EventListQuery struct {
+	TenantID       int64
+	Platform       string
+	Status         string
+	EventType      string
+	InternalShopID *uuid.UUID
+	Start          *time.Time
+	End            *time.Time
+	Page           int
+	PageSize       int
+	Cursor         string
+	Limit          int
+	UseCursor      bool
+}
+
+type EventListResult struct {
+	Items      []Event `json:"list"`
+	Total      int64   `json:"total"`
+	Page       int     `json:"page"`
+	PageSize   int     `json:"pageSize"`
+	TotalPages int     `json:"totalPages"`
+	Limit      int     `json:"limit"`
+	NextCursor string  `json:"nextCursor,omitempty"`
+	HasMore    bool    `json:"hasMore"`
+}
+
+func eventListCursorScope(q EventListQuery) (string, string) {
+	shopScope := ""
+	if q.InternalShopID != nil && *q.InternalShopID != uuid.Nil {
+		shopScope = q.InternalShopID.String()
+	}
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":  q.TenantID,
+		"shopId":    shopScope,
+		"platform":  q.Platform,
+		"status":    q.Status,
+		"eventType": q.EventType,
+		"start":     q.Start,
+		"end":       q.End,
+		"sort":      "created_at_desc_id_desc",
+	}), shopScope
+}
+
+func eventPages(total int64, ps int) int {
+	if ps < 1 {
+		ps = pagination.DefaultLimit
+	}
+	pages := int(total) / ps
+	if int(total)%ps != 0 {
+		pages++
+	}
+	if pages == 0 && total > 0 {
+		pages = 1
+	}
+	return pages
+}
+
+func (s *Service) ListEvents(ctx context.Context, q EventListQuery) (*EventListResult, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("webhook: no db")
+	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
+	}
+	paged, err := pagination.NormalizePage(q.Page, q.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	page, ps := paged.Page, paged.Limit
+	tx := s.DB.WithContext(ctx).Model(&Event{}).Where("tenant_id = ?", q.TenantID)
+	if v := strings.TrimSpace(q.Platform); v != "" {
+		tx = tx.Where("platform = ?", v)
+	}
+	if v := strings.TrimSpace(q.Status); v != "" {
+		tx = tx.Where("status = ?", v)
+	}
+	if v := strings.TrimSpace(q.EventType); v != "" {
+		tx = tx.Where("event_type = ?", v)
+	}
+	if q.InternalShopID != nil && *q.InternalShopID != uuid.Nil {
+		tx = tx.Where("internal_shop_id = ?", *q.InternalShopID)
+	}
+	if q.Start != nil {
+		tx = tx.Where("created_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		tx = tx.Where("created_at <= ?", *q.End)
+	}
+	scopeHash, cursorShopID := eventListCursorScope(q)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, q.TenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
+	}
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		query = query.Offset(paged.Offset)
+	}
+	var rows []Event
+	if err := query.Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	hasMore := q.UseCursor && len(rows) > ps
+	if hasMore {
+		rows = rows[:ps]
+	}
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, q.TenantID, cursorShopID, scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &EventListResult{
+		Items:      rows,
+		Total:      total,
+		Page:       page,
+		PageSize:   ps,
+		TotalPages: eventPages(total, ps),
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
+	}, nil
 }
 
 type webhookAcquire struct {

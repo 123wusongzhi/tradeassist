@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/providerlimit"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/taskretry"
 )
 
@@ -49,6 +50,11 @@ type Client struct {
 	metrics   *metrics.Catalog
 	provider  string
 	operation string
+	limiter   providerlimit.ProviderConcurrencyLimiter
+}
+
+type providerResultObserver interface {
+	Observe(providerlimit.ProviderName, providerlimit.ProviderOperation, int, time.Duration, error)
 }
 
 // New builds a Client from config. maxConcurrent 0 = unlimited.
@@ -105,6 +111,16 @@ func (c *Client) SetObservability(cat *metrics.Catalog, provider, operation stri
 	c.operation = controlled(operation, "request")
 }
 
+// SetProviderLimit attaches a shared provider/operation concurrency limiter.
+func (c *Client) SetProviderLimit(l providerlimit.ProviderConcurrencyLimiter, provider providerlimit.ProviderName, operation providerlimit.ProviderOperation) {
+	if c == nil {
+		return
+	}
+	c.limiter = l
+	c.provider = controlled(string(provider), "unknown")
+	c.operation = controlled(string(operation), "request")
+}
+
 // Do executes an HTTP request with optional concurrency gate.
 func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
 	if c == nil || c.http == nil {
@@ -122,16 +138,31 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 			return nil, ctx.Err()
 		}
 	}
+	if c.limiter != nil {
+		lease, err := c.limiter.Acquire(ctx, providerlimit.ProviderName(c.provider), providerlimit.ProviderOperation(c.operation))
+		if err != nil {
+			return nil, err
+		}
+		defer lease.Release()
+	}
 	if req.Header.Get("User-Agent") == "" && c.cfg.UserAgent != "" {
 		req.Header.Set("User-Agent", c.cfg.UserAgent)
 	}
 	resp, err := c.http.Do(req.WithContext(ctx))
 	if err != nil {
+		c.observeLimitResult(0, 0, err)
 		if c.breaker != nil {
 			c.breaker.RecordFailure()
 		}
 		return nil, err
 	}
+	retryAfter := time.Duration(0)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		if sec, ok := taskretry.ParseRetryAfter(resp.Header.Get("Retry-After")); ok {
+			retryAfter = time.Duration(sec) * time.Second
+		}
+	}
+	c.observeLimitResult(resp.StatusCode, retryAfter, nil)
 	if c.breaker != nil {
 		if resp.StatusCode >= 500 {
 			c.breaker.RecordFailure()
@@ -140,6 +171,15 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		}
 	}
 	return resp, nil
+}
+
+func (c *Client) observeLimitResult(status int, retryAfter time.Duration, err error) {
+	if c == nil || c.limiter == nil {
+		return
+	}
+	if obs, ok := c.limiter.(providerResultObserver); ok {
+		obs.Observe(providerlimit.ProviderName(c.provider), providerlimit.ProviderOperation(c.operation), status, retryAfter, err)
+	}
 }
 
 // DoWithRetry executes with automatic retry for retryable failures.

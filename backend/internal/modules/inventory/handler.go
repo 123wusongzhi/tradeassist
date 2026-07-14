@@ -12,6 +12,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/gorm"
@@ -336,6 +337,8 @@ func (h *Handler) ListCenter(c *gin.Context) {
 		return
 	}
 	q := CenterListQuery{
+		Cursor:        strings.TrimSpace(c.Query("cursor")),
+		Limit:         atoiQ(c, "limit", 0),
 		Keyword:       strings.TrimSpace(c.Query("keyword")),
 		Platform:      strings.TrimSpace(c.Query("platform")),
 		StockStatus:   strings.TrimSpace(c.Query("stockStatus")),
@@ -345,6 +348,10 @@ func (h *Handler) ListCenter(c *gin.Context) {
 		HasException:  parseBoolQuery(c, "hasException"),
 		Page:          atoiQ(c, "page", 1),
 		PageSize:      atoiQ(c, "pageSize", 20),
+	}
+	q.UseCursor = q.Cursor != "" || q.Limit > 0
+	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+		q.TenantID = tid
 	}
 	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
@@ -363,11 +370,19 @@ func (h *Handler) ListCenter(c *gin.Context) {
 	}
 	res, err := h.Svc.ListInventoryCenter(c.Request.Context(), q)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
 	response.OK(c, gin.H{
-		"list": res.Items,
+		"items":      res.Items,
+		"nextCursor": res.NextCursor,
+		"hasMore":    res.HasMore,
+		"limit":      res.Limit,
+		"list":       res.Items,
 		"pagination": gin.H{
 			"page":       res.Page,
 			"pageSize":   res.PageSize,

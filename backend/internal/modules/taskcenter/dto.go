@@ -73,9 +73,12 @@ type FailuresSummary struct {
 
 // ListFailuresResult is paged list + summary for the current filter.
 type ListFailuresResult struct {
-	List    []UnifiedTaskDTO `json:"list"`
-	Total   int64            `json:"total"`
-	Summary FailuresSummary  `json:"summary"`
+	List       []UnifiedTaskDTO `json:"list"`
+	Total      int64            `json:"total"`
+	Summary    FailuresSummary  `json:"summary"`
+	Limit      int              `json:"limit"`
+	NextCursor string           `json:"nextCursor,omitempty"`
+	HasMore    bool             `json:"hasMore"`
 }
 
 // FailureDetailDTO extends the list row with optional type-specific snippets.

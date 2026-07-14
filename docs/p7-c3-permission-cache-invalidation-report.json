@@ -1,0 +1,17 @@
+{
+  "phase": "P7-C3",
+  "status": "partial",
+  "cacheKey": "tenantId + userId + tokenVersion + status + role",
+  "ttl": "2m",
+  "failureSafe": true,
+  "implemented": [
+    "versioned local principal cache",
+    "disabled principal denies all permissions",
+    "explicit local user invalidation entrypoint"
+  ],
+  "gaps": [
+    "role/grant write handlers still need to call InvalidateUserPermissionCache after commit",
+    "multi-instance Redis/event-bus invalidation is not implemented"
+  ]
+}
+

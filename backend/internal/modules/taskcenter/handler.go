@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -92,7 +93,10 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		End:              endPtr,
 		Page:             page,
 		PageSize:         pageSize,
+		Cursor:           strings.TrimSpace(c.Query("cursor")),
+		Limit:            atoiQ(1, c.Query("limit"), 0),
 	}
+	p.UseCursor = p.Cursor != "" || p.Limit > 0
 	if !applyMarkFiltersFromQuery(c, &p) {
 		response.Fail(c, 400, response.CodeBadRequest, "ignored and handled filters are mutually exclusive")
 		return
@@ -107,6 +111,10 @@ func (h *Handler) ListFailures(c *gin.Context) {
 	}
 	out, err := h.Svc.ListFailures(c.Request.Context(), p)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}

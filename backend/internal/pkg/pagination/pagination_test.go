@@ -16,9 +16,11 @@ func TestNormalizePageBounds(t *testing.T) {
 }
 
 func TestCursorScope(t *testing.T) {
+	scope := Fingerprint(map[string]any{"tenantId": 7, "shopId": "shop-a", "status": "draft"})
 	cur, err := EncodeCursor(CursorPayload{
 		TenantID:  7,
 		ShopID:    "shop-a",
+		ScopeHash: scope,
 		SortField: "created_at",
 		SortValue: "2026-07-13T00:00:00Z",
 		TieID:     "row-a",
@@ -26,13 +28,16 @@ func TestCursorScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EncodeCursor: %v", err)
 	}
-	if _, err := DecodeCursor(cur, 8, "shop-a"); err == nil {
+	if _, err := DecodeCursor(cur, 8, "shop-a", scope); err == nil {
 		t.Fatal("expected tenant mismatch")
 	}
-	if _, err := DecodeCursor(cur, 7, "shop-b"); err == nil {
+	if _, err := DecodeCursor(cur, 7, "shop-b", scope); err == nil {
 		t.Fatal("expected shop mismatch")
 	}
-	p, err := DecodeCursor(cur, 7, "shop-a")
+	if _, err := DecodeCursor(cur, 7, "shop-a", Fingerprint(map[string]any{"tenantId": 7, "shopId": "shop-a", "status": "ready"})); err == nil {
+		t.Fatal("expected filter mismatch")
+	}
+	p, err := DecodeCursor(cur, 7, "shop-a", scope)
 	if err != nil {
 		t.Fatalf("DecodeCursor: %v", err)
 	}
@@ -42,9 +47,11 @@ func TestCursorScope(t *testing.T) {
 }
 
 func TestCursorTamperRejected(t *testing.T) {
+	scope := Fingerprint(map[string]any{"tenantId": 7, "shopId": "shop-a"})
 	cur, err := EncodeCursor(CursorPayload{
 		TenantID:  7,
 		ShopID:    "shop-a",
+		ScopeHash: scope,
 		SortField: "created_at",
 		SortValue: "2026-07-13T00:00:00Z",
 		TieID:     "row-a",
@@ -56,7 +63,7 @@ func TestCursorTamperRejected(t *testing.T) {
 	if tampered == cur {
 		tampered = cur[:len(cur)-1] + "B"
 	}
-	if _, err := DecodeCursor(tampered, 7, "shop-a"); err == nil {
+	if _, err := DecodeCursor(tampered, 7, "shop-a", scope); err == nil {
 		t.Fatal("expected tampered cursor to be rejected")
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/mask"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -79,6 +80,8 @@ func (h *Handler) List(c *gin.Context) {
 	q := ListQuery{
 		Page:                  atoiQ(c, "page", 1),
 		PageSize:              atoiQ(c, "pageSize", 20),
+		Cursor:                strings.TrimSpace(c.Query("cursor")),
+		Limit:                 atoiQ(c, "limit", 0),
 		Platform:              c.Query("platform"),
 		OrderNo:               c.Query("orderNo"),
 		CustomerName:          c.Query("customerName"),
@@ -92,6 +95,7 @@ func (h *Handler) List(c *gin.Context) {
 		HasException: strings.EqualFold(strings.TrimSpace(c.Query("hasException")), "true") ||
 			strings.TrimSpace(c.Query("hasException")) == "1",
 	}
+	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
 			q.ShopID = &u
@@ -109,11 +113,19 @@ func (h *Handler) List(c *gin.Context) {
 	}
 	res, err := h.Svc.List(c, q)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
 	response.OK(c, gin.H{
-		"list": res.Items,
+		"items":      res.Items,
+		"nextCursor": res.NextCursor,
+		"hasMore":    res.HasMore,
+		"limit":      res.Limit,
+		"list":       res.Items,
 		"pagination": gin.H{
 			"page":       res.Page,
 			"pageSize":   res.PageSize,

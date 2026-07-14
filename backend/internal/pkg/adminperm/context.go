@@ -45,19 +45,31 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	}
 
 	var row admin.AdminUser
-	if err := db.WithContext(c.Request.Context()).Select("id", "role", "status", "tenant_id").First(&row, "id = ?", uid).Error; err != nil {
+	if err := db.WithContext(c.Request.Context()).Select("id", "role", "status", "tenant_id", "token_version").First(&row, "id = ?", uid).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			p := &Principal{UserID: uid, Role: RoleReadonly, Permissions: PermissionsForRole(RoleReadonly)}
+			p := &Principal{UserID: uid, Role: RoleReadonly, Disabled: true}
 			c.Set(ctxPrincipalKey, p)
 			return p, nil
 		}
 		return nil, err
+	}
+	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role)
+	if cached, ok := getCachedPrincipal(cacheKey); ok {
+		c.Set(ctxPrincipalKey, cached)
+		return cached, nil
 	}
 	role := normalizeRole(row.Role)
 	p := &Principal{
 		UserID:      uid,
 		Role:        role,
 		Permissions: PermissionsForRole(role),
+	}
+	if !strings.EqualFold(strings.TrimSpace(row.Status), admin.StatusActive) {
+		p.Disabled = true
+		p.Permissions = nil
+		c.Set(ctxPrincipalKey, p)
+		putCachedPrincipal(cacheKey, p)
+		return p, nil
 	}
 	if !p.IsAdmin() {
 		var grants []admin.UserStorePermission
@@ -75,6 +87,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 	}
 	c.Set(ctxPrincipalKey, p)
+	putCachedPrincipal(cacheKey, p)
 	return p, nil
 }
 

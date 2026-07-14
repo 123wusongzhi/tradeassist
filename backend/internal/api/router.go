@@ -681,6 +681,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		webhookSvc.AppEnv = dep.Config.AppEnv
 	}
 	webhookH := &webhook.Handler{Svc: webhookSvc}
+	webhook.Register(authed, webhookH)
 	webhook.RegisterPublic(v1, webhookH)
 	shop.Register(authed, shopH)
 	storagepublic.Register(authed, storagePublicH)

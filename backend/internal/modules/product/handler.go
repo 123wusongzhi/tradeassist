@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -81,6 +82,8 @@ func (h *Handler) List(c *gin.Context) {
 	q := ListQuery{
 		Page:                 atoiQP(c, "page", 1),
 		PageSize:             atoiQP(c, "pageSize", 20),
+		Cursor:               strings.TrimSpace(c.Query("cursor")),
+		Limit:                atoiQP(c, "limit", 0),
 		Status:               c.Query("status"),
 		Source:               c.Query("source"),
 		Keyword:              c.Query("keyword"),
@@ -90,13 +93,22 @@ func (h *Handler) List(c *gin.Context) {
 		ReadinessBlocked:     strings.TrimSpace(strings.ToLower(c.Query("readiness"))) == "blocked",
 		Publishable:          queryTruthy(c, "publishable"),
 	}
+	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	res, err := h.Svc.List(c, q)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
 	response.OK(c, gin.H{
-		"list": res.Items,
+		"items":      res.Items,
+		"nextCursor": res.NextCursor,
+		"hasMore":    res.HasMore,
+		"limit":      res.Limit,
+		"list":       res.Items,
 		"pagination": gin.H{
 			"page":       res.Page,
 			"pageSize":   res.PageSize,

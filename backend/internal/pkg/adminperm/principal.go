@@ -17,23 +17,24 @@ type StoreGrant struct {
 type Principal struct {
 	UserID      uuid.UUID
 	Role        string
+	Disabled    bool
 	Permissions []string
 	StoreGrants []StoreGrant
 }
 
 // IsAdmin returns true for global admin role.
 func (p *Principal) IsAdmin() bool {
-	return p != nil && normalizeRole(p.Role) == RoleAdmin
+	return p != nil && !p.Disabled && normalizeRole(p.Role) == RoleAdmin
 }
 
 // IsReadonly returns true for readonly role.
 func (p *Principal) IsReadonly() bool {
-	return p != nil && normalizeRole(p.Role) == RoleReadonly
+	return p == nil || p.Disabled || normalizeRole(p.Role) == RoleReadonly
 }
 
 // Can returns true when principal has a permission key.
 func (p *Principal) Can(perm string) bool {
-	if p == nil {
+	if p == nil || p.Disabled {
 		return false
 	}
 	return HasPermission(p.Role, perm)

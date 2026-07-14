@@ -157,6 +157,9 @@ type ImageReorderBody struct {
 type ListQuery struct {
 	Page          int
 	PageSize      int
+	Cursor        string
+	Limit         int
+	UseCursor     bool
 	Status        string
 	Source        string
 	Keyword       string
@@ -191,6 +194,9 @@ type ListResult struct {
 	Page       int        `json:"page"`
 	PageSize   int        `json:"pageSize"`
 	TotalPages int        `json:"totalPages"`
+	Limit      int        `json:"limit"`
+	NextCursor string     `json:"nextCursor,omitempty"`
+	HasMore    bool       `json:"hasMore"`
 }
 
 // DetailDTO is product detail with nested images and SKUs.

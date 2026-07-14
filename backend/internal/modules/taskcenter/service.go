@@ -3,6 +3,7 @@ package taskcenter
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/gorm"
 )
 
@@ -53,12 +55,44 @@ type ListFailureParams struct {
 	End              *time.Time
 	Page             int
 	PageSize         int
+	Cursor           string
+	Limit            int
+	UseCursor        bool
 
 	FailureCategory string
 	Severity        string
 	RecoveryStatus  string
 	AllowedShopIDs  []uuid.UUID
 	TenantID        int64
+}
+
+func taskCursorScope(p ListFailureParams) (string, string) {
+	allowed := make([]string, 0, len(p.AllowedShopIDs))
+	for _, id := range p.AllowedShopIDs {
+		allowed = append(allowed, id.String())
+	}
+	sort.Strings(allowed)
+	shopScope := strings.TrimSpace(p.ShopID)
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":         p.TenantID,
+		"taskType":         p.TaskType,
+		"status":           p.Status,
+		"normalizedStatus": p.NormalizedStatus,
+		"platform":         p.Platform,
+		"shopId":           shopScope,
+		"keyword":          p.Keyword,
+		"includeResolved":  p.IncludeResolved,
+		"includeMarked":    p.IncludeMarked,
+		"requireIgnored":   p.RequireIgnored,
+		"requireHandled":   p.RequireHandled,
+		"start":            p.Start,
+		"end":              p.End,
+		"failureCategory":  p.FailureCategory,
+		"severity":         p.Severity,
+		"recoveryStatus":   p.RecoveryStatus,
+		"allowedShopIds":   allowed,
+		"sort":             "sort_key_desc_id_desc",
+	}), shopScope
 }
 
 func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.DB {
@@ -401,6 +435,9 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("taskcenter: no db")
 	}
+	if p.UseCursor && p.Limit > 0 {
+		p.PageSize = p.Limit
+	}
 	page, pageSize := clampPage(p.Page, p.PageSize)
 	p.Page, p.PageSize = page, pageSize
 	types := taskTypesFor(p)
@@ -408,10 +445,36 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 		return zero, fmt.Errorf("invalid taskType")
 	}
 
+	scopeHash, cursorShopID := taskCursorScope(p)
+	var cursorPayload pagination.CursorPayload
+	if p.UseCursor && strings.TrimSpace(p.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(p.Cursor, p.TenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return zero, err
+		}
+		cursorPayload = cur
+	}
 	limit := mergeFetchLimit(page, pageSize)
+	if p.UseCursor {
+		limit = mergeFetchLimit(1, pageSize+1)
+	}
 	merged, err := s.collectMerged(ctx, p, limit)
 	if err != nil {
 		return zero, err
+	}
+	if p.UseCursor && strings.TrimSpace(cursorPayload.SortValue) != "" {
+		boundary, err := time.Parse(time.RFC3339Nano, cursorPayload.SortValue)
+		if err != nil {
+			return zero, pagination.ErrCursorSignatureInvalid
+		}
+		tie := strings.TrimSpace(cursorPayload.TieID)
+		filtered := merged[:0]
+		for _, row := range merged {
+			if row.SortKey.Before(boundary) || (row.SortKey.Equal(boundary) && row.ID < tie) {
+				filtered = append(filtered, row)
+			}
+		}
+		merged = filtered
 	}
 	if err := s.attachAlertStatuses(ctx, merged); err != nil {
 		return zero, err
@@ -423,7 +486,13 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	summary.fillFromMerged(merged)
 
 	start := (page - 1) * pageSize
+	if p.UseCursor {
+		start = 0
+	}
 	end := start + pageSize
+	if p.UseCursor {
+		end = pageSize + 1
+	}
 	if start > len(merged) {
 		start = len(merged)
 	}
@@ -431,11 +500,26 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 		end = len(merged)
 	}
 	pageRows := merged[start:end]
+	hasMore := p.UseCursor && len(pageRows) > pageSize
+	if hasMore {
+		pageRows = pageRows[:pageSize]
+	}
+	nextCursor := ""
+	if p.UseCursor && hasMore && len(pageRows) > 0 {
+		last := pageRows[len(pageRows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, p.TenantID, cursorShopID, scopeHash, "sort_key", last.SortKey, last.ID)
+		if err != nil {
+			return zero, err
+		}
+	}
 
 	return ListFailuresResult{
-		List:    pageRows,
-		Total:   int64(len(merged)),
-		Summary: summary,
+		List:       pageRows,
+		Total:      int64(len(merged)),
+		Summary:    summary,
+		Limit:      pageSize,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 

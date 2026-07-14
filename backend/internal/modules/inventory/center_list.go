@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/gorm"
 )
 
@@ -30,6 +31,7 @@ const (
 
 // CenterListQuery filters GET /inventory (inventory center hub).
 type CenterListQuery struct {
+	TenantID      int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSkuID  *uuid.UUID
@@ -42,6 +44,9 @@ type CenterListQuery struct {
 	HasException  bool
 	Page          int
 	PageSize      int
+	Cursor        string
+	Limit         int
+	UseCursor     bool
 }
 
 // InventoryCenterEntry is one SKU row in the inventory center list.
@@ -62,6 +67,30 @@ type CenterListResult struct {
 	Page       int                    `json:"page"`
 	PageSize   int                    `json:"pageSize"`
 	TotalPages int                    `json:"totalPages"`
+	Limit      int                    `json:"limit"`
+	NextCursor string                 `json:"nextCursor,omitempty"`
+	HasMore    bool                   `json:"hasMore"`
+}
+
+func inventoryCenterCursorScope(q CenterListQuery) (string, string) {
+	shopScope := ""
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		shopScope = q.ShopID.String()
+	}
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":      q.TenantID,
+		"shopId":        shopScope,
+		"keyword":       q.Keyword,
+		"productId":     q.ProductID,
+		"productSkuId":  q.ProductSkuID,
+		"platform":      q.Platform,
+		"stockStatus":   q.StockStatus,
+		"alertStatus":   q.AlertStatus,
+		"skuBindStatus": q.SkuBindStatus,
+		"syncStatus":    q.SyncStatus,
+		"hasException":  q.HasException,
+		"sort":          "updated_at_desc_id_desc",
+	}), shopScope
 }
 
 func aggregateBindStatus(pubs []pubJoinScan) string {
@@ -320,6 +349,9 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
+	}
 	page, ps := q.Page, q.PageSize
 	if page < 1 {
 		page = 1
@@ -345,6 +377,7 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		StockStatus:   q.StockStatus,
 		OnlyPublished: false,
 	})
+	base = base.Where("p.tenant_id = ?", q.TenantID)
 	if strings.TrimSpace(q.AlertStatus) != "" {
 		base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th)
 	}
@@ -358,15 +391,38 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		base = s.applyCenterHasException(base)
 	}
 	base = base.Group("sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title")
+	scopeHash, cursorShopID := inventoryCenterCursorScope(q)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, q.TenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(base, "sk.updated_at", "sk.id", cur)
+		if err != nil {
+			return nil, err
+		}
+		base = next
+	}
 
 	var total int64
 	if err := base.Session(&gorm.Session{}).Count(&total).Error; err != nil {
 		return nil, err
 	}
-	offset := (page - 1) * ps
 	var scans []alertSKUScan
-	if err := base.Order("sk.updated_at DESC").Offset(offset).Limit(ps).Scan(&scans).Error; err != nil {
+	query := base.Order("sk.updated_at DESC, sk.id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		offset := (page - 1) * ps
+		query = query.Offset(offset)
+	}
+	if err := query.Limit(limit).Scan(&scans).Error; err != nil {
 		return nil, err
+	}
+	hasMore := q.UseCursor && len(scans) > ps
+	if hasMore {
+		scans = scans[:ps]
 	}
 
 	skuIDs := make([]uuid.UUID, 0, len(scans))
@@ -501,11 +557,23 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		})
 	}
 
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(scans) > 0 {
+		last := scans[len(scans)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, q.TenantID, cursorShopID, scopeHash, "updated_at", last.UpdatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &CenterListResult{
 		Items:      items,
 		Total:      total,
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pagesOf(total, ps),
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }

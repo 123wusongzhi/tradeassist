@@ -86,10 +86,36 @@ func progressImageExistsClause(alias string) string {
 	)`, alias, alias, imageType, ImageTypeMain, urlExpr, imageType, ImageTypeMain, imageType, ImageTypeSKU, urlExpr)
 }
 
+func productCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) string {
+	allowed := []string{}
+	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
+		for _, id := range p.AllowedStoreIDs() {
+			allowed = append(allowed, id.String())
+		}
+		sort.Strings(allowed)
+	}
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":             tenantID,
+		"allowedShopIds":       allowed,
+		"status":               q.Status,
+		"source":               q.Source,
+		"keyword":              q.Keyword,
+		"operationStep":        q.OperationStep,
+		"missingAiTitle":       q.MissingAiTitle,
+		"missingAiDescription": q.MissingAiDescription,
+		"readinessBlocked":     q.ReadinessBlocked,
+		"publishable":          q.Publishable,
+		"sort":                 "created_at_desc_id_desc",
+	})
+}
+
 // List returns paginated drafts with optional filters.
 func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
 	}
 	page, ps := clampPage(q.Page, q.PageSize)
 	titleExpr := preferredDraftTextExpr("title", "original_title")
@@ -181,15 +207,29 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		)`)
 	}
 
-	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+	var tenantID int64
+	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
 		return nil, err
 	} else {
 		tx = scoped
+		tenantID = tid
 	}
 	if scoped, err := adminperm.ApplyProductScope(c, s.DB, tx); err != nil {
 		return nil, err
 	} else {
 		tx = scoped
+	}
+	scopeHash := productCursorScope(c, s.DB, q, tenantID)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, "", scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
 	}
 
 	var total int64
@@ -197,14 +237,24 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		return nil, err
 	}
 
-	paged, err := pagination.NormalizePage(page, ps)
-	if err != nil {
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		paged, err := pagination.NormalizePage(page, ps)
+		if err != nil {
+			return nil, err
+		}
+		query = query.Offset(paged.Offset)
+	}
+	var rows []Product
+	if err := query.Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	offset := paged.Offset
-	var rows []Product
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
-		return nil, err
+	hasMore := q.UseCursor && len(rows) > ps
+	if hasMore {
+		rows = rows[:ps]
 	}
 
 	covers := map[uuid.UUID]string{}
@@ -244,9 +294,18 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			CoverURL:  covers[r.ID],
 		})
 	}
-	items, err = s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
+	progressItems, err := s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
 	if err != nil {
 		return nil, err
+	}
+	items = progressItems
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, tenantID, "", scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pages := int(total) / ps
@@ -263,6 +322,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pages,
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 

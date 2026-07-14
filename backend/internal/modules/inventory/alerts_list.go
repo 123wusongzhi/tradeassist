@@ -20,6 +20,7 @@ type alertSKUScan struct {
 	WarningStock int       `gorm:"column:warning_stock"`
 	SafetyStock  int       `gorm:"column:safety_stock"`
 	ProductTitle string    `gorm:"column:product_title"`
+	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
 
 type pubJoinScan struct {

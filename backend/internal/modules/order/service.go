@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -71,6 +72,9 @@ type ShipmentCard struct {
 type ListQuery struct {
 	Page                  int
 	PageSize              int
+	Cursor                string
+	Limit                 int
+	UseCursor             bool
 	Platform              string
 	ShopID                *uuid.UUID
 	OrderNo               string
@@ -123,6 +127,9 @@ type ListResult struct {
 	Page       int
 	PageSize   int
 	TotalPages int
+	Limit      int
+	NextCursor string
+	HasMore    bool
 }
 
 func pagesOf(total int64, ps int) int {
@@ -137,6 +144,39 @@ func pagesOf(total int64, ps int) int {
 		pages = 1
 	}
 	return pages
+}
+
+func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) (string, string) {
+	shopScope := ""
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		shopScope = q.ShopID.String()
+	}
+	allowed := []string{}
+	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
+		for _, id := range p.AllowedStoreIDs() {
+			allowed = append(allowed, id.String())
+		}
+	}
+	sort.Strings(allowed)
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":              tenantID,
+		"shopId":                shopScope,
+		"allowedShopIds":        allowed,
+		"platform":              q.Platform,
+		"orderNo":               q.OrderNo,
+		"customerName":          q.CustomerName,
+		"keyword":               q.Keyword,
+		"status":                q.Status,
+		"paymentStatus":         q.PaymentStatus,
+		"fulfillmentStatus":     q.FulfillmentStatus,
+		"skuMatchStatus":        q.SkuMatchStatus,
+		"inventoryDeductStatus": q.InventoryDeductStatus,
+		"syncStatus":            q.SyncStatus,
+		"hasException":          q.HasException,
+		"start":                 q.Start,
+		"end":                   q.End,
+		"sort":                  "created_at_desc_id_desc",
+	}), shopScope
 }
 
 func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
@@ -408,6 +448,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
+	}
 	paged, err := pagination.NormalizePage(q.Page, q.PageSize)
 	if err != nil {
 		return nil, err
@@ -448,24 +491,48 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
-	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+	var tenantID int64
+	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
 		return nil, err
 	} else {
 		tx = scoped
+		tenantID = tid
 	}
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
 		return nil, err
 	} else {
 		tx = scoped
 	}
+	scopeHash, cursorShopID := orderCursorScope(c, s.DB, q, tenantID)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
+	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
 	}
-	offset := paged.Offset
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		query = query.Offset(paged.Offset)
+	}
 	var rows []Order
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
+	if err := query.Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	hasMore := q.UseCursor && len(rows) > ps
+	if hasMore {
+		rows = rows[:ps]
 	}
 	if len(rows) == 0 {
 		return &ListResult{
@@ -474,6 +541,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			Page:       page,
 			PageSize:   ps,
 			TotalPages: pagesOf(total, ps),
+			Limit:      ps,
 		}, nil
 	}
 	ids := make([]uuid.UUID, len(rows))
@@ -525,6 +593,14 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		out = applyListPostFilters(out, q)
 		total = int64(len(out))
 	}
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, tenantID, cursorShopID, scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	return &ListResult{
 		Items:      out,
@@ -532,6 +608,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pagesOf(total, ps),
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 

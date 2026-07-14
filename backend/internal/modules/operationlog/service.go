@@ -3,6 +3,7 @@ package operationlog
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/gorm"
 )
 
@@ -153,14 +155,17 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 
 // ListQuery binds query params for listing operation logs.
 type ListQuery struct {
-	Page     int
-	PageSize int
-	Action   string
-	Username string
-	Resource string
-	ShopID   *uuid.UUID
-	Start    *time.Time
-	End      *time.Time
+	Page      int
+	PageSize  int
+	Cursor    string
+	Limit     int
+	UseCursor bool
+	Action    string
+	Username  string
+	Resource  string
+	ShopID    *uuid.UUID
+	Start     *time.Time
+	End       *time.Time
 }
 
 // ListResult is a paginated slice of logs.
@@ -170,12 +175,43 @@ type ListResult struct {
 	Page       int
 	PageSize   int
 	TotalPages int
+	Limit      int
+	NextCursor string
+	HasMore    bool
+}
+
+func operationLogCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) (string, string) {
+	shopScope := ""
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		shopScope = q.ShopID.String()
+	}
+	allowed := []string{}
+	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
+		for _, id := range p.AllowedStoreIDs() {
+			allowed = append(allowed, id.String())
+		}
+		sort.Strings(allowed)
+	}
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":       tenantID,
+		"shopId":         shopScope,
+		"allowedShopIds": allowed,
+		"action":         q.Action,
+		"username":       q.Username,
+		"resource":       q.Resource,
+		"start":          q.Start,
+		"end":            q.End,
+		"sort":           "created_at_desc_id_desc",
+	}), shopScope
 }
 
 // List returns a paginated list with optional filters.
 func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("operationlog: no db")
+	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
 	}
 	page := q.Page
 	if page < 1 {
@@ -190,11 +226,12 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	}
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&OperationLog{})
+	var tenantID int64
 	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
 		return nil, err
 	} else {
 		tx = scoped
-		_ = tid
+		tenantID = tid
 	}
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
 		return nil, err
@@ -220,16 +257,48 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
+	scopeHash, cursorShopID := operationLogCursorScope(c, s.DB, q, tenantID)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
+	}
 
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
-	offset := (page - 1) * ps
 	var items []OperationLog
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&items).Error; err != nil {
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		offset := (page - 1) * ps
+		query = query.Offset(offset)
+	}
+	if err := query.Limit(limit).Find(&items).Error; err != nil {
 		return nil, err
+	}
+	hasMore := q.UseCursor && len(items) > ps
+	if hasMore {
+		items = items[:ps]
+	}
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		var err error
+		nextCursor, err = pagination.BuildNextCursor(true, tenantID, cursorShopID, scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pages := int(total) / ps
@@ -246,6 +315,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pages,
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 

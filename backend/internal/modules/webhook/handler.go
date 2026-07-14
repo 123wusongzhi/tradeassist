@@ -11,12 +11,88 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
 // Handler exposes the public webhook HTTP receiver.
 type Handler struct {
 	Svc *Service
+}
+
+func atoiQ(c *gin.Context, key string, def int) int {
+	raw := strings.TrimSpace(c.Query(key))
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		return def
+	}
+	return n
+}
+
+// ListEvents GET /api/v1/webhook-events
+func (h *Handler) ListEvents(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "webhook unavailable")
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context required")
+		return
+	}
+	q := EventListQuery{
+		TenantID:  tid,
+		Platform:  strings.TrimSpace(c.Query("platform")),
+		Status:    strings.TrimSpace(c.Query("status")),
+		EventType: strings.TrimSpace(c.Query("eventType")),
+		Page:      atoiQ(c, "page", 1),
+		PageSize:  atoiQ(c, "pageSize", 20),
+		Cursor:    strings.TrimSpace(c.Query("cursor")),
+		Limit:     atoiQ(c, "limit", 0),
+	}
+	q.UseCursor = q.Cursor != "" || q.Limit > 0
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		if u, err := uuid.Parse(raw); err == nil {
+			q.InternalShopID = &u
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("start")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.Start = &t
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("end")); raw != "" {
+		if t, err := time.Parse(time.RFC3339, raw); err == nil {
+			q.End = &t
+		}
+	}
+	res, err := h.Svc.ListEvents(c.Request.Context(), q)
+	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{
+		"items":      res.Items,
+		"nextCursor": res.NextCursor,
+		"hasMore":    res.HasMore,
+		"limit":      res.Limit,
+		"list":       res.Items,
+		"pagination": gin.H{
+			"page":       res.Page,
+			"pageSize":   res.PageSize,
+			"total":      res.Total,
+			"totalPages": res.TotalPages,
+		},
+	})
 }
 
 // Receive POST /api/v1/webhooks/:platform/:eventType
