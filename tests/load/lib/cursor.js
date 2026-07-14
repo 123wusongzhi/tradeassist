@@ -6,7 +6,7 @@ const paths = {
   orderList: '/api/v1/orders?pageSize=20',
   inventoryList: '/api/v1/inventory?pageSize=20',
   taskList: '/api/v1/task-center/failures?pageSize=20',
-  webhookEventList: '/api/v1/webhooks/events?pageSize=20',
+  webhookEventList: '/api/v1/webhook-events?pageSize=20',
   operationLogList: '/api/v1/operation-logs?pageSize=20',
 };
 

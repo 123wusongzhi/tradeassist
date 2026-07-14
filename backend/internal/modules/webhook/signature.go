@@ -53,7 +53,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 		verifiers: make(map[string]SignatureVerifier),
 		appEnv:    appEnv,
 	}
-	if enableTest && (appEnv == config.EnvDevelopment || appEnv == config.EnvTest) {
+	if enableTest && (appEnv == config.EnvDevelopment || appEnv == config.EnvTest || (appEnv == config.EnvPerformance && cfg != nil && cfg.P7.PerformanceTestMode)) {
 		r.verifiers[PlatformInternalTest] = &HMACSHA256TestVerifier{Secret: []byte(TestHMACSecret)}
 	}
 	return r

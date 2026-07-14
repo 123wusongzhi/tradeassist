@@ -10,6 +10,13 @@ export function baseUrl() {
   return __ENV.BASE_URL || 'http://127.0.0.1:8080';
 }
 
+function hostFromBase(base) {
+  const value = String(base || '').trim();
+  const match = value.match(/^https?:\/\/([^/?#:]+)(?::\d+)?/i);
+  if (!match) return '';
+  return match[1].toLowerCase();
+}
+
 export function authHeaders() {
   const token = __ENV.P7_AUTH_TOKEN || '';
   if (!token) return {};
@@ -18,10 +25,8 @@ export function authHeaders() {
 
 export function failFastHost() {
   const base = baseUrl();
-  let host = '';
-  try {
-    host = new URL(base).hostname.toLowerCase();
-  } catch {
+  const host = hostFromBase(base);
+  if (!host) {
     throw new Error('invalid BASE_URL');
   }
   if (!host || host === 'api.zhihengxiangyu.com' || host.endsWith('.zhihengxiangyu.com')) {

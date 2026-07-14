@@ -7,6 +7,7 @@ import {
   readJSON,
   root,
   runWSL,
+  stopP7V2Server,
   valueOf,
   writeJSON,
   writeMarkdown,
@@ -28,6 +29,7 @@ const remaining = psql(`SELECT datname FROM pg_database WHERE datname LIKE '${DB
 const rows = remaining.status === 0 ? (remaining.stdout || '').trim().split('\n').filter(Boolean) : [];
 
 if (!checkOnly && dbName) {
+  stopP7V2Server();
   const drop = psql(`DROP DATABASE IF EXISTS "${dbName.replaceAll('"', '""')}";`);
   if (drop.status !== 0) issues.push(`failed to drop database ${dbName}`);
 }

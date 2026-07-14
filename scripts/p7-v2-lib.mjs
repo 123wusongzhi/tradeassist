@@ -3,6 +3,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { discoverK6 as discoverK6Impl } from './p7-v2-k6-discovery.mjs';
+
+export { discoverK6Impl as discoverK6 };
 
 export const root = process.cwd();
 export const docsDir = path.join(root, 'docs');
@@ -96,6 +99,70 @@ export function shellExports(vars) {
   return Object.entries(vars)
     .map(([k, v]) => `export ${k}=${JSON.stringify(String(v))}`)
     .join(' && ');
+}
+
+export function wslProjectRoot() {
+  return root.replace(/\\/g, '/').replace(/^([A-Za-z]):\//, (_, d) => `/mnt/${d.toLowerCase()}/`);
+}
+
+export function stopP7V2Server() {
+  const pidFile = `${wslProjectRoot()}/artifacts/p7-v2/server.pid`;
+  runWSL(
+    [
+      `if [ -f ${JSON.stringify(pidFile)} ]; then`,
+      `  pid=$(cat ${JSON.stringify(pidFile)} 2>/dev/null || true);`,
+      '  if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi;',
+      `  rm -f ${JSON.stringify(pidFile)};`,
+      'fi',
+      "pkill -f '/tmp/p7v2-server' 2>/dev/null || true",
+    ].join(' '),
+    { timeout: 30000 },
+  );
+}
+
+export function startP7V2Server(env = {}, opts = {}) {
+  const wslRoot = wslProjectRoot();
+  const envFile = `${wslRoot}/.env`;
+  const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
+  const logFile = `${wslRoot}/artifacts/p7-v2/server.log`;
+  const binary = `${wslRoot}/artifacts/p7-v2/server`;
+  const merged = {
+    APP_HTTP_ADDR: '127.0.0.1:8080',
+    ...env,
+  };
+  stopP7V2Server();
+  const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
+    timeout: 10 * 60 * 1000,
+  });
+  if (build.status !== 0) {
+    return { ok: false, issues: [`server build failed: ${build.stderr.slice(0, 500)}`] };
+  }
+  const startCmd = [
+    `mkdir -p ${JSON.stringify(`${wslRoot}/artifacts/p7-v2`)}`,
+    `[ -f ${JSON.stringify(envFile)} ] && set -a && . ${JSON.stringify(envFile)} && set +a || true`,
+    shellExports(merged),
+    `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & echo $! > ${JSON.stringify(pidFile)}`,
+    'sleep 1',
+    `cat ${JSON.stringify(pidFile)}`,
+  ].join(' && ');
+  const start = runWSL(startCmd, { timeout: 120000 });
+  if (start.status !== 0) {
+    return { ok: false, issues: [`server start failed: ${start.stderr.slice(0, 500)}`] };
+  }
+  const pid = (start.stdout || '').trim().split('\n').pop();
+  const deadline = Date.now() + (opts.timeoutMs || 120000);
+  while (Date.now() < deadline) {
+    const health = runWSL('curl -fsS http://127.0.0.1:8080/health/live >/dev/null 2>&1 && echo ok || true', { timeout: 10000 });
+    if ((health.stdout || '').trim() === 'ok') {
+      run('powershell', ['-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'scripts', 'seed-demo-permissions.ps1')], {
+        timeout: 120000,
+      });
+      return { ok: true, pid, logFile, binary, apiProcessChanged: true };
+    }
+    runWSL('sleep 1');
+  }
+  const tail = runWSL(`tail -n 40 ${JSON.stringify(logFile)} 2>/dev/null || true`, { timeout: 10000 });
+  return { ok: false, pid, issues: [`server health check timeout: ${(tail.stdout || '').slice(0, 800)}`] };
 }
 
 export function runWSL(bashBody, opts = {}) {
@@ -192,39 +259,148 @@ export function assertDbNameSafe(dbName) {
   return issues;
 }
 
-export function k6Binary() {
-  const linuxPath = path.join(root, 'tools', 'k6', 'k6').replace(/\\/g, '/');
-  const winPath = path.join(root, 'tools', 'k6', 'k6.exe');
-  const candidates = [
-    { path: linuxPath, viaWsl: true },
-    { path: winPath, viaWsl: false },
-    { path: 'k6', viaWsl: true },
-  ];
-  for (const candidate of candidates) {
-    if (candidate.viaWsl) {
-      const res = runWSL(`${candidate.path} version 2>/dev/null || true`, { timeout: 15000 });
-      if (res.status === 0 && (res.stdout || '').includes('k6')) {
-        return { path: candidate.path, version: (res.stdout || '').split('\n')[0].trim(), viaWsl: true };
+export function toWslPath(winOrPosixPath) {
+  const normalized = String(winOrPosixPath).replace(/\\/g, '/');
+  if (normalized.startsWith('/')) return normalized;
+  return `/mnt/${normalized.replace(/^([A-Za-z]):\//, (_, d) => `${d.toLowerCase()}/`)}`;
+}
+
+export function readEnvKeyFromFile(key, envPath = path.join(root, '.env')) {
+  try {
+    const text = fs.readFileSync(envPath, 'utf8');
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith('#')) continue;
+      const eq = line.indexOf('=');
+      if (eq <= 0) continue;
+      const k = line.slice(0, eq).trim();
+      if (k !== key) continue;
+      let v = line.slice(eq + 1).trim();
+      if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+        v = v.slice(1, -1);
       }
-    } else if (fs.existsSync(candidate.path)) {
-      const res = run(candidate.path, ['version'], { timeout: 15000 });
-      if (res.status === 0) return { path: candidate.path, version: (res.stdout || '').split('\n')[0].trim(), viaWsl: false };
+      return v;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+export function resolvePerformanceAuthToken(baseUrl = 'http://127.0.0.1:8080') {
+  if (process.env.P7_AUTH_TOKEN) return process.env.P7_AUTH_TOKEN;
+  const preset = readEnvKeyFromFile('P7_AUTH_TOKEN');
+  if (preset) return preset;
+  const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
+  const account =
+    runtime.env?.ADMIN_BOOTSTRAP_EMAIL ||
+    runtime.env?.ADMIN_BOOTSTRAP_PHONE ||
+    readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') ||
+    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PHONE') ||
+    'p7v2-perf-admin@example.invalid';
+  const password =
+    runtime.env?.ADMIN_BOOTSTRAP_PASSWORD ||
+    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') ||
+    'P7v2-Perf-Local-Only-2026!';
+  if (!account || !password) return '';
+  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
+  const payload = JSON.stringify({ account, password });
+  const attempts = [
+    () => run('curl', ['-sS', '-o', 'NUL', '-w', '%{http_code}', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], { timeout: 30000 }),
+    () => runWSL(`curl -sS -o /dev/null -w '%{http_code}' -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' -d ${JSON.stringify(payload)}`, { timeout: 30000 }),
+  ];
+  let loginStatus = '';
+  for (const attempt of attempts) {
+    const res = attempt();
+    loginStatus = (res.stdout || '').trim();
+    if (res.status !== 0) continue;
+    const bodyRes =
+      attempts[0] === attempt
+        ? run('curl', ['-fsS', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], { timeout: 30000 })
+        : runWSL(`curl -fsS -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' -d ${JSON.stringify(payload)}`, { timeout: 30000 });
+    if (bodyRes.status !== 0) continue;
+    try {
+      const json = JSON.parse(bodyRes.stdout || '{}');
+      const token = json?.data?.token || json?.data?.accessToken || '';
+      if (token) return token;
+    } catch {
+      // try next transport
     }
   }
-  return { path: '', version: '', viaWsl: true };
+  return '';
+}
+
+export function resolvePerformanceAuthStatus(baseUrl = 'http://127.0.0.1:8080') {
+  const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
+  const account =
+    runtime.env?.ADMIN_BOOTSTRAP_EMAIL ||
+    readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') ||
+    'p7v2-perf-admin@example.invalid';
+  const password =
+    runtime.env?.ADMIN_BOOTSTRAP_PASSWORD ||
+    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') ||
+    'P7v2-Perf-Local-Only-2026!';
+  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
+  const payload = JSON.stringify({ account, password });
+  const res = run('curl', ['-sS', '-o', 'NUL', '-w', '%{http_code}', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], {
+    timeout: 30000,
+  });
+  return { account, loginStatus: (res.stdout || '').trim(), curlExit: res.status ?? 1 };
+}
+
+export function probePerformanceEndpoints(baseUrl = 'http://127.0.0.1:8080') {
+  const token = resolvePerformanceAuthToken(baseUrl);
+  const paths = [
+    '/api/v1/products?pageSize=5',
+    '/api/v1/orders?pageSize=5',
+    '/api/v1/inventory?pageSize=5',
+    '/api/v1/task-center/failures?pageSize=5',
+    '/api/v1/webhook-events?pageSize=5',
+    '/api/v1/operation-logs?pageSize=5',
+    '/health/live',
+  ];
+  const results = [];
+  for (const p of paths) {
+    const headers = token ? `-H ${JSON.stringify(`Authorization: Bearer ${token}`)}` : '';
+    const res = runWSL(`curl -sS -o /dev/null -w '%{http_code}' ${headers} ${JSON.stringify(`${String(baseUrl).replace(/\/$/, '')}${p}`)}`, {
+      timeout: 15000,
+    });
+    results.push({ path: p, status: (res.stdout || '').trim(), ok: res.status === 0 });
+  }
+  return { tokenAvailable: Boolean(token), results };
+}
+
+export function k6Binary() {
+  const hit = discoverK6Impl();
+  if (hit.status !== 'passed') {
+    return { path: '', version: '', viaWsl: true, mode: 'blocked' };
+  }
+  return {
+    path: hit.path,
+    version: hit.version,
+    viaWsl: hit.mode !== 'docker',
+    mode: hit.mode,
+    sha256: hit.sha256,
+    dockerImage: hit.dockerImage,
+    dockerDigest: hit.dockerDigest,
+    source: hit.source,
+  };
 }
 
 export function runK6(k6, args, opts = {}) {
   const scriptPath = args[args.length - 1];
-  const wslScript = scriptPath.startsWith('/') ? scriptPath : `/mnt/${scriptPath.replace(/^([A-Za-z]):\\/, (_, d) => `${d.toLowerCase()}/`).replace(/\\/g, '/')}`;
-  const wslSummary = opts.summaryExport
-    ? opts.summaryExport.replace(/^([A-Za-z]):\\/, (_, d) => `/mnt/${d.toLowerCase()}/`).replace(/\\/g, '/')
-    : '';
-  const wslArgs = wslSummary ? ['run', '--summary-export', wslSummary, wslScript] : args.map((a, i) => (i === args.length - 1 ? wslScript : a));
-  const envExports = Object.entries(opts.env || {})
-    .map(([k, v]) => `export ${k}=${JSON.stringify(String(v))}`)
-    .join(' && ');
-  const cmd = `${envExports ? `${envExports} && ` : ''}${k6.path} ${wslArgs.join(' ')}`;
+  const wslScript = toWslPath(scriptPath);
+  const wslSummary = opts.summaryExport ? toWslPath(opts.summaryExport) : '';
+  const wslArgs = wslSummary ? ['run', '--summary-export', wslSummary, wslScript] : ['run', wslScript];
+  const runner =
+    k6.mode === 'docker'
+      ? `docker run --rm -i --network host -v ${JSON.stringify(wslProjectRoot())}:/work -w /work ${JSON.stringify(k6.dockerImage)}`
+      : k6.path;
+  const k6EnvFlags = Object.entries(opts.env || {})
+    .filter(([k, v]) => v !== undefined && v !== null && String(v) !== '')
+    .map(([k, v]) => `-e ${k}=${JSON.stringify(String(v))}`)
+    .join(' ');
+  const cmd = `${runner} ${wslArgs[0]} ${k6EnvFlags} ${wslArgs.slice(1).join(' ')}`.replace(/\s+/g, ' ').trim();
   return runWSL(cmd, { timeout: opts.timeout ?? 30 * 60 * 1000 });
 }
 

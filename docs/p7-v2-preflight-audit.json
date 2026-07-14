@@ -1,10 +1,15 @@
 {
   "phase": "P7-V2",
   "component": "preflight-audit",
-  "status": "blocked",
-  "generatedAt": "2026-07-14T05:45:45.883Z",
-  "k6Available": false,
-  "k6Version": "",
+  "status": "passed",
+  "generatedAt": "2026-07-14T06:34:32.287Z",
+  "k6Available": true,
+  "k6Executable": true,
+  "k6VersionDetected": true,
+  "k6Mode": "binary",
+  "k6Path": "/mnt/d/project/trademind-ai/tools/k6/k6",
+  "k6Sha256": "37211ff6f8051077a68f81a74bb9cc9f4b5c544ef06df96eed62c777a42ca22e",
+  "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
   "performanceEnvironmentAvailable": true,
   "postgresAvailable": true,
   "redisAvailable": true,
@@ -54,33 +59,14 @@
     "dbPoolWaitDurationIncreasePct": 20,
     "queuePeakDepthIncreasePct": 20
   },
-  "conflicts": [
-    {
-      "topic": "SLO source",
-      "chosen": "task conservative defaults",
-      "reason": "docs/SLO.md missing; using DEFAULT_SLO from p7-v2-lib",
-      "values": {
-        "httpReqFailedMax": 0.01,
-        "readListP95Ms": 800,
-        "readListP99Ms": 1500,
-        "lightP95Ms": 500,
-        "lightP99Ms": 1000,
-        "writeP95Ms": 1200,
-        "writeP99Ms": 2500,
-        "serverErrorMax": 0.002,
-        "timeoutMax": 0.002
-      }
-    }
-  ],
-  "issues": [
-    "k6 is not available"
-  ],
+  "conflicts": [],
+  "issues": [],
   "hostGuard": [],
   "p7C4Status": "passed_ready_for_p7_v2",
   "environmentFingerprint": {
-    "runId": "preflight-1784007945884",
+    "runId": "preflight-1784010872289",
     "runType": "preflight",
-    "gitCommit": "5b558e07b5ec56030522cf1e786d63d1c30be4e2",
+    "gitCommit": "92228ee7df623c4a4a122fb28eaceaf775e28941",
     "gitDirty": true,
     "os": "win32",
     "kernel": "10.0.19045",
@@ -90,10 +76,10 @@
     "goVersion": "go version go1.25.12 linux/amd64",
     "nodeVersion": "v22.22.1",
     "pnpmVersion": "9.15.4",
-    "k6Version": "",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T05:45:47.337Z",
+    "startedAt": "2026-07-14T06:34:33.780Z",
     "endedAt": "",
     "configFingerprint": "1b8f2433c90765b1",
     "baseUrl": "http://127.0.0.1:8080"

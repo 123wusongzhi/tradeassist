@@ -10,7 +10,7 @@ import {
   collectEnvironmentFingerprint,
   configFingerprint,
   docsDir,
-  k6Binary,
+  discoverK6,
   readJSON,
   root,
   run,
@@ -25,7 +25,7 @@ const baseUrl = valueOf(args, '--base-url') || process.env.P7_BASE_URL || 'http:
 const issues = [];
 const conflicts = [];
 
-const k6 = k6Binary();
+const k6 = discoverK6();
 const hostIssues = assertLoadHostSafe(baseUrl);
 issues.push(...hostIssues);
 
@@ -79,9 +79,14 @@ const gatesAvailable =
 const report = {
   phase: 'P7-V2',
   component: 'preflight-audit',
-  status: issues.length === 0 && k6.version ? 'passed' : issues.some((x) => x.includes('k6')) ? 'blocked' : 'incomplete',
+  status: issues.length === 0 && k6.status === 'passed' ? 'passed' : issues.some((x) => x.includes('k6')) || k6.status !== 'passed' ? 'blocked' : 'incomplete',
   generatedAt: new Date().toISOString(),
-  k6Available: Boolean(k6.version),
+  k6Available: k6.status === 'passed',
+  k6Executable: k6.executable === true,
+  k6VersionDetected: Boolean(k6.version),
+  k6Mode: k6.mode || 'blocked',
+  k6Path: k6.path || '',
+  k6Sha256: k6.sha256 || '',
   k6Version: k6.version,
   performanceEnvironmentAvailable: postgresAvailable,
   postgresAvailable,
@@ -110,7 +115,7 @@ const report = {
   }),
 };
 
-if (!k6.version) {
+if (k6.status !== 'passed') {
   report.status = 'blocked';
   report.issues.push('k6 is not available');
 }

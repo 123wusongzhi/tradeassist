@@ -1,11 +1,11 @@
-# P7-V2 smoke report
+# P7-V2 baseline report
 
-Status: passed
+Status: blocked
 
 | Field | Value |
 | --- | --- |
-| Run ID | p7v2-smoke-20260714143500 |
-| Target VUs | 10 |
+| Run ID | p7v2-baseline-quick |
+| Target VUs | 4 |
 | Achieved RPS | 0 |
 | Completed requests | 0 |
 | Failed requests | 0 |

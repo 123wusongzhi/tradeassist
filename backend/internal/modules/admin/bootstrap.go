@@ -47,7 +47,7 @@ func EnsureBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 			return err
 		}
 	}
-	return ensureBootstrapAdminPrivileges(ctx, db, id, log)
+	return ensureBootstrapAdminPrivileges(ctx, db, cfg, id, log)
 }
 
 func parseBootstrapIdentity(cfg *config.Config) (bootstrapIdentity, error) {
@@ -119,7 +119,7 @@ func createBootstrapAdmin(ctx context.Context, db *gorm.DB, cfg *config.Config, 
 	return nil
 }
 
-func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, id bootstrapIdentity, log *slog.Logger) error {
+func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *config.Config, id bootstrapIdentity, log *slog.Logger) error {
 	if id.email == "" && id.phone == "" {
 		return nil
 	}
@@ -136,6 +136,9 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, id bootstr
 		}
 	}
 	if !found {
+		if cfg.P7.PerformanceTestMode && cfg.AppEnv == "performance" {
+			return createBootstrapAdmin(ctx, db, cfg, id, log)
+		}
 		return nil
 	}
 

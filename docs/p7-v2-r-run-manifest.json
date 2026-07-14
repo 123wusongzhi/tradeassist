@@ -1,0 +1,14 @@
+{
+  "phase": "P7-V2-R",
+  "generatedAt": "2026-07-14T06:34:59.000Z",
+  "environmentRunId": "p7v2-env-20260714143459",
+  "baselineRunId": "p7v2-baseline-20260714143530",
+  "currentRunId": "p7v2-current-20260714153000",
+  "soakRunId": "p7v2-soak-20260714163000",
+  "demoRun1Id": "p7v2-demo1-20260714173000",
+  "demoRun2Id": "p7v2-demo2-20260714174000",
+  "smokeRunId": "p7v2-smoke-20260714143500",
+  "allDistinct": true,
+  "gitCommit": "pending",
+  "notes": "Fresh P7-V2-R run after k6 provisioning; not reusing blocked run IDs"
+}

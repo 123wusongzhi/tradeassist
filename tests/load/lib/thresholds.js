@@ -1,4 +1,5 @@
 import http from 'k6/http';
+import crypto from 'k6/crypto';
 import { authHeaders, baseUrl } from './guards.js';
 
 export const thresholds = {
@@ -33,11 +34,19 @@ export function authScenario() {
 
 export function webhookScenario() {
   const eventId = `p7v2-${__VU}-${__ITER}`;
+  const body = JSON.stringify({ eventId, type: 'order_created' });
+  const ts = Math.floor(Date.now() / 1000);
+  const secret = 'trademind-internal-test-webhook-secret';
+  const sig = crypto.hmac('sha256', `${ts}.${body}`, secret, 'hex');
   return http.post(
-    `${baseUrl()}/api/v1/webhooks/mock/order_created`,
-    JSON.stringify({ eventId, type: 'order_created' }),
+    `${baseUrl()}/api/v1/webhooks/internal-test/order_created`,
+    body,
     {
-      headers: { 'Content-Type': 'application/json', 'X-P7-Mock-Signature': 'mock' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Webhook-Signature': sig,
+        'X-Webhook-Timestamp': String(ts),
+      },
       tags: { scenario: 'webhook-ingestion', group: 'mixed' },
     },
   );

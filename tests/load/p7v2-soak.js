@@ -5,43 +5,43 @@ import { mixedScenario, thresholds } from './lib/thresholds.js';
 failFastHost();
 
 const targetVUs = Number(__ENV.TARGET_VUS || 8);
-const warmup = __ENV.WARMUP || '5m';
-const steady = __ENV.STEADY || '30m';
-const rampdown = __ENV.RAMPDOWN || '2m';
+const warmupDur = __ENV.WARMUP || '5m';
+const steadyDur = __ENV.STEADY || '30m';
+const rampdownDur = __ENV.RAMPDOWN || '2m';
 
 export const options = {
   scenarios: {
     warmup: {
       executor: 'constant-vus',
       vus: Math.max(2, Math.floor(targetVUs * 0.5)),
-      duration: warmup,
-      exec: 'warmup',
+      duration: warmupDur,
+      exec: 'warmupPhase',
     },
     steady: {
       executor: 'constant-vus',
       vus: targetVUs,
-      duration: steady,
-      startTime: warmup,
-      exec: 'steady',
+      duration: steadyDur,
+      startTime: warmupDur,
+      exec: 'steadyPhase',
     },
     rampdown: {
       executor: 'ramping-vus',
       startVUs: targetVUs,
-      stages: [{ duration: rampdown, target: 0 }],
-      startTime: addDuration(warmup, steady),
-      exec: 'steady',
+      stages: [{ duration: rampdownDur, target: 0 }],
+      startTime: addDuration(warmupDur, steadyDur),
+      exec: 'steadyPhase',
     },
   },
   thresholds,
 };
 
-export function warmup() {
+export function warmupPhase() {
   const res = mixedScenario();
   check(res, { 'soak warmup bounded': (r) => r.status < 500 });
   sleep(0.5);
 }
 
-export function steady() {
+export function steadyPhase() {
   const res = mixedScenario();
   check(res, { 'soak steady bounded': (r) => r.status < 500 || r.status === 401 || r.status === 429 });
   sleep(0.4);

@@ -1,0 +1,57 @@
+{
+  "phase": "P7-V2-R",
+  "status": "incomplete",
+  "rootBlockerResolved": true,
+  "currentBlockers": [
+    "baseline_load_threshold_failed",
+    "performance_auth_login_unstable",
+    "formal_performance_chain_incomplete"
+  ],
+  "k6": {
+    "available": true,
+    "mode": "binary",
+    "version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "path": "/mnt/d/project/trademind-ai/tools/k6/k6",
+    "sha256": "37211ff6f8051077a68f81a74bb9cc9f4b5c544ef06df96eed62c777a42ca22e",
+    "source": "go-install-goproxy-cn"
+  },
+  "preflight": {
+    "status": "passed",
+    "k6Available": true,
+    "k6Executable": true,
+    "k6VersionDetected": true
+  },
+  "smoke": {
+    "status": "passed",
+    "runId": "p7v2-smoke-20260714143500"
+  },
+  "baseline": {
+    "status": "blocked",
+    "runId": "p7v2-baseline-20260714143530",
+    "issue": "http_req_failed threshold crossed"
+  },
+  "dataset": {
+    "profile": "medium",
+    "plannedRows": 1900150,
+    "actualRows": 1900150,
+    "failedRows": 0
+  },
+  "dependentFailures": [
+    "baseline",
+    "current",
+    "regression",
+    "soak",
+    "demo_run1",
+    "demo_run2",
+    "p1_p7_gate",
+    "p7_v2_gate"
+  ],
+  "evidence": [
+    "docs/p7-v2-r-root-blocker-audit.json",
+    "docs/p7-v2-r-k6-provisioning-report.json",
+    "docs/p7-v2-preflight-audit.json",
+    "docs/p7-v2-load-test-report.json",
+    "docs/p7-v2-baseline-report.json",
+    "docs/p7-v2-dataset-report.json"
+  ]
+}

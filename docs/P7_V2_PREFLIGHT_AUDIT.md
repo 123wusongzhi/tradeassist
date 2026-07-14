@@ -1,11 +1,11 @@
 # P7-V2 Preflight Audit
 
-Status: **blocked**
+Status: **passed**
 
 | Check | Value |
 | --- | --- |
-| k6 available | false |
-| k6 version | n/a |
+| k6 available | true |
+| k6 version | k6 v0.57.0 (go1.25.12, linux/amd64) |
 | PostgreSQL | true |
 | Redis | true |
 | Medium dataset | true |
@@ -15,7 +15,7 @@ Status: **blocked**
 | Demo command | true |
 
 ## Issues
-- k6 is not available
+- none
 
 ## Conflicts
-- SLO source: task conservative defaults (docs/SLO.md missing; using DEFAULT_SLO from p7-v2-lib)
+- none

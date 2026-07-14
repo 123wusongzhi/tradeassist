@@ -1,18 +1,18 @@
 {
   "phase": "P7-V2",
-  "status": "passed",
-  "kind": "smoke",
-  "runId": "p7v2-smoke-20260714143500",
+  "status": "blocked",
+  "kind": "baseline",
+  "runId": "p7v2-baseline-quick",
   "baseUrl": "http://127.0.0.1:8080/",
-  "configuredVUs": 10,
-  "peakVUs": 10,
+  "configuredVUs": 4,
+  "peakVUs": 4,
   "achievedRPS": 0,
   "completedRequests": 0,
   "failedRequests": 0,
   "throttledRequests": 0,
   "scenarios": [
     {
-      "scenario": "smoke",
+      "scenario": "baseline",
       "requests": 0,
       "rps": 0,
       "errorRate": 0,
@@ -24,27 +24,27 @@
       "timeouts": 0,
       "status429": 0,
       "status5xx": 0,
-      "exitCode": 0
+      "exitCode": 99
     }
   ],
-  "failedScenarios": 0,
-  "thresholdsPassed": true,
-  "targetReached": true,
+  "failedScenarios": 1,
+  "thresholdsPassed": false,
+  "targetReached": false,
   "crashes": 0,
   "panics": 0,
   "oom": 0,
-  "steadyMinutes": 2,
+  "steadyMinutes": 10,
   "loadProfile": {
-    "kind": "smoke",
-    "targetVUs": 10,
+    "kind": "baseline",
+    "targetVUs": 4,
     "warmup": "5m",
     "ramp": "3m",
-    "steady": "2m",
-    "rampdown": "0m"
+    "steady": "10m",
+    "rampdown": "2m"
   },
   "environmentFingerprint": {
-    "runId": "p7v2-smoke-20260714143500",
-    "runType": "smoke",
+    "runId": "p7v2-baseline-quick",
+    "runType": "baseline",
     "gitCommit": "92228ee7df623c4a4a122fb28eaceaf775e28941",
     "gitDirty": true,
     "os": "win32",
@@ -58,20 +58,22 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T06:55:29.843Z",
+    "startedAt": "2026-07-14T07:53:10.708Z",
     "endedAt": "",
     "datasetFingerprint": "0dd02fbd730cba2e8503690ccaf7a1104f88d35d77cd94a7bd8016efd0a340be",
     "configFingerprint": "8b7d7af89215a75e",
-    "loadProfileFingerprint": "207979b01183af0e",
+    "loadProfileFingerprint": "a9e9f5c2caa65f0a",
     "databaseNameHash": "bd6bd32743107192"
   },
   "datasetFingerprint": "0dd02fbd730cba2e8503690ccaf7a1104f88d35d77cd94a7bd8016efd0a340be",
   "configFingerprint": "8b7d7af89215a75e",
-  "loadProfileFingerprint": "207979b01183af0e",
+  "loadProfileFingerprint": "a9e9f5c2caa65f0a",
   "memoryLeakDetected": false,
   "goroutineLeakDetected": false,
   "connectionLeakDetected": false,
   "queueLeakDetected": false,
-  "issues": [],
+  "issues": [
+    "time=\"2026-07-14T15:53:08+08:00\" level=error msg=\"thresholds on metrics 'http_req_failed' have been crossed\"\n"
+  ],
   "productionReady": false
 }

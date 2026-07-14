@@ -11,8 +11,10 @@ import {
   readJSON,
   root,
   runWSL,
+  readEnvKeyFromFile,
   safeDbName,
   safeRunId,
+  startP7V2Server,
   valueOf,
   writeJSON,
   writeMarkdown,
@@ -56,7 +58,17 @@ const env = {
   DB_PORT: '5432',
   DB_USER: 'root',
   REDIS_ADDR: '127.0.0.1:6379',
+  APP_HTTP_ADDR: '127.0.0.1:8080',
+  WEBHOOK_ENABLE_TEST_VERIFIER: 'true',
+  ADMIN_BOOTSTRAP_EMAIL: readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') || 'p7v2-perf-admin@example.invalid',
+  ADMIN_BOOTSTRAP_PASSWORD: readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') || 'P7v2-Perf-Local-Only-2026!',
 };
+
+let server = { ok: false, pid: '', issues: [] };
+if (issues.length === 0 && !args.includes('--skip-server')) {
+  server = startP7V2Server(env);
+  if (!server.ok) issues.push(...(server.issues || ['failed to start API server']));
+}
 
 const fingerprint = collectEnvironmentFingerprint('environment-start', runId, {
   startedAt,
@@ -82,6 +94,9 @@ const report = {
   datasetProfile: 'medium',
   plannedRows: 1900150,
   env,
+  serverPid: server.pid || '',
+  serverStarted: server.ok,
+  apiProcessChanged: Boolean(server.apiProcessChanged),
   environmentFingerprint: fingerprint,
   issues,
   generatedAt: new Date().toISOString(),

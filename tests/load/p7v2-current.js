@@ -6,52 +6,52 @@ import { authScenario, mixedScenario, providerScenario, thresholds, webhookScena
 failFastHost();
 
 const targetVUs = Number(__ENV.TARGET_VUS || 10);
-const warmup = __ENV.WARMUP || '5m';
-const ramp = __ENV.RAMP || '3m';
-const steady = __ENV.STEADY || '10m';
-const rampdown = __ENV.RAMPDOWN || '2m';
+const warmupDur = __ENV.WARMUP || '5m';
+const rampDur = __ENV.RAMP || '3m';
+const steadyDur = __ENV.STEADY || '10m';
+const rampdownDur = __ENV.RAMPDOWN || '2m';
 
 export const options = {
   scenarios: {
     warmup: {
       executor: 'constant-vus',
       vus: Math.max(2, Math.floor(targetVUs * 0.3)),
-      duration: warmup,
+      duration: warmupDur,
       startTime: '0s',
-      exec: 'warmup',
+      exec: 'warmupPhase',
     },
     ramp: {
       executor: 'ramping-vus',
       startVUs: Math.max(2, Math.floor(targetVUs * 0.3)),
-      stages: [{ duration: ramp, target: targetVUs }],
-      startTime: warmup,
-      exec: 'steady',
+      stages: [{ duration: rampDur, target: targetVUs }],
+      startTime: warmupDur,
+      exec: 'steadyPhase',
     },
     steady: {
       executor: 'constant-vus',
       vus: targetVUs,
-      duration: steady,
-      startTime: addDuration(warmup, ramp),
-      exec: 'steady',
+      duration: steadyDur,
+      startTime: addDuration(warmupDur, rampDur),
+      exec: 'steadyPhase',
     },
     rampdown: {
       executor: 'ramping-vus',
       startVUs: targetVUs,
-      stages: [{ duration: rampdown, target: 0 }],
-      startTime: addDuration(warmup, ramp, steady),
-      exec: 'steady',
+      stages: [{ duration: rampdownDur, target: 0 }],
+      startTime: addDuration(warmupDur, rampDur, steadyDur),
+      exec: 'steadyPhase',
     },
   },
   thresholds,
 };
 
-export function warmup() {
+export function warmupPhase() {
   const res = mixedScenario();
   check(res, { 'warmup bounded': (r) => r.status < 500 });
   sleep(0.5);
 }
 
-export function steady() {
+export function steadyPhase() {
   const pick = __ITER % 10;
   let res;
   if (pick < 2) res = followCursor('productList', 1);
@@ -68,7 +68,7 @@ export function steady() {
 }
 
 export default function () {
-  steady();
+  steadyPhase();
 }
 
 function addDuration(...parts) {

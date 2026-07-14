@@ -9,6 +9,7 @@ import {
   metric,
   readJSON,
   redactURL,
+  resolvePerformanceAuthToken,
   root,
   runK6,
   scenarioFromSummary,
@@ -63,29 +64,35 @@ let exitCode = 1;
 let summaryJSON = null;
 
 if (issues.length === 0) {
-  const env = {
-    BASE_URL: baseUrl,
-    TARGET_VUS: String(targetVUs),
-    VUS: String(kind === 'smoke' ? 2 : kind === 'soak' ? Math.max(6, Math.floor(targetVUs * 0.7)) : targetVUs),
-    DURATION: kind === 'smoke' ? '2m' : '20m',
-    WARMUP: loadProfile.warmup,
-    RAMP: loadProfile.ramp,
-    STEADY: loadProfile.steady,
-    RAMPDOWN: loadProfile.rampdown,
-  };
-  const timeoutMs = kind === 'soak' ? 50 * 60 * 1000 : kind === 'smoke' ? 5 * 60 * 1000 : 35 * 60 * 1000;
-  const res = runK6(k6, ['run', '--summary-export', summaryPath, path.join(root, script)], {
-    env,
-    timeout: timeoutMs,
-    summaryExport: summaryPath,
-  });
-  exitCode = res.status ?? 1;
-  try {
-    summaryJSON = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
-  } catch {
-    issues.push('k6 summary export missing');
+  const authToken = resolvePerformanceAuthToken(baseUrl);
+  if (!authToken) {
+    issues.push('performance auth token unavailable');
+  } else {
+    const env = {
+      BASE_URL: baseUrl.replace(/\/$/, ''),
+      P7_AUTH_TOKEN: authToken,
+      TARGET_VUS: String(targetVUs),
+      VUS: String(kind === 'smoke' ? 2 : kind === 'soak' ? Math.max(6, Math.floor(targetVUs * 0.7)) : targetVUs),
+      DURATION: kind === 'smoke' ? '2m' : '20m',
+      WARMUP: loadProfile.warmup,
+      RAMP: loadProfile.ramp,
+      STEADY: loadProfile.steady,
+      RAMPDOWN: loadProfile.rampdown,
+    };
+    const timeoutMs = kind === 'soak' ? 50 * 60 * 1000 : kind === 'smoke' ? 5 * 60 * 1000 : 35 * 60 * 1000;
+    const res = runK6(k6, ['run', '--summary-export', summaryPath, path.join(root, script)], {
+      env,
+      timeout: timeoutMs,
+      summaryExport: summaryPath,
+    });
+    exitCode = res.status ?? 1;
+    try {
+      summaryJSON = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+    } catch {
+      issues.push('k6 summary export missing');
+    }
+    if (res.stderr && exitCode !== 0) issues.push(res.stderr.slice(0, 500));
   }
-  if (res.stderr && exitCode !== 0) issues.push(res.stderr.slice(0, 500));
 }
 
 const scenario = scenarioFromSummary(kind, summaryJSON, exitCode);

@@ -35,6 +35,7 @@
     "check:p7-v": "node scripts/p7-v-final-closure-gate.mjs",
     "p7-v2:host-guard": "node scripts/p7-v2-load-host-guard.mjs",
     "p7-v2:install-k6": "node scripts/install-k6-local.mjs",
+    "p7-v2:discover-k6": "node scripts/p7-v2-k6-discovery.mjs",
     "p7-v2:preflight": "node scripts/p7-v2-preflight-audit.mjs",
     "p7-v2:env:start": "node scripts/p7-v2-start-performance-env.mjs",
     "p7-v2:env:stop": "node scripts/p7-v2-stop-performance-env.mjs",
