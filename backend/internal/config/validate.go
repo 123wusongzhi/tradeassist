@@ -54,6 +54,18 @@ func (c *Config) Validate() error {
 	if err := c.validateWebhookFallback(); err != nil {
 		return err
 	}
+	if c.WebhookEnableTestVerifier && !IsProduction(c.AppEnv) {
+		env := NormalizeEnv(c.AppEnv)
+		if env != EnvDevelopment && env != EnvTest && env != EnvPerformance {
+			return fmt.Errorf("%s: WEBHOOK_ENABLE_TEST_VERIFIER only allowed in development, test, or performance", ErrCodeProductionDevRouteEnabled)
+		}
+		if env == EnvPerformance && !c.P7.PerformanceTestMode {
+			return fmt.Errorf("%s: WEBHOOK_ENABLE_TEST_VERIFIER in performance requires PERFORMANCE_TEST_MODE=true", ErrCodeProductionDevRouteEnabled)
+		}
+		if env == EnvPerformance && c.P7.ExternalProviderMode != "mock" {
+			return fmt.Errorf("%s: WEBHOOK_ENABLE_TEST_VERIFIER in performance requires EXTERNAL_PROVIDER_MODE=mock", ErrCodeProductionDevRouteEnabled)
+		}
+	}
 	if err := c.validateAuthSecurity(); err != nil {
 		return err
 	}

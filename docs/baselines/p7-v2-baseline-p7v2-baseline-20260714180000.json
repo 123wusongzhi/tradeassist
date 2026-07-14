@@ -1,8 +1,8 @@
 {
   "phase": "P7-V2",
-  "status": "passed",
+  "status": "blocked",
   "kind": "baseline",
-  "runId": "p7v2-baseline-20260714181000",
+  "runId": "p7v2-baseline-20260714180000",
   "baseUrl": "http://127.0.0.1:8080/",
   "configuredVUs": 10,
   "peakVUs": 10,
@@ -29,14 +29,14 @@
       "timeouts": 0,
       "status429": 0,
       "status5xx": 0,
-      "exitCode": 0
+      "exitCode": 107
     }
   ],
-  "failedScenarios": 0,
-  "thresholdsPassed": true,
-  "absoluteSloPassed": true,
-  "targetReached": true,
-  "k6ExitCode": 0,
+  "failedScenarios": 1,
+  "thresholdsPassed": false,
+  "absoluteSloPassed": false,
+  "targetReached": false,
+  "k6ExitCode": 107,
   "crashes": 0,
   "panics": 0,
   "oom": 0,
@@ -50,7 +50,7 @@
     "rampdown": "2m"
   },
   "environmentFingerprint": {
-    "runId": "p7v2-baseline-20260714181000",
+    "runId": "p7v2-baseline-20260714180000",
     "runType": "baseline",
     "gitCommit": "3539b4ddbb4d2b6979cc7a41db7e1bc54a14f5d2",
     "gitDirty": true,
@@ -65,7 +65,7 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T10:27:21.600Z",
+    "startedAt": "2026-07-14T10:04:21.034Z",
     "endedAt": "",
     "datasetFingerprint": "0dd02fbd730cba2e8503690ccaf7a1104f88d35d77cd94a7bd8016efd0a340be",
     "configFingerprint": "8b7d7af89215a75e",
@@ -79,6 +79,9 @@
   "goroutineLeakDetected": false,
   "connectionLeakDetected": false,
   "queueLeakDetected": false,
-  "issues": [],
+  "issues": [
+    "k6 summary export missing",
+    "time=\"2026-07-14T18:04:21+08:00\" level=error msg=\"GoError: The moduleSpecifier \\\"./credentials.js\\\" couldn't be found on local disk. Make sure that you've specified the right path to the file. If you're running k6 using the Docker image make sure you have mounted the local directory (-v /local/path/:/inside/docker/path) containing your script and modules so that they're accessible by k6 from inside of the container, see https://grafana.com/docs/k6/latest/using-k6/modules/#using-local-modules-wit"
+  ],
   "productionReady": false
 }

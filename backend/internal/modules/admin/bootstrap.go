@@ -149,6 +149,21 @@ func ensureBootstrapAdminPrivileges(ctx context.Context, db *gorm.DB, cfg *confi
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		updates["status"] = StatusActive
 	}
+	if cfg.P7.PerformanceTestMode && cfg.AppEnv == config.EnvPerformance {
+		password := strings.TrimSpace(cfg.BootstrapAdminPassword)
+		if password == "" {
+			password = perfSystemAdminPassword()
+		}
+		if password != "" {
+			if err := CheckPassword(u.PasswordHash, password); err != nil {
+				hash, herr := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+				if herr != nil {
+					return fmt.Errorf("admin bootstrap password hash: %w", herr)
+				}
+				updates["password_hash"] = string(hash)
+			}
+		}
+	}
 	if len(updates) == 0 {
 		return nil
 	}

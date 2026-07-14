@@ -1,20 +1,17 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import {
-  DB_PREFIX,
   assertDbNameSafe,
   collectEnvironmentFingerprint,
   configFingerprint,
-  docsDir,
-  gitCommit,
-  readJSON,
-  root,
+  performanceEnvDefaults,
+  probePerformanceEndpoints,
+  runAuthProbe,
   runWSL,
-  readEnvKeyFromFile,
   safeDbName,
   safeRunId,
   startP7V2Server,
+  stopP7V2Server,
   valueOf,
   writeJSON,
   writeMarkdown,
@@ -27,6 +24,11 @@ const issues = [...assertDbNameSafe(dbName)];
 if ((process.env.APP_ENV || 'performance') === 'production') issues.push('APP_ENV=production rejected');
 
 const startedAt = new Date().toISOString();
+let migrationsComplete = false;
+let bootstrapCompleted = false;
+let authProbePassed = false;
+let routeProbePassed = false;
+
 if (issues.length === 0) {
   runWSL('service postgresql start >/dev/null 2>&1 || /etc/init.d/postgresql start >/dev/null 2>&1');
   const create = runWSL(
@@ -34,24 +36,13 @@ if (issues.length === 0) {
   );
   if (create.status !== 0) issues.push('failed to create isolated PostgreSQL database');
   runWSL('redis-server --daemonize yes --port 6379 >/dev/null 2>&1 || service redis-server start >/dev/null 2>&1 || true');
+  migrationsComplete = create.status === 0;
 }
 
 const pgVersion = runWSL(`psql -h /var/run/postgresql -U root -At -d postgres -c "select version();"`);
 const redisVersion = runWSL('redis-cli --version 2>/dev/null || true');
 
-const env = {
-  APP_ENV: 'performance',
-  PERFORMANCE_TEST_MODE: 'true',
-  ALLOW_PERFORMANCE_DATASET: 'true',
-  EXTERNAL_PROVIDER_MODE: 'mock',
-  DOUYIN_WRITE_ENABLED: 'false',
-  AUTO_LISTING_ENABLED: 'false',
-  METRICS_ENABLED: 'true',
-  TRACING_ENABLED: 'true',
-  AUDIT_ENABLED: 'true',
-  OPERATION_LOG_ENABLED: 'true',
-  PPROF_ENABLED: 'true',
-  PPROF_INTERNAL_ONLY: 'true',
+const env = performanceEnvDefaults({
   DB_NAME: dbName,
   DB_DRIVER: 'postgres',
   DB_HOST: '/var/run/postgresql',
@@ -59,16 +50,35 @@ const env = {
   DB_USER: 'root',
   REDIS_ADDR: '127.0.0.1:6379',
   APP_HTTP_ADDR: '127.0.0.1:8080',
-  WEBHOOK_ENABLE_TEST_VERIFIER: 'true',
-  ADMIN_BOOTSTRAP_EMAIL: readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') || 'p7v2-perf-admin@example.invalid',
-  ADMIN_BOOTSTRAP_PASSWORD: readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') || 'P7v2-Perf-Local-Only-2026!',
-};
+});
 
 let server = { ok: false, pid: '', issues: [] };
 if (issues.length === 0 && !args.includes('--skip-server')) {
   server = startP7V2Server(env);
-  if (!server.ok) issues.push(...(server.issues || ['failed to start API server']));
+  if (!server.ok) {
+    issues.push(...(server.issues || ['failed to start API server']));
+  } else {
+    bootstrapCompleted = true;
+    const authProbe = runAuthProbe('http://127.0.0.1:8080', env);
+    writeJSON('docs/p7-v2-r2-auth-probe-report.json', authProbe);
+    authProbePassed = authProbe.status === 'passed';
+    if (!authProbePassed) {
+      issues.push(`auth probe failed: positive=${authProbe.positiveScenariosFailed} negative=${authProbe.negativeScenariosUnexpected}`);
+    }
+    const routeProbeRes = spawnSync(process.execPath, ['scripts/p7-v2-r2-route-probe.mjs'], { stdio: 'pipe', encoding: 'utf8' });
+    const routeProbe = (() => {
+      try {
+        return JSON.parse(routeProbeRes.stdout || '{}');
+      } catch {
+        return { status: 'failed', routeNotFound: 1 };
+      }
+    })();
+    routeProbePassed = routeProbe.status === 'passed' && routeProbe.routeNotFound === 0;
+    if (!routeProbePassed) issues.push('route probe failed');
+  }
 }
+
+const loadReady = migrationsComplete && bootstrapCompleted && authProbePassed && routeProbePassed && server.ok;
 
 const fingerprint = collectEnvironmentFingerprint('environment-start', runId, {
   startedAt,
@@ -78,9 +88,19 @@ const fingerprint = collectEnvironmentFingerprint('environment-start', runId, {
   datasetProfile: 'medium',
 });
 
+const redactedEnv = {
+  ...env,
+  ADMIN_BOOTSTRAP_PASSWORD: '[redacted]',
+  P7V2_PERF_ADMIN_PASSWORD: '[redacted]',
+  P7V2_PERF_TENANT_ADMIN_PASSWORD: '[redacted]',
+  P7V2_PERF_OPERATOR_PASSWORD: '[redacted]',
+  P7V2_PERF_READONLY_PASSWORD: '[redacted]',
+  P7V2_WEBHOOK_TEST_SECRET: '[redacted]',
+};
+
 const report = {
-  phase: 'P7-V2',
-  status: issues.length === 0 ? 'passed' : 'failed',
+  phase: 'P7-V2-R2',
+  status: issues.length === 0 && loadReady ? 'passed' : 'failed',
   runId,
   dbName,
   databaseNameHash: fingerprint.databaseNameHash,
@@ -88,15 +108,21 @@ const report = {
   port: 8080,
   postgreSQLVersion: (pgVersion.stdout || '').trim(),
   redisVersion: (redisVersion.stdout || '').trim(),
-  gitCommit: gitCommit(),
   schemaVersion: 'AutoMigrate',
   migrationVersion: 'AutoMigrate+p7',
   datasetProfile: 'medium',
   plannedRows: 1900150,
-  env,
+  env: redactedEnv,
   serverPid: server.pid || '',
   serverStarted: server.ok,
-  apiProcessChanged: Boolean(server.apiProcessChanged),
+  readiness: {
+    migrationsComplete,
+    bootstrapCompleted,
+    performanceAdminReady: bootstrapCompleted,
+    authProbePassed,
+    routeProbePassed,
+    loadReady,
+  },
   environmentFingerprint: fingerprint,
   issues,
   generatedAt: new Date().toISOString(),
@@ -105,26 +131,11 @@ const report = {
 writeJSON('docs/p7-v2-runtime-environment.json', report);
 writeJSON('docs/p7-v2-environment-fingerprint.json', { runs: [fingerprint] });
 writeMarkdown(
-  'docs/P7_V2_ENVIRONMENT_FINGERPRINT.md',
-  `# P7-V2 Environment Fingerprint
-
-Status: ${report.status}
-
-- Run ID: \`${runId}\`
-- Database hash: \`${fingerprint.databaseNameHash}\`
-- Config fingerprint: \`${fingerprint.configFingerprint}\`
-`,
-);
-writeMarkdown(
   'docs/P7_V2_RUNTIME_ENVIRONMENT.md',
-  `# P7-V2 Runtime Environment
-
-Status: ${report.status}
-
-- Database prefix: \`${DB_PREFIX}\`
-- Run ID: \`${runId}\`
-`,
+  `# P7-V2 Runtime Environment\n\nStatus: ${report.status}\n\n- Run ID: \`${runId}\`\n- loadReady: ${loadReady}\n`,
 );
 
 console.log(JSON.stringify(report, null, 2));
-process.exit(report.status === 'passed' ? 0 : 1);
+if (!loadReady || issues.length) {
+  process.exit(1);
+}

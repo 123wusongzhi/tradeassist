@@ -2,5 +2,5 @@
 
 Status: passed
 
-- Database prefix: `trademind_p7v2_`
-- Run ID: `p7v2-env-20260714143459`
+- Run ID: `p7v2-r2-env-20260714164000`
+- loadReady: true

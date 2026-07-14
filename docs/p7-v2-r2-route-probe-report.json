@@ -1,0 +1,109 @@
+{
+  "phase": "P7-V2-R2",
+  "component": "route-probe",
+  "status": "passed",
+  "routeNotFound": 0,
+  "probes": [
+    {
+      "route": "Product List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "tenant_admin",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Order List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "tenant_admin",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Inventory List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "operator",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Task List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "operator",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Webhook Event List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "tenant_admin",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Operation Log List",
+      "method": "GET",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "system_admin",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Webhook Ingestion",
+      "method": "POST",
+      "registered": true,
+      "authRequired": false,
+      "requiredRole": "none",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Login",
+      "method": "POST",
+      "registered": true,
+      "authRequired": false,
+      "requiredRole": "none",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    },
+    {
+      "route": "Refresh",
+      "method": "POST",
+      "registered": true,
+      "authRequired": true,
+      "requiredRole": "tenant_admin",
+      "probeStatus": 401,
+      "expectedStatus": 401,
+      "passed": true
+    },
+    {
+      "route": "Health Live",
+      "method": "GET",
+      "registered": true,
+      "authRequired": false,
+      "requiredRole": "none",
+      "probeStatus": 200,
+      "expectedStatus": 200,
+      "passed": true
+    }
+  ],
+  "generatedAt": "2026-07-14T10:00:52.847Z"
+}

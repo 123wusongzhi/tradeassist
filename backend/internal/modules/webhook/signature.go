@@ -7,6 +7,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -54,7 +55,13 @@ func NewRegistry(cfg *config.Config) *Registry {
 		appEnv:    appEnv,
 	}
 	if enableTest && (appEnv == config.EnvDevelopment || appEnv == config.EnvTest || (appEnv == config.EnvPerformance && cfg != nil && cfg.P7.PerformanceTestMode)) {
-		r.verifiers[PlatformInternalTest] = &HMACSHA256TestVerifier{Secret: []byte(TestHMACSecret)}
+		secret := []byte(TestHMACSecret)
+		if cfg != nil {
+			if v := strings.TrimSpace(os.Getenv("P7V2_WEBHOOK_TEST_SECRET")); v != "" {
+				secret = []byte(v)
+			}
+		}
+		r.verifiers[PlatformInternalTest] = &HMACSHA256TestVerifier{Secret: secret}
 	}
 	return r
 }

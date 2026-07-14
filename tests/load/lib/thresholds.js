@@ -37,7 +37,7 @@ export function webhookScenario() {
   const body = JSON.stringify({ eventId, type: 'order_created' });
   const ts = Math.floor(Date.now() / 1000);
   const secret = 'trademind-internal-test-webhook-secret';
-  const sig = crypto.hmac('sha256', `${ts}.${body}`, secret, 'hex');
+  const sig = crypto.hmac('sha256', secret, `${ts}.${body}`, 'hex');
   return http.post(
     `${baseUrl()}/api/v1/webhooks/internal-test/order_created`,
     body,

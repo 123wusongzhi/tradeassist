@@ -39,6 +39,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/logging"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	securitypkg "github.com/trademind-ai/trademind/backend/internal/pkg/security"
@@ -47,6 +48,9 @@ import (
 )
 
 func loadDotEnv() {
+	if config.NormalizeEnv(os.Getenv("APP_ENV")) == config.EnvPerformance && strings.EqualFold(strings.TrimSpace(os.Getenv("PERFORMANCE_TEST_MODE")), "true") {
+		return
+	}
 	env := config.NormalizeEnv(os.Getenv("APP_ENV"))
 	if env == config.EnvProduction {
 		if f := strings.TrimSpace(os.Getenv("APP_ENV_FILE")); f != "" {
@@ -260,6 +264,18 @@ func main() {
 		cancel()
 		log.Error("admin_bootstrap_failed", "error", err)
 		os.Exit(1)
+	}
+	if _, err := admin.EnsurePerformanceBootstrap(bootCtx, db, cfg, log); err != nil {
+		cancel()
+		log.Error("performance_bootstrap_failed", "error", err)
+		os.Exit(1)
+	}
+	if cfg.AppEnv == config.EnvPerformance && cfg.P7.PerformanceTestMode {
+		if ids, err := admin.PerformanceBootstrapUserIDs(bootCtx, db); err == nil {
+			for _, id := range ids {
+				adminperm.InvalidateUserPermissionCache(id)
+			}
+		}
 	}
 	cancel()
 

@@ -1,14 +1,18 @@
 {
   "phase": "P7-V2",
   "component": "runtime-cleanup",
-  "status": "passed",
-  "checkedAt": "2026-07-14T05:44:42.340Z",
-  "gitCommit": "5b558e07b5ec56030522cf1e786d63d1c30be4e2",
+  "status": "incomplete",
+  "checkedAt": "2026-07-14T09:38:08.238Z",
+  "gitCommit": "3539b4ddbb4d2b6979cc7a41db7e1bc54a14f5d2",
   "databasePrefix": "trademind_p7v2_",
-  "droppedDatabase": "trademind_p7v2_p7v2_20260714133000",
-  "remainingDatabases": [],
-  "remainingDatabasesWithPrefix": 0,
-  "processesRemaining": 0,
+  "droppedDatabase": "trademind_p7v2_p7v2_bootstrap_idempotency_1",
+  "remainingDatabases": [
+    "trademind_p7v2_p7v2_bootstrap_idempotency_2",
+    "trademind_p7v2_p7v2_env_20260714143459",
+    "trademind_p7v2_p7v2_r2_env_20260714164000"
+  ],
+  "remainingDatabasesWithPrefix": 3,
+  "processesRemaining": 10,
   "portsRemaining": 0,
   "queryExecuted": true,
   "issues": []

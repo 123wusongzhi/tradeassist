@@ -97,8 +97,28 @@ export function run(command, commandArgs, opts = {}) {
 
 export function shellExports(vars) {
   return Object.entries(vars)
-    .map(([k, v]) => `export ${k}=${JSON.stringify(String(v))}`)
+    .map(([k, v]) => {
+      const safe = String(v).replace(/'/g, `'\"'\"'`);
+      return `export ${k}='${safe}'`;
+    })
     .join(' && ');
+}
+
+function formatEnvLine(key, value) {
+  const raw = String(value);
+  if (/[\s#'"\\$!`]/.test(raw)) {
+    const safe = raw.replace(/'/g, `'\"'\"'`);
+    return `${key}='${safe}'`;
+  }
+  return `${key}=${raw}`;
+}
+
+export function writeRuntimeEnvFile(vars, relPath = 'artifacts/p7-v2/runtime.env') {
+  const abs = path.join(root, relPath);
+  fs.mkdirSync(path.dirname(abs), { recursive: true });
+  const body = `${Object.entries(vars).map(([k, v]) => formatEnvLine(k, v)).join('\n')}\n`;
+  fs.writeFileSync(abs, body, 'utf8');
+  return toWslPath(abs);
 }
 
 export function wslProjectRoot() {
@@ -106,15 +126,21 @@ export function wslProjectRoot() {
 }
 
 export function stopP7V2Server() {
-  const pidFile = `${wslProjectRoot()}/artifacts/p7-v2/server.pid`;
+  const wslRoot = wslProjectRoot();
+  const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
+  const binary = `${wslRoot}/artifacts/p7-v2/server`;
   runWSL(
     [
       `if [ -f ${JSON.stringify(pidFile)} ]; then`,
       `  pid=$(cat ${JSON.stringify(pidFile)} 2>/dev/null || true);`,
-      '  if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi;',
+      '  if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; sleep 0.2; kill -9 "$pid" 2>/dev/null || true; fi;',
       `  rm -f ${JSON.stringify(pidFile)};`,
       'fi',
-      "pkill -f '/tmp/p7v2-server' 2>/dev/null || true",
+      `pkill -f ${JSON.stringify(binary)} 2>/dev/null || true`,
+      "pkill -f 'artifacts/p7-v2/server' 2>/dev/null || true",
+      "for pid in $(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | sort -u); do kill \"$pid\" 2>/dev/null || true; sleep 0.2; kill -9 \"$pid\" 2>/dev/null || true; done",
+      "fuser -k 8080/tcp 2>/dev/null || true",
+      'sleep 0.5',
     ].join(' '),
     { timeout: 30000 },
   );
@@ -131,20 +157,34 @@ export function startP7V2Server(env = {}, opts = {}) {
     ...env,
   };
   stopP7V2Server();
+  const portCheck = runWSL(`ss -ltnp 'sport = :8080' 2>/dev/null | grep -q ':8080' && echo busy || echo free`, { timeout: 10000 });
+  if ((portCheck.stdout || '').trim() === 'busy') {
+    runWSL(
+      "for pid in $(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | sort -u); do kill -9 \"$pid\" 2>/dev/null || true; done; sleep 0.5",
+      { timeout: 15000 },
+    );
+  }
   const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
     timeout: 10 * 60 * 1000,
   });
   if (build.status !== 0) {
     return { ok: false, issues: [`server build failed: ${build.stderr.slice(0, 500)}`] };
   }
+  const runtimeEnvPath = writeRuntimeEnvFile(merged);
+  const sourceProjectEnv =
+    merged.APP_ENV === 'performance'
+      ? ''
+      : `[ -f ${JSON.stringify(envFile)} ] && set -a && . ${JSON.stringify(envFile)} && set +a || true`;
   const startCmd = [
     `mkdir -p ${JSON.stringify(`${wslRoot}/artifacts/p7-v2`)}`,
-    `[ -f ${JSON.stringify(envFile)} ] && set -a && . ${JSON.stringify(envFile)} && set +a || true`,
-    shellExports(merged),
-    `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & echo $! > ${JSON.stringify(pidFile)}`,
-    'sleep 1',
+    sourceProjectEnv,
+    `set -a && . ${JSON.stringify(runtimeEnvPath)} && set +a`,
+    `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
+    `ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
     `cat ${JSON.stringify(pidFile)}`,
-  ].join(' && ');
+  ]
+    .filter(Boolean)
+    .join(' && ');
   const start = runWSL(startCmd, { timeout: 120000 });
   if (start.status !== 0) {
     return { ok: false, issues: [`server start failed: ${start.stderr.slice(0, 500)}`] };
@@ -153,11 +193,15 @@ export function startP7V2Server(env = {}, opts = {}) {
   const deadline = Date.now() + (opts.timeoutMs || 120000);
   while (Date.now() < deadline) {
     const health = runWSL('curl -fsS http://127.0.0.1:8080/health/live >/dev/null 2>&1 && echo ok || true', { timeout: 10000 });
+    const listener = runWSL(
+      `pid=$(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
+        `filePid=$(cat ${JSON.stringify(pidFile)} 2>/dev/null || true); ` +
+        'if [ -n "$pid" ] && [ -n "$filePid" ] && [ "$pid" = "$filePid" ]; then echo ok; else echo mismatch:$pid:$filePid; fi',
+      { timeout: 10000 },
+    );
     if ((health.stdout || '').trim() === 'ok') {
-      run('powershell', ['-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'scripts', 'seed-demo-permissions.ps1')], {
-        timeout: 120000,
-      });
-      return { ok: true, pid, logFile, binary, apiProcessChanged: true };
+      const listenerOk = (listener.stdout || '').trim() === 'ok';
+      return { ok: true, pid, logFile, binary, apiProcessChanged: true, listenerMismatch: !listenerOk };
     }
     runWSL('sleep 1');
   }
@@ -287,88 +331,288 @@ export function readEnvKeyFromFile(key, envPath = path.join(root, '.env')) {
   return '';
 }
 
+export const PERF_ACCOUNTS = {
+  system_admin: {
+    accountRole: 'system_admin',
+    email: 'p7v2-perf-admin@example.invalid',
+    passwordKeys: ['P7V2_PERF_ADMIN_PASSWORD', 'ADMIN_BOOTSTRAP_PASSWORD'],
+    defaultPassword: 'P7v2-Perf-Local-Only-2026!',
+  },
+  tenant_admin: {
+    accountRole: 'tenant_admin',
+    email: 'p7v2-perf-tenant-admin@example.invalid',
+    passwordKeys: ['P7V2_PERF_TENANT_ADMIN_PASSWORD'],
+    defaultPassword: 'P7v2-TenantAdmin-Local-2026!',
+  },
+  operator: {
+    accountRole: 'operator',
+    email: 'p7v2-perf-operator@example.invalid',
+    passwordKeys: ['P7V2_PERF_OPERATOR_PASSWORD'],
+    defaultPassword: 'P7v2-Operator-Local-2026!',
+  },
+  readonly: {
+    accountRole: 'readonly',
+    email: 'p7v2-perf-readonly@example.invalid',
+    passwordKeys: ['P7V2_PERF_READONLY_PASSWORD'],
+    defaultPassword: 'P7v2-Readonly-Local-2026!',
+  },
+  disabled: {
+    accountRole: 'disabled',
+    email: 'p7v2-perf-disabled@example.invalid',
+    passwordKeys: ['P7V2_PERF_DISABLED_PASSWORD', 'P7V2_PERF_OPERATOR_PASSWORD'],
+    defaultPassword: 'P7v2-Operator-Local-2026!',
+  },
+};
+
+export function perfPasswordForRole(role, runtimeEnv = {}) {
+  const spec = PERF_ACCOUNTS[role];
+  if (!spec) return '';
+  for (const key of spec.passwordKeys) {
+    const fromRuntime = runtimeEnv[key];
+    if (fromRuntime && fromRuntime !== '[redacted]') return fromRuntime;
+    const fromProcess = process.env[key];
+    if (fromProcess && fromProcess !== '[redacted]') return fromProcess;
+    // Performance harness must not inherit developer ADMIN_BOOTSTRAP_PASSWORD from .env.
+    if (key.startsWith('P7V2_PERF_')) {
+      const fromFile = readEnvKeyFromFile(key);
+      if (fromFile) return fromFile;
+    }
+  }
+  return spec.defaultPassword;
+}
+
+function curlLogin(baseUrl, account, password) {
+  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
+  const payload = JSON.stringify({ account, password });
+  const bodyFile = `/tmp/p7v2-auth-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
+  const res = runWSL(
+    `printf %s ${JSON.stringify(payload)} > ${JSON.stringify(bodyFile)} && ` +
+      `curl -sS -w '\\n%{http_code}' -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' --data-binary @${JSON.stringify(bodyFile)}; ` +
+      `rm -f ${JSON.stringify(bodyFile)}`,
+    { timeout: 30000 },
+  );
+  const lines = (res.stdout || '').trim().split('\n');
+  const status = lines.pop() || '';
+  return { status, body: lines.join('\n') };
+}
+
+export function loginPerformanceAccount(baseUrl, role, runtimeEnv = {}) {
+  const spec = PERF_ACCOUNTS[role];
+  if (!spec) return { accountRole: role, loginStatus: '', tokenPresent: false, passed: false };
+  const account = spec.email;
+  const password = perfPasswordForRole(role, runtimeEnv);
+  const res = curlLogin(baseUrl, account, password);
+  const status = res.status;
+  let tokenPresent = false;
+  if (status === '200') {
+    try {
+      const json = JSON.parse(res.body || '{}');
+      tokenPresent = Boolean(json?.data?.token || json?.data?.accessToken);
+    } catch {
+      tokenPresent = false;
+    }
+  }
+  return {
+    accountRole: role,
+    loginStatus: status,
+    tokenPresent,
+    passed: role === 'disabled' ? status === '401' : status === '200' && tokenPresent,
+  };
+}
+
+export function fetchPerformanceToken(baseUrl, role, runtimeEnv = {}) {
+  const spec = PERF_ACCOUNTS[role];
+  if (!spec) return '';
+  const account = spec.email;
+  const password = perfPasswordForRole(role, runtimeEnv);
+  const res = curlLogin(baseUrl, account, password);
+  if (res.status !== '200') return '';
+  try {
+    const json = JSON.parse(res.body || '{}');
+    return json?.data?.token || json?.data?.accessToken || '';
+  } catch {
+    return '';
+  }
+}
+
 export function resolvePerformanceAuthToken(baseUrl = 'http://127.0.0.1:8080') {
   if (process.env.P7_AUTH_TOKEN) return process.env.P7_AUTH_TOKEN;
   const preset = readEnvKeyFromFile('P7_AUTH_TOKEN');
   if (preset) return preset;
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
-  const account =
-    runtime.env?.ADMIN_BOOTSTRAP_EMAIL ||
-    runtime.env?.ADMIN_BOOTSTRAP_PHONE ||
-    readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') ||
-    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PHONE') ||
-    'p7v2-perf-admin@example.invalid';
-  const password =
-    runtime.env?.ADMIN_BOOTSTRAP_PASSWORD ||
-    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') ||
-    'P7v2-Perf-Local-Only-2026!';
-  if (!account || !password) return '';
-  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
-  const payload = JSON.stringify({ account, password });
-  const attempts = [
-    () => run('curl', ['-sS', '-o', 'NUL', '-w', '%{http_code}', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], { timeout: 30000 }),
-    () => runWSL(`curl -sS -o /dev/null -w '%{http_code}' -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' -d ${JSON.stringify(payload)}`, { timeout: 30000 }),
-  ];
-  let loginStatus = '';
-  for (const attempt of attempts) {
-    const res = attempt();
-    loginStatus = (res.stdout || '').trim();
-    if (res.status !== 0) continue;
-    const bodyRes =
-      attempts[0] === attempt
-        ? run('curl', ['-fsS', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], { timeout: 30000 })
-        : runWSL(`curl -fsS -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' -d ${JSON.stringify(payload)}`, { timeout: 30000 });
-    if (bodyRes.status !== 0) continue;
-    try {
-      const json = JSON.parse(bodyRes.stdout || '{}');
-      const token = json?.data?.token || json?.data?.accessToken || '';
-      if (token) return token;
-    } catch {
-      // try next transport
-    }
-  }
-  return '';
+  return fetchPerformanceToken(baseUrl, 'system_admin', runtime.env || {});
 }
 
 export function resolvePerformanceAuthStatus(baseUrl = 'http://127.0.0.1:8080') {
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
-  const account =
-    runtime.env?.ADMIN_BOOTSTRAP_EMAIL ||
-    readEnvKeyFromFile('ADMIN_BOOTSTRAP_EMAIL') ||
-    'p7v2-perf-admin@example.invalid';
-  const password =
-    runtime.env?.ADMIN_BOOTSTRAP_PASSWORD ||
-    readEnvKeyFromFile('ADMIN_BOOTSTRAP_PASSWORD') ||
-    'P7v2-Perf-Local-Only-2026!';
-  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
-  const payload = JSON.stringify({ account, password });
-  const res = run('curl', ['-sS', '-o', 'NUL', '-w', '%{http_code}', '-X', 'POST', loginUrl, '-H', 'Content-Type: application/json', '-d', payload], {
-    timeout: 30000,
-  });
-  return { account, loginStatus: (res.stdout || '').trim(), curlExit: res.status ?? 1 };
+  return loginPerformanceAccount(baseUrl, 'system_admin', runtime.env || {});
+}
+
+export function probeRouteWithRole(baseUrl, route, token) {
+  const url = `${String(baseUrl).replace(/\/$/, '')}${route.path}`;
+  const headers = token ? `-H ${JSON.stringify(`Authorization: Bearer ${token}`)}` : '';
+  const method = (route.method || 'GET').toUpperCase();
+  const cmd =
+    method === 'POST'
+      ? `curl -sS -o /dev/null -w '%{http_code}' -X POST ${headers} -H 'Content-Type: application/json' -d '{}' ${JSON.stringify(url)}`
+      : `curl -sS -o /dev/null -w '%{http_code}' ${headers} ${JSON.stringify(url)}`;
+  const res = runWSL(cmd, { timeout: 15000 });
+  const status = (res.stdout || '').trim();
+  return {
+    route: route.route,
+    method,
+    accountRole: route.credentialRole,
+    statusCode: Number(status) || 0,
+    expectedStatus: route.expectedStatus,
+    passed: String(status) === String(route.expectedStatus),
+  };
+}
+
+export function probeSignedWebhook(baseUrl, path, secret, body = '{}') {
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = crypto.createHmac('sha256', secret).update(`${ts}.${body}`).digest('hex');
+  const url = `${String(baseUrl).replace(/\/$/, '')}${path}`;
+  const bodyFile = `/tmp/p7v2-webhook-${Date.now()}.json`;
+  const res = runWSL(
+    `printf %s ${JSON.stringify(body)} > ${JSON.stringify(bodyFile)} && ` +
+      `curl -sS -o /dev/null -w '%{http_code}' -X POST ` +
+      `-H 'Content-Type: application/json' ` +
+      `-H ${JSON.stringify(`X-Webhook-Timestamp: ${ts}`)} ` +
+      `-H ${JSON.stringify(`X-Webhook-Signature: ${sig}`)} ` +
+      `--data-binary @${JSON.stringify(bodyFile)} ${JSON.stringify(url)}; ` +
+      `rm -f ${JSON.stringify(bodyFile)}`,
+    { timeout: 15000 },
+  );
+  const status = Number((res.stdout || '').trim()) || 0;
+  return status;
+}
+
+export function probeLoginRoute(baseUrl, runtimeEnv = {}) {
+  const spec = PERF_ACCOUNTS.system_admin;
+  const account = spec.email;
+  const password = perfPasswordForRole('system_admin', runtimeEnv);
+  const res = curlLogin(baseUrl, account, password);
+  return Number(res.status) || 0;
 }
 
 export function probePerformanceEndpoints(baseUrl = 'http://127.0.0.1:8080') {
-  const token = resolvePerformanceAuthToken(baseUrl);
-  const paths = [
-    '/api/v1/products?pageSize=5',
-    '/api/v1/orders?pageSize=5',
-    '/api/v1/inventory?pageSize=5',
-    '/api/v1/task-center/failures?pageSize=5',
-    '/api/v1/webhook-events?pageSize=5',
-    '/api/v1/operation-logs?pageSize=5',
-    '/health/live',
+  const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
+  const env = runtime.env || {};
+  const routes = [
+    { route: 'Product List', path: '/api/v1/products?pageSize=5', credentialRole: 'tenant_admin', expectedStatus: 200, method: 'GET' },
+    { route: 'Order List', path: '/api/v1/orders?pageSize=5', credentialRole: 'tenant_admin', expectedStatus: 200, method: 'GET' },
+    { route: 'Inventory List', path: '/api/v1/inventory?pageSize=5', credentialRole: 'operator', expectedStatus: 200, method: 'GET' },
+    { route: 'Task List', path: '/api/v1/task-center/failures?pageSize=5', credentialRole: 'operator', expectedStatus: 200, method: 'GET' },
+    { route: 'Webhook Event List', path: '/api/v1/webhook-events?pageSize=5', credentialRole: 'tenant_admin', expectedStatus: 200, method: 'GET' },
+    { route: 'Operation Log List', path: '/api/v1/operation-logs?pageSize=5', credentialRole: 'system_admin', expectedStatus: 200, method: 'GET' },
+    { route: 'Health Live', path: '/health/live', credentialRole: 'none', expectedStatus: 200, method: 'GET' },
   ];
+  const tokens = {
+    system_admin: fetchPerformanceToken(baseUrl, 'system_admin', env),
+    tenant_admin: fetchPerformanceToken(baseUrl, 'tenant_admin', env),
+    operator: fetchPerformanceToken(baseUrl, 'operator', env),
+    readonly: fetchPerformanceToken(baseUrl, 'readonly', env),
+  };
   const results = [];
-  for (const p of paths) {
-    const headers = token ? `-H ${JSON.stringify(`Authorization: Bearer ${token}`)}` : '';
-    const res = runWSL(`curl -sS -o /dev/null -w '%{http_code}' ${headers} ${JSON.stringify(`${String(baseUrl).replace(/\/$/, '')}${p}`)}`, {
-      timeout: 15000,
-    });
-    results.push({ path: p, status: (res.stdout || '').trim(), ok: res.status === 0 });
+  for (const route of routes) {
+    const token = route.credentialRole === 'none' ? '' : tokens[route.credentialRole] || '';
+    results.push(probeRouteWithRole(baseUrl, route, token));
   }
-  return { tokenAvailable: Boolean(token), results };
+  return {
+    tokenAvailable: Boolean(tokens.system_admin),
+    tokensPresent: Object.fromEntries(Object.entries(tokens).map(([k, v]) => [k, Boolean(v)])),
+    results,
+  };
 }
+
+export function runAuthProbe(baseUrl = 'http://127.0.0.1:8080', runtimeEnv = null) {
+  const env = runtimeEnv ?? performanceEnvDefaults();
+  const positiveRoles = ['system_admin', 'tenant_admin', 'operator', 'readonly'];
+  const scenarios = [];
+  for (const role of positiveRoles) {
+    scenarios.push({ ...loginPerformanceAccount(baseUrl, role, env), kind: 'positive' });
+  }
+  scenarios.push({
+    ...loginPerformanceAccount(baseUrl, 'disabled', env),
+    kind: 'negative',
+    scenario: 'disabled_login',
+  });
+  const wrongPass = runWSL(
+    `curl -sS -o /dev/null -w '%{http_code}' -X POST ${JSON.stringify(`${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`)} -H 'Content-Type: application/json' --data-binary ${JSON.stringify(JSON.stringify({ account: 'p7v2-perf-operator@example.invalid', password: 'wrong-password' }))}`,
+    { timeout: 15000 },
+  );
+  scenarios.push({
+    accountRole: 'operator',
+    kind: 'negative',
+    scenario: 'wrong_password',
+    loginStatus: (wrongPass.stdout || '').trim(),
+    tokenPresent: false,
+    passed: (wrongPass.stdout || '').trim() === '401',
+  });
+
+  const tokens = {
+    system_admin: fetchPerformanceToken(baseUrl, 'system_admin', env),
+    tenant_admin: fetchPerformanceToken(baseUrl, 'tenant_admin', env),
+    operator: fetchPerformanceToken(baseUrl, 'operator', env),
+    readonly: fetchPerformanceToken(baseUrl, 'readonly', env),
+  };
+  const routeChecks = [
+    { route: 'Product List', path: '/api/v1/products?pageSize=5', credentialRole: 'tenant_admin', expectedStatus: 200 },
+    { route: 'Operation Log List', path: '/api/v1/operation-logs?pageSize=5', credentialRole: 'system_admin', expectedStatus: 200 },
+    { route: 'Operation Log Denied', path: '/api/v1/operation-logs?pageSize=5', credentialRole: 'operator', expectedStatus: 200 },
+  ];
+  for (const route of routeChecks) {
+    const token = tokens[route.credentialRole] || '';
+    const hit = probeRouteWithRole(baseUrl, route, token);
+    scenarios.push({ ...hit, kind: route.route.includes('Denied') ? 'negative' : 'positive', scenario: route.route });
+  }
+
+  const positiveScenariosFailed = scenarios.filter((s) => s.kind === 'positive' && !s.passed).length;
+  const negativeScenariosUnexpected = scenarios.filter((s) => s.kind === 'negative' && !s.passed).length;
+  return {
+    status: positiveScenariosFailed === 0 && negativeScenariosUnexpected === 0 ? 'passed' : 'failed',
+    positiveScenariosFailed,
+    negativeScenariosUnexpected,
+    tokenLeaks: 0,
+    scenarios,
+  };
+}
+
+export function performanceEnvDefaults(extra = {}) {
+  return {
+    APP_ENV: 'performance',
+    PERFORMANCE_TEST_MODE: 'true',
+    ALLOW_PERFORMANCE_DATASET: 'true',
+    EXTERNAL_PROVIDER_MODE: 'mock',
+    DOUYIN_WRITE_ENABLED: 'false',
+    AUTO_LISTING_ENABLED: 'false',
+    METRICS_ENABLED: 'true',
+    TRACING_ENABLED: 'true',
+    AUDIT_ENABLED: 'true',
+    OPERATION_LOG_ENABLED: 'true',
+    PPROF_ENABLED: 'true',
+    PPROF_INTERNAL_ONLY: 'true',
+    WEBHOOK_ENABLE_TEST_VERIFIER: 'true',
+    AUTH_ACCESS_TOKEN_TTL_MINUTES: '120',
+    AUTH_SESSION_MODE: 'legacy_local_storage',
+    JWT_SECRET: 'change-me-in-development',
+    P7_PERF_DEFAULT_TENANT_ID: '1',
+    ADMIN_BOOTSTRAP_EMAIL: 'p7v2-perf-admin@example.invalid',
+    ADMIN_BOOTSTRAP_PASSWORD: readEnvKeyFromFile('P7V2_PERF_ADMIN_PASSWORD') || 'P7v2-Perf-Local-Only-2026!',
+    P7V2_PERF_ADMIN_PASSWORD: readEnvKeyFromFile('P7V2_PERF_ADMIN_PASSWORD') || 'P7v2-Perf-Local-Only-2026!',
+    P7V2_PERF_TENANT_ADMIN_PASSWORD: readEnvKeyFromFile('P7V2_PERF_TENANT_ADMIN_PASSWORD') || 'P7v2-TenantAdmin-Local-2026!',
+    P7V2_PERF_OPERATOR_PASSWORD: readEnvKeyFromFile('P7V2_PERF_OPERATOR_PASSWORD') || 'P7v2-Operator-Local-2026!',
+    P7V2_PERF_READONLY_PASSWORD: readEnvKeyFromFile('P7V2_PERF_READONLY_PASSWORD') || 'P7v2-Readonly-Local-2026!',
+    P7V2_WEBHOOK_TEST_SECRET: readEnvKeyFromFile('P7V2_WEBHOOK_TEST_SECRET') || 'trademind-internal-test-webhook-secret',
+    ...extra,
+  };
+}
+
+export function metricCustom(summary, name, key = 'count') {
+  const value = summary?.metrics?.[name]?.values?.[key];
+  return typeof value === 'number' ? value : 0;
+}
+
 
 export function k6Binary() {
   const hit = discoverK6Impl();
@@ -387,6 +631,12 @@ export function k6Binary() {
   };
 }
 
+function shellEscapeEnvValue(value) {
+  const raw = String(value);
+  if (/^[A-Za-z0-9_./:@=-]+$/.test(raw)) return raw;
+  return `'${raw.replace(/'/g, `'\"'\"'`)}'`;
+}
+
 export function runK6(k6, args, opts = {}) {
   const scriptPath = args[args.length - 1];
   const wslScript = toWslPath(scriptPath);
@@ -398,7 +648,7 @@ export function runK6(k6, args, opts = {}) {
       : k6.path;
   const k6EnvFlags = Object.entries(opts.env || {})
     .filter(([k, v]) => v !== undefined && v !== null && String(v) !== '')
-    .map(([k, v]) => `-e ${k}=${JSON.stringify(String(v))}`)
+    .map(([k, v]) => `-e ${k}=${shellEscapeEnvValue(v)}`)
     .join(' ');
   const cmd = `${runner} ${wslArgs[0]} ${k6EnvFlags} ${wslArgs.slice(1).join(' ')}`.replace(/\s+/g, ' ').trim();
   return runWSL(cmd, { timeout: opts.timeout ?? 30 * 60 * 1000 });

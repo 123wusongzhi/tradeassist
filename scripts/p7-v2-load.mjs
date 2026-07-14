@@ -4,12 +4,15 @@ import {
   assertLoadHostSafe,
   collectEnvironmentFingerprint,
   configFingerprint,
+  fetchPerformanceToken,
   k6Binary,
   loadProfileFingerprint,
   metric,
+  metricCustom,
+  performanceEnvDefaults,
+  perfPasswordForRole,
   readJSON,
   redactURL,
-  resolvePerformanceAuthToken,
   root,
   runK6,
   scenarioFromSummary,
@@ -27,6 +30,7 @@ const targetVUs = Number(valueOf(args, '--target-vus') || process.env.P7_LOAD_VU
 const scriptMap = {
   smoke: 'tests/load/p7v2-smoke.js',
   baseline: 'tests/load/p7v2-baseline.js',
+  diagnostic: 'tests/load/p7v2-diagnostic.js',
   current: 'tests/load/p7v2-current.js',
   soak: 'tests/load/p7v2-soak.js',
   load: 'tests/load/p7v2-baseline.js',
@@ -34,6 +38,7 @@ const scriptMap = {
 const reportMap = {
   smoke: ['docs/p7-v2-load-test-report.json', 'docs/P7_V2_LOAD_TEST_REPORT.md'],
   baseline: ['docs/p7-v2-baseline-report.json', 'docs/P7_V2_BASELINE_REPORT.md'],
+  diagnostic: ['docs/p7-v2-r2-diagnostic-load-report.json', 'docs/P7_V2_R2_DIAGNOSTIC_LOAD_REPORT.md'],
   current: ['docs/p7-v2-current-load-report.json', 'docs/P7_V2_CURRENT_LOAD_REPORT.md'],
   soak: ['docs/p7-v2-soak-test-report.json', 'docs/P7_V2_SOAK_TEST_REPORT.md'],
   load: ['docs/p7-v2-load-test-report.json', 'docs/P7_V2_LOAD_TEST_REPORT.md'],
@@ -44,18 +49,39 @@ const [jsonRel, mdRel] = reportMap[kind] || reportMap.load;
 const artifacts = path.join(root, 'artifacts', 'p7-v2', kind, runId);
 const dataset = readJSON('docs/p7-v2-dataset-report.json') || readJSON('docs/p7-v-medium-dataset-report.json') || {};
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
+const envCfg = performanceEnvDefaults(
+  runtime.env?.DB_NAME ? { DB_NAME: runtime.env.DB_NAME } : {},
+);
 
 const issues = [...assertLoadHostSafe(baseUrl)];
 const k6 = k6Binary();
 if (!k6.path) issues.push('k6 is not available');
 
+const readiness = runtime.readiness || {};
+if (kind === 'baseline' || kind === 'diagnostic') {
+  if (!readiness.loadReady) issues.push('loadReady=false');
+  if (!readiness.bootstrapCompleted) issues.push('bootstrapReady=false');
+  if (!readiness.authProbePassed) issues.push('authProbePassed=false');
+  if (!readiness.routeProbePassed) issues.push('routeProbePassed=false');
+  const stability = readJSON('docs/p7-v2-r2-auth-stability-report.json');
+  if (kind === 'baseline' && (!stability || stability.failedCycles !== 0)) issues.push('authStabilityCyclesPassed=false');
+  const diagnostic = readJSON('docs/p7-v2-r2-diagnostic-load-report.json');
+  if (kind === 'baseline' && (!diagnostic || diagnostic.status !== 'passed')) issues.push('diagnosticLoadPassed=false');
+}
+
+if (kind === 'baseline') {
+  const immutable = path.join(root, 'docs', 'baselines', `p7-v2-baseline-${runId}.json`);
+  if (fs.existsSync(immutable)) issues.push(`baseline artifact already exists: ${runId}`);
+  if (runId.includes('quick')) issues.push('quick baseline mode rejected for formal baseline');
+}
+
 const loadProfile = {
   kind,
   targetVUs,
-  warmup: '5m',
-  ramp: kind === 'soak' ? '0m' : '3m',
-  steady: kind === 'soak' ? '30m' : kind === 'smoke' ? '2m' : '10m',
-  rampdown: kind === 'smoke' ? '0m' : '2m',
+  warmup: kind === 'diagnostic' ? '0m' : '5m',
+  ramp: kind === 'soak' || kind === 'diagnostic' ? '0m' : '3m',
+  steady: kind === 'soak' ? '30m' : kind === 'smoke' ? '2m' : kind === 'diagnostic' ? '3m' : '10m',
+  rampdown: kind === 'smoke' || kind === 'diagnostic' ? '0m' : '2m',
 };
 
 fs.mkdirSync(artifacts, { recursive: true });
@@ -64,24 +90,29 @@ let exitCode = 1;
 let summaryJSON = null;
 
 if (issues.length === 0) {
-  const authToken = resolvePerformanceAuthToken(baseUrl);
-  if (!authToken) {
-    issues.push('performance auth token unavailable');
-  } else {
-    const env = {
+  const systemToken = fetchPerformanceToken(baseUrl, 'system_admin', envCfg);
+  if (!systemToken) issues.push('performance system admin token unavailable');
+  if (issues.length === 0) {
+    const k6Env = {
       BASE_URL: baseUrl.replace(/\/$/, ''),
-      P7_AUTH_TOKEN: authToken,
+      P7_AUTH_TOKEN: systemToken,
       TARGET_VUS: String(targetVUs),
-      VUS: String(kind === 'smoke' ? 2 : kind === 'soak' ? Math.max(6, Math.floor(targetVUs * 0.7)) : targetVUs),
-      DURATION: kind === 'smoke' ? '2m' : '20m',
+      VUS: String(kind === 'smoke' ? 2 : kind === 'diagnostic' ? 3 : kind === 'soak' ? Math.max(6, Math.floor(targetVUs * 0.7)) : targetVUs),
+      DURATION: kind === 'smoke' ? '2m' : kind === 'diagnostic' ? '3m' : '20m',
       WARMUP: loadProfile.warmup,
       RAMP: loadProfile.ramp,
       STEADY: loadProfile.steady,
       RAMPDOWN: loadProfile.rampdown,
+      P7V2_PERF_ADMIN_PASSWORD: perfPasswordForRole('system_admin', envCfg),
+      P7V2_PERF_TENANT_ADMIN_PASSWORD: perfPasswordForRole('tenant_admin', envCfg),
+      P7V2_PERF_OPERATOR_PASSWORD: perfPasswordForRole('operator', envCfg),
+      P7V2_PERF_READONLY_PASSWORD: perfPasswordForRole('readonly', envCfg),
+      P7V2_WEBHOOK_TEST_SECRET: envCfg.P7V2_WEBHOOK_TEST_SECRET || 'trademind-internal-test-webhook-secret',
     };
-    const timeoutMs = kind === 'soak' ? 50 * 60 * 1000 : kind === 'smoke' ? 5 * 60 * 1000 : 35 * 60 * 1000;
+    const timeoutMs =
+      kind === 'soak' ? 50 * 60 * 1000 : kind === 'smoke' ? 5 * 60 * 1000 : kind === 'diagnostic' ? 8 * 60 * 1000 : 40 * 60 * 1000;
     const res = runK6(k6, ['run', '--summary-export', summaryPath, path.join(root, script)], {
-      env,
+      env: k6Env,
       timeout: timeoutMs,
       summaryExport: summaryPath,
     });
@@ -98,6 +129,11 @@ if (issues.length === 0) {
 const scenario = scenarioFromSummary(kind, summaryJSON, exitCode);
 const completedRequests = metric(summaryJSON, 'http_reqs', 'count');
 const failedRequests = Math.round(completedRequests * scenario.errorRate);
+const unexpected401 = metricCustom(summaryJSON, 'unexpected_401');
+const unexpected403 = metricCustom(summaryJSON, 'unexpected_403');
+const unexpected404 = metricCustom(summaryJSON, 'unexpected_404');
+const unexpected5xx = metricCustom(summaryJSON, 'unexpected_5xx');
+const authLoginFailures = metricCustom(summaryJSON, 'auth_login_failures');
 
 const fingerprint = collectEnvironmentFingerprint(kind, runId, {
   datasetFingerprint: dataset.datasetFingerprint || '',
@@ -106,9 +142,16 @@ const fingerprint = collectEnvironmentFingerprint(kind, runId, {
   databaseNameHash: runtime.databaseNameHash || '',
 });
 
+const absoluteSloPassed =
+  exitCode === 0 &&
+  unexpected401 === 0 &&
+  unexpected403 === 0 &&
+  unexpected404 === 0 &&
+  scenario.errorRate < 0.01;
+
 const report = {
-  phase: 'P7-V2',
-  status: issues.length === 0 && exitCode === 0 ? 'passed' : issues.length ? 'blocked' : 'failed',
+  phase: kind === 'diagnostic' ? 'P7-V2-R2' : 'P7-V2',
+  status: issues.length === 0 && exitCode === 0 && absoluteSloPassed ? 'passed' : issues.length ? 'blocked' : 'failed',
   kind,
   runId,
   baseUrl: redactURL(baseUrl),
@@ -118,14 +161,21 @@ const report = {
   completedRequests,
   failedRequests,
   throttledRequests: 0,
+  unexpected401,
+  unexpected403,
+  unexpected404,
+  unexpected5xx,
+  authLoginFailures,
   scenarios: [scenario],
   failedScenarios: exitCode === 0 ? 0 : 1,
   thresholdsPassed: exitCode === 0,
+  absoluteSloPassed,
   targetReached: exitCode === 0,
+  k6ExitCode: exitCode,
   crashes: 0,
   panics: 0,
   oom: 0,
-  steadyMinutes: kind === 'soak' ? 30 : kind === 'baseline' || kind === 'current' ? 10 : 2,
+  steadyMinutes: kind === 'soak' ? 30 : kind === 'baseline' || kind === 'current' ? 10 : kind === 'diagnostic' ? 3 : 2,
   loadProfile,
   environmentFingerprint: fingerprint,
   datasetFingerprint: dataset.datasetFingerprint || '',
@@ -142,24 +192,17 @@ const report = {
 writeJSON(jsonRel, report);
 writeMarkdown(
   mdRel,
-  `# P7-V2 ${kind} report
-
-Status: ${report.status}
-
-| Field | Value |
-| --- | --- |
-| Run ID | ${runId} |
-| Target VUs | ${targetVUs} |
-| Achieved RPS | ${report.achievedRPS} |
-| Completed requests | ${completedRequests} |
-| Failed requests | ${failedRequests} |
-| Dataset fingerprint | ${report.datasetFingerprint} |
-`,
+  `# P7-V2 ${kind} report\n\nStatus: ${report.status}\n\n| Field | Value |\n| --- | --- |\n| Run ID | ${runId} |\n| k6ExitCode | ${exitCode} |\n| unexpected401 | ${unexpected401} |\n| unexpected403 | ${unexpected403} |\n| absoluteSloPassed | ${absoluteSloPassed} |\n`,
 );
 
-if (kind === 'baseline' && report.status === 'passed') writeJSON(`docs/baselines/p7-v2-baseline-${runId}.json`, report);
+if (kind === 'baseline') {
+  const immutable = path.join(root, 'docs', 'baselines', `p7-v2-baseline-${runId}.json`);
+  if (!fs.existsSync(immutable)) {
+    writeJSON(`docs/baselines/p7-v2-baseline-${runId}.json`, report);
+  }
+}
 if (kind === 'current' && report.status === 'passed') writeJSON(`docs/runs/p7-v2-current-${runId}.json`, report);
 if (kind === 'soak' && report.status === 'passed') writeJSON(`docs/runs/p7-v2-soak-${runId}.json`, report);
 
-console.log(JSON.stringify({ phase: 'P7-V2', kind, status: report.status, runId, report: jsonRel }, null, 2));
+console.log(JSON.stringify({ phase: report.phase, kind, status: report.status, runId, report: jsonRel }, null, 2));
 process.exit(report.status === 'passed' ? 0 : 1);
