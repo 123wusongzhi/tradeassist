@@ -1,0 +1,101 @@
+{
+  "phase": "P7-V2",
+  "component": "preflight-audit",
+  "status": "blocked",
+  "generatedAt": "2026-07-14T05:45:45.883Z",
+  "k6Available": false,
+  "k6Version": "",
+  "performanceEnvironmentAvailable": true,
+  "postgresAvailable": true,
+  "redisAvailable": true,
+  "mockProviderAvailable": true,
+  "mediumDatasetAvailable": true,
+  "metricsAvailable": true,
+  "dashboardAvailable": true,
+  "loadScenariosAvailable": true,
+  "baselineExists": false,
+  "currentRunExists": false,
+  "soakScenarioExists": true,
+  "demoCommandExists": true,
+  "p1ToP7GatesAvailable": true,
+  "databasePrefix": "trademind_p7v2_",
+  "scenarioWeights": {
+    "productList": 20,
+    "orderList": 20,
+    "inventoryList": 15,
+    "taskList": 10,
+    "webhookEventList": 8,
+    "operationLogList": 7,
+    "taskWorkerFlow": 8,
+    "webhookIngestion": 5,
+    "providerMockFlow": 5,
+    "authSecurity": 2
+  },
+  "slo": {
+    "httpReqFailedMax": 0.01,
+    "readListP95Ms": 800,
+    "readListP99Ms": 1500,
+    "lightP95Ms": 500,
+    "lightP99Ms": 1000,
+    "writeP95Ms": 1200,
+    "writeP99Ms": 2500,
+    "serverErrorMax": 0.002,
+    "timeoutMax": 0.002
+  },
+  "regressionThresholds": {
+    "p95DegradationPct": 10,
+    "p99DegradationPct": 15,
+    "throughputDegradationPct": 10,
+    "errorRateIncreasePts": 0.2,
+    "timeoutIncreasePts": 0.1,
+    "peakRssIncreasePct": 15,
+    "heapGrowthIncreasePct": 15,
+    "goroutineEndGrowthPct": 10,
+    "dbPoolWaitDurationIncreasePct": 20,
+    "queuePeakDepthIncreasePct": 20
+  },
+  "conflicts": [
+    {
+      "topic": "SLO source",
+      "chosen": "task conservative defaults",
+      "reason": "docs/SLO.md missing; using DEFAULT_SLO from p7-v2-lib",
+      "values": {
+        "httpReqFailedMax": 0.01,
+        "readListP95Ms": 800,
+        "readListP99Ms": 1500,
+        "lightP95Ms": 500,
+        "lightP99Ms": 1000,
+        "writeP95Ms": 1200,
+        "writeP99Ms": 2500,
+        "serverErrorMax": 0.002,
+        "timeoutMax": 0.002
+      }
+    }
+  ],
+  "issues": [
+    "k6 is not available"
+  ],
+  "hostGuard": [],
+  "p7C4Status": "passed_ready_for_p7_v2",
+  "environmentFingerprint": {
+    "runId": "preflight-1784007945884",
+    "runType": "preflight",
+    "gitCommit": "5b558e07b5ec56030522cf1e786d63d1c30be4e2",
+    "gitDirty": true,
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "cpuCores": 12,
+    "memoryTotal": 17010700288,
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "nodeVersion": "v22.22.1",
+    "pnpmVersion": "9.15.4",
+    "k6Version": "",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "startedAt": "2026-07-14T05:45:47.337Z",
+    "endedAt": "",
+    "configFingerprint": "1b8f2433c90765b1",
+    "baseUrl": "http://127.0.0.1:8080"
+  }
+}

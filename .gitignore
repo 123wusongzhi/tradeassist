@@ -13,6 +13,7 @@
 !.env.*.example
 
 # Runtime data
+tools/k6/
 /data/uploads/*
 !/data/uploads/.gitkeep
 /data/browser-profiles/*

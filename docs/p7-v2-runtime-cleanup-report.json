@@ -1,0 +1,15 @@
+{
+  "phase": "P7-V2",
+  "component": "runtime-cleanup",
+  "status": "passed",
+  "checkedAt": "2026-07-14T05:44:42.340Z",
+  "gitCommit": "5b558e07b5ec56030522cf1e786d63d1c30be4e2",
+  "databasePrefix": "trademind_p7v2_",
+  "droppedDatabase": "trademind_p7v2_p7v2_20260714133000",
+  "remainingDatabases": [],
+  "remainingDatabasesWithPrefix": 0,
+  "processesRemaining": 0,
+  "portsRemaining": 0,
+  "queryExecuted": true,
+  "issues": []
+}

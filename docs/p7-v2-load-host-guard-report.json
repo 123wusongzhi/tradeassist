@@ -1,0 +1,59 @@
+{
+  "phase": "P7-V2",
+  "component": "load-host-guard",
+  "status": "passed",
+  "failed": 0,
+  "passed": 6,
+  "cases": [
+    {
+      "id": "localhost-allowed",
+      "url": "http://localhost:8080",
+      "blocked": false,
+      "issues": [],
+      "status": "passed"
+    },
+    {
+      "id": "127-allowed",
+      "url": "http://127.0.0.1:8080",
+      "blocked": false,
+      "issues": [],
+      "status": "passed"
+    },
+    {
+      "id": "wsl-controlled-allowed",
+      "url": "http://172.22.144.1:8080",
+      "blocked": false,
+      "issues": [],
+      "status": "passed"
+    },
+    {
+      "id": "production-domain-rejected",
+      "url": "https://api.zhihengxiangyu.com",
+      "blocked": true,
+      "issues": [
+        "production domain rejected: api.zhihengxiangyu.com",
+        "unknown remote host rejected: api.zhihengxiangyu.com"
+      ],
+      "status": "passed"
+    },
+    {
+      "id": "public-ip-rejected",
+      "url": "http://8.8.8.8:8080",
+      "blocked": true,
+      "issues": [
+        "unknown remote host rejected: 8.8.8.8"
+      ],
+      "status": "passed"
+    },
+    {
+      "id": "empty-host-rejected",
+      "url": "<empty>",
+      "blocked": true,
+      "issues": [
+        "invalid base URL"
+      ],
+      "status": "passed"
+    }
+  ],
+  "generatedAt": "2026-07-14T05:31:25.868Z"
+}

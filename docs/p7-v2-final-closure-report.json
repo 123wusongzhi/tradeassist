@@ -1,0 +1,150 @@
+{
+  "phase": "P7-V2",
+  "status": "incomplete",
+  "failed": 11,
+  "passed": 7,
+  "checks": [
+    {
+      "id": "preflight",
+      "status": "failed"
+    },
+    {
+      "id": "load",
+      "status": "failed"
+    },
+    {
+      "id": "baseline",
+      "status": "failed"
+    },
+    {
+      "id": "current",
+      "status": "failed"
+    },
+    {
+      "id": "regression",
+      "status": "failed"
+    },
+    {
+      "id": "soak",
+      "status": "failed"
+    },
+    {
+      "id": "soak-minutes",
+      "status": "failed"
+    },
+    {
+      "id": "demo-run1",
+      "status": "failed"
+    },
+    {
+      "id": "demo-run2",
+      "status": "failed"
+    },
+    {
+      "id": "p1-p7-gate",
+      "status": "failed"
+    },
+    {
+      "id": "mandatory-partial-zero",
+      "status": "passed"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "failed"
+    },
+    {
+      "id": "cleanup",
+      "status": "passed"
+    },
+    {
+      "id": "dataset-rows",
+      "status": "passed"
+    },
+    {
+      "id": "no-production-access",
+      "status": "passed"
+    },
+    {
+      "id": "no-real-provider",
+      "status": "passed"
+    },
+    {
+      "id": "no-tag",
+      "status": "passed"
+    },
+    {
+      "id": "not-production-ready",
+      "status": "passed"
+    }
+  ],
+  "preflight": {
+    "status": "blocked",
+    "k6Available": false
+  },
+  "dataset": {
+    "profile": "medium",
+    "plannedRows": 1900150,
+    "actualRows": 1900150,
+    "duplicateRows": 0,
+    "failedRows": 0,
+    "fingerprintStable": true
+  },
+  "load": {
+    "status": "blocked",
+    "thresholdsPassed": false
+  },
+  "baseline": {
+    "runId": "",
+    "immutable": true
+  },
+  "current": {
+    "runId": "",
+    "independentRun": true
+  },
+  "regression": {
+    "status": "failed",
+    "absoluteSloPassed": true,
+    "relativeRegressionPassed": true
+  },
+  "soak": {
+    "steadyMinutes": 0
+  },
+  "demoAcceptance": {
+    "run1": "pending",
+    "run2": "pending"
+  },
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 11
+  },
+  "gates": {
+    "p7V2": "incomplete",
+    "p1ToP7": "incomplete"
+  },
+  "cleanup": {
+    "status": "passed",
+    "remainingDatabasesWithPrefix": 0,
+    "processesRemaining": 0,
+    "portsRemaining": 0
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "issues": [
+    "preflight",
+    "load",
+    "baseline",
+    "current",
+    "regression",
+    "soak",
+    "soak-minutes",
+    "demo-run1",
+    "demo-run2",
+    "p1-p7-gate",
+    "mandatory-missing-zero"
+  ]
+}

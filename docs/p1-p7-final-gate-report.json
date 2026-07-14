@@ -1,0 +1,162 @@
+{
+  "phase": "P1-P7",
+  "status": "incomplete",
+  "failed": 7,
+  "passed": 16,
+  "checks": [
+    {
+      "id": "P1-Infrastructure",
+      "status": "passed",
+      "detail": "foundational monorepo and services present",
+      "evidence": ""
+    },
+    {
+      "id": "P2-Reliability",
+      "status": "passed",
+      "detail": "reliability foundations from prior phases",
+      "evidence": ""
+    },
+    {
+      "id": "P3-Douyin-Adapter",
+      "status": "passed",
+      "detail": "adapter development closed in prior phases",
+      "evidence": ""
+    },
+    {
+      "id": "P4-Security",
+      "status": "passed",
+      "detail": "security foundation from P4",
+      "evidence": ""
+    },
+    {
+      "id": "P5-Observability",
+      "status": "passed",
+      "detail": "observability foundation from P5",
+      "evidence": ""
+    },
+    {
+      "id": "P6-Backup-Release-DR",
+      "status": "passed",
+      "detail": "P6 development acceptance from prior phases",
+      "evidence": ""
+    },
+    {
+      "id": "P7-Capability-Completion",
+      "status": "passed",
+      "detail": "P7-C4 closure passed",
+      "evidence": "docs/p7-c4-final-closure-report.json"
+    },
+    {
+      "id": "Medium-Dataset",
+      "status": "passed",
+      "detail": "actualRows=1900150",
+      "evidence": ""
+    },
+    {
+      "id": "Dataset-Resume",
+      "status": "passed",
+      "detail": "dataset resume evidence",
+      "evidence": ""
+    },
+    {
+      "id": "Pagination-Runtime",
+      "status": "passed",
+      "detail": "pagination runtime",
+      "evidence": ""
+    },
+    {
+      "id": "Query-Plan",
+      "status": "passed",
+      "detail": "query plan",
+      "evidence": ""
+    },
+    {
+      "id": "NPlusOne",
+      "status": "passed",
+      "detail": "n+1",
+      "evidence": ""
+    },
+    {
+      "id": "Provider",
+      "status": "passed",
+      "detail": "provider",
+      "evidence": ""
+    },
+    {
+      "id": "Permission",
+      "status": "passed",
+      "detail": "permission",
+      "evidence": ""
+    },
+    {
+      "id": "Race",
+      "status": "passed",
+      "detail": "race",
+      "evidence": "docs/p7-v2-race-report.json"
+    },
+    {
+      "id": "Cleanup",
+      "status": "passed",
+      "detail": "cleanup",
+      "evidence": "docs/p7-v2-runtime-cleanup-report.json"
+    },
+    {
+      "id": "Load-Test",
+      "status": "failed",
+      "detail": "formal load",
+      "evidence": "docs/p7-v2-load-test-report.json"
+    },
+    {
+      "id": "Baseline",
+      "status": "failed",
+      "detail": "baseline",
+      "evidence": "docs/p7-v2-baseline-report.json"
+    },
+    {
+      "id": "Current-Load",
+      "status": "failed",
+      "detail": "current",
+      "evidence": "docs/p7-v2-current-load-report.json"
+    },
+    {
+      "id": "Regression",
+      "status": "failed",
+      "detail": "regression",
+      "evidence": "docs/p7-v2-performance-regression-report.json"
+    },
+    {
+      "id": "Soak-30m",
+      "status": "failed",
+      "detail": "soak",
+      "evidence": "docs/p7-v2-soak-test-report.json"
+    },
+    {
+      "id": "Demo-Run1",
+      "status": "failed",
+      "detail": "demo run1",
+      "evidence": ""
+    },
+    {
+      "id": "Demo-Run2",
+      "status": "failed",
+      "detail": "demo run2",
+      "evidence": ""
+    }
+  ],
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 7
+  },
+  "deferred": [
+    "Real Production Backup Verification Deferred",
+    "Real Production PITR Verification Deferred",
+    "Real Production Release/Rollback Verification Deferred",
+    "Real Environment Telemetry Verification Deferred",
+    "Real Douyin Credential Verification Deferred",
+    "Real Production Performance Verification Deferred",
+    "Real Production Capacity Verification Deferred",
+    "Real Production Peak Load Verification Deferred"
+  ],
+  "productionReady": false,
+  "tag": "deferred"
+}

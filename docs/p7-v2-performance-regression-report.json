@@ -1,0 +1,25 @@
+{
+  "phase": "P7-V2",
+  "status": "failed",
+  "absoluteSloPassed": true,
+  "relativeRegressionPassed": true,
+  "failed": 0,
+  "notComparable": 0,
+  "comparisons": [],
+  "thresholds": {
+    "p95DegradationPct": 10,
+    "p99DegradationPct": 15,
+    "throughputDegradationPct": 10,
+    "errorRateIncreasePts": 0.2,
+    "timeoutIncreasePts": 0.1,
+    "peakRssIncreasePct": 15,
+    "heapGrowthIncreasePct": 15,
+    "goroutineEndGrowthPct": 10,
+    "dbPoolWaitDurationIncreasePct": 20,
+    "queuePeakDepthIncreasePct": 20
+  },
+  "issues": [
+    "baseline missing or not passed",
+    "current load missing or not passed"
+  ]
+}
