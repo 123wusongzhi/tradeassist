@@ -1,0 +1,30 @@
+{
+  "phase": "P7-V2-R3A",
+  "status": "blocked_pending_database_approval",
+  "historicalBaseline": {
+    "runId": "p7v2-baseline-20260714181000",
+    "reportedPassed": true,
+    "committedParsedRequests": 0,
+    "validForRegression": false,
+    "preserved": true,
+    "superseded": true
+  },
+  "candidateBaseline": {
+    "found": true,
+    "runId": "p7v2-r3-baseline-20260714133131",
+    "requests": 29475,
+    "scenarioCoverage": true,
+    "classifiedErrors": 0,
+    "rawArtifactFound": true,
+    "immutable": false,
+    "freezeEligible": false
+  },
+  "cleanup": {
+    "remainingDatabaseCount": 7,
+    "approvalRequired": true
+  },
+  "issues": [
+    "candidate provenance is incomplete; a fresh baseline is required",
+    "exact database deletion approval is required before runtime cleanup"
+  ]
+}

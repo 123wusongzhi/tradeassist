@@ -1,0 +1,120 @@
+{
+  "phase": "P7-V2-R3A",
+  "candidateRunId": "p7v2-r3-baseline-20260714133131",
+  "runStartedAt": "2026-07-14T13:54:51.924Z",
+  "runEndedAt": "",
+  "requests": 29475,
+  "iterations": 28199,
+  "configuredVUs": 10,
+  "peakVUs": 10,
+  "rawK6ObservedMaxVUs": 21,
+  "scenarioNames": [
+    "Product List",
+    "Order List",
+    "Inventory List",
+    "Task List",
+    "Webhook Event List",
+    "Operation Log List",
+    "Webhook Ingestion",
+    "Provider Mock Flow",
+    "Auth/Security"
+  ],
+  "scenarioRequestCounts": {
+    "Product List": 5057,
+    "Order List": 5047,
+    "Inventory List": 2521,
+    "Task List": 2521,
+    "Webhook Event List": 2518,
+    "Operation Log List": 2520,
+    "Webhook Ingestion": 2519,
+    "Provider Mock Flow": 2514,
+    "Auth/Security": 2382
+  },
+  "scenarioLatencyMetrics": {
+    "Product List": {
+      "p50": 1.453852,
+      "p90": 2.1408284,
+      "p95": 2.6739732,
+      "p99": 0,
+      "max": 26.137075
+    },
+    "Order List": {
+      "p50": 1.54598,
+      "p90": 2.2258130000000005,
+      "p95": 2.7185042999999993,
+      "p99": 0,
+      "max": 24.344422
+    },
+    "Inventory List": {
+      "p50": 1.832479,
+      "p90": 2.63445,
+      "p95": 3.527539,
+      "p99": 0,
+      "max": 47.601266
+    },
+    "Task List": {
+      "p50": 39.198768,
+      "p90": 52.296039,
+      "p95": 60.765561,
+      "p99": 0,
+      "max": 2258.893921
+    },
+    "Webhook Event List": {
+      "p50": 1.287007,
+      "p90": 1.8955298000000007,
+      "p95": 2.4384408,
+      "p99": 0,
+      "max": 28.299531
+    },
+    "Operation Log List": {
+      "p50": 2.1598355,
+      "p90": 3.0999598,
+      "p95": 4.181758999999998,
+      "p99": 0,
+      "max": 29.38354
+    },
+    "Webhook Ingestion": {
+      "p50": 1.427088,
+      "p90": 14.366775800000005,
+      "p95": 15.902185299999996,
+      "p99": 0,
+      "max": 550.3684
+    },
+    "Provider Mock Flow": {
+      "p50": 0.58039,
+      "p90": 0.9250622000000003,
+      "p95": 1.1501777499999999,
+      "p99": 0,
+      "max": 21.317031
+    },
+    "Auth/Security": {
+      "p50": 3.130875,
+      "p90": 6.397277900000001,
+      "p95": 7.634970799999997,
+      "p99": 0,
+      "max": 66.591984
+    }
+  },
+  "unexpected401": 0,
+  "unexpected403": 0,
+  "unexpected404": 0,
+  "unexpected5xx": 0,
+  "thresholdsPassed": true,
+  "absoluteSloPassed": true,
+  "rawArtifactPaths": [
+    "artifacts/p7-v2/baseline/p7v2-r3-baseline-20260714133131/baseline.summary.json"
+  ],
+  "rawArtifactSizes": [
+    10029
+  ],
+  "rawArtifactHashes": [
+    "ff01b6cccac0f62e42a3644797db22748e71cad9e17bd4fb2be2432f7f5562ce"
+  ],
+  "rawArtifactFound": true,
+  "rawArtifactParseable": true,
+  "scenarioCoverage": true,
+  "immutable": false,
+  "freezeEligible": false,
+  "provenanceIncomplete": true,
+  "reason": "candidate runtime source hash cannot be proven against a contemporaneous source-file manifest; retain candidate and rerun after approved cleanup"
+}

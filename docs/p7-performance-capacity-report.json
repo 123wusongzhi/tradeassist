@@ -1,9 +1,17 @@
 {
   "phase": "P7",
-  "status": "p7_c4_completed_ready_for_p7_v2",
+  "status": "p7_v2_r3a_completed_p7_v2_incomplete",
   "closureVerification": "incomplete",
   "p7C4": "completed",
-  "p7V2": "pending",
+  "p7V2": "incomplete",
+  "p7V2R3A": {
+    "status": "passed_ready_for_p7_v2_r3b",
+    "baselineRunId": "p7v2-baseline-r3a-20260714225500",
+    "baselineRequests": 29475,
+    "baselineImmutable": true,
+    "comparabilityPrecondition": "passed",
+    "runtimeCleanup": "passed"
+  },
   "failed": 4,
   "passed": 54,
   "results": [

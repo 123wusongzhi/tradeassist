@@ -207,5 +207,17 @@
   "connectionLeakDetected": false,
   "queueLeakDetected": false,
   "issues": [],
-  "productionReady": false
+  "productionReady": false,
+  "immutable": true,
+  "validForRegression": true,
+  "freezeMode": "immediate_post_run",
+  "rawArtifactPath": "artifacts/p7-v2/baseline/p7v2-baseline-r3a-20260714225500/baseline.summary.json",
+  "rawArtifactSha256": "1c324a90bcd53dc370620b97a9bd6e5d144b47439000e1fdbe4795f05954bf9e",
+  "rawArtifactSizeBytes": 10116,
+  "rawArtifactHashVerified": true,
+  "scenarioCoverage": true,
+  "frozenAt": "2026-07-14T15:21:26.208Z",
+  "supersedes": [
+    "p7v2-baseline-20260714181000"
+  ]
 }

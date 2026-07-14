@@ -1,9 +1,9 @@
 {
   "phase": "P7-V2-R2",
   "status": "passed",
-  "runId": "p7v2-r3-baseline-20260714133131",
-  "dbName": "trademind_p7v2_p7v2_r3_baseline_20260714133131",
-  "databaseNameHash": "7afae72819b779b7",
+  "runId": "p7v2-baseline-r3a-20260714225500",
+  "dbName": "trademind_p7v2_p7v2_baseline_r3a_20260714225500",
+  "databaseNameHash": "bbb65d832771e697",
   "hostClass": "wsl2_local_postgresql_socket",
   "port": 8080,
   "postgreSQLVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
@@ -37,7 +37,7 @@
     "P7V2_PERF_OPERATOR_PASSWORD": "[redacted]",
     "P7V2_PERF_READONLY_PASSWORD": "[redacted]",
     "P7V2_WEBHOOK_TEST_SECRET": "[redacted]",
-    "DB_NAME": "trademind_p7v2_p7v2_r3_baseline_20260714133131",
+    "DB_NAME": "trademind_p7v2_p7v2_baseline_r3a_20260714225500",
     "DB_DRIVER": "postgres",
     "DB_HOST": "/var/run/postgresql",
     "DB_PORT": "5432",
@@ -45,7 +45,7 @@
     "REDIS_ADDR": "127.0.0.1:6379",
     "APP_HTTP_ADDR": "127.0.0.1:8080"
   },
-  "serverPid": "1090",
+  "serverPid": "",
   "serverStarted": true,
   "readiness": {
     "migrationsComplete": true,
@@ -56,9 +56,9 @@
     "loadReady": true
   },
   "environmentFingerprint": {
-    "runId": "p7v2-r3-baseline-20260714133131",
+    "runId": "p7v2-baseline-r3a-20260714225500",
     "runType": "environment-start",
-    "gitCommit": "e3831acb0359a895152e4cf98e120a001820398a",
+    "gitCommit": "0bd1dc12f32f29d97174b8088ddefd2277cb5d51",
     "gitDirty": true,
     "os": "win32",
     "kernel": "10.0.19045",
@@ -71,13 +71,13 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T13:31:45.350Z",
+    "startedAt": "2026-07-14T14:54:08.286Z",
     "endedAt": "",
-    "databaseNameHash": "7afae72819b779b7",
+    "databaseNameHash": "bbb65d832771e697",
     "configFingerprint": "8b7d7af89215a75e",
     "migrationVersion": "AutoMigrate+p7",
     "datasetProfile": "medium"
   },
   "issues": [],
-  "generatedAt": "2026-07-14T13:32:01.994Z"
+  "generatedAt": "2026-07-14T14:54:25.361Z"
 }

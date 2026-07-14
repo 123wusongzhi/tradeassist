@@ -1,7 +1,7 @@
 {
   "phase": "P7-V2",
   "status": "passed",
-  "runId": "p7v2-r3-baseline-20260714133131",
+  "runId": "p7v2-baseline-r3a-20260714225500",
   "profile": "medium",
   "dryRun": false,
   "datasetPlan": {
@@ -24,10 +24,10 @@
   "failedRows": 0,
   "actualRows": 1900150,
   "batchCount": 952,
-  "durationMs": 80479,
+  "durationMs": 81817,
   "peakMemoryBytes": 0,
   "cleanupStatus": "not_requested",
-  "datasetFingerprint": "aaf85d2d04f3f41d3c385412ff9ae306ddc79816a561ff2e7dd0612be8324ecf",
+  "datasetFingerprint": "8838c2be3ffcee5b0e51d6794de41f5d3a0205f5bf4883fdc2799e1522c74d71",
   "counts": {
     "inventoryRows": 100000,
     "operationLogs": 500000,
@@ -41,8 +41,8 @@
     "users": 50,
     "webhooks": 200000
   },
-  "startedAt": "2026-07-14T13:32:02Z",
-  "finishedAt": "2026-07-14T13:33:23Z",
+  "startedAt": "2026-07-14T14:56:04Z",
+  "finishedAt": "2026-07-14T14:57:26Z",
   "guards": [
     "no production datasets",
     "requires APP_ENV=performance",
@@ -54,16 +54,16 @@
     "requires PostgreSQL database name prefix trademind_p7_, trademind_p7c2_, trademind_p7c4_, or trademind_p7v2_"
   ],
   "issues": null,
-  "command": "wsl go run ./cmd/p7load --profile medium --run-id p7v2-r3-baseline-20260714133131 --execute --batch-size 2000",
+  "command": "wsl go run ./cmd/p7load --profile medium --run-id p7v2-baseline-r3a-20260714225500 --execute --batch-size 2000",
   "exitCode": 0,
-  "scriptStartedAt": "2026-07-14T13:32:02.048Z",
-  "scriptFinishedAt": "2026-07-14T13:33:21.441Z",
+  "scriptStartedAt": "2026-07-14T14:56:02.886Z",
+  "scriptFinishedAt": "2026-07-14T14:57:26.933Z",
   "duplicateRows": 0,
   "fingerprintStable": true,
   "environmentFingerprint": {
-    "runId": "p7v2-r3-baseline-20260714133131",
+    "runId": "p7v2-baseline-r3a-20260714225500",
     "runType": "dataset",
-    "gitCommit": "e3831acb0359a895152e4cf98e120a001820398a",
+    "gitCommit": "0bd1dc12f32f29d97174b8088ddefd2277cb5d51",
     "gitDirty": true,
     "os": "win32",
     "kernel": "10.0.19045",
@@ -76,10 +76,10 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T13:33:22.621Z",
+    "startedAt": "2026-07-14T14:57:28.727Z",
     "endedAt": "",
     "datasetProfile": "medium",
-    "datasetFingerprint": "aaf85d2d04f3f41d3c385412ff9ae306ddc79816a561ff2e7dd0612be8324ecf",
+    "datasetFingerprint": "8838c2be3ffcee5b0e51d6794de41f5d3a0205f5bf4883fdc2799e1522c74d71",
     "plannedRows": 1900150,
     "actualRows": 1900150,
     "duplicateRows": 0
