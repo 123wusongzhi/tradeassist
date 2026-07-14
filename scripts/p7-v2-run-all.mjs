@@ -2,6 +2,10 @@ import { spawnSync } from 'node:child_process';
 import { safeRunId, valueOf } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
+if (process.env.R3B_MODE === 'true' || args.includes('--r3b')) {
+  console.error('R3B is a manually sequenced validation chain. Use the p7-v2:r3b:* commands; run-all is legacy.');
+  process.exit(1);
+}
 const runId = safeRunId(valueOf(args, '--run-id') || `p7v2-${new Date().toISOString().replace(/[:.]/g, '-')}`);
 const skipLoad = args.includes('--skip-load');
 const steps = [

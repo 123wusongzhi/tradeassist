@@ -1,11 +1,18 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { root, safeRunId, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
+import { readJSON, root, safeRunId, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
 const runNo = Number(valueOf(args, '--run') || 1);
-const runId = safeRunId(valueOf(args, '--run-id') || `p7v2-demo-${runNo}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+const manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
+const expectedRunId = runNo === 1 ? manifest.demoRun1Id : manifest.demoRun2Id;
+const suppliedRunId = valueOf(args, '--run-id');
+if (!expectedRunId || (suppliedRunId && suppliedRunId !== expectedRunId)) {
+  console.error(JSON.stringify({ status: 'blocked', reason: 'R3B demo run ID must match a populated manifest entry' }, null, 2));
+  process.exit(1);
+}
+const runId = safeRunId(expectedRunId);
 
 const jsonRel = runNo === 1 ? 'docs/p7-v2-demo-acceptance-run1.json' : 'docs/p7-v2-demo-acceptance-run2.json';
 const mdRel = runNo === 1 ? 'docs/P7_V2_DEMO_ACCEPTANCE_RUN1.md' : 'docs/P7_V2_DEMO_ACCEPTANCE_RUN2.md';
@@ -36,6 +43,7 @@ const report = {
   deferred: parsed.deferred ?? 0,
   exitCode: res.status ?? 1,
   generatedAt: new Date().toISOString(),
+  independent: runNo === 2 && manifest.demoRun1Id !== manifest.demoRun2Id,
 };
 
 writeJSON(jsonRel, report);

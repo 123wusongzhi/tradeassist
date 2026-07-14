@@ -1,6 +1,6 @@
 {
   "phase": "P7",
-  "status": "p7_v2_r3a_completed_p7_v2_incomplete",
+  "status": "p7_v2_r3b_fix_completed_rebaseline_required_p7_v2_incomplete",
   "closureVerification": "incomplete",
   "p7C4": "completed",
   "p7V2": "incomplete",
@@ -11,6 +11,15 @@
     "baselineImmutable": true,
     "comparabilityPrecondition": "passed",
     "runtimeCleanup": "passed"
+  },
+  "p7V2R3BFix": {
+    "status": "harness_closure_passed",
+    "baselineReuseDecision": "rebaseline_required",
+    "reason": "frozen raw artifact missing and R3B measurement/load semantics changed",
+    "currentExecuted": false,
+    "regressionExecuted": false,
+    "soakExecuted": false,
+    "demoExecuted": false
   },
   "failed": 4,
   "passed": 54,

@@ -1,21 +1,21 @@
 {
   "phase": "P7-V2-R3",
-  "status": "not_comparable",
+  "status": "passed",
   "baselinePath": "docs/p7-v2-r3-baseline-report.json",
-  "baselineRunId": "p7v2-r3-baseline-20260714133131",
+  "baselineRunId": "p7v2-baseline-r3b-20260714163000",
   "current": {
-    "runtimeSourceTreeHash": "5c6f3c0f8464b88e15419ea8446bcbfbb5523699e021980509ef4b55a5d9aab6",
-    "trackedDiffHash": "86ae2bb54e431216598054091fa3fd42404eb3f9208167f6872ee3f48be5840c",
-    "untrackedRuntimeManifestHash": "2687140f6935c3751c2d13743539d4b7c2a0e99bc709352cf9abe3e93a69502d",
-    "datasetFingerprint": "aaf85d2d04f3f41d3c385412ff9ae306ddc79816a561ff2e7dd0612be8324ecf",
+    "runtimeSourceTreeHash": "29d7ea58ee20add62ce24be14c1602d63d9720dab0f64da206902318204a1fcc",
+    "trackedDiffHash": "bd2dc811833d7d596476283333245d8164aa4b4acde64d09ed3a998197d40a12",
+    "untrackedRuntimeManifestHash": "c13a760f2c0d553b223533f3eb4832cbf01efd9b7f1d84543470fc53ebea84a8",
+    "datasetFingerprint": "d0f15d71dfa68680b61f6d313324dd7e71287812904cc08b97f2f22b42b1c0b5",
     "configFingerprint": "8b7d7af89215a75e",
     "loadProfileFingerprint": "818ce231b0091774",
     "sloFingerprint": "82c910c5485226a2f3f063f92c6689e939a6df1e158cc068bfae48e1fccaa75f",
     "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
     "environment": {
-      "runId": "p7v2-r3-comparability-1784037739081",
+      "runId": "p7v2-r3-comparability-1784047151700",
       "runType": "r3-comparability",
-      "gitCommit": "e3831acb0359a895152e4cf98e120a001820398a",
+      "gitCommit": "2c9f282b13141e880509614fcbc43cb4efc4752d",
       "gitDirty": true,
       "os": "win32",
       "kernel": "10.0.19045",
@@ -28,11 +28,15 @@
       "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
       "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
       "redisVersion": "redis-cli 6.0.16",
-      "startedAt": "2026-07-14T14:02:20.246Z",
+      "startedAt": "2026-07-14T16:39:12.897Z",
       "endedAt": ""
     }
   },
   "checks": [
+    {
+      "id": "baseline-registry",
+      "status": "passed"
+    },
     {
       "id": "baseline-passed",
       "status": "passed"
@@ -43,7 +47,7 @@
     },
     {
       "id": "baseline-immutable",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "runtime-source-tree",
@@ -86,7 +90,5 @@
       "status": "passed"
     }
   ],
-  "issues": [
-    "baseline-immutable"
-  ]
+  "issues": []
 }

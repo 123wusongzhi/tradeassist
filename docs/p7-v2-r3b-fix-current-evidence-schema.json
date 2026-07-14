@@ -1,0 +1,11 @@
+{
+  "restartEvidence": [
+    "previousApiPid",
+    "newApiPid",
+    "apiProcessChanged",
+    "databaseStateReset",
+    "databaseResetMethod",
+    "datasetVerified",
+    "currentRunIndependent"
+  ]
+}

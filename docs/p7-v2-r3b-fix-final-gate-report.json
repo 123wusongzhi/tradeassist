@@ -1,0 +1,106 @@
+{
+  "phase": "P7-V2-R3B-FIX",
+  "status": "incomplete",
+  "failed": 1,
+  "checks": [
+    {
+      "id": "soakEvidenceSchemaImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "continuousSteadyDerivedFromTiming",
+      "status": "passed"
+    },
+    {
+      "id": "cooldownDerivedFromSamples",
+      "status": "failed"
+    },
+    {
+      "id": "currentRestartEvidenceImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "databaseStateResetDerived",
+      "status": "passed"
+    },
+    {
+      "id": "currentIndependentDerived",
+      "status": "passed"
+    },
+    {
+      "id": "currentScriptMappingResolved",
+      "status": "passed"
+    },
+    {
+      "id": "regressionEngineUnified",
+      "status": "passed"
+    },
+    {
+      "id": "baselineResolverUsesRegistry",
+      "status": "passed"
+    },
+    {
+      "id": "historicalInvalidBaselineRejected",
+      "status": "passed"
+    },
+    {
+      "id": "stabilityStateMachineFixed",
+      "status": "passed"
+    },
+    {
+      "id": "raceReuseValidationFixed",
+      "status": "passed"
+    },
+    {
+      "id": "demoManifestWired",
+      "status": "passed"
+    },
+    {
+      "id": "packageCommandsAdded",
+      "status": "passed"
+    },
+    {
+      "id": "runAllBlockedForR3B",
+      "status": "passed"
+    },
+    {
+      "id": "gateFixtureTestsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "dryGateFailedForPendingExecution",
+      "status": "passed"
+    },
+    {
+      "id": "baselineReuseDecision",
+      "status": "passed"
+    },
+    {
+      "id": "productionResourcesAccessed",
+      "status": "passed"
+    },
+    {
+      "id": "realProviderCalls",
+      "status": "passed"
+    },
+    {
+      "id": "realDouyinWrites",
+      "status": "passed"
+    },
+    {
+      "id": "tagCreated",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    }
+  ],
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  }
+}

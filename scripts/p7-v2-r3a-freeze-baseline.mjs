@@ -4,7 +4,7 @@ import path from 'node:path';
 import { readJSON, root, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 const runId = valueOf(process.argv.slice(2), '--run-id');
-if (!/^p7v2-baseline-r3a-[a-z0-9_-]+$/.test(runId)) throw new Error('R3A baseline run ID is required');
+if (!/^p7v2-baseline-r3[ab]-[a-z0-9_-]+$/.test(runId)) throw new Error('R3A or R3B baseline run ID is required');
 
 const reportPath = `docs/baselines/p7-v2-baseline-${runId}.json`;
 const report = readJSON(reportPath);
@@ -46,6 +46,7 @@ const frozen = {
   supersedes: ['p7v2-baseline-20260714181000'],
 };
 fs.mkdirSync(frozenDir, { recursive: true });
+fs.copyFileSync(rawPath, path.join(frozenDir, 'baseline.summary.json'), fs.constants.COPYFILE_EXCL);
 writeJSON(path.relative(root, path.join(frozenDir, 'baseline.json')), frozen);
 writeJSON(path.relative(root, path.join(frozenDir, 'manifest.json')), {
   runId,
@@ -64,6 +65,7 @@ writeJSON(path.relative(root, path.join(frozenDir, 'source-fingerprint.json')), 
   sloFingerprint: frozen.sloFingerprint,
   routeCredentialMatrixFingerprint: frozen.routeCredentialMatrixFingerprint,
 });
+registry.activeRegressionBaseline = runId;
 registry.baselines = [...(registry.baselines || []), frozen];
 writeJSON(registryPath, registry);
 writeJSON('docs/p7-v2-r3a-baseline-freeze-report.json', { phase: 'P7-V2-R3A', status: 'passed', ...frozen });

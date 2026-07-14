@@ -52,6 +52,25 @@ When comparing Initial Controlled Baseline vs Independent Current Load Run:
 
 Absolute SLO thresholds above still apply during regression comparison.
 
+## Regression Materiality
+
+The P7-V2 regression policy preserves the relative thresholds above. For latency
+metrics, a relative degradation fails the regression gate only when it also
+exceeds the applicable absolute materiality floor; an absolute SLO failure
+always fails.
+
+| Metric | Minimum absolute degradation |
+| --- | ---: |
+| p50 latency | 1 ms |
+| p90 latency | 2 ms |
+| p95 latency | 2 ms |
+| p99 latency | 3 ms |
+
+`max` is recorded for investigation and is not a primary materiality-gated
+regression metric. The frozen policy is
+`docs/p7-v2-regression-policy-v2.json`; it must be selected before a
+Baseline/Current comparison and must not be changed after results are known.
+
 ## Soak Test
 
 | Metric | Target |

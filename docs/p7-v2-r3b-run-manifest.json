@@ -1,0 +1,13 @@
+{
+  "phase": "P7-V2-R3B",
+  "status": "pending_execution",
+  "currentRunId": "",
+  "soakRunId": "",
+  "demoRun1Id": "",
+  "demoRun2Id": "",
+  "generatedAt": "",
+  "notes": [
+    "Populate immediately before the independent local execution chain.",
+    "Demo commands reject a CLI run ID that differs from this manifest."
+  ]
+}

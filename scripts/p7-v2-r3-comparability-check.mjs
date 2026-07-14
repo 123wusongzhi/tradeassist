@@ -2,10 +2,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { collectEnvironmentFingerprint, readJSON, root, valueOf } from './p7-v2-lib.mjs';
 import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest, writeR3Report } from './p7-v2-r3-lib.mjs';
+import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 
 const args = process.argv.slice(2);
-const baselinePath = valueOf(args, '--baseline') || 'docs/p7-v2-r3-baseline-report.json';
-const baseline = readJSON(baselinePath);
+const resolvedBaseline = resolveActiveBaseline();
+const baselinePath = valueOf(args, '--baseline') || resolvedBaseline.reportPath;
+const baseline = valueOf(args, '--baseline') ? readJSON(baselinePath) : resolvedBaseline.baseline;
 const dataset = readJSON('docs/p7-v2-dataset-report.json');
 const routeMatrix = readJSON('docs/p7-v2-r2-route-credential-matrix.json');
 const runtime = readJSON('docs/p7-v2-runtime-environment.json');
@@ -16,7 +18,7 @@ const current = {
   runtimeSourceTreeHash: source.hash,
   trackedDiffHash: diff.hash,
   untrackedRuntimeManifestHash: untracked.hash,
-  datasetFingerprint: dataset?.datasetFingerprint || '',
+  datasetFingerprint: dataset?.fullDatasetFingerprint || dataset?.datasetFingerprint || '',
   configFingerprint: runtime?.environmentFingerprint?.configFingerprint || '',
   loadProfileFingerprint: baseline?.loadProfileFingerprint || '',
   sloFingerprint: jsonHash(fs.readFileSync(path.join(root, 'docs/SLO.md'), 'utf8')),
@@ -24,6 +26,7 @@ const current = {
   environment: collectEnvironmentFingerprint('r3-comparability', `p7v2-r3-comparability-${Date.now()}`),
 };
 const checks = [
+  ['baseline-registry', resolvedBaseline.valid],
   ['baseline-passed', baseline?.status === 'passed'],
   ['baseline-has-traffic', Number(baseline?.completedRequests || 0) > 0],
   ['baseline-immutable', baseline?.immutable === true || baselinePath.includes('baselines/')],
@@ -46,7 +49,7 @@ const report = {
   baselineRunId: baseline?.runId || '',
   current,
   checks: checks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
-  issues: failed,
+  issues: [...(resolvedBaseline.valid ? [] : resolvedBaseline.issues), ...failed],
 };
 writeR3Report(
   'docs/p7-v2-r3-comparability-report.json',

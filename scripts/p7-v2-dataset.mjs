@@ -74,6 +74,12 @@ const fingerprint = collectEnvironmentFingerprint('dataset', runId, {
 
 const report = {
   ...parsed,
+  profile: parsed.profile || 'medium',
+  databaseRunId: runId,
+  distributionFingerprint: parsed.distributionFingerprint || parsed.datasetFingerprint || '',
+  rowCountFingerprint: `${parsed.plannedRows || 1900150}:${parsed.actualRows || 0}:${parsed.failedRows || 0}:${parsed.duplicateRows || 0}`,
+  fullDatasetFingerprint: parsed.fullDatasetFingerprint || parsed.datasetFingerprint || '',
+  generatedAt: parsed.generatedAt || new Date().toISOString(),
   duplicateRows: 0,
   fingerprintStable: Boolean(parsed.datasetFingerprint),
   environmentFingerprint: fingerprint,
