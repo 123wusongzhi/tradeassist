@@ -1,0 +1,10 @@
+{
+  "phase": "P7-C4",
+  "status": "failed",
+  "generatedAt": "2026-07-14T04:42:30.775Z",
+  "droppedDatabase": "trademind_p7c4_p7c4_20260714042622",
+  "remainingP7C4Databases": [
+    "trademind_p7c4_p7c4_20260714042442"
+  ],
+  "issues": []
+}

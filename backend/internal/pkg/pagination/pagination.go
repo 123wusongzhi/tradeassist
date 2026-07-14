@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	DefaultLimit = 50
-	MaxLimit     = 200
-	MaxOffset    = 10000
-	MaxCursorLen = 512
+	DefaultLimit      = 50
+	MaxLimit          = 200
+	MaxOffset         = 10000
+	MaxCursorLen      = 512
+	MaxMergeCursorLen = 2048
 )
 
 const (
@@ -254,6 +255,67 @@ func signCursor(payload []byte) string {
 	mac := hmac.New(sha256.New, []byte(cursorSigningKey()))
 	_, _ = mac.Write(payload)
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+type signedPayloadEnvelope struct {
+	Payload json.RawMessage `json:"p"`
+	Sig     string          `json:"s"`
+}
+
+// EncodeSignedJSON signs an arbitrary JSON payload for cursor-like transports.
+func EncodeSignedJSON(payload any) (string, error) {
+	return EncodeSignedJSONMax(payload, MaxCursorLen)
+}
+
+// EncodeSignedJSONMax signs payload with a custom encoded length ceiling.
+func EncodeSignedJSONMax(payload any, maxLen int) (string, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(signedPayloadEnvelope{Payload: raw, Sig: signCursor(raw)})
+	if err != nil {
+		return "", err
+	}
+	out := base64.RawURLEncoding.EncodeToString(b)
+	if maxLen > 0 && len(out) > maxLen {
+		return "", fmt.Errorf("cursor exceeds max length")
+	}
+	return out, nil
+}
+
+// DecodeSignedJSON verifies signature and unmarshals into dest.
+func DecodeSignedJSON(raw string, dest any) error {
+	return DecodeSignedJSONMax(raw, dest, MaxCursorLen)
+}
+
+// DecodeSignedJSONMax verifies signature with a custom encoded length ceiling.
+func DecodeSignedJSONMax(raw string, dest any, maxLen int) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if maxLen > 0 && len(raw) > maxLen {
+		return fmt.Errorf("%w: cursor exceeds max length", ErrCursorSignatureInvalid)
+	}
+	b, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return fmt.Errorf("%w: invalid cursor encoding", ErrCursorSignatureInvalid)
+	}
+	var envelope signedPayloadEnvelope
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		return fmt.Errorf("%w: invalid cursor payload", ErrCursorSignatureInvalid)
+	}
+	if envelope.Sig == "" || !hmac.Equal([]byte(envelope.Sig), []byte(signCursor(envelope.Payload))) {
+		return fmt.Errorf("%w: invalid cursor signature", ErrCursorSignatureInvalid)
+	}
+	if dest == nil {
+		return nil
+	}
+	if err := json.Unmarshal(envelope.Payload, dest); err != nil {
+		return fmt.Errorf("%w: invalid cursor payload", ErrCursorSignatureInvalid)
+	}
+	return nil
 }
 
 func cursorSigningKey() string {

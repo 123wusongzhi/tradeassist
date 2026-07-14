@@ -1,0 +1,57 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:40:11Z",
+  "tenantId": 1,
+  "scenarios": [
+    {
+      "scenario": "orders_with_items",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 12,
+      "linearGrowthDetected": false,
+      "tenantScopePassed": true,
+      "status": "passed"
+    },
+    {
+      "scenario": "products_with_skus",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 12,
+      "linearGrowthDetected": false,
+      "tenantScopePassed": true,
+      "status": "passed"
+    },
+    {
+      "scenario": "users_with_role_permissions",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 15,
+      "linearGrowthDetected": false,
+      "tenantScopePassed": true,
+      "status": "passed"
+    },
+    {
+      "scenario": "tasks_with_summary",
+      "rows10QueryCount": 0,
+      "rows100QueryCount": 0,
+      "expectedMaxQueries": 40,
+      "linearGrowthDetected": false,
+      "tenantScopePassed": true,
+      "status": "passed"
+    }
+  ],
+  "linearGrowthDetected": false,
+  "dryRun": false,
+  "durationMs": 173,
+  "guards": [
+    "no production datasets",
+    "requires APP_ENV=performance",
+    "requires PERFORMANCE_TEST_MODE=true",
+    "requires ALLOW_PERFORMANCE_DATASET=true",
+    "requires EXTERNAL_PROVIDER_MODE=mock",
+    "requires PostgreSQL database name prefix trademind_p7c4_",
+    "requires DB host localhost or 127.0.0.1"
+  ],
+  "issues": null
+}

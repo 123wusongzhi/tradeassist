@@ -1,0 +1,17 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:45:00Z",
+  "paths": [
+    {"provider": "douyin", "operation": "token_refresh", "callSite": "backend/internal/providers/platform/douyinshop/httpclient_adapter.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "douyin", "operation": "read", "callSite": "backend/internal/providers/platform/douyinshop/httpclient_adapter.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "douyin", "operation": "draft_write", "callSite": "backend/internal/providers/platform/douyinshop/httpclient_adapter.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "ai", "operation": "text", "callSite": "backend/internal/providers/ai/limit_client.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "ai", "operation": "image", "callSite": "backend/internal/providers/ai/limit_client.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "storage", "operation": "object_io", "callSite": "backend/internal/pkg/httpclient/client.go", "status": "wired", "usesExistingLimiter": true},
+    {"provider": "file_scan", "operation": "scan", "callSite": "backend/internal/pkg/filescanner", "status": "not_applicable_with_evidence", "reason": "local scanner without external HTTP in MVP"},
+    {"provider": "telemetry", "operation": "export", "callSite": "backend/internal/pkg/observability", "status": "not_applicable_with_evidence", "reason": "in-process metrics only in performance mode"},
+    {"provider": "alert", "operation": "delivery", "callSite": "backend/internal/modules/taskcenter/notify", "status": "wired", "usesExistingLimiter": true}
+  ],
+  "mandatoryMissing": 0
+}

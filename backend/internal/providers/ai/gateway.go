@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -100,7 +99,7 @@ func (g *Gateway) chatWithPlain(ctx context.Context, plain map[string]string, re
 	if httpTimeout < 30*time.Second {
 		httpTimeout = 30 * time.Second
 	}
-	httpClient := &http.Client{Timeout: httpTimeout}
+	httpClient := limitedAIHTTPClient(httpTimeout)
 
 	prov, err := NewProvider(pname, base, apiKey, httpClient)
 	if err != nil {

@@ -9,8 +9,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 )
 
-func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customerchat.CustomerFailureEvent{})
+	q = s.applyTenantListFilter(q, p)
 	q = q.Where("status = ?", customerchat.FailureEventStatusOpen)
 	if !p.IncludeResolved {
 		q = q.Where("status = ?", customerchat.FailureEventStatusOpen)
@@ -28,9 +29,17 @@ func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams,
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR category ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR CAST(conversation_id AS TEXT) ILIKE ?)", lk, lk, lk, lk)
 	}
 	q = s.applyTimeRange(q, p)
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []customerchat.CustomerFailureEvent
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	ids := make([]string, len(rows))

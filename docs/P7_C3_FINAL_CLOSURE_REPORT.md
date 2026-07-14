@@ -1,23 +1,36 @@
 # P7-C3 Final Closure Report
 
-Status: Incomplete.
+Status: passed_ready_for_p7_v2
 
-Completed in this turn:
+Evidence source: P7-C4 (p7c4-20260714042622)
 
-- Product, Order, Inventory Center, Webhook Event, and Operation Log list APIs support signed cursor pagination.
-- Task Center has signed cursor support over its merged projection, but remains partial.
-- Provider limiter component and Douyin shared HTTP client wiring were added.
-- Versioned permission principal cache was added with disabled-user fail-safe behavior.
-- Targeted Go tests passed for affected packages.
+## Current Gate
 
-Not completed:
+- P7-C3 Gate: passed
+- Mandatory Partial: 0
+- Mandatory Missing: 0
 
-- Medium PostgreSQL pagination runtime.
-- Query plan runtime.
-- N+1 runtime.
-- Incremental Linux race.
-- Full provider operation wiring.
-- Permission invalidation broadcast and write-path post-commit calls.
+## Historical Failure
 
-Closure result: P7-C3 gate failed by evidence, not by manual override.
+The first P7-C3 closure attempt failed with task pagination partial, runtime not executed, and provider/permission wiring incomplete. That evidence is preserved in git history and the prior JSON snapshot. P7-C4 closed those blockers using isolated Medium PostgreSQL runtime harnesses.
 
+## Pagination
+
+- product: implemented
+- order: implemented
+- inventory: implemented
+- task: implemented
+- webhook: implemented
+- operationLog: implemented
+
+## Database Runtime
+
+- Query Plan: passed
+- N+1: passed
+
+## Provider / Permission / Race
+
+- Provider concurrency: passed
+- Provider adaptive: passed
+- Permission invalidation: passed
+- Race: passed

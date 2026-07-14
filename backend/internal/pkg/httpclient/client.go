@@ -173,6 +173,36 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 	return resp, nil
 }
 
+// HTTPClient exposes a stdlib client that routes through this client's Do (limits, breaker, metrics).
+func (c *Client) HTTPClient() *http.Client {
+	if c == nil {
+		return &http.Client{}
+	}
+	return &http.Client{
+		Timeout: c.cfg.RequestTimeout,
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			return c.Do(req.Context(), req)
+		}),
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+// LimitedStdHTTPClient returns a stdlib client routed through provider limiter + breaker defaults.
+func LimitedStdHTTPClient(timeout time.Duration, limiter providerlimit.ProviderConcurrencyLimiter, provider providerlimit.ProviderName, operation providerlimit.ProviderOperation) *http.Client {
+	cfg := DefaultConfig()
+	if timeout > 0 {
+		cfg.RequestTimeout = timeout
+	}
+	cli := New(cfg, nil, 0)
+	cli.SetProviderLimit(limiter, provider, operation)
+	return cli.HTTPClient()
+}
+
 func (c *Client) observeLimitResult(status int, retryAfter time.Duration, err error) {
 	if c == nil || c.limiter == nil {
 		return

@@ -17,26 +17,26 @@ import (
 	"gorm.io/gorm"
 )
 
-func (s *Service) listOneType(ctx context.Context, taskType string, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listOneType(ctx context.Context, taskType string, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	switch taskType {
 	case TaskTypeCollect:
-		return s.listCollect(ctx, p, now, fetchLimit)
+		return s.listCollect(ctx, p, now, fetchLimit, cur)
 	case TaskTypeImage:
-		return s.listImage(ctx, p, now, fetchLimit)
+		return s.listImage(ctx, p, now, fetchLimit, cur)
 	case TaskTypeOrderSync:
-		return s.listOrderSync(ctx, p, now, fetchLimit)
+		return s.listOrderSync(ctx, p, now, fetchLimit, cur)
 	case TaskTypeCustomerMessageSync:
-		return s.listCustomerSync(ctx, p, now, fetchLimit)
+		return s.listCustomerSync(ctx, p, now, fetchLimit, cur)
 	case TaskTypeProductPublish:
-		return s.listProductPublish(ctx, p, now, fetchLimit)
+		return s.listProductPublish(ctx, p, now, fetchLimit, cur)
 	case TaskTypeInventorySync:
-		return s.listInventorySync(ctx, p, now, fetchLimit)
+		return s.listInventorySync(ctx, p, now, fetchLimit, cur)
 	case TaskTypeAIText:
-		return s.listAIProductText(ctx, p, now, fetchLimit)
+		return s.listAIProductText(ctx, p, now, fetchLimit, cur)
 	case TaskTypeAIImage:
-		return s.listAIProductImage(ctx, p, now, fetchLimit)
+		return s.listAIProductImage(ctx, p, now, fetchLimit, cur)
 	case TaskTypeCustomerFailure:
-		return s.listCustomerFailures(ctx, p, now, fetchLimit)
+		return s.listCustomerFailures(ctx, p, now, fetchLimit, cur)
 	default:
 		return nil, gorm.ErrRecordNotFound
 	}
@@ -50,7 +50,7 @@ func likePat(kw string) string {
 	return "%" + kw + "%"
 }
 
-func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
@@ -58,9 +58,17 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(source_url ILIKE ? OR COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ?)", lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []collect.CollectTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	prodIDs := make([]uuid.UUID, 0)
@@ -85,7 +93,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 	return out, nil
 }
 
-func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, true)
@@ -93,9 +101,17 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR task_type ILIKE ? OR provider ILIKE ? OR CAST(id AS TEXT) ILIKE ?)", lk, lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []imagetask.ImageTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	prodIDs := make([]uuid.UUID, 0)
@@ -120,7 +136,7 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 	return out, nil
 }
 
-func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&ordersync.OrderSyncTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
@@ -136,9 +152,17 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR platform ILIKE ?)", lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []ordersync.OrderSyncTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	shopIDs := make([]uuid.UUID, 0, len(rows))
@@ -161,7 +185,7 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 	return out, nil
 }
 
-func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&customersync.CustomerMessageSyncTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
@@ -177,9 +201,17 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR platform ILIKE ?)", lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []customersync.CustomerMessageSyncTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	shopIDs := make([]uuid.UUID, 0, len(rows))
@@ -202,7 +234,7 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 	return out, nil
 }
 
-func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&productpublish.ProductPublishTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
@@ -218,9 +250,17 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR platform ILIKE ? OR CAST(product_id AS TEXT) ILIKE ?)", lk, lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []productpublish.ProductPublishTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	shopIDs := make([]uuid.UUID, 0, len(rows))
@@ -246,7 +286,7 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 	return out, nil
 }
 
-func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{})
 	q = s.applyTenantListFilter(q, p)
 	q = failureRowFilter(s.applyTimeRange(q, p), now, p.IncludeResolved, false)
@@ -262,9 +302,17 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 	if lk := likePat(p.Keyword); lk != "" {
 		q = q.Where("(COALESCE(error_message,'') ILIKE ? OR CAST(id AS TEXT) ILIKE ? OR platform ILIKE ? OR CAST(product_id AS TEXT) ILIKE ? OR CAST(publication_sku_id AS TEXT) ILIKE ?)", lk, lk, lk, lk, lk)
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []inventory.InventorySyncTask
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	shopIDs := make([]uuid.UUID, 0, len(rows))
@@ -290,7 +338,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 	return out, nil
 }
 
-func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproducttext.AIProductTextItem{})
 	q = s.applyTenantListFilter(q, p)
 	q = aiTextFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
@@ -315,9 +363,17 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 				Where("quality_warnings IS NOT NULL AND TRIM(quality_warnings::text) NOT IN ('null', '[]', '')")
 		}
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
 
 	var rows []aiproducttext.AIProductTextItem
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	prodIDs := make([]uuid.UUID, 0, len(rows))
@@ -344,7 +400,7 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 	return out, nil
 }
 
-func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int) ([]UnifiedTaskDTO, error) {
+func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, now time.Time, fetchLimit int, cur TaskSourceCursor) ([]UnifiedTaskDTO, error) {
 	q := s.DB.WithContext(ctx).Model(&aiproductimage.AIProductImageItem{})
 	q = s.applyTenantListFilter(q, p)
 	q = aiImageFailureRowFilter(s.applyTimeRange(q, p), p.IncludeResolved)
@@ -369,8 +425,17 @@ func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, n
 				Where("quality_warnings IS NOT NULL AND TRIM(quality_warnings::text) NOT IN ('null', '[]', '')")
 		}
 	}
+	keyed, err := applySourceKeysetQuery(q, cur)
+	if err != nil {
+		return nil, err
+	}
+	if keyed == nil {
+		return []UnifiedTaskDTO{}, nil
+	}
+	q = keyed
+
 	var rows []aiproductimage.AIProductImageItem
-	if err := q.Order("updated_at DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
+	if err := q.Order("updated_at DESC, id DESC").Limit(fetchLimit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	prodIDs := make([]uuid.UUID, 0, len(rows))

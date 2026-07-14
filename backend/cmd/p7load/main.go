@@ -132,7 +132,7 @@ func main() {
 			"requires EXTERNAL_PROVIDER_MODE=mock",
 			"requires DOUYIN_WRITE_ENABLED=false",
 			"requires AUTO_LISTING_ENABLED=false",
-			"requires PostgreSQL database name prefix trademind_p7_ or trademind_p7c2_",
+			"requires PostgreSQL database name prefix trademind_p7_, trademind_p7c2_, or trademind_p7c4_",
 		},
 	}
 	if *dryRun && !*cleanupOnly {
@@ -287,8 +287,8 @@ func validateGuards(cfg *config.Config, rows int64) error {
 		return fmt.Errorf("PPROF_INTERNAL_ONLY must be true")
 	}
 	name := strings.TrimSpace(cfg.DB.Name)
-	if !strings.HasPrefix(name, "trademind_p7_") && !strings.HasPrefix(name, "trademind_p7c2_") {
-		return fmt.Errorf("DB_NAME must start with trademind_p7_ or trademind_p7c2_")
+	if !strings.HasPrefix(name, "trademind_p7_") && !strings.HasPrefix(name, "trademind_p7c2_") && !strings.HasPrefix(name, "trademind_p7c4_") {
+		return fmt.Errorf("DB_NAME must start with trademind_p7_, trademind_p7c2_, or trademind_p7c4_")
 	}
 	if max := int64(cfg.P7.PerformanceDatasetMaxRows); max > 0 && rows > max {
 		return fmt.Errorf("planned rows %d exceed PERFORMANCE_DATASET_MAX_ROWS %d", rows, max)

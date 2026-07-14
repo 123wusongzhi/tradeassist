@@ -1,0 +1,13 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:45:00Z",
+  "lists": [
+    {"name": "product", "handler": "backend/internal/modules/product/handler.go", "service": "backend/internal/modules/product/service.go", "repository": "GORM keyset", "keysetSQL": "created_at DESC, id DESC", "tenantScope": true, "shopScope": false, "sortFields": ["created_at"], "tieBreaker": "id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"},
+    {"name": "order", "handler": "backend/internal/modules/order/handler.go", "service": "backend/internal/modules/order/service.go", "repository": "GORM keyset", "keysetSQL": "order_time DESC, id DESC", "tenantScope": true, "shopScope": false, "sortFields": ["order_time"], "tieBreaker": "id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"},
+    {"name": "inventory", "handler": "backend/internal/modules/inventory/handler.go", "service": "backend/internal/modules/inventory/center_list.go", "repository": "GORM keyset", "keysetSQL": "updated_at DESC, product_sku_id DESC", "tenantScope": true, "shopScope": false, "sortFields": ["updated_at"], "tieBreaker": "product_sku_id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"},
+    {"name": "task", "handler": "backend/internal/modules/taskcenter/handler.go", "service": "backend/internal/modules/taskcenter/service.go", "repository": "per-source SQL keyset + bounded merge", "keysetSQL": "updated_at DESC, id DESC per source", "tenantScope": true, "shopScope": true, "sortFields": ["updated_at"], "tieBreaker": "id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"},
+    {"name": "webhook", "handler": "backend/internal/modules/webhook/handler.go", "service": "backend/internal/modules/webhook/service.go", "repository": "GORM keyset", "keysetSQL": "received_at DESC, id DESC", "tenantScope": true, "shopScope": true, "sortFields": ["received_at"], "tieBreaker": "id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"},
+    {"name": "operationLog", "handler": "backend/internal/modules/operationlog/handler.go", "service": "backend/internal/modules/operationlog/service.go", "repository": "GORM keyset", "keysetSQL": "created_at DESC, id DESC", "tenantScope": true, "shopScope": false, "sortFields": ["created_at"], "tieBreaker": "id", "filterFingerprint": true, "limitGuard": true, "offsetGuard": true, "status": "passed"}
+  ]
+}

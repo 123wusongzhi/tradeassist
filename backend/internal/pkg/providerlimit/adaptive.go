@@ -1,6 +1,7 @@
 package providerlimit
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -50,6 +51,41 @@ func NewAdaptiveController(cfg AdaptiveConfig) *AdaptiveController {
 		cfg.MaxRetryAfter = time.Minute
 	}
 	return &AdaptiveController{cfg: cfg, current: cfg.NormalConcurrency, lastRecover: time.Now().UTC()}
+}
+
+func (a *AdaptiveController) Wait(ctx context.Context) error {
+	if a == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	a.mu.Lock()
+	until := a.slowUntil
+	a.mu.Unlock()
+	if until.IsZero() || time.Now().UTC().After(until) {
+		return nil
+	}
+	timer := time.NewTimer(time.Until(until))
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func (a *AdaptiveController) EffectiveLimit() int {
+	if a == nil {
+		return 1
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.current < a.cfg.MinConcurrency {
+		return a.cfg.MinConcurrency
+	}
+	return a.current
 }
 
 func (a *AdaptiveController) Observe(status int, retryAfter time.Duration, err error) {

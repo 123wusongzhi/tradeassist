@@ -1,11 +1,8 @@
 # P7-C Capability Closure Audit
 
-Status: incomplete
+Status: passed
 
-Source: `docs/p7-c2-partial-classification.json`
+Evidence source: P7-C4 capability normalization + preserved P7-C2 classification.
 
-- Mandatory implemented: 46
-- Mandatory partial: 11
+- Mandatory partial: 0
 - Mandatory missing: 0
-
-This audit is regenerated from P7-C2 evidence and preserves failed history in prior reports.

@@ -1,7 +1,11 @@
 package adminperm
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -53,7 +57,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
-	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role)
+	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
@@ -86,9 +90,42 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 			})
 		}
 	}
+	cacheKey = permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
+	if cached, ok := getCachedPrincipal(cacheKey); ok {
+		c.Set(ctxPrincipalKey, cached)
+		return cached, nil
+	}
 	c.Set(ctxPrincipalKey, p)
 	putCachedPrincipal(cacheKey, p)
 	return p, nil
+}
+
+func storeGrantsFingerprint(grants []StoreGrant) string {
+	if len(grants) == 0 {
+		return ""
+	}
+	type row struct {
+		StoreID string `json:"storeId"`
+		Scope   string `json:"scope"`
+		Plat    string `json:"platform"`
+	}
+	rows := make([]row, 0, len(grants))
+	for _, g := range grants {
+		rows = append(rows, row{
+			StoreID: g.StoreID.String(),
+			Scope:   strings.TrimSpace(strings.ToLower(g.PermissionScope)),
+			Plat:    strings.TrimSpace(strings.ToLower(g.Platform)),
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].StoreID == rows[j].StoreID {
+			return rows[i].Scope < rows[j].Scope
+		}
+		return rows[i].StoreID < rows[j].StoreID
+	})
+	raw, _ := json.Marshal(rows)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8])
 }
 
 // RoleFromContext loads admin_users.role for the authenticated admin (defaults to admin when missing).

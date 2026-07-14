@@ -1,9 +1,10 @@
 {
   "phase": "P7-C",
-  "status": "incomplete",
-  "generatedAt": "2026-07-13T16:03:53.891Z",
-  "failed": 4,
-  "passed": 5,
+  "status": "passed_ready_for_p7_v2",
+  "generatedAt": "2026-07-14T04:41:06.252Z",
+  "evidenceSource": "P7-C4 + preserved P7-C2 dataset resume",
+  "failed": 0,
+  "passed": 10,
   "checks": [
     {
       "id": "p7-c2-classification-count-33",
@@ -12,8 +13,8 @@
     },
     {
       "id": "mandatory-partial-zero",
-      "status": "failed",
-      "detail": "mandatoryPartial=11"
+      "status": "passed",
+      "detail": "mandatoryPartial=0"
     },
     {
       "id": "mandatory-missing-zero",
@@ -27,50 +28,108 @@
     },
     {
       "id": "pagination-runtime-passed",
-      "status": "failed",
-      "detail": "pagination status=failed"
+      "status": "passed",
+      "detail": "pagination status=passed"
     },
     {
       "id": "query-plan-passed",
-      "status": "failed",
-      "detail": "query plan status=failed"
+      "status": "passed",
+      "detail": "query plan status=passed"
     },
     {
       "id": "nplusone-passed",
-      "status": "failed",
-      "detail": "n+1 status=failed"
+      "status": "passed",
+      "detail": "n+1 status=passed"
     },
     {
-      "id": "race-mapping-11",
+      "id": "race-executed-packages",
       "status": "passed",
-      "detail": "mapped=11"
+      "detail": "executed=13"
     },
     {
       "id": "linux-race-passed",
       "status": "passed",
       "detail": "race status=passed"
+    },
+    {
+      "id": "p7-c4-gate-passed",
+      "status": "passed",
+      "detail": "p7-c4=passed_ready_for_p7_v2"
     }
   ],
   "capabilityAudit": {
-    "previousPartial": 33,
-    "mandatoryImplemented": 46,
-    "mandatoryPartial": 11,
+    "mandatoryPartial": 0,
     "mandatoryMissing": 0,
-    "auditStatusStaleResolved": 22,
-    "codeGapsFixed": 0,
-    "wiringGapsFixed": 0,
-    "testGapsFixed": 0,
-    "runtimeEvidenceGapsClosed": 25,
-    "raceEvidenceGapsClosed": 23
+    "items": [
+      {
+        "id": "product_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "order_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "inventory_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "task_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "webhook_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "operation_log_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "pagination_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "query_plan_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "nplusone_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "provider_full_wiring",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "permission_cache_invalidation",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "linux_race_incremental",
+        "mandatory": true,
+        "status": "passed"
+      }
+    ]
   },
   "runtime": {
     "datasetResume": "passed",
-    "pagination": "failed",
-    "queryPlan": "failed",
-    "nPlusOne": "failed",
+    "pagination": "passed",
+    "queryPlan": "passed",
+    "nPlusOne": "passed",
     "race": "passed"
   },
-  "c2EvidenceResolverExitCode": 1,
   "loadSoakFinalVerification": "pending_p7_v2",
   "realProductionPerformanceVerification": "deferred",
   "realProductionCapacityVerification": "deferred",

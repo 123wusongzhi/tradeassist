@@ -42,6 +42,7 @@ type Config struct {
 	MaxEntries         int
 	EntryTTL           time.Duration
 	MaxWait            time.Duration
+	RecoveryInterval   time.Duration
 }
 
 type Registry struct {
@@ -83,6 +84,9 @@ func NewRegistry(cfg Config) *Registry {
 	if cfg.MaxWait <= 0 {
 		cfg.MaxWait = 30 * time.Second
 	}
+	if cfg.RecoveryInterval <= 0 {
+		cfg.RecoveryInterval = 10 * time.Second
+	}
 	return &Registry{cfg: cfg, entries: map[string]*entry{}, now: time.Now}
 }
 
@@ -97,17 +101,32 @@ func (r *Registry) Acquire(ctx context.Context, provider ProviderName, operation
 	if err != nil {
 		return nil, err
 	}
+	if err := e.adaptive.Wait(ctx); err != nil {
+		return nil, err
+	}
 	waitCtx := ctx
 	cancel := func() {}
 	if r.cfg.MaxWait > 0 {
 		waitCtx, cancel = context.WithTimeout(ctx, r.cfg.MaxWait)
 	}
 	defer cancel()
-	select {
-	case e.sem <- struct{}{}:
-		return &lease{ch: e.sem}, nil
-	case <-waitCtx.Done():
-		return nil, waitCtx.Err()
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		effective := e.adaptive.EffectiveLimit()
+		if len(e.sem) < effective {
+			select {
+			case e.sem <- struct{}{}:
+				return &lease{ch: e.sem}, nil
+			case <-waitCtx.Done():
+				return nil, waitCtx.Err()
+			}
+		}
+		select {
+		case <-waitCtx.Done():
+			return nil, waitCtx.Err()
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -153,7 +172,7 @@ func (r *Registry) getEntry(provider ProviderName, operation ProviderOperation) 
 		sem:      make(chan struct{}, lim),
 		limit:    lim,
 		lastSeen: now,
-		adaptive: NewAdaptiveController(AdaptiveConfig{NormalConcurrency: lim}),
+		adaptive: NewAdaptiveController(AdaptiveConfig{NormalConcurrency: lim, RecoveryInterval: r.cfg.RecoveryInterval}),
 	}
 	r.entries[k] = e
 	return e, nil

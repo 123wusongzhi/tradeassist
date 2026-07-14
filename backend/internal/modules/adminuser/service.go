@@ -347,6 +347,7 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	if err := s.DB.WithContext(c.Request.Context()).Save(&u).Error; err != nil {
 		return nil, err
 	}
+	s.invalidateUserPermissions(c.Request.Context(), userID, body.Role != nil || body.Status != nil)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: actorID,
@@ -404,6 +405,7 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 	if err != nil {
 		return nil, err
 	}
+	s.invalidateUserPermissions(c.Request.Context(), userID, true)
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: actorID,
@@ -415,4 +417,16 @@ func (s *Service) SetStorePermissions(c *gin.Context, userID uuid.UUID, body Set
 		})
 	}
 	return s.Get(c, userID)
+}
+
+func (s *Service) invalidateUserPermissions(ctx context.Context, userID uuid.UUID, bumpSecurityVersion bool) {
+	if s == nil || s.DB == nil || userID == uuid.Nil {
+		return
+	}
+	if bumpSecurityVersion {
+		_ = s.DB.WithContext(ctx).Model(&admin.AdminUser{}).
+			Where("id = ?", userID).
+			UpdateColumn("token_version", gorm.Expr("token_version + 1")).Error
+	}
+	adminperm.InvalidateUserPermissionCache(userID)
 }

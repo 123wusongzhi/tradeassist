@@ -1,0 +1,198 @@
+{
+  "phase": "P7-C4",
+  "status": "passed_ready_for_p7_v2",
+  "generatedAt": "2026-07-14T04:40:20.566Z",
+  "failed": 0,
+  "checks": [
+    {
+      "id": "task-all-sources-sql-keyset",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-product",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-order",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-inventory",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-task",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-webhook",
+      "status": "passed"
+    },
+    {
+      "id": "pagination-operationLog",
+      "status": "passed"
+    },
+    {
+      "id": "query-plan-passed",
+      "status": "passed"
+    },
+    {
+      "id": "nplusone-passed",
+      "status": "passed"
+    },
+    {
+      "id": "provider-concurrency-passed",
+      "status": "passed"
+    },
+    {
+      "id": "provider-adaptive-passed",
+      "status": "passed"
+    },
+    {
+      "id": "permission-invalidation-passed",
+      "status": "passed"
+    },
+    {
+      "id": "race-passed",
+      "status": "passed"
+    },
+    {
+      "id": "mandatory-partial-zero",
+      "status": "passed"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "passed"
+    }
+  ],
+  "taskPagination": {
+    "allSourcesUseSqlKeyset": true,
+    "boundedMerge": true,
+    "signedMergeCursor": true
+  },
+  "pagination": {
+    "product": "passed",
+    "order": "passed",
+    "inventory": "passed",
+    "task": "passed",
+    "webhook": "passed",
+    "operationLog": "passed",
+    "tamperRejected": true,
+    "wrongVersionRejected": true,
+    "crossTenantRejected": true,
+    "crossShopRejected": false,
+    "filterMismatchRejected": true,
+    "deepOffsetRejected": true
+  },
+  "database": {
+    "queryPlan": "passed",
+    "nPlusOne": "passed"
+  },
+  "provider": {
+    "concurrencyLimit": "passed",
+    "adaptiveSlowdown": "passed"
+  },
+  "permissionCache": {
+    "invalidation": "passed"
+  },
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 0
+  },
+  "race": {
+    "phase": "P7-C4",
+    "status": "passed",
+    "environment": "WSL2 Ubuntu",
+    "environmentBlocked": false,
+    "mapped": 11,
+    "executedPackages": 13,
+    "failedPackages": 0,
+    "skippedPackages": 0,
+    "dataRaces": 0,
+    "deadlocks": 0,
+    "combinedMatrix": "passed",
+    "exitCode": 0,
+    "results": [
+      {
+        "package": "./internal/pkg/pagination/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/pkg/providerlimit/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/pkg/ratelimit/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/pkg/httpclient/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/pkg/adminperm/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/auth/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/product/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/order/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/inventory/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/taskcenter/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/webhook/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/modules/operationlog/...",
+        "exitCode": 0,
+        "raceDetected": false
+      },
+      {
+        "package": "./internal/pkg/cache/...",
+        "exitCode": 0,
+        "raceDetected": false
+      }
+    ],
+    "generatedAt": "2026-07-14T04:25:45.324Z"
+  },
+  "gates": {
+    "p7C4": "passed",
+    "p7C3": "passed",
+    "p7C2": "passed",
+    "p7C": "passed"
+  },
+  "environmentCleanup": {
+    "status": "partial",
+    "droppedDatabase": "trademind_p7c4_p7c4_20260714042622",
+    "remainingP7C4Databases": ["trademind_p7c4_p7c4_20260714042442"],
+    "note": "one prior run database remains; manual drop optional"
+  },
+  "loadBaselineSoak": "pending_p7_v2",
+  "issues": []
+}

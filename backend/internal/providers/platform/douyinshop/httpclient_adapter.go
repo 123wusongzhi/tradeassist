@@ -15,19 +15,7 @@ var (
 	sharedHTTPDoer HTTPDoer
 	sharedBreaker  *httpclient.CircuitBreaker
 	sharedMaxConc  = 16
-	sharedLimiter  = providerlimit.NewRegistry(providerlimit.Config{
-		DefaultConcurrency: 8,
-		ProviderOverrides: map[providerlimit.ProviderName]int{
-			providerlimit.ProviderDouyinShop: 16,
-		},
-		OperationOverrides: map[providerlimit.ProviderOperation]int{
-			providerlimit.OperationTokenRefresh: 4,
-			providerlimit.OperationDraftWrite:   4,
-		},
-		MaxEntries: 32,
-		EntryTTL:   10 * time.Minute,
-		MaxWait:    30 * time.Second,
-	})
+	sharedLimiter  = providerlimit.Global()
 )
 
 // SetSharedHTTPConcurrency configures the shared Douyin outbound concurrency gate (0 = unlimited).

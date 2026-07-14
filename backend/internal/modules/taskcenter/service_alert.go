@@ -306,7 +306,7 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 
 	for _, tt := range types {
 		p.TaskType = tt
-		part, err := s.listOneType(ctx, tt, p, now, perTypeLimit)
+		part, err := s.listOneType(ctx, tt, p, now, perTypeLimit, TaskSourceCursor{SourceID: tt})
 		if err != nil {
 			return sum, err
 		}

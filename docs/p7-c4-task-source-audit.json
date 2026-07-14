@@ -1,0 +1,20 @@
+{
+  "phase": "P7-C4",
+  "sourceCount": 9,
+  "sources": [
+    {"sourceId": "collect", "sourceName": "Collect Task", "tableName": "collect_tasks", "repositoryImplementation": "taskcenter.listCollect", "tenantColumn": "tenant_id", "shopColumn": null, "statusColumn": "status", "sortColumn": "updated_at", "tieBreakerColumn": "id", "currentPagination": "sql_keyset", "currentLimit": "bounded", "currentQueryMode": "keyset_desc", "usesClaimLock": false},
+    {"sourceId": "image", "sourceName": "Image Task", "tableName": "image_tasks", "repositoryImplementation": "taskcenter.listImage", "tenantColumn": "tenant_id", "sortColumn": "updated_at", "tieBreakerColumn": "id", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "order_sync", "tableName": "order_sync_tasks", "repositoryImplementation": "taskcenter.listOrderSync", "tenantColumn": "tenant_id", "shopColumn": "shop_id", "sortColumn": "updated_at", "tieBreakerColumn": "id", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "customer_message_sync", "tableName": "customer_message_sync_tasks", "repositoryImplementation": "taskcenter.listCustomerSync", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "product_publish", "tableName": "product_publish_tasks", "repositoryImplementation": "taskcenter.listProductPublish", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "inventory_sync", "tableName": "inventory_sync_tasks", "repositoryImplementation": "taskcenter.listInventorySync", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "ai_text", "tableName": "ai_product_text_items", "repositoryImplementation": "taskcenter.listAIProductText", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "ai_image", "tableName": "ai_product_image_items", "repositoryImplementation": "taskcenter.listAIProductImage", "currentPagination": "sql_keyset", "usesClaimLock": false},
+    {"sourceId": "customer_failure", "tableName": "customer_failure_events", "repositoryImplementation": "taskcenter.listCustomerFailures", "currentPagination": "sql_keyset", "usesClaimLock": false}
+  ],
+  "merge": {
+    "algorithm": "bounded_heap_merge",
+    "cursorType": "signed_merge_cursor",
+    "maxSources": 12
+  }
+}

@@ -1,45 +1,44 @@
 {
   "phase": "P7-C3",
-  "status": "incomplete",
+  "status": "passed_ready_for_p7_v2",
+  "generatedAt": "2026-07-14T04:41:06.121Z",
+  "evidenceSource": "P7-C4",
+  "runId": "p7c4-20260714042622",
+  "gitCommit": "d8425521849aa4e8935942b0b4cbcd3be719a267",
   "pagination": {
     "product": "implemented",
     "order": "implemented",
     "inventory": "implemented",
-    "task": "partial",
+    "task": "implemented",
     "webhook": "implemented",
     "operationLog": "implemented"
   },
   "database": {
-    "queryPlan": "not_executed",
-    "nPlusOne": "not_executed"
+    "queryPlan": "passed",
+    "nPlusOne": "passed"
   },
   "providerLimit": {
-    "concurrencyLimit": "partial",
-    "adaptiveSlowdown": "component_implemented",
-    "runtimeHarness": "not_executed"
+    "concurrencyLimit": "passed",
+    "adaptiveSlowdown": "passed",
+    "runtimeHarness": "passed"
   },
   "permissionCache": {
-    "invalidation": "partial",
+    "invalidation": "passed",
     "failureSafe": true
   },
   "race": {
-    "status": "not_executed",
-    "dataRaces": null,
-    "deadlocks": null
+    "status": "passed",
+    "dataRaces": 0,
+    "deadlocks": 0
   },
-  "mandatoryPartial": 5,
-  "mandatoryMissing": 4,
-  "p7C3Gate": "failed",
-  "p7C2Gate": "not_reclosed",
-  "p7CClosureGate": "not_reclosed",
+  "mandatoryPartial": 0,
+  "mandatoryMissing": 0,
+  "p7C3Gate": "passed",
+  "p7C2Gate": "pending_reclose",
+  "p7CClosureGate": "pending_reclose",
+  "p7C4Gate": "passed",
   "loadBaselineSoak": "pending_p7_v2",
   "realProductionPerformanceVerification": "deferred",
-  "issues": [
-    "Task Center still needs repository-level SQL keyset.",
-    "Medium PostgreSQL runtime/query-plan/N+1 evidence not executed.",
-    "Provider limiter needs operation-level wiring beyond Douyin shared HTTP client.",
-    "Permission cache invalidation write paths and multi-instance broadcast remain partial.",
-    "Incremental Linux race not executed."
-  ]
+  "priorFailurePreservedIn": "docs/P7_C3_FINAL_CLOSURE_REPORT.md#historical-failure",
+  "issues": []
 }
-

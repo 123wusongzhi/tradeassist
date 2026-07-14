@@ -29,8 +29,8 @@ type principalCacheEntry struct {
 	expiresAt time.Time
 }
 
-func permissionCacheKey(tenantID int64, userID uuid.UUID, tokenVersion int, status string, role string) string {
-	return fmt.Sprintf("tenant:%d|user:%s|security:%d|status:%s|role:%s", tenantID, userID.String(), tokenVersion, strings.TrimSpace(strings.ToLower(status)), normalizeRole(role))
+func permissionCacheKey(tenantID int64, userID uuid.UUID, tokenVersion int, status string, role string, storeGrantsHash string) string {
+	return fmt.Sprintf("tenant:%d|user:%s|security:%d|status:%s|role:%s|grants:%s", tenantID, userID.String(), tokenVersion, strings.TrimSpace(strings.ToLower(status)), normalizeRole(role), strings.TrimSpace(storeGrantsHash))
 }
 
 func getCachedPrincipal(key string) (*Principal, bool) {
