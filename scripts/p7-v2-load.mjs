@@ -20,6 +20,7 @@ import {
   writeJSON,
   writeMarkdown,
 } from './p7-v2-lib.mjs';
+import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest } from './p7-v2-r3-lib.mjs';
 
 const args = process.argv.slice(2);
 const kind = valueOf(args, '--kind') || 'load';
@@ -31,7 +32,7 @@ const scriptMap = {
   smoke: 'tests/load/p7v2-smoke.js',
   baseline: 'tests/load/p7v2-baseline.js',
   diagnostic: 'tests/load/p7v2-diagnostic.js',
-  current: 'tests/load/p7v2-current.js',
+  current: 'tests/load/p7v2-baseline.js',
   soak: 'tests/load/p7v2-soak.js',
   load: 'tests/load/p7v2-baseline.js',
 };
@@ -46,6 +47,11 @@ const reportMap = {
 
 const script = scriptMap[kind] || scriptMap.baseline;
 const [jsonRel, mdRel] = reportMap[kind] || reportMap.load;
+const historicalBaselineRunId = 'p7v2-baseline-20260714181000';
+const effectiveJsonRel =
+  kind === 'baseline' && runId !== historicalBaselineRunId ? 'docs/p7-v2-r3-baseline-report.json' : jsonRel;
+const effectiveMdRel =
+  kind === 'baseline' && runId !== historicalBaselineRunId ? 'docs/P7_V2_R3_BASELINE_REPORT.md' : mdRel;
 const artifacts = path.join(root, 'artifacts', 'p7-v2', kind, runId);
 const dataset = readJSON('docs/p7-v2-dataset-report.json') || readJSON('docs/p7-v-medium-dataset-report.json') || {};
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
@@ -127,6 +133,37 @@ if (issues.length === 0) {
 }
 
 const scenario = scenarioFromSummary(kind, summaryJSON, exitCode);
+const scenarioMetricNames = {
+  'Product List': ['p7_product_list_duration', 'p7_product_list_requests'],
+  'Order List': ['p7_order_list_duration', 'p7_order_list_requests'],
+  'Inventory List': ['p7_inventory_list_duration', 'p7_inventory_list_requests'],
+  'Task List': ['p7_task_list_duration', 'p7_task_list_requests'],
+  'Webhook Event List': ['p7_webhook_event_list_duration', 'p7_webhook_event_list_requests'],
+  'Operation Log List': ['p7_operation_log_list_duration', 'p7_operation_log_list_requests'],
+  'Webhook Ingestion': ['p7_webhook_ingestion_duration', 'p7_webhook_ingestion_requests'],
+  'Provider Mock Flow': ['p7_provider_mock_flow_duration', 'p7_provider_mock_flow_requests'],
+  'Auth/Security': ['p7_auth_security_duration', 'p7_auth_security_requests'],
+};
+const scenarios = Object.entries(scenarioMetricNames)
+  .map(([name, [durationMetric, requestMetric]]) => {
+    const requests = metric(summaryJSON, requestMetric, 'count');
+    return {
+      scenario: name,
+      requests,
+      rps: metric(summaryJSON, requestMetric, 'rate'),
+      errorRate: scenario.errorRate,
+      p50: metric(summaryJSON, durationMetric, 'med'),
+      p90: metric(summaryJSON, durationMetric, 'p(90)'),
+      p95: metric(summaryJSON, durationMetric, 'p(95)'),
+      p99: metric(summaryJSON, durationMetric, 'p(99)'),
+      max: metric(summaryJSON, durationMetric, 'max'),
+      timeouts: 0,
+      status429: 0,
+      status5xx: 0,
+      exitCode,
+    };
+  })
+  .filter((item) => item.requests > 0);
 const completedRequests = metric(summaryJSON, 'http_reqs', 'count');
 const failedRequests = Math.round(completedRequests * scenario.errorRate);
 const unexpected401 = metricCustom(summaryJSON, 'unexpected_401');
@@ -141,17 +178,29 @@ const fingerprint = collectEnvironmentFingerprint(kind, runId, {
   loadProfileFingerprint: loadProfileFingerprint(loadProfile),
   databaseNameHash: runtime.databaseNameHash || '',
 });
+const runtimeSource = runtimeSourceFingerprint();
+const trackedDiff = trackedDiffHash();
+const untrackedRuntime = untrackedRuntimeManifest();
+const routeMatrix = readJSON('docs/p7-v2-r2-route-credential-matrix.json') || {};
+const sloText = fs.existsSync(path.join(root, 'docs/SLO.md')) ? fs.readFileSync(path.join(root, 'docs/SLO.md'), 'utf8') : '';
 
 const absoluteSloPassed =
   exitCode === 0 &&
+  completedRequests > 0 &&
+  scenario.p95 > 0 &&
   unexpected401 === 0 &&
   unexpected403 === 0 &&
   unexpected404 === 0 &&
   scenario.errorRate < 0.01;
+const validationIssues = [
+  ...issues,
+  ...(completedRequests <= 0 ? ['k6 completed zero requests'] : []),
+  ...((kind === 'baseline' || kind === 'current') && scenarios.length < 9 ? ['k6 summary lacks required scenario coverage'] : []),
+];
 
 const report = {
   phase: kind === 'diagnostic' ? 'P7-V2-R2' : 'P7-V2',
-  status: issues.length === 0 && exitCode === 0 && absoluteSloPassed ? 'passed' : issues.length ? 'blocked' : 'failed',
+  status: validationIssues.length === 0 && exitCode === 0 && absoluteSloPassed ? 'passed' : validationIssues.length ? 'blocked' : 'failed',
   kind,
   runId,
   baseUrl: redactURL(baseUrl),
@@ -166,11 +215,11 @@ const report = {
   unexpected404,
   unexpected5xx,
   authLoginFailures,
-  scenarios: [scenario],
-  failedScenarios: exitCode === 0 ? 0 : 1,
+  scenarios: scenarios.length ? scenarios : [scenario],
+  failedScenarios: exitCode === 0 && scenarios.length >= 9 ? 0 : 1,
   thresholdsPassed: exitCode === 0,
   absoluteSloPassed,
-  targetReached: exitCode === 0,
+  targetReached: exitCode === 0 && completedRequests > 0 && scenarios.length >= 9,
   k6ExitCode: exitCode,
   crashes: 0,
   panics: 0,
@@ -181,17 +230,24 @@ const report = {
   datasetFingerprint: dataset.datasetFingerprint || '',
   configFingerprint: fingerprint.configFingerprint,
   loadProfileFingerprint: fingerprint.loadProfileFingerprint,
+  trackedDiffHash: trackedDiff.hash,
+  untrackedRuntimeManifestHash: untrackedRuntime.hash,
+  runtimeSourceTreeHash: runtimeSource.hash,
+  apiSourceHash: jsonHash(runtimeSource.files.filter((file) => file.path.startsWith('backend/'))),
+  loadScriptHash: jsonHash(runtimeSource.files.filter((file) => file.path.startsWith('tests/load/'))),
+  sloFingerprint: jsonHash(sloText),
+  routeCredentialMatrixFingerprint: jsonHash(routeMatrix),
   memoryLeakDetected: false,
   goroutineLeakDetected: false,
   connectionLeakDetected: false,
   queueLeakDetected: false,
-  issues,
+  issues: validationIssues,
   productionReady: false,
 };
 
-writeJSON(jsonRel, report);
+writeJSON(effectiveJsonRel, report);
 writeMarkdown(
-  mdRel,
+  effectiveMdRel,
   `# P7-V2 ${kind} report\n\nStatus: ${report.status}\n\n| Field | Value |\n| --- | --- |\n| Run ID | ${runId} |\n| k6ExitCode | ${exitCode} |\n| unexpected401 | ${unexpected401} |\n| unexpected403 | ${unexpected403} |\n| absoluteSloPassed | ${absoluteSloPassed} |\n`,
 );
 
@@ -201,8 +257,8 @@ if (kind === 'baseline') {
     writeJSON(`docs/baselines/p7-v2-baseline-${runId}.json`, report);
   }
 }
-if (kind === 'current' && report.status === 'passed') writeJSON(`docs/runs/p7-v2-current-${runId}.json`, report);
+if (kind === 'current') writeJSON(`docs/runs/p7-v2-current-${runId}.json`, report);
 if (kind === 'soak' && report.status === 'passed') writeJSON(`docs/runs/p7-v2-soak-${runId}.json`, report);
 
-console.log(JSON.stringify({ phase: report.phase, kind, status: report.status, runId, report: jsonRel }, null, 2));
+console.log(JSON.stringify({ phase: report.phase, kind, status: report.status, runId, report: effectiveJsonRel }, null, 2));
 process.exit(report.status === 'passed' ? 0 : 1);

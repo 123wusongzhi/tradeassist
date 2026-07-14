@@ -4,11 +4,10 @@ Status: incomplete
 
 | Passed | Failed |
 | ---: | ---: |
-| 16 | 7 |
+| 17 | 6 |
 
 ## Blockers
-- Load-Test: formal load
-- Baseline: baseline
+- Cleanup: cleanup
 - Current-Load: current
 - Regression: regression
 - Soak-30m: soak

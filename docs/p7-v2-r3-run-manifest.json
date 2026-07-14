@@ -1,0 +1,13 @@
+{
+  "phase": "P7-V2-R3",
+  "status": "passed",
+  "baselineRunId": "p7v2-baseline-20260714181000",
+  "replacementBaselineRunId": "p7v2-r3-baseline-20260714133131",
+  "currentRunId": "p7v2-current-20260714133131",
+  "soakRunId": "p7v2-soak-20260714133131",
+  "demoRun1Id": "p7v2-demo1-20260714133131",
+  "demoRun2Id": "p7v2-demo2-20260714133131",
+  "generatedAt": "2026-07-14T13:31:31.881Z",
+  "uniqueRunIds": true,
+  "issues": []
+}

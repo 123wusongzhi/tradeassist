@@ -1,19 +1,27 @@
 {
   "phase": "P7-V2",
   "status": "incomplete",
-  "failed": 11,
-  "passed": 7,
+  "failed": 12,
+  "passed": 10,
   "checks": [
     {
       "id": "preflight",
-      "status": "failed"
+      "status": "passed"
+    },
+    {
+      "id": "baseline-freeze",
+      "status": "passed"
     },
     {
       "id": "load",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "baseline",
+      "status": "passed"
+    },
+    {
+      "id": "comparability",
       "status": "failed"
     },
     {
@@ -54,7 +62,15 @@
     },
     {
       "id": "cleanup",
-      "status": "passed"
+      "status": "failed"
+    },
+    {
+      "id": "stability",
+      "status": "failed"
+    },
+    {
+      "id": "race",
+      "status": "failed"
     },
     {
       "id": "dataset-rows",
@@ -78,8 +94,8 @@
     }
   ],
   "preflight": {
-    "status": "blocked",
-    "k6Available": false
+    "status": "passed",
+    "k6Available": true
   },
   "dataset": {
     "profile": "medium",
@@ -90,16 +106,20 @@
     "fingerprintStable": true
   },
   "load": {
-    "status": "blocked",
-    "thresholdsPassed": false
+    "status": "passed",
+    "thresholdsPassed": true
   },
   "baseline": {
-    "runId": "",
+    "status": "passed",
+    "runId": "p7v2-r3-baseline-20260714133131",
     "immutable": true
+  },
+  "comparability": {
+    "status": "not_comparable"
   },
   "current": {
     "runId": "",
-    "independentRun": true
+    "independentRun": false
   },
   "regression": {
     "status": "failed",
@@ -115,16 +135,16 @@
   },
   "capabilities": {
     "mandatoryPartial": 0,
-    "mandatoryMissing": 11
+    "mandatoryMissing": 12
   },
   "gates": {
     "p7V2": "incomplete",
     "p1ToP7": "incomplete"
   },
   "cleanup": {
-    "status": "passed",
-    "remainingDatabasesWithPrefix": 0,
-    "processesRemaining": 0,
+    "status": "incomplete",
+    "remainingDatabasesWithPrefix": 7,
+    "processesRemaining": 10,
     "portsRemaining": 0
   },
   "production": {
@@ -135,9 +155,7 @@
     "productionReady": false
   },
   "issues": [
-    "preflight",
-    "load",
-    "baseline",
+    "comparability",
     "current",
     "regression",
     "soak",
@@ -145,6 +163,9 @@
     "demo-run1",
     "demo-run2",
     "p1-p7-gate",
-    "mandatory-missing-zero"
+    "mandatory-missing-zero",
+    "cleanup",
+    "stability",
+    "race"
   ]
 }

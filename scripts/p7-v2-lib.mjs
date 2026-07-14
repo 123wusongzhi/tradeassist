@@ -609,7 +609,8 @@ export function performanceEnvDefaults(extra = {}) {
 }
 
 export function metricCustom(summary, name, key = 'count') {
-  const value = summary?.metrics?.[name]?.values?.[key];
+  const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
+  const value = values?.[key] ?? (key === 'count' ? values?.value : undefined);
   return typeof value === 'number' ? value : 0;
 }
 
@@ -684,7 +685,8 @@ export function collectEnvironmentFingerprint(runType, runId, extra = {}) {
 }
 
 export function metric(summary, name, key) {
-  const value = summary?.metrics?.[name]?.values?.[key];
+  const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
+  const value = values?.[key] ?? (key === 'rate' ? values?.value : undefined);
   return typeof value === 'number' ? value : 0;
 }
 

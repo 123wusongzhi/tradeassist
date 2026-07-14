@@ -2,7 +2,7 @@ import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 const preflight = readJSON('docs/p7-v2-preflight-audit.json');
 const load = readJSON('docs/p7-v2-load-test-report.json');
-const baseline = readJSON('docs/p7-v2-baseline-report.json');
+const baseline = readJSON('docs/p7-v2-r3-baseline-report.json') || readJSON('docs/p7-v2-baseline-report.json');
 const current = readJSON('docs/p7-v2-current-load-report.json');
 const regression = readJSON('docs/p7-v2-performance-regression-report.json');
 const soak = readJSON('docs/p7-v2-soak-test-report.json');
@@ -11,14 +11,21 @@ const demo2 = readJSON('docs/p7-v2-demo-acceptance-run2.json');
 const p1p7 = readJSON('docs/p1-p7-final-gate-report.json');
 const cleanup = readJSON('docs/p7-v2-runtime-cleanup-report.json');
 const dataset = readJSON('docs/p7-v2-dataset-report.json') || readJSON('docs/p7-v-medium-dataset-report.json');
+const r3Preflight = readJSON('docs/p7-v2-r3-preflight-audit.json');
+const freeze = readJSON('docs/p7-v2-r3-baseline-freeze-report.json');
+const comparability = readJSON('docs/p7-v2-r3-comparability-report.json');
+const stability = readJSON('docs/p7-v2-r3-stability-report.json');
+const r3Race = readJSON('docs/p7-v2-r3-race-report.json');
 
 const checks = [
-  ['preflight', preflight?.status === 'passed'],
+  ['preflight', r3Preflight?.status === 'passed' && r3Preflight?.k6Available === true],
+  ['baseline-freeze', freeze?.immutable === true],
   ['load', load?.status === 'passed'],
-  ['baseline', baseline?.status === 'passed'],
-  ['current', current?.status === 'passed'],
+  ['baseline', baseline?.status === 'passed' && Number(baseline?.completedRequests || 0) > 0],
+  ['comparability', comparability?.status === 'passed'],
+  ['current', current?.status === 'passed' && current?.independentRun === true && current?.restartEvidence?.databaseStateReset === true],
   ['regression', regression?.status === 'passed'],
-  ['soak', soak?.status === 'passed'],
+  ['soak', soak?.status === 'passed' && soak?.continuousSteadyWindow === true && soak?.cooldownRecoveryPassed === true],
   ['soak-minutes', Number(soak?.steadyMinutes || 0) >= 30],
   ['demo-run1', demo1?.status === 'passed'],
   ['demo-run2', demo2?.status === 'passed'],
@@ -26,6 +33,8 @@ const checks = [
   ['mandatory-partial-zero', Number(p1p7?.capabilities?.mandatoryPartial ?? 1) === 0],
   ['mandatory-missing-zero', Number(p1p7?.capabilities?.mandatoryMissing ?? 1) === 0],
   ['cleanup', cleanup?.status === 'passed'],
+  ['stability', stability?.status === 'passed'],
+  ['race', r3Race?.status === 'passed' || r3Race?.status === 'valid_reuse'],
   ['dataset-rows', Number(dataset?.actualRows || 0) === 1900150],
   ['no-production-access', true],
   ['no-real-provider', true],
@@ -50,8 +59,9 @@ const report = {
     fingerprintStable: Boolean(dataset?.datasetFingerprint),
   },
   load: { status: load?.status, thresholdsPassed: load?.thresholdsPassed },
-  baseline: { status: baseline?.status, runId: baseline?.runId || '', immutable: true },
-  current: { status: current?.status, runId: current?.runId || '', independentRun: true },
+  baseline: { status: baseline?.status, runId: baseline?.runId || '', immutable: freeze?.immutable === true },
+  comparability: { status: comparability?.status || 'missing' },
+  current: { status: current?.status, runId: current?.runId || '', independentRun: current?.independentRun === true },
   regression: {
     status: regression?.status,
     absoluteSloPassed: regression?.absoluteSloPassed,

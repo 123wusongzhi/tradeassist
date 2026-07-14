@@ -1,4 +1,5 @@
 import { check, sleep } from 'k6';
+import { Counter, Trend } from 'k6/metrics';
 import http from 'k6/http';
 import crypto from 'k6/crypto';
 import { failFastHost, baseUrl } from './lib/guards.js';
@@ -30,7 +31,39 @@ export const thresholds = {
   'http_req_duration{group:read-heavy}': ['p(95)<800', 'p(99)<1500'],
   'http_req_duration{group:mixed}': ['p(95)<1200', 'p(99)<2500'],
   'http_req_duration{group:auth}': ['p(95)<500', 'p(99)<1000'],
+  p7_product_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_order_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_inventory_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_task_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_webhook_event_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_operation_log_list_duration: ['p(95)<800', 'p(99)<1500'],
+  p7_webhook_ingestion_duration: ['p(95)<1200', 'p(99)<2500'],
+  p7_provider_mock_flow_duration: ['p(95)<500', 'p(99)<1000'],
+  p7_auth_security_duration: ['p(95)<500', 'p(99)<1000'],
 };
+const scenarioTrends = {
+  productList: new Trend('p7_product_list_duration'),
+  orderList: new Trend('p7_order_list_duration'),
+  inventoryList: new Trend('p7_inventory_list_duration'),
+  taskList: new Trend('p7_task_list_duration'),
+  webhookEventList: new Trend('p7_webhook_event_list_duration'),
+  operationLogList: new Trend('p7_operation_log_list_duration'),
+  webhookIngestion: new Trend('p7_webhook_ingestion_duration'),
+  providerMockFlow: new Trend('p7_provider_mock_flow_duration'),
+  authSecurity: new Trend('p7_auth_security_duration'),
+};
+const scenarioCounters = {
+  productList: new Counter('p7_product_list_requests'),
+  orderList: new Counter('p7_order_list_requests'),
+  inventoryList: new Counter('p7_inventory_list_requests'),
+  taskList: new Counter('p7_task_list_requests'),
+  webhookEventList: new Counter('p7_webhook_event_list_requests'),
+  operationLogList: new Counter('p7_operation_log_list_requests'),
+  webhookIngestion: new Counter('p7_webhook_ingestion_requests'),
+  providerMockFlow: new Counter('p7_provider_mock_flow_requests'),
+  authSecurity: new Counter('p7_auth_security_requests'),
+};
+let cachedTokens;
 
 const targetVUs = Number(__ENV.TARGET_VUS || 10);
 const warmupDur = __ENV.WARMUP || '5m';
@@ -96,28 +129,30 @@ export function setup() {
     authLoginFailures.add(1);
     throw new Error(`setup probe failed: product list status=${probe.status}`);
   }
-  return { tokens };
+  return {};
 }
 
 export function warmupPhase(data) {
-  const res = readList('productList', data?.tokens, '');
+  const res = readList('productList', tokensFor(data), '');
   check(res, { 'warmup ok': (r) => r.status === 200 });
   sleep(0.5);
 }
 
 export function steadyPhase(data) {
-  refreshRoleIfNeeded(data?.tokens);
+  const tokens = tokensFor(data);
+  refreshRoleIfNeeded(tokens);
   const pick = __ITER % 10;
   let res;
-  if (pick < 2) res = readList('productList', data?.tokens, '');
-  else if (pick < 4) res = readList('orderList', data?.tokens, '');
-  else if (pick < 5) res = readList('inventoryList', data?.tokens, '');
-  else if (pick < 6) res = readList('taskList', data?.tokens, '');
-  else if (pick < 7) res = readList('webhookEventList', data?.tokens, '');
-  else if (pick < 8) res = readList('operationLogList', data?.tokens, '');
+  if (pick < 2) res = readList('productList', tokens, '');
+  else if (pick < 4) res = readList('orderList', tokens, '');
+  else if (pick < 5) res = readList('inventoryList', tokens, '');
+  else if (pick < 6) res = readList('taskList', tokens, '');
+  else if (pick < 7) res = readList('webhookEventList', tokens, '');
+  else if (pick < 8) res = readList('operationLogList', tokens, '');
   else if (pick === 8) res = webhookValidScenario();
   else res = providerHealthScenario();
   const route = routeForPick(pick);
+  recordScenarioDuration(route.scenario || route.route || '', res);
   const cls = classifyResponse(res, route, 'steady');
   recordClassification(cls);
   check(res, { 'steady success': (r) => cls.unexpected === false });
@@ -135,10 +170,14 @@ export function securityNegativePhase() {
     },
   );
   const cls1 = classifyResponse(invalidLogin, { scenario: 'auth-invalid-login', credentialRole: 'none', expectedStatus: 401 }, 'security');
+  scenarioTrends.authSecurity.add(invalidLogin.timings.duration);
+  scenarioCounters.authSecurity.add(1);
   recordClassification(cls1);
 
   const invalidWebhook = webhookInvalidScenario();
   const cls2 = classifyResponse(invalidWebhook, { scenario: 'webhook-invalid-signature', credentialRole: 'none', expectedStatus: 401 }, 'security');
+  scenarioTrends.authSecurity.add(invalidWebhook.timings.duration);
+  scenarioCounters.authSecurity.add(1);
   recordClassification(cls2);
 
   sleep(1);
@@ -193,6 +232,24 @@ function routeForPick(pick) {
   if (pick < 8) return routeCredentialMatrix.operationLogList;
   if (pick === 8) return { scenario: 'webhook-valid-ingestion', credentialRole: 'none', expectedStatus: 200 };
   return { scenario: 'provider-mock-flow', credentialRole: 'none', expectedStatus: 200 };
+}
+
+function recordScenarioDuration(scenario, response) {
+  const duration = response?.timings?.duration || 0;
+  if (scenario === 'productList') { scenarioTrends.productList.add(duration); scenarioCounters.productList.add(1); }
+  else if (scenario === 'orderList') { scenarioTrends.orderList.add(duration); scenarioCounters.orderList.add(1); }
+  else if (scenario === 'inventoryList') { scenarioTrends.inventoryList.add(duration); scenarioCounters.inventoryList.add(1); }
+  else if (scenario === 'taskList') { scenarioTrends.taskList.add(duration); scenarioCounters.taskList.add(1); }
+  else if (scenario === 'webhookEventList') { scenarioTrends.webhookEventList.add(duration); scenarioCounters.webhookEventList.add(1); }
+  else if (scenario === 'operationLogList') { scenarioTrends.operationLogList.add(duration); scenarioCounters.operationLogList.add(1); }
+  else if (scenario === 'webhook-valid-ingestion') { scenarioTrends.webhookIngestion.add(duration); scenarioCounters.webhookIngestion.add(1); }
+  else if (scenario === 'provider-mock-flow') { scenarioTrends.providerMockFlow.add(duration); scenarioCounters.providerMockFlow.add(1); }
+}
+
+function tokensFor(data) {
+  if (data?.tokens) return data.tokens;
+  if (!cachedTokens) cachedTokens = loginAllRoles();
+  return cachedTokens;
 }
 
 function addDuration(...parts) {

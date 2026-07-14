@@ -4,12 +4,10 @@ Phase P7-V2 Incomplete
 
 | Passed | Failed |
 | ---: | ---: |
-| 7 | 11 |
+| 10 | 12 |
 
 ## Blockers
-- preflight
-- load
-- baseline
+- comparability
 - current
 - regression
 - soak
@@ -18,5 +16,8 @@ Phase P7-V2 Incomplete
 - demo-run2
 - p1-p7-gate
 - mandatory-missing-zero
+- cleanup
+- stability
+- race
 
 Real production performance verification remains Deferred. Not Production Ready.

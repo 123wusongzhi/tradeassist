@@ -1,0 +1,15 @@
+{
+  "phase": "P7-V2-R3",
+  "status": "blocked",
+  "demoCommand": "node scripts/p7-v2-demo-acceptance.mjs",
+  "demoScript": "scripts/p7-v2-demo-acceptance.mjs",
+  "demoEnvironment": "isolated local WSL2 / mock providers only",
+  "demoExpectedDuration": "up to 60 minutes per run",
+  "demoRun1Id": "p7v2-demo1-20260714130414",
+  "demoRun2Id": "p7v2-demo2-20260714130414",
+  "productionResourcesAccessed": false,
+  "issues": [
+    "regression has not passed",
+    "30-minute soak has not passed"
+  ]
+}

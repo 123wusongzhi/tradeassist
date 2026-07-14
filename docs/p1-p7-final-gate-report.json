@@ -1,8 +1,8 @@
 {
   "phase": "P1-P7",
   "status": "incomplete",
-  "failed": 7,
-  "passed": 16,
+  "failed": 6,
+  "passed": 17,
   "checks": [
     {
       "id": "P1-Infrastructure",
@@ -96,19 +96,19 @@
     },
     {
       "id": "Cleanup",
-      "status": "passed",
+      "status": "failed",
       "detail": "cleanup",
       "evidence": "docs/p7-v2-runtime-cleanup-report.json"
     },
     {
       "id": "Load-Test",
-      "status": "failed",
+      "status": "passed",
       "detail": "formal load",
       "evidence": "docs/p7-v2-load-test-report.json"
     },
     {
       "id": "Baseline",
-      "status": "failed",
+      "status": "passed",
       "detail": "baseline",
       "evidence": "docs/p7-v2-baseline-report.json"
     },
@@ -145,7 +145,7 @@
   ],
   "capabilities": {
     "mandatoryPartial": 0,
-    "mandatoryMissing": 7
+    "mandatoryMissing": 6
   },
   "deferred": [
     "Real Production Backup Verification Deferred",
