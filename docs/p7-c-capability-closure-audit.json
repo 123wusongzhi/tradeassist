@@ -1,7 +1,7 @@
 {
   "phase": "P7-C",
   "status": "passed",
-  "generatedAt": "2026-07-14T04:41:06.252Z",
+  "generatedAt": "2026-07-14T04:54:37.356Z",
   "sourceAudit": "docs/p7-v-capability-completeness-audit.json",
   "sourceC2Classification": "docs/p7-c2-partial-classification.json",
   "sourceC4Evidence": "docs/p7-c4-capability-normalization-report.json",

@@ -1,68 +1,138 @@
 {
   "phase": "P7-C4",
   "status": "passed_ready_for_p7_v2",
-  "generatedAt": "2026-07-14T04:40:20.566Z",
+  "generatedAt": "2026-07-14T04:54:37.185Z",
   "failed": 0,
   "checks": [
     {
       "id": "task-all-sources-sql-keyset",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-product",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-order",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-inventory",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-task",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-webhook",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "pagination-operationLog",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "query-plan-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "nplusone-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "provider-concurrency-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "provider-adaptive-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "permission-invalidation-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "race-passed",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "mandatory-partial-zero",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
     },
     {
       "id": "mandatory-missing-zero",
-      "status": "passed"
+      "status": "passed",
+      "detail": null
+    },
+    {
+      "id": "runtime-cleanup-current-run",
+      "status": "passed",
+      "detail": "currentRunDatabaseRemoved=true"
+    },
+    {
+      "id": "runtime-cleanup-legacy-runs",
+      "status": "passed",
+      "detail": "legacyDatabaseDropped=true"
+    },
+    {
+      "id": "runtime-cleanup-prefix-empty",
+      "status": "passed",
+      "detail": "remaining=none"
+    },
+    {
+      "id": "runtime-cleanup-processes",
+      "status": "passed",
+      "detail": "processesRemaining=0"
+    },
+    {
+      "id": "runtime-cleanup-ports",
+      "status": "passed",
+      "detail": "portsRemaining=0"
+    },
+    {
+      "id": "runtime-cleanup-status-passed",
+      "status": "passed",
+      "detail": "cleanup.status=passed"
+    },
+    {
+      "id": "runtime-cleanup-query-executed",
+      "status": "passed",
+      "detail": "queryExecuted=true"
+    },
+    {
+      "id": "runtime-cleanup-prefix-match",
+      "status": "passed",
+      "detail": "databasePrefix=trademind_p7c4_"
+    },
+    {
+      "id": "runtime-cleanup-evidence-fresh",
+      "status": "passed",
+      "detail": "cleanupAgeMs=13494"
+    },
+    {
+      "id": "runtime-cleanup-git-commit",
+      "status": "passed",
+      "detail": "cleanup.gitCommit=4e55d8433e8627bb89239916e7dd634899234a6c"
+    },
+    {
+      "id": "runtime-cleanup-live-prefix-empty",
+      "status": "passed",
+      "detail": "liveRemaining=none"
     }
   ],
   "taskPagination": {
@@ -181,18 +251,32 @@
     ],
     "generatedAt": "2026-07-14T04:25:45.324Z"
   },
-  "gates": {
-    "p7C4": "passed",
-    "p7C3": "passed",
-    "p7C2": "passed",
-    "p7C": "passed"
-  },
   "environmentCleanup": {
-    "status": "partial",
-    "droppedDatabase": "trademind_p7c4_p7c4_20260714042622",
-    "remainingP7C4Databases": ["trademind_p7c4_p7c4_20260714042442"],
-    "note": "one prior run database remains; manual drop optional"
+    "status": "passed",
+    "phase": "P7-C4-R",
+    "checkedAt": "2026-07-14T04:54:23.691Z",
+    "gitCommit": "4e55d8433e8627bb89239916e7dd634899234a6c",
+    "databasePrefix": "trademind_p7c4_",
+    "queryExecuted": true,
+    "currentRunDatabase": "trademind_p7c4_p7c4_20260714042622",
+    "currentRunDatabaseRemoved": true,
+    "legacyRunDatabase": "trademind_p7c4_p7c4_20260714042442",
+    "legacyDatabaseDropped": true,
+    "remainingDatabases": [],
+    "remainingDatabasesWithPrefix": 0,
+    "liveRemainingDatabases": [],
+    "liveQueryExecuted": true,
+    "processesRemaining": 0,
+    "portsRemaining": 0,
+    "failureCategories": []
+  },
+  "gates": {
+    "p7C4": "passed"
   },
   "loadBaselineSoak": "pending_p7_v2",
-  "issues": []
+  "issues": [],
+  "runtimeEnv": {
+    "runId": "p7c4-20260714042622",
+    "gitCommit": "d8425521849aa4e8935942b0b4cbcd3be719a267"
+  }
 }

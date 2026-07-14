@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Phase P7-C4-R - Isolated database cleanup and final closure (2026-07-14)
+
+- Dropped legacy isolated database `trademind_p7c4_p7c4_20260714042442` after WSL2 local PostgreSQL safety checks (`APP_ENV=performance`, Unix socket host, non-production).
+- Verified `trademind_p7c4_%` prefix has zero remaining databases, zero leftover P7-C4 processes, and zero reserved temporary ports.
+- Hardened `scripts/p7-c4-stop-runtime-env.mjs` (check-only by default, exact-name drop only, unknown leftovers report-only) and `scripts/p7-c4-final-closure-gate.mjs` (prefix cleanup, evidence freshness, live PostgreSQL query; gate never auto-drops databases).
+- Added `docs/P7_C4_R_CLEANUP_REPORT.md` and `docs/p7-c4-r-cleanup-report.json`; preserved existing P7-C4 runtime evidence without rerunning long harnesses.
+- Status: Phase P7-C4 completed; ready for Phase P7-V2; Phase P7 closure verification remains incomplete; load/soak/baseline/regression/demo acceptance pending P7-V2; not Production Ready; tag deferred.
+
 ### Phase P7-C2 - Runtime evidence and Linux race closure attempt (2026-07-13)
 
 - Added P7-C2 isolated runtime environment start/stop, Medium dataset resume drill, WSL/Linux race, capability evidence, pagination runtime, query-plan, N+1, and final closure gate scripts.

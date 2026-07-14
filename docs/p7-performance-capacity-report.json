@@ -1,6 +1,9 @@
 {
   "phase": "P7",
-  "status": "incomplete",
+  "status": "p7_c4_completed_ready_for_p7_v2",
+  "closureVerification": "incomplete",
+  "p7C4": "completed",
+  "p7V2": "pending",
   "failed": 4,
   "passed": 54,
   "results": [

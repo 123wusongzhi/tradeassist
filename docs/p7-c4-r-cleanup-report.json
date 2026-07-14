@@ -15,9 +15,13 @@
     "dbHost": "/var/run/postgresql"
   },
   "cleanup": {
+    "environmentSafe": true,
+    "production": false,
+    "databasePrefix": "trademind_p7c4_",
     "currentRunDatabase": "trademind_p7c4_p7c4_20260714042622",
     "currentRunDatabaseRemoved": true,
     "legacyRunDatabase": "trademind_p7c4_p7c4_20260714042442",
+    "legacyDatabase": "trademind_p7c4_p7c4_20260714042442",
     "legacyDatabaseDropped": true,
     "connectionsBefore": 0,
     "connectionsTerminated": 0,
@@ -36,6 +40,30 @@
     "processesRemaining": 0,
     "portsRemaining": 0
   },
+  "existingRuntimeEvidence": {
+    "mediumDataset": "passed",
+    "pagination": "passed",
+    "queryPlan": "passed",
+    "nPlusOne": "passed",
+    "provider": "passed",
+    "permission": "passed",
+    "race": "passed",
+    "dataRaces": 0,
+    "deadlocks": 0
+  },
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 0
+  },
+  "gates": {
+    "p7C4": "passed",
+    "p7C3": "passed",
+    "p7C2": "passed",
+    "p7C": "passed"
+  },
+  "p7V2": "pending",
+  "productionReady": false,
+  "tagCreated": false,
   "steps": [],
   "issues": []
 }

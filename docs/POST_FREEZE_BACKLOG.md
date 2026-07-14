@@ -3,6 +3,7 @@
 > **不阻塞 F9**；P3 **禁止**在 Post-F9 冻结边界内实现。生产级前须重新评估 P2 是否升为 P1。
 > **H1 状态**：Tag deferred；P2-06 工作台后退 / 刷新状态保持 **H1.2.1 浏览器点检完成**（H1.2 页面 + 低风险补漏）。
 > **P6 状态**：备份、恢复安全门、发布回滚与灾备代码级基础已落地；隔离恢复演练、隔离发布回滚演练、Linux Race 与全量 Gate 已通过。真实生产 Backup / Restore / PITR / Release / Telemetry / 抖店凭证验证仍 Deferred。
+> **P7 状态**：P7-C4 隔离运行验证与残留库清理已完成（`trademind_p7c4_%` 前缀 0 残留）；Ready for P7-V2。Load Test、Soak、Baseline、Regression、最终 Demo Acceptance 仍 pending P7-V2；Phase P7 Closure Verification Incomplete。
 
 ## P2 — 体验优化
 
