@@ -1,9 +1,9 @@
 {
   "runs": [
     {
-      "runId": "p7v2-current-r3b-recovery-20260714-1750-restart",
+      "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
       "runType": "environment-start",
-      "gitCommit": "2c9f282b13141e880509614fcbc43cb4efc4752d",
+      "gitCommit": "28a8446e962750be5029adf0b2e5c7b464011d10",
       "gitDirty": true,
       "os": "win32",
       "kernel": "10.0.19045",
@@ -16,9 +16,9 @@
       "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
       "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
       "redisVersion": "redis-cli 6.0.16",
-      "startedAt": "2026-07-14T17:49:48.336Z",
+      "startedAt": "2026-07-14T18:26:15.097Z",
       "endedAt": "",
-      "databaseNameHash": "67c50156d21434b6",
+      "databaseNameHash": "81b4a5765c4d454d",
       "configFingerprint": "8b7d7af89215a75e",
       "migrationVersion": "AutoMigrate+p7",
       "datasetProfile": "medium"

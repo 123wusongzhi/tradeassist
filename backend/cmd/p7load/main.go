@@ -137,7 +137,7 @@ func main() {
 	}
 	if *dryRun && !*cleanupOnly {
 		rep.Status = "dry_run_passed"
-		rep.DatasetFingerprint = fingerprint(id, plan, nil)
+		rep.DatasetFingerprint = fingerprint(plan, nil)
 		rep.FinishedAt = time.Now().UTC().Format(time.RFC3339)
 		write(rep)
 		return
@@ -209,7 +209,7 @@ func main() {
 			if countErr == nil {
 				rep.Counts = after
 				rep.ActualRows = sumCounts(after)
-				rep.DatasetFingerprint = fingerprint(id, plan, after)
+				rep.DatasetFingerprint = fingerprint(plan, after)
 			}
 			finish(&rep, "controlled_interruption", err)
 			os.Exit(75)
@@ -226,7 +226,7 @@ func main() {
 	rep.Counts = after
 	rep.ActualRows = sumCounts(after)
 	rep.SkippedRows = rep.ActualRows - rep.InsertedRows
-	rep.DatasetFingerprint = fingerprint(id, plan, after)
+	rep.DatasetFingerprint = fingerprint(plan, after)
 	if rep.ActualRows != rows {
 		rep.FailedRows = rows - rep.ActualRows
 		finish(&rep, "dataset_count_mismatch", fmt.Errorf("actual rows %d do not match planned rows %d", rep.ActualRows, rows))
@@ -866,8 +866,10 @@ func jsonRaw(v any) datatypes.JSON {
 	return datatypes.JSON(b)
 }
 
-func fingerprint(runID string, plan datasetPlan, counts map[string]int) string {
-	payload, _ := json.Marshal(map[string]any{"runId": runID, "plan": plan, "counts": counts})
+func fingerprint(plan datasetPlan, counts map[string]int) string {
+	// The run ID only scopes generated records to an isolated database. It must
+	// not affect the dataset-comparability contract for baseline/current runs.
+	payload, _ := json.Marshal(map[string]any{"plan": plan, "counts": counts})
 	sum := sha256.Sum256(payload)
 	return hex.EncodeToString(sum[:])
 }

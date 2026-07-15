@@ -10,8 +10,8 @@ Status: **passed**
 | Redis | true |
 | Medium dataset | true |
 | Load scenarios | true |
-| Baseline exists | false |
-| Current run exists | false |
+| Baseline exists | true |
+| Current run exists | true |
 | Demo command | true |
 
 ## Issues

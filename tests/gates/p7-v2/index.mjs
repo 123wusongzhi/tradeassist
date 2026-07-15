@@ -11,10 +11,20 @@ assert.equal(validateFrozenBaseline(validBaseline, { verifyArtifact: false }).va
 
 const validCurrent = {
   status: 'passed', completedRequests: 1, independentRun: true, currentRunIndependent: true,
-  restartEvidence: Object.fromEntries(['restartPerformed', 'apiProcessChanged', 'workerProcessChanged', 'redisRestarted', 'mockProviderRestarted', 'databaseStateReset', 'bootstrapPassed', 'authProbePassed', 'routeProbePassed', 'datasetVerified', 'serverReady'].map((key) => [key, true])),
+  restartEvidence: {
+    restartPerformed: true,
+    bootstrapPassed: true,
+    authProbePassed: true,
+    routeProbePassed: true,
+    database: { stateReset: true, datasetVerified: true },
+    api: { portOwnerVerified: true, serverBinaryVerified: true, instanceNonceVerified: true, freshProcessVerified: true },
+    worker: { status: 'passed' },
+    redis: { stateResetVerified: true },
+    mockProvider: { freshStateVerified: true },
+    serverReady: true,
+  },
 };
-validCurrent.restartEvidence.databaseResetMethod = 'isolated_database';
-assert.equal(validateCurrent({ ...validCurrent, restartEvidence: { ...validCurrent.restartEvidence, databaseStateReset: false } }).valid, false);
+assert.equal(validateCurrent({ ...validCurrent, restartEvidence: { ...validCurrent.restartEvidence, database: { stateReset: false, datasetVerified: true } } }).valid, false);
 assert.equal(validateCurrent(validCurrent).valid, true);
 
 const validSoak = {

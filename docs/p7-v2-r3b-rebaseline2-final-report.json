@@ -1,0 +1,56 @@
+{
+  "phase": "P7-V2-R3B-REBASELINE2",
+  "status": "incomplete",
+  "blocker": {
+    "step": "formal_baseline_environment_start",
+    "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+    "command": "pnpm p7-v2:env:start -- --run-id p7v2-baseline-r3b-recovery2-20260715-022554",
+    "exitCode": 1,
+    "reason": "port 8080 remains occupied before API start"
+  },
+  "runtimeFreeze": {
+    "status": "passed",
+    "runtimeSourceTreeHash": "089b708a0f8a84273a95de07f3dee541bd790b465c89b39c6cf2ce1f1f8aa98a",
+    "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
+    "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+    "datasetFingerprint": "",
+    "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40"
+  },
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+    "status": "blocked",
+    "requests": 0,
+    "rawArtifactPath": "",
+    "artifactSha256": "",
+    "artifactSizeBytes": 0,
+    "freezeStatus": "not_started"
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery2-20260715-022554",
+    "status": "not_executed",
+    "currentRunIndependent": false,
+    "restartEvidence": null
+  },
+  "comparability": {
+    "status": "not_executed",
+    "differences": []
+  },
+  "regression": {
+    "status": "not_executed",
+    "failedMetrics": []
+  },
+  "rebaselineRequired": true,
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "autoListingTriggered": false,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "evidence": [
+    "docs/p7-v2-r3b-rebaseline2-preflight-audit.json",
+    "docs/p7-v2-r3b-rebaseline2-runtime-freeze-report.json",
+    "docs/p7-v2-r3b-rebaseline2-baseline-report.json"
+  ]
+}

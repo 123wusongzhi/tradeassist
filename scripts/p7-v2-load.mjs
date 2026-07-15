@@ -183,6 +183,12 @@ const trackedDiff = trackedDiffHash();
 const untrackedRuntime = untrackedRuntimeManifest();
 const routeMatrix = readJSON('docs/p7-v2-r2-route-credential-matrix.json') || {};
 const sloText = fs.existsSync(path.join(root, 'docs/SLO.md')) ? fs.readFileSync(path.join(root, 'docs/SLO.md'), 'utf8') : '';
+const regressionPolicy = readJSON('docs/p7-v2-regression-policy-v2.json') || {};
+const loadScriptsHash = jsonHash(runtimeSource.files.filter((file) => file.path.startsWith('tests/load/')));
+const metricSemanticsHash = jsonHash([
+  ...runtimeSource.files.filter((file) => file.path.startsWith('tests/load/')),
+  ...runtimeSource.files.filter((file) => file.path === 'scripts/p7-v2-regression-metrics.mjs'),
+]);
 
 const absoluteSloPassed =
   exitCode === 0 &&
@@ -234,9 +240,12 @@ const report = {
   untrackedRuntimeManifestHash: untrackedRuntime.hash,
   runtimeSourceTreeHash: runtimeSource.hash,
   apiSourceHash: jsonHash(runtimeSource.files.filter((file) => file.path.startsWith('backend/'))),
-  loadScriptHash: jsonHash(runtimeSource.files.filter((file) => file.path.startsWith('tests/load/'))),
+  loadScriptHash: loadScriptsHash,
+  loadScriptsHash,
+  metricSemanticsHash,
   sloFingerprint: jsonHash(sloText),
   routeCredentialMatrixFingerprint: jsonHash(routeMatrix),
+  regressionPolicyFingerprint: jsonHash(regressionPolicy),
   memoryLeakDetected: false,
   goroutineLeakDetected: false,
   connectionLeakDetected: false,

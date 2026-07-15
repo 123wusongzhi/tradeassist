@@ -1,13 +1,9 @@
 {
-  "phase": "P7-V2-R3B",
-  "status": "pending_execution",
-  "currentRunId": "",
-  "soakRunId": "",
-  "demoRun1Id": "",
-  "demoRun2Id": "",
-  "generatedAt": "",
-  "notes": [
-    "Populate immediately before the independent local execution chain.",
-    "Demo commands reject a CLI run ID that differs from this manifest."
-  ]
+  "phase": "P7-V2-R3B-REBASELINE2",
+  "status": "baseline_blocked",
+  "baselineRunId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+  "currentRunId": "p7v2-current-r3b-recovery2-20260715-022554",
+  "soakRunId": null,
+  "demoRun1Id": null,
+  "demoRun2Id": null
 }

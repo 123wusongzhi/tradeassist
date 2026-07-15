@@ -15,15 +15,21 @@ const requiredCooldown = [
 export function validateCurrent(current = {}) {
   const evidence = current.restartEvidence || {};
   const required = [
-    'restartPerformed', 'apiProcessChanged', 'workerProcessChanged', 'redisRestarted',
-    'mockProviderRestarted', 'databaseStateReset', 'bootstrapPassed', 'authProbePassed',
-    'routeProbePassed', 'datasetVerified', 'serverReady',
+    'restartPerformed', 'bootstrapPassed', 'authProbePassed', 'routeProbePassed', 'serverReady',
   ];
   const issues = [];
   if (current.status !== 'passed') issues.push('current status is not passed');
   if (baselineRequests(current) <= 0) issues.push('current has zero requests');
   for (const key of required) if (evidence[key] !== true) issues.push(`restart evidence missing: ${key}`);
-  if (!evidence.databaseResetMethod) issues.push('database reset method is missing');
+  if (evidence.database?.stateReset !== true) issues.push('database state reset is not proven');
+  if (evidence.database?.datasetVerified !== true) issues.push('dataset verification is not proven');
+  if (evidence.api?.portOwnerVerified !== true) issues.push('port owner is not proven');
+  if (evidence.api?.serverBinaryVerified !== true) issues.push('server binary is not proven');
+  if (evidence.api?.instanceNonceVerified !== true) issues.push('instance nonce is not proven');
+  if (!(evidence.api?.freshProcessVerified === true || evidence.api?.processChanged === true)) issues.push('fresh API process is not proven');
+  if (evidence.worker?.status !== 'passed') issues.push('worker evidence is not passed');
+  if (evidence.redis?.stateResetVerified !== true) issues.push('Redis state reset is not proven');
+  if (evidence.mockProvider?.freshStateVerified !== true) issues.push('mock provider fresh state is not proven');
   if (current.independentRun !== true || current.currentRunIndependent !== true) issues.push('current run is not independently derived');
   return { valid: issues.length === 0, issues };
 }

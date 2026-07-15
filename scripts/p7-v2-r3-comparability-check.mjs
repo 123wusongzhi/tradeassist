@@ -1,62 +1,79 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { collectEnvironmentFingerprint, readJSON, root, valueOf } from './p7-v2-lib.mjs';
-import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest, writeR3Report } from './p7-v2-r3-lib.mjs';
-import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
+import { readJSON } from './p7-v2-lib.mjs';
+import { writeR3Report } from './p7-v2-r3-lib.mjs';
+import { resolveActiveBaseline, resolveActiveCurrent } from './p7-v2-evidence-resolver.mjs';
 
-const args = process.argv.slice(2);
 const resolvedBaseline = resolveActiveBaseline();
-const baselinePath = valueOf(args, '--baseline') || resolvedBaseline.reportPath;
-const baseline = valueOf(args, '--baseline') ? readJSON(baselinePath) : resolvedBaseline.baseline;
-const dataset = readJSON('docs/p7-v2-dataset-report.json');
-const routeMatrix = readJSON('docs/p7-v2-r2-route-credential-matrix.json');
-const runtime = readJSON('docs/p7-v2-runtime-environment.json');
-const source = runtimeSourceFingerprint();
-const diff = trackedDiffHash();
-const untracked = untrackedRuntimeManifest();
-const current = {
-  runtimeSourceTreeHash: source.hash,
-  trackedDiffHash: diff.hash,
-  untrackedRuntimeManifestHash: untracked.hash,
-  datasetFingerprint: dataset?.fullDatasetFingerprint || dataset?.datasetFingerprint || '',
-  configFingerprint: runtime?.environmentFingerprint?.configFingerprint || '',
-  loadProfileFingerprint: baseline?.loadProfileFingerprint || '',
-  sloFingerprint: jsonHash(fs.readFileSync(path.join(root, 'docs/SLO.md'), 'utf8')),
-  routeCredentialMatrixFingerprint: jsonHash(routeMatrix || {}),
-  environment: collectEnvironmentFingerprint('r3-comparability', `p7v2-r3-comparability-${Date.now()}`),
-};
+const resolvedCurrent = resolveActiveCurrent();
+const baseline = resolvedBaseline.baseline || {};
+const current = resolvedCurrent.entry || {};
+const baselineManifest = readJSON(`docs/baselines/frozen/${baseline.runId || ''}/manifest.json`) || {};
+const currentManifest = resolvedCurrent.manifest || {};
+const comparableKeys = [
+  'runtimeSourceTreeHash',
+  'loadScriptsHash',
+  'metricSemanticsHash',
+  'datasetFingerprint',
+  'configFingerprint',
+  'loadProfileFingerprint',
+  'sloFingerprint',
+  'routeCredentialMatrixFingerprint',
+  'regressionPolicyFingerprint',
+  'k6Version',
+  'goVersion',
+  'postgresVersion',
+  'redisVersion',
+  'hostClass',
+];
+function values(manifest, entry) {
+  const environment = manifest.environmentFingerprint || entry.environmentFingerprint || {};
+  return {
+    runtimeSourceTreeHash: manifest.runtimeSourceTreeHash || '',
+    loadScriptsHash: manifest.loadScriptsHash || '',
+    metricSemanticsHash: manifest.metricSemanticsHash || '',
+    datasetFingerprint: manifest.datasetFingerprint || '',
+    configFingerprint: manifest.configFingerprint || '',
+    loadProfileFingerprint: manifest.loadProfileFingerprint || '',
+    sloFingerprint: manifest.sloFingerprint || '',
+    routeCredentialMatrixFingerprint: manifest.routeCredentialMatrixFingerprint || '',
+    regressionPolicyFingerprint: manifest.regressionPolicyFingerprint || '',
+    k6Version: environment.k6Version || '',
+    goVersion: environment.goVersion || '',
+    postgresVersion: environment.postgresVersion || environment.postgreSQLVersion || '',
+    redisVersion: environment.redisVersion || '',
+    hostClass: entry.hostClass || environment.hostClass || 'wsl2_local_postgresql_socket',
+  };
+}
+const baselineValues = values(baselineManifest, baseline);
+const currentValues = values(currentManifest, current);
 const checks = [
   ['baseline-registry', resolvedBaseline.valid],
-  ['baseline-passed', baseline?.status === 'passed'],
-  ['baseline-has-traffic', Number(baseline?.completedRequests || 0) > 0],
-  ['baseline-immutable', baseline?.immutable === true || baselinePath.includes('baselines/')],
-  ['runtime-source-tree', baseline?.runtimeSourceTreeHash === current.runtimeSourceTreeHash],
-  ['dataset', baseline?.datasetFingerprint === current.datasetFingerprint],
-  ['config', baseline?.configFingerprint === current.configFingerprint],
-  ['load-profile', Boolean(baseline?.loadProfileFingerprint)],
-  ['slo', baseline?.sloFingerprint === current.sloFingerprint],
-  ['route-credential-matrix', baseline?.routeCredentialMatrixFingerprint === current.routeCredentialMatrixFingerprint],
-  ['k6-version', baseline?.environmentFingerprint?.k6Version === current.environment.k6Version],
-  ['postgres-version', baseline?.environmentFingerprint?.postgresVersion === current.environment.postgresVersion],
-  ['redis-version', baseline?.environmentFingerprint?.redisVersion === current.environment.redisVersion],
-  ['go-version', baseline?.environmentFingerprint?.goVersion === current.environment.goVersion],
+  ['current-registry', resolvedCurrent.valid],
+  ['baseline-manifest', baselineManifest.immutable === true && baselineManifest.validForRegression === true],
+  ['current-manifest', currentManifest.immutable === true && currentManifest.validForRegression === true],
+  ['different-run-id', baseline.runId && current.runId && baseline.runId !== current.runId],
+  ['different-artifact', resolvedBaseline.baseline?.rawArtifactSha256 && resolvedCurrent.actualHash && resolvedBaseline.baseline.rawArtifactSha256 !== resolvedCurrent.actualHash],
+  ['current-independent', current.independentRun === true && current.baselineRunId === baseline.runId],
+  ...comparableKeys.map((key) => [key, Boolean(baselineValues[key]) && baselineValues[key] === currentValues[key]]),
 ];
 const failed = checks.filter(([, ok]) => !ok).map(([id]) => id);
 const report = {
-  phase: 'P7-V2-R3',
+  phase: 'P7-V2-R3B-CI-RG',
   status: failed.length ? 'not_comparable' : 'passed',
-  baselinePath,
-  baselineRunId: baseline?.runId || '',
-  current,
+  baselineRunId: baseline.runId || '',
+  currentRunId: current.runId || '',
+  baseline: baselineValues,
+  current: currentValues,
+  mismatchCount: failed.filter((item) => comparableKeys.includes(item)).length,
+  notComparableCount: failed.filter((item) => !comparableKeys.includes(item)).length,
   checks: checks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
   issues: [...(resolvedBaseline.valid ? [] : resolvedBaseline.issues), ...failed],
 };
 writeR3Report(
-  'docs/p7-v2-r3-comparability-report.json',
-  'docs/P7_V2_R3_COMPARABILITY_REPORT.md',
-  'P7-V2-R3 Comparability Report',
+  'docs/p7-v2-r3b-rebaseline2-comparability-report.json',
+  'docs/P7_V2_R3B_REBASELINE2_COMPARABILITY_REPORT.md',
+  'P7-V2-R3B-REBASELINE2 Comparability Report',
   report,
-  [['Baseline', report.baselineRunId], ['Status', report.status], ['Runtime source tree', source.hash], ['Dataset', current.datasetFingerprint]],
+  [['Baseline', report.baselineRunId], ['Current', report.currentRunId], ['Status', report.status], ['Mismatch count', report.mismatchCount]],
 );
 console.log(JSON.stringify(report, null, 2));
 process.exit(report.status === 'passed' ? 0 : 1);

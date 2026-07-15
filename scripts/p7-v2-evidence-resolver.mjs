@@ -27,12 +27,42 @@ export function validateFrozenBaseline(baseline, { verifyArtifact = true } = {})
   if (!baseline?.rawArtifactSha256) issues.push('baseline raw artifact hash is missing');
   if (baseline?.rawArtifactHashVerified !== true) issues.push('baseline raw artifact has not been verified');
   if (verifyArtifact) {
-    const frozenArtifact = `docs/baselines/frozen/${baseline?.runId || ''}/baseline.summary.json`;
+    const manifestPath = `docs/baselines/frozen/${baseline?.runId || ''}/manifest.json`;
+    const manifest = readJSON(manifestPath) || {};
+    const relativePath = manifest?.rawArtifact?.relativePath || (manifest.frozenPath ? path.basename(manifest.frozenPath) : '') || 'raw-summary.json';
+    const frozenArtifact = `docs/baselines/frozen/${baseline?.runId || ''}/${relativePath}`;
     const actualHash = sha256File(frozenArtifact);
     if (!actualHash) issues.push('frozen baseline raw artifact is missing');
-    else if (actualHash !== baseline.rawArtifactSha256) issues.push('frozen baseline raw artifact hash mismatch');
+    else if (
+      actualHash !== baseline.rawArtifactSha256 ||
+      actualHash !== (manifest?.rawArtifact?.sha256 || manifest.sha256) ||
+      Number(fs.statSync(path.join(root, frozenArtifact)).size) !== Number(manifest?.rawArtifact?.sizeBytes ?? manifest.sizeBytes)
+    ) issues.push('frozen baseline raw artifact hash or size mismatch');
   }
   return { valid: issues.length === 0, issues };
+}
+
+export const CURRENT_REGISTRY_PATH = 'docs/currents/p7-v2-current-registry.json';
+
+export function resolveActiveCurrent({ verifyArtifact = true } = {}) {
+  const registry = readJSON(CURRENT_REGISTRY_PATH) || {};
+  const runId = registry.activeRegressionCurrent || '';
+  const entry = (registry.entries || []).find((candidate) => candidate.runId === runId) || null;
+  const manifest = entry ? readJSON(`docs/currents/frozen/${entry.runId}/manifest.json`) : null;
+  const relativePath = manifest?.rawArtifact?.relativePath || (manifest?.frozenPath ? path.basename(manifest.frozenPath) : '') || 'raw-summary.json';
+  const artifactPath = entry ? `docs/currents/frozen/${entry.runId}/${relativePath}` : '';
+  const actualHash = artifactPath ? sha256File(artifactPath) : '';
+  const size = artifactPath && fs.existsSync(path.join(root, artifactPath)) ? fs.statSync(path.join(root, artifactPath)).size : 0;
+  const valid = Boolean(
+    entry &&
+      entry.status === 'passed' &&
+      entry.independentRun === true &&
+      entry.immutable === true &&
+      entry.validForRegression === true &&
+      manifest?.runId === entry.runId &&
+      (!verifyArtifact || (actualHash && actualHash === entry.rawArtifactSha256 && actualHash === (manifest?.rawArtifact?.sha256 || manifest.sha256) && size === Number(manifest?.rawArtifact?.sizeBytes ?? manifest.sizeBytes))),
+  );
+  return { registry, entry, manifest, artifactPath, actualHash, valid, issues: valid ? [] : ['active frozen Current is invalid'] };
 }
 
 export function resolveActiveBaseline({ verifyArtifact = true } = {}) {

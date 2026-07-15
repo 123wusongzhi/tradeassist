@@ -156,13 +156,10 @@ export function startP7V2Server(env = {}, opts = {}) {
     APP_HTTP_ADDR: '127.0.0.1:8080',
     ...env,
   };
-  stopP7V2Server();
+  if (!opts.skipStop) stopP7V2Server();
   const portCheck = runWSL(`ss -ltnp 'sport = :8080' 2>/dev/null | grep -q ':8080' && echo busy || echo free`, { timeout: 10000 });
   if ((portCheck.stdout || '').trim() === 'busy') {
-    runWSL(
-      "for pid in $(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | sort -u); do kill -9 \"$pid\" 2>/dev/null || true; done; sleep 0.5",
-      { timeout: 15000 },
-    );
+    return { ok: false, issues: ['port 8080 remains occupied before API start'] };
   }
   const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
     timeout: 10 * 60 * 1000,
@@ -170,6 +167,9 @@ export function startP7V2Server(env = {}, opts = {}) {
   if (build.status !== 0) {
     return { ok: false, issues: [`server build failed: ${build.stderr.slice(0, 500)}`] };
   }
+  const binaryHash = runWSL(`sha256sum ${JSON.stringify(binary)} 2>/dev/null | awk '{print $1}'`, { timeout: 30000 });
+  const serverBinarySha256 = (binaryHash.stdout || '').trim();
+  if (!serverBinarySha256) return { ok: false, issues: ['server binary hash was not produced'] };
   const runtimeEnvPath = writeRuntimeEnvFile(merged);
   const sourceProjectEnv =
     merged.APP_ENV === 'performance'
@@ -179,7 +179,7 @@ export function startP7V2Server(env = {}, opts = {}) {
     `mkdir -p ${JSON.stringify(`${wslRoot}/artifacts/p7-v2`)}`,
     sourceProjectEnv,
     `set -a && . ${JSON.stringify(runtimeEnvPath)} && set +a`,
-    `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
+      `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
     `ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
     `cat ${JSON.stringify(pidFile)}`,
   ]
@@ -201,7 +201,18 @@ export function startP7V2Server(env = {}, opts = {}) {
     );
     if ((health.stdout || '').trim() === 'ok') {
       const listenerOk = (listener.stdout || '').trim() === 'ok';
-      return { ok: true, pid, logFile, binary, apiProcessChanged: true, listenerMismatch: !listenerOk };
+      return {
+        ok: listenerOk,
+        pid,
+        logFile,
+        binary,
+        serverBinarySha256,
+        instanceNonce: merged.P7V2_INSTANCE_NONCE || '',
+        buildStartedAt: new Date().toISOString(),
+        buildFinishedAt: new Date().toISOString(),
+        listenerMismatch: !listenerOk,
+        issues: listenerOk ? [] : ['listener owner does not match started API PID'],
+      };
     }
     runWSL('sleep 1');
   }

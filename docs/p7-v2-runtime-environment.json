@@ -1,9 +1,9 @@
 {
   "phase": "P7-V2-R2",
-  "status": "passed",
-  "runId": "p7v2-current-r3b-recovery-20260714-1750-restart",
-  "dbName": "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
-  "databaseNameHash": "67c50156d21434b6",
+  "status": "failed",
+  "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+  "dbName": "trademind_p7v2_p7v2_baseline_r3b_recovery2_20260715_022554",
+  "databaseNameHash": "81b4a5765c4d454d",
   "hostClass": "wsl2_local_postgresql_socket",
   "port": 8080,
   "postgreSQLVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
@@ -37,28 +37,32 @@
     "P7V2_PERF_OPERATOR_PASSWORD": "[redacted]",
     "P7V2_PERF_READONLY_PASSWORD": "[redacted]",
     "P7V2_WEBHOOK_TEST_SECRET": "[redacted]",
-    "DB_NAME": "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
+    "DB_NAME": "trademind_p7v2_p7v2_baseline_r3b_recovery2_20260715_022554",
     "DB_DRIVER": "postgres",
     "DB_HOST": "/var/run/postgresql",
     "DB_PORT": "5432",
     "DB_USER": "root",
     "REDIS_ADDR": "127.0.0.1:6379",
-    "APP_HTTP_ADDR": "127.0.0.1:8080"
+    "APP_HTTP_ADDR": "127.0.0.1:8080",
+    "P7V2_INSTANCE_NONCE": ""
   },
-  "serverPid": "1100",
-  "serverStarted": true,
+  "serverPid": "",
+  "serverStarted": false,
+  "instanceNonce": "",
+  "serverBinaryPath": "",
+  "serverBinarySha256": "",
   "readiness": {
     "migrationsComplete": true,
-    "bootstrapCompleted": true,
-    "performanceAdminReady": true,
-    "authProbePassed": true,
-    "routeProbePassed": true,
-    "loadReady": true
+    "bootstrapCompleted": false,
+    "performanceAdminReady": false,
+    "authProbePassed": false,
+    "routeProbePassed": false,
+    "loadReady": false
   },
   "environmentFingerprint": {
-    "runId": "p7v2-current-r3b-recovery-20260714-1750-restart",
+    "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
     "runType": "environment-start",
-    "gitCommit": "2c9f282b13141e880509614fcbc43cb4efc4752d",
+    "gitCommit": "28a8446e962750be5029adf0b2e5c7b464011d10",
     "gitDirty": true,
     "os": "win32",
     "kernel": "10.0.19045",
@@ -71,13 +75,15 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-14T17:49:48.336Z",
+    "startedAt": "2026-07-14T18:26:15.097Z",
     "endedAt": "",
-    "databaseNameHash": "67c50156d21434b6",
+    "databaseNameHash": "81b4a5765c4d454d",
     "configFingerprint": "8b7d7af89215a75e",
     "migrationVersion": "AutoMigrate+p7",
     "datasetProfile": "medium"
   },
-  "issues": [],
-  "generatedAt": "2026-07-14T17:50:04.800Z"
+  "issues": [
+    "port 8080 remains occupied before API start"
+  ],
+  "generatedAt": "2026-07-14T18:26:18.038Z"
 }

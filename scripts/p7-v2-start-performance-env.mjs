@@ -20,6 +20,7 @@ import {
 const args = process.argv.slice(2);
 const runId = safeRunId(valueOf(args, '--run-id') || process.env.P7_V2_RUN_ID);
 const dbName = safeDbName(runId);
+const instanceNonce = valueOf(args, '--instance-nonce') || process.env.P7V2_INSTANCE_NONCE || '';
 const issues = [...assertDbNameSafe(dbName)];
 if ((process.env.APP_ENV || 'performance') === 'production') issues.push('APP_ENV=production rejected');
 
@@ -50,11 +51,12 @@ const env = performanceEnvDefaults({
   DB_USER: 'root',
   REDIS_ADDR: '127.0.0.1:6379',
   APP_HTTP_ADDR: '127.0.0.1:8080',
+  P7V2_INSTANCE_NONCE: instanceNonce,
 });
 
 let server = { ok: false, pid: '', issues: [] };
 if (issues.length === 0 && !args.includes('--skip-server')) {
-  server = startP7V2Server(env);
+  server = startP7V2Server(env, { skipStop: args.includes('--skip-stop') });
   if (!server.ok) {
     issues.push(...(server.issues || ['failed to start API server']));
   } else {
@@ -115,6 +117,9 @@ const report = {
   env: redactedEnv,
   serverPid: server.pid || '',
   serverStarted: server.ok,
+  instanceNonce,
+  serverBinaryPath: server.binary || '',
+  serverBinarySha256: server.serverBinarySha256 || '',
   readiness: {
     migrationsComplete,
     bootstrapCompleted,

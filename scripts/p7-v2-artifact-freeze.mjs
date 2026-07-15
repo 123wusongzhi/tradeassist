@@ -55,13 +55,16 @@ export function frozenArtifactPath(kind, runId) {
 
 export function freezeRawArtifact({ kind, runId, reportPath }) {
   if (!['baseline', 'current'].includes(kind)) throw new Error(`unsupported freeze kind: ${kind}`);
-  if (!/^p7v2-(baseline|current)-r3b-recovery-[a-z0-9_-]+$/.test(runId)) {
-    throw new Error('recovery run ID is required');
+  if (!/^p7v2-(baseline|current)-r3b-recovery2-[a-z0-9_-]+$/.test(runId)) {
+    throw new Error('a unique Rebaseline2 run ID is required');
   }
 
   const report = readJSON(reportPath);
   if (!report || report.runId !== runId || report.status !== 'passed') {
     throw new Error('passed report with matching run ID is required before freeze');
+  }
+  if (kind === 'current' && (report.currentRunIndependent !== true || report.independentRun !== true)) {
+    throw new Error('independent Current evidence is required before freeze');
   }
 
   const rawPath = path.join(root, 'artifacts', 'p7-v2', kind, runId, `${kind}.summary.json`);
@@ -97,22 +100,38 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
     }
 
     const now = new Date().toISOString();
+    const rawArtifact = {
+      relativePath: 'raw-summary.json',
+      sha256: originalSha256,
+      sizeBytes: rawStat.size,
+    };
     const manifest = {
       runId,
       runKind: kind,
+      baselineRunId: kind === 'current' ? report.baselineRunId || '' : undefined,
+      status: report.status,
+      independentRun: kind === 'current' ? report.independentRun === true : undefined,
+      validForRegression: true,
       originalPath: path.relative(root, rawPath).replaceAll('\\', '/'),
       frozenPath: path.relative(root, path.join(destination, 'raw-summary.json')).replaceAll('\\', '/'),
       sizeBytes: rawStat.size,
       sha256: originalSha256,
+      rawArtifact,
       requests,
       scenarioCoverage: coverage.passed,
       createdAt: now,
       runtimeSourceTreeHash: report.runtimeSourceTreeHash || '',
+      loadScriptsHash: report.loadScriptsHash || report.loadScriptHash || '',
+      metricSemanticsHash: report.metricSemanticsHash || '',
       datasetFingerprint: report.datasetFingerprint || '',
+      configFingerprint: report.configFingerprint || '',
       loadProfileFingerprint: report.loadProfileFingerprint || '',
       sloFingerprint: report.sloFingerprint || '',
       routeCredentialMatrixFingerprint: report.routeCredentialMatrixFingerprint || '',
+      regressionPolicyFingerprint: report.regressionPolicyFingerprint || '',
+      environmentFingerprint: report.environmentFingerprint || {},
       immutable: true,
+      frozenAt: now,
     };
     writeJSON(path.relative(root, path.join(staging, 'manifest.json')), manifest);
     fs.writeFileSync(path.join(staging, 'raw-summary.sha256'), `${originalSha256}  raw-summary.json\n`, 'utf8');
@@ -127,6 +146,18 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
       loadProfile: report.loadProfile || {},
       loadProfileFingerprint: manifest.loadProfileFingerprint,
     });
+    writeJSON(path.relative(root, path.join(staging, 'config-fingerprint.json')), {
+      configFingerprint: manifest.configFingerprint,
+    });
+    writeJSON(path.relative(root, path.join(staging, 'route-credential-matrix-fingerprint.json')), {
+      routeCredentialMatrixFingerprint: manifest.routeCredentialMatrixFingerprint,
+    });
+    writeJSON(path.relative(root, path.join(staging, 'regression-policy.json')), {
+      regressionPolicyFingerprint: manifest.regressionPolicyFingerprint,
+    });
+    if (kind === 'current') {
+      writeJSON(path.relative(root, path.join(staging, 'restart-evidence.json')), report.restartEvidence || {});
+    }
     fs.renameSync(staging, destination);
     return { ...manifest, archivePath: path.relative(root, destination).replaceAll('\\', '/') };
   } catch (error) {

@@ -1,0 +1,10 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "blocked",
+  "baselineRunId": "p7v2-baseline-r3b-recovery-20260714-1719",
+  "currentRunId": "",
+  "mismatchCount": 1,
+  "notComparableCount": 1,
+  "reason": "runtimeSourceTreeHash changes because the repaired p7-v2 harness is included in the existing source fingerprint; no frozen Current exists",
+  "baselineReuseDecision": "rebaseline_required"
+}

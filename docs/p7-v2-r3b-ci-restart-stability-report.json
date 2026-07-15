@@ -1,0 +1,9 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "blocked",
+  "cycles": 0,
+  "passedCycles": 0,
+  "failedCycles": 0,
+  "reason": "baselineReuseDecision=rebaseline_required; execution boundary prohibits restart cycles and Current preparation",
+  "productionResourcesAccessed": false
+}

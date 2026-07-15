@@ -3,13 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJSON, root, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { CORE_SCENARIOS, METRIC_METADATA, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
+import { resolveActiveBaseline, resolveActiveCurrent } from './p7-v2-evidence-resolver.mjs';
 
 const args = process.argv.slice(2);
-const baselinePath = valueOf(args, '--baseline') || 'docs/p7-v2-r3-baseline-report.json';
+const resolvedBaseline = resolveActiveBaseline();
+const resolvedCurrent = resolveActiveCurrent();
+const baselinePath = valueOf(args, '--baseline') || resolvedBaseline.reportPath;
 const currentPath = valueOf(args, '--current') || 'docs/p7-v2-current-load-report.json';
 const policyPath = valueOf(args, '--policy') || 'docs/p7-v2-regression-policy-v2.json';
-const baseline = readJSON(baselinePath);
-const current = readJSON(currentPath);
+const baseline = valueOf(args, '--baseline') ? readJSON(baselinePath) : resolvedBaseline.baseline;
+const current = { ...(readJSON(currentPath) || {}), ...(resolvedCurrent.entry || {}) };
 const policy = readJSON(policyPath);
 const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
 const policyFingerprint = policy ? hash(JSON.stringify(policy)) : '';
@@ -19,7 +22,7 @@ function frozen(kind, runId) {
   const group = kind === 'baseline' ? 'baselines' : 'currents';
   const dir = path.join(root, 'docs', group, 'frozen', runId);
   const manifest = readJSON(path.relative(root, path.join(dir, 'manifest.json')));
-  const rawPath = path.join(dir, 'raw-summary.json');
+  const rawPath = path.join(dir, manifest?.rawArtifact?.relativePath || (manifest?.frozenPath ? path.basename(manifest.frozenPath) : '') || 'raw-summary.json');
   if (!manifest || !fs.existsSync(rawPath)) return { valid: false, issues: [`${kind} frozen raw artifact is missing`] };
   const raw = fs.readFileSync(rawPath);
   let json;
@@ -30,15 +33,18 @@ function frozen(kind, runId) {
     const [, requestMetric] = SCENARIO_METRICS[name];
     return Number(json?.metrics?.[requestMetric]?.values?.count ?? json?.metrics?.[requestMetric]?.count ?? 0) > 0;
   });
+  const expectedHash = manifest?.rawArtifact?.sha256 || manifest.sha256;
+  const expectedSize = manifest?.rawArtifact?.sizeBytes ?? manifest.sizeBytes;
   const valid = manifest.runId === runId && manifest.runKind === kind && manifest.immutable === true &&
-    manifest.sha256 === actualHash && Number(manifest.sizeBytes) === raw.length && requests > 0 && covered;
+    expectedHash === actualHash && Number(expectedSize) === raw.length && requests > 0 && covered;
   return { valid, issues: valid ? [] : [`${kind} frozen raw artifact verification failed`], manifest, raw: json, actualHash, requests };
 }
 
 const baselineFrozen = baseline?.runId ? frozen('baseline', baseline.runId) : { valid: false, issues: ['baseline run ID is missing'] };
 const currentFrozen = current?.runId ? frozen('current', current.runId) : { valid: false, issues: ['current run ID is missing'] };
 issues.push(...baselineFrozen.issues, ...currentFrozen.issues);
-if (!baseline || baseline.status !== 'passed' || !current || current.status !== 'passed') issues.push('baseline or current report is not passed');
+if (!resolvedBaseline.valid || !resolvedCurrent.valid) issues.push('active frozen baseline or Current registry entry is invalid');
+if (!baseline || baseline.status !== 'passed' || !current || current.status !== 'passed' || current.independentRun !== true) issues.push('baseline or independent Current report is not passed');
 if (!policy || policy.version !== 2) issues.push('Regression policy version 2 is required');
 if (baseline?.runId === current?.runId || baselineFrozen.actualHash === currentFrozen.actualHash) issues.push('baseline and current artifacts are not independent');
 
@@ -93,7 +99,7 @@ const notComparableCount = comparisons.filter((item) => item.finalVerdict === 'n
 const invalidMetricCount = comparisons.filter((item) => item.finalVerdict === 'invalid_metric').length;
 const insufficientSampleCount = comparisons.filter((item) => item.finalVerdict === 'insufficient_samples').length;
 const status = issues.length || failedMetricCount || notComparableCount || invalidMetricCount || insufficientSampleCount ? 'failed' : 'passed';
-const report = { phase: 'P7-V2-R3B-REBASELINE', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
+const report = { phase: 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
   baseline: { path: baselinePath, runId: baseline?.runId || '', artifactSha256: baselineFrozen.actualHash || '', artifactHashVerified: baselineFrozen.valid },
   current: { path: currentPath, runId: current?.runId || '', artifactSha256: currentFrozen.actualHash || '', artifactHashVerified: currentFrozen.valid, independentRun: current?.independentRun === true },
   absoluteSloPassed: current?.absoluteSloPassed === true, relativeRegressionPassed: failedMetricCount === 0 && notComparableCount === 0,
@@ -103,9 +109,9 @@ if (!fs.existsSync(path.join(root, 'docs/regressions/p7-v2-r3b-regression-v1-fai
   const previous = readJSON('docs/p7-v2-performance-regression-report.json');
   if (previous) writeJSON('docs/regressions/p7-v2-r3b-regression-v1-failed.json', { ...previous, evaluationVersion: 1 });
 }
-writeJSON('docs/p7-v2-r3b-rg-regression-v2-report.json', report);
+writeJSON('docs/p7-v2-r3b-rebaseline2-regression-v2-report.json', report);
 writeJSON('docs/p7-v2-performance-regression-report.json', report);
-writeMarkdown('docs/P7_V2_R3B_RG_REGRESSION_V2_REPORT.md', `# P7-V2-R3B-REBASELINE Regression V2\n\nStatus: **${status}**\n\n- Evaluation version: 2\n- Failed metrics: ${failedMetricCount}\n- Not comparable: ${notComparableCount}\n- Invalid metrics: ${invalidMetricCount}\n- Insufficient samples: ${insufficientSampleCount}\n\n## Issues\n${issues.length ? issues.map((item) => `- ${item}`).join('\n') : '- none'}\n`);
+writeMarkdown('docs/P7_V2_R3B_REBASELINE2_REGRESSION_V2_REPORT.md', `# P7-V2-R3B-REBASELINE2 Regression V2\n\nStatus: **${status}**\n\n- Evaluation version: 2\n- Failed metrics: ${failedMetricCount}\n- Not comparable: ${notComparableCount}\n- Invalid metrics: ${invalidMetricCount}\n- Insufficient samples: ${insufficientSampleCount}\n\n## Issues\n${issues.length ? issues.map((item) => `- ${item}`).join('\n') : '- none'}\n`);
 writeMarkdown('docs/P7_V2_PERFORMANCE_REGRESSION_REPORT.md', `# P7-V2 Performance Regression Report\n\nEvaluation Version: 2\n\nStatus: **${status}**\n`);
 console.log(JSON.stringify({ phase: report.phase, status, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount }, null, 2));
 process.exit(status === 'passed' ? 0 : 1);

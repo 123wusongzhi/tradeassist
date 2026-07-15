@@ -1,0 +1,43 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "blocked",
+  "failed": 5,
+  "checks": [
+    {
+      "id": "recoveryBaseline",
+      "status": "passed"
+    },
+    {
+      "id": "baselineReuse",
+      "status": "failed"
+    },
+    {
+      "id": "restartStability",
+      "status": "failed"
+    },
+    {
+      "id": "current",
+      "status": "failed"
+    },
+    {
+      "id": "comparability",
+      "status": "failed"
+    },
+    {
+      "id": "regression",
+      "status": "failed"
+    },
+    {
+      "id": "soakPending",
+      "status": "passed"
+    },
+    {
+      "id": "demoPending",
+      "status": "passed"
+    },
+    {
+      "id": "productionGuard",
+      "status": "passed"
+    }
+  ]
+}

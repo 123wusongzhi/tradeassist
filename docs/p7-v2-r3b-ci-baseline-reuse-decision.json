@@ -1,0 +1,23 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "rebaseline_required",
+  "baselineRunId": "p7v2-baseline-r3b-recovery-20260714-1719",
+  "impact": {
+    "backendRuntimeChanged": false,
+    "loadGenerationSemanticsChanged": false,
+    "metricCollectionSemanticsChanged": false,
+    "datasetSemanticsChanged": false,
+    "sloSemanticsChanged": false,
+    "credentialMatrixChanged": false,
+    "environmentOrchestrationChanged": true,
+    "gateOnlyChanged": true,
+    "reportOnlyChanged": true
+  },
+  "decisionBasis": [
+    "The existing runtimeSourceTreeHash includes every scripts/p7-v2-*.mjs file.",
+    "This CI-RG repair changes those tracked harness files.",
+    "The requested final comparability contract requires runtimeSourceTreeHash equality.",
+    "The frozen Baseline manifest records the old runtimeSourceTreeHash and must not be modified."
+  ],
+  "requiredNextAction": "Create a new immutable Baseline with the repaired harness before any Current run. Current, freeze, comparability, and Regression V2 are prohibited for this baseline."
+}

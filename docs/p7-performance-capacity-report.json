@@ -1,6 +1,6 @@
 {
   "phase": "P7",
-  "status": "p7_v2_r3b_fix_completed_rebaseline_required_p7_v2_incomplete",
+  "status": "p7_v2_r3b_rebaseline2_baseline_blocked_p7_v2_incomplete",
   "closureVerification": "incomplete",
   "p7C4": "completed",
   "p7V2": "incomplete",
@@ -20,6 +20,30 @@
     "regressionExecuted": false,
     "soakExecuted": false,
     "demoExecuted": false
+  },
+  "p7V2R3BCIRG": {
+    "status": "incomplete_rebaseline_required",
+    "rootCauseClassification": "process_identity_insufficient",
+    "recoveryBaselineRunId": "p7v2-baseline-r3b-recovery-20260714-1719",
+    "recoveryBaselineHashVerified": true,
+    "baselineReuseDecision": "rebaseline_required",
+    "currentExecuted": false,
+    "regressionExecuted": false,
+    "soakExecuted": false,
+    "demoExecuted": false
+  },
+  "p7V2R3BRebaseline2": {
+    "status": "baseline_blocked",
+    "baselineRunId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+    "currentRunId": "p7v2-current-r3b-recovery2-20260715-022554",
+    "runtimeFreeze": "passed",
+    "baselineEnvironmentStartExitCode": 1,
+    "blocker": "port 8080 remains occupied before API start",
+    "datasetExecuted": false,
+    "baselineExecuted": false,
+    "currentExecuted": false,
+    "regressionExecuted": false,
+    "productionResourcesAccessed": false
   },
   "failed": 4,
   "passed": 54,
