@@ -18,7 +18,7 @@ export function resolveP7V2PortConfig(env = process.env) {
   const rawPort = String(env.P7_V2_API_PORT || '').trim();
   const appAddr = String(env.APP_HTTP_ADDR || '').trim();
   const appPort = appAddr.match(/:(\d+)$/)?.[1] || '';
-  const port = Number(rawPort || appPort || 8080);
+  const port = Number(rawPort || appPort || 18080);
   if (!ALLOWED_HOSTS.has(host) || !Number.isInteger(port) || port < 1024 || port > 65535) {
     throw new Error('P7-V2 API endpoint must use a loopback host and a local unprivileged TCP port');
   }
@@ -205,7 +205,7 @@ export function startP7V2Server(env = {}, opts = {}) {
   if (!opts.skipStop) stopP7V2Server();
   const portCheck = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
   if ((portCheck.stdout || '').trim() === 'busy') {
-    return { ok: false, issues: ['port 8080 remains occupied before API start'] };
+    return { ok: false, issues: [`port ${portConfig.port} remains occupied before API start`] };
   }
   const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
     timeout: 10 * 60 * 1000,
@@ -790,7 +790,8 @@ export function configFingerprint(env = {}) {
 }
 
 export function loadProfileFingerprint(profile) {
-  return hashValue(JSON.stringify(profile)).slice(0, 16);
+  const { kind: _kind, ...formalProfile } = profile || {};
+  return hashValue(JSON.stringify(formalProfile)).slice(0, 16);
 }
 
 export function markdownTable(rows) {

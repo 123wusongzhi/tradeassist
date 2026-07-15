@@ -30,7 +30,7 @@ assert.equal(validateCurrent(validCurrent).valid, true);
 const validSoak = {
   status: 'passed',
   timing: { actualSteadySeconds: 1800, continuousSteadyWindow: true, samplesCount: 29, maxSampleGapSeconds: 90 },
-  cooldown: Object.fromEntries(['queueRecovered', 'workerInflightRecovered', 'providerInflightRecovered', 'dbConnectionsRecovered', 'goroutinesRecovered', 'memoryRecovered', 'webhookBacklogRecovered', 'providerStateRecovered', 'circuitRecovered'].map((key) => [key, true])),
+  cooldown: Object.fromEntries(['httpLatencyRecovered', 'errorRateRecovered', 'throughputRecovered', 'queueRecovered', 'workerInflightRecovered', 'dbConnectionsRecovered', 'memoryRecovered', 'webhookBacklogRecovered', 'providerStateRecovered', 'circuitRecovered'].map((key) => [key, true])),
 };
 validSoak.cooldown.actualMinutes = 5;
 validSoak.cooldown.cooldownRecoveryPassed = true;

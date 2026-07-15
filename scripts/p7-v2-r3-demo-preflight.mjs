@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJSON, root } from './p7-v2-lib.mjs';
 import { writeR3Report } from './p7-v2-r3-lib.mjs';
+import { readR3BManifest } from './p7-v2-r3b-manifest.mjs';
 
 const pkg = readJSON('package.json');
-const manifest = readJSON('docs/p7-v2-r3-run-manifest.json');
+const manifest = readR3BManifest();
 const regression = readJSON('docs/p7-v2-performance-regression-report.json');
 const soak = readJSON('docs/p7-v2-soak-test-report.json');
 const command = pkg?.scripts?.['p7-v2:demo'] || '';

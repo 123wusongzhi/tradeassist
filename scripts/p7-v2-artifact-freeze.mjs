@@ -2,18 +2,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { readJSON, root, writeJSON } from './p7-v2-lib.mjs';
+import { CORE_SCENARIOS, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
 
-const REQUIRED_SCENARIOS = [
-  'Product List',
-  'Order List',
-  'Inventory List',
-  'Task List',
-  'Webhook Event List',
-  'Operation Log List',
-  'Webhook Ingestion',
-  'Provider Mock Flow',
-  'Auth/Security',
-];
+const REQUIRED_SCENARIOS = CORE_SCENARIOS;
 
 function sha256(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
@@ -24,22 +15,12 @@ function rawMetricRequests(summary, metricName) {
 }
 
 function rawScenarioCoverage(summary) {
-  const metricNames = {
-    'Product List': 'p7_product_list_requests',
-    'Order List': 'p7_order_list_requests',
-    'Inventory List': 'p7_inventory_list_requests',
-    'Task List': 'p7_task_list_requests',
-    'Webhook Event List': 'p7_webhook_event_list_requests',
-    'Operation Log List': 'p7_operation_log_list_requests',
-    'Webhook Ingestion': 'p7_webhook_ingestion_requests',
-    'Provider Mock Flow': 'p7_provider_mock_flow_requests',
-    'Auth/Security': 'p7_auth_security_requests',
-  };
   const scenarios = REQUIRED_SCENARIOS.map((scenario) => ({
     scenario,
-    requests: rawMetricRequests(summary, metricNames[scenario]),
+    requests: rawMetricRequests(summary, SCENARIO_METRICS[scenario][1]),
+    p99: (summary?.metrics?.[SCENARIO_METRICS[scenario][0]]?.values || summary?.metrics?.[SCENARIO_METRICS[scenario][0]] || {})['p(99)'],
   }));
-  return { scenarios, passed: scenarios.every((item) => item.requests > 0) };
+  return { scenarios, passed: scenarios.every((item) => item.requests >= 100 && Number.isFinite(item.p99)) };
 }
 
 function ensureRegularFile(filePath) {
@@ -55,8 +36,8 @@ export function frozenArtifactPath(kind, runId) {
 
 export function freezeRawArtifact({ kind, runId, reportPath }) {
   if (!['baseline', 'current'].includes(kind)) throw new Error(`unsupported freeze kind: ${kind}`);
-  if (!/^p7v2-(baseline|current)-r3b-recovery3-[a-z0-9_-]+$/.test(runId)) {
-    throw new Error('a unique Rebaseline2 run ID is required');
+  if (!/^p7v2-(baseline|current)-r3b-recovery4-[a-z0-9_-]+$/.test(runId)) {
+    throw new Error('a unique Recovery4 run ID is required');
   }
 
   const report = readJSON(reportPath);
@@ -81,7 +62,7 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
   const requests = rawMetricRequests(summary, 'http_reqs');
   const coverage = rawScenarioCoverage(summary);
   if (requests <= 0) throw new Error('raw k6 artifact has zero requests');
-  if (!coverage.passed) throw new Error('raw k6 artifact lacks required scenario coverage');
+  if (!coverage.passed) throw new Error('raw k6 artifact lacks required steady scenario coverage, p99, or 100 samples');
 
   const destination = frozenArtifactPath(kind, runId);
   if (fs.existsSync(destination)) throw new Error(`frozen artifact already exists: ${destination}`);

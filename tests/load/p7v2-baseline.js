@@ -39,7 +39,8 @@ export const thresholds = {
   p7_operation_log_list_duration: ['p(95)<800', 'p(99)<1500'],
   p7_webhook_ingestion_duration: ['p(95)<1200', 'p(99)<2500'],
   p7_provider_mock_flow_duration: ['p(95)<500', 'p(99)<1000'],
-  p7_auth_security_duration: ['p(95)<500', 'p(99)<1000'],
+  p7_auth_invalid_login_duration: ['p(95)<500', 'p(99)<1000'],
+  p7_webhook_invalid_signature_duration: ['p(95)<500', 'p(99)<1000'],
 };
 const scenarioTrends = {
   productList: new Trend('p7_product_list_duration'),
@@ -50,7 +51,8 @@ const scenarioTrends = {
   operationLogList: new Trend('p7_operation_log_list_duration'),
   webhookIngestion: new Trend('p7_webhook_ingestion_duration'),
   providerMockFlow: new Trend('p7_provider_mock_flow_duration'),
-  authSecurity: new Trend('p7_auth_security_duration'),
+  authInvalidLogin: new Trend('p7_auth_invalid_login_duration'),
+  webhookInvalidSignature: new Trend('p7_webhook_invalid_signature_duration'),
 };
 const scenarioCounters = {
   productList: new Counter('p7_product_list_requests'),
@@ -61,7 +63,28 @@ const scenarioCounters = {
   operationLogList: new Counter('p7_operation_log_list_requests'),
   webhookIngestion: new Counter('p7_webhook_ingestion_requests'),
   providerMockFlow: new Counter('p7_provider_mock_flow_requests'),
-  authSecurity: new Counter('p7_auth_security_requests'),
+  authInvalidLogin: new Counter('p7_auth_invalid_login_requests'),
+  webhookInvalidSignature: new Counter('p7_webhook_invalid_signature_requests'),
+};
+const steadyTrends = {
+  productList: new Trend('p7_product_list_steady_duration'),
+  orderList: new Trend('p7_order_list_steady_duration'),
+  inventoryList: new Trend('p7_inventory_list_steady_duration'),
+  taskList: new Trend('p7_task_list_steady_duration'),
+  webhookEventList: new Trend('p7_webhook_event_list_steady_duration'),
+  operationLogList: new Trend('p7_operation_log_list_steady_duration'),
+  webhookIngestion: new Trend('p7_webhook_ingestion_steady_duration'),
+  providerMockFlow: new Trend('p7_provider_mock_flow_steady_duration'),
+};
+const steadyCounters = {
+  productList: new Counter('p7_product_list_steady_requests'),
+  orderList: new Counter('p7_order_list_steady_requests'),
+  inventoryList: new Counter('p7_inventory_list_steady_requests'),
+  taskList: new Counter('p7_task_list_steady_requests'),
+  webhookEventList: new Counter('p7_webhook_event_list_steady_requests'),
+  operationLogList: new Counter('p7_operation_log_list_steady_requests'),
+  webhookIngestion: new Counter('p7_webhook_ingestion_steady_requests'),
+  providerMockFlow: new Counter('p7_provider_mock_flow_steady_requests'),
 };
 let cachedTokens;
 
@@ -72,6 +95,7 @@ const steadyDur = __ENV.STEADY || '10m';
 const rampdownDur = __ENV.RAMPDOWN || '2m';
 
 export const options = {
+  summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
   scenarios: {
     warmup: {
       executor: 'constant-vus',
@@ -170,14 +194,14 @@ export function securityNegativePhase() {
     },
   );
   const cls1 = classifyResponse(invalidLogin, { scenario: 'auth-invalid-login', credentialRole: 'none', expectedStatus: 401 }, 'security');
-  scenarioTrends.authSecurity.add(invalidLogin.timings.duration);
-  scenarioCounters.authSecurity.add(1);
+  scenarioTrends.authInvalidLogin.add(invalidLogin.timings.duration, metricTags('auth_invalid_login', 'POST /api/v1/auth/login', 'login_invalid', 'security', '4xx'));
+  scenarioCounters.authInvalidLogin.add(1, metricTags('auth_invalid_login', 'POST /api/v1/auth/login', 'login_invalid', 'security', '4xx'));
   recordClassification(cls1);
 
   const invalidWebhook = webhookInvalidScenario();
   const cls2 = classifyResponse(invalidWebhook, { scenario: 'webhook-invalid-signature', credentialRole: 'none', expectedStatus: 401 }, 'security');
-  scenarioTrends.authSecurity.add(invalidWebhook.timings.duration);
-  scenarioCounters.authSecurity.add(1);
+  scenarioTrends.webhookInvalidSignature.add(invalidWebhook.timings.duration, metricTags('webhook_invalid_signature', 'POST /api/v1/webhooks/internal-test/ping', 'signature_check', 'security', '4xx'));
+  scenarioCounters.webhookInvalidSignature.add(1, metricTags('webhook_invalid_signature', 'POST /api/v1/webhooks/internal-test/ping', 'signature_check', 'security', '4xx'));
   recordClassification(cls2);
 
   sleep(1);
@@ -193,14 +217,14 @@ function readList(name, tokens, cursor) {
   const query = cursor ? `${path}${path.includes('?') ? '&' : '?'}cursor=${encodeURIComponent(cursor)}` : path;
   return http.get(`${baseUrl()}${query}`, {
     headers: authHeadersForRole(tokens, route.credentialRole),
-    tags: { scenario: name, group: 'read-heavy', credential: route.credentialRole },
+    tags: { ...metricTags(name, route.path.split('?')[0], 'list', 'steady', '2xx'), group: 'read-heavy', credential: route.credentialRole },
   });
 }
 
 function webhookValidScenario() {
   const eventId = `p7v2-valid-${__VU}-${__ITER}`;
   return postSignedWebhook('/api/v1/webhooks/internal-test/ping', { eventId }, {
-    scenario: 'webhook-valid-ingestion',
+    ...metricTags('webhook_ingestion', 'POST /api/v1/webhooks/internal-test/ping', 'ingest', 'steady', '2xx'),
     group: 'mixed',
   });
 }
@@ -214,13 +238,13 @@ function webhookInvalidScenario() {
       'X-Webhook-Signature': 'deadbeef',
       'X-Webhook-Timestamp': String(ts),
     },
-    tags: { scenario: 'webhook-invalid-signature', group: 'auth-security' },
+    tags: { ...metricTags('webhook_invalid_signature', 'POST /api/v1/webhooks/internal-test/ping', 'signature_check', 'security', '4xx'), group: 'auth-security' },
     responseCallback: http.expectedStatuses(401, 403),
   });
 }
 
 function providerHealthScenario() {
-  return http.get(`${baseUrl()}/health/live`, { tags: { scenario: 'provider-mock-flow', group: 'mixed' } });
+  return http.get(`${baseUrl()}/health/live`, { tags: { ...metricTags('provider_mock_flow', 'GET /health/live', 'health_live', 'steady', '2xx'), group: 'mixed' } });
 }
 
 function routeForPick(pick) {
@@ -236,14 +260,26 @@ function routeForPick(pick) {
 
 function recordScenarioDuration(scenario, response) {
   const duration = response?.timings?.duration || 0;
-  if (scenario === 'productList') { scenarioTrends.productList.add(duration); scenarioCounters.productList.add(1); }
-  else if (scenario === 'orderList') { scenarioTrends.orderList.add(duration); scenarioCounters.orderList.add(1); }
-  else if (scenario === 'inventoryList') { scenarioTrends.inventoryList.add(duration); scenarioCounters.inventoryList.add(1); }
-  else if (scenario === 'taskList') { scenarioTrends.taskList.add(duration); scenarioCounters.taskList.add(1); }
-  else if (scenario === 'webhookEventList') { scenarioTrends.webhookEventList.add(duration); scenarioCounters.webhookEventList.add(1); }
-  else if (scenario === 'operationLogList') { scenarioTrends.operationLogList.add(duration); scenarioCounters.operationLogList.add(1); }
-  else if (scenario === 'webhook-valid-ingestion') { scenarioTrends.webhookIngestion.add(duration); scenarioCounters.webhookIngestion.add(1); }
-  else if (scenario === 'provider-mock-flow') { scenarioTrends.providerMockFlow.add(duration); scenarioCounters.providerMockFlow.add(1); }
+  if (scenario === 'productList') recordSteady('productList', duration, 'GET /api/v1/products', 'list');
+  else if (scenario === 'orderList') recordSteady('orderList', duration, 'GET /api/v1/orders', 'list');
+  else if (scenario === 'inventoryList') recordSteady('inventoryList', duration, 'GET /api/v1/inventory', 'list');
+  else if (scenario === 'taskList') recordSteady('taskList', duration, 'GET /api/v1/task-center/failures', 'list');
+  else if (scenario === 'webhookEventList') recordSteady('webhookEventList', duration, 'GET /api/v1/webhooks/events', 'list');
+  else if (scenario === 'operationLogList') recordSteady('operationLogList', duration, 'GET /api/v1/operation-logs', 'list');
+  else if (scenario === 'webhook-valid-ingestion') recordSteady('webhookIngestion', duration, 'POST /api/v1/webhooks/internal-test/ping', 'ingest');
+  else if (scenario === 'provider-mock-flow') recordSteady('providerMockFlow', duration, 'GET /health/live', 'health_live');
+}
+
+function recordSteady(name, duration, routeId, operationId) {
+  const tags = metricTags(name, routeId, operationId, 'steady', '2xx');
+  scenarioTrends[name].add(duration, tags);
+  scenarioCounters[name].add(1, tags);
+  steadyTrends[name].add(duration, tags);
+  steadyCounters[name].add(1, tags);
+}
+
+function metricTags(scenarioId, routeId, operationId, phase, expectedStatusClass) {
+  return { scenarioId, routeId, operationId, phase, expectedStatusClass };
 }
 
 function tokensFor(data) {

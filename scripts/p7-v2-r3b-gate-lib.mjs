@@ -1,11 +1,12 @@
 import { baselineRequests, validateFrozenBaseline } from './p7-v2-evidence-resolver.mjs';
 
 const requiredCooldown = [
+  'httpLatencyRecovered',
+  'errorRateRecovered',
+  'throughputRecovered',
   'queueRecovered',
   'workerInflightRecovered',
-  'providerInflightRecovered',
   'dbConnectionsRecovered',
-  'goroutinesRecovered',
   'memoryRecovered',
   'webhookBacklogRecovered',
   'providerStateRecovered',

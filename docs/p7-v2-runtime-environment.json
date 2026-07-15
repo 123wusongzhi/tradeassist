@@ -1,9 +1,9 @@
 {
   "phase": "P7-V2-R2",
   "status": "passed",
-  "runId": "p7v2-current-r3b-recovery3-20260715-131400-restart",
-  "dbName": "trademind_p7v2_p7v2_current_r3b_recovery3_20260715_131400_resta",
-  "databaseNameHash": "eccfa4a583980569",
+  "runId": "p7v2-current-r3b-recovery4-20260715075855-restart",
+  "dbName": "trademind_p7v2_p7v2_current_r3b_recovery4_20260715075855_restar",
+  "databaseNameHash": "34a81a3204718f1b",
   "hostClass": "wsl2_local_postgresql_socket",
   "port": 18080,
   "selectedHost": "127.0.0.1",
@@ -39,7 +39,7 @@
     "P7V2_PERF_OPERATOR_PASSWORD": "[redacted]",
     "P7V2_PERF_READONLY_PASSWORD": "[redacted]",
     "P7V2_WEBHOOK_TEST_SECRET": "[redacted]",
-    "DB_NAME": "trademind_p7v2_p7v2_current_r3b_recovery3_20260715_131400_resta",
+    "DB_NAME": "trademind_p7v2_p7v2_current_r3b_recovery4_20260715075855_restar",
     "DB_DRIVER": "postgres",
     "DB_HOST": "/var/run/postgresql",
     "DB_PORT": "5432",
@@ -49,13 +49,13 @@
     "P7_V2_API_PORT": "18080",
     "APP_HTTP_ADDR": "127.0.0.1:18080",
     "P7_BASE_URL": "http://127.0.0.1:18080",
-    "P7V2_INSTANCE_NONCE": "406bd1c4-34b4-41a8-aeae-a84b0c081fe5"
+    "P7V2_INSTANCE_NONCE": "023036a7-8a3a-4c0d-8a8d-5bc973647476"
   },
   "serverPid": "",
   "serverStarted": true,
-  "instanceNonce": "406bd1c4-34b4-41a8-aeae-a84b0c081fe5",
+  "instanceNonce": "023036a7-8a3a-4c0d-8a8d-5bc973647476",
   "serverBinaryPath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
-  "serverBinarySha256": "1b62240f6a55a5615a273489fb43d0e5ba1363cac9c11db909650a4582362af9",
+  "serverBinarySha256": "ee5291d521535633abe28b471eedff856a86e291a9aebb19bf74760576374b79",
   "readiness": {
     "migrationsComplete": true,
     "bootstrapCompleted": true,
@@ -65,9 +65,9 @@
     "loadReady": true
   },
   "environmentFingerprint": {
-    "runId": "p7v2-current-r3b-recovery3-20260715-131400-restart",
+    "runId": "p7v2-current-r3b-recovery4-20260715075855-restart",
     "runType": "environment-start",
-    "gitCommit": "6a80dce2d5592c4db3858af12e6184886331bdfe",
+    "gitCommit": "77d7273f2b2bbbe5eaee7dd9d3c17d90fe9dda1e",
     "gitDirty": true,
     "os": "win32",
     "kernel": "10.0.19045",
@@ -80,13 +80,13 @@
     "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
     "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
     "redisVersion": "redis-cli 6.0.16",
-    "startedAt": "2026-07-15T05:36:14.211Z",
+    "startedAt": "2026-07-15T08:21:35.759Z",
     "endedAt": "",
-    "databaseNameHash": "eccfa4a583980569",
+    "databaseNameHash": "34a81a3204718f1b",
     "configFingerprint": "8b7d7af89215a75e",
     "migrationVersion": "AutoMigrate+p7",
     "datasetProfile": "medium"
   },
   "issues": [],
-  "generatedAt": "2026-07-15T05:36:36.951Z"
+  "generatedAt": "2026-07-15T08:22:00.734Z"
 }

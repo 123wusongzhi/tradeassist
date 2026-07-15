@@ -1,21 +1,29 @@
 {
   "phase": "P7-V2",
   "component": "runtime-cleanup",
-  "status": "incomplete",
-  "checkedAt": "2026-07-15T04:57:17.604Z",
-  "gitCommit": "6a80dce2d5592c4db3858af12e6184886331bdfe",
+  "status": "failed",
+  "checkedAt": "2026-07-15T07:54:00.407Z",
+  "gitCommit": "77d7273f2b2bbbe5eaee7dd9d3c17d90fe9dda1e",
   "databasePrefix": "trademind_p7v2_",
-  "droppedDatabase": "trademind_p7v2_p7v2_port_r2_1784091324060_clean_start_again",
+  "droppedDatabase": "trademind_p7v2_p7v2_current_r3b_recovery4_20260715072627_restar",
   "remainingDatabases": [
     "trademind_p7v2_p7v2_baseline_r3b_20260714163000",
+    "trademind_p7v2_p7v2_baseline_r3b_recovery3_20260715_131400",
     "trademind_p7v2_p7v2_baseline_r3b_recovery_20260714_1719",
     "trademind_p7v2_p7v2_current_r3b_20260714164500_restart",
+    "trademind_p7v2_p7v2_current_r3b_recovery3_20260715_131400_resta",
+    "trademind_p7v2_p7v2_current_r3b_recovery4_20260715072627_restar",
     "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
-    "trademind_p7v2_p7v2_port_r2_1784091324060_clean_start"
+    "trademind_p7v2_p7v2_port_r2_1784091324060_clean_start",
+    "trademind_p7v2_p7v2_port_r2_1784091630880_clean_start",
+    "trademind_p7v2_p7v2_port_r2_diagnostic2_20260715_130800",
+    "trademind_p7v2_p7v2_port_r2_diagnostic_20260715_130700"
   ],
-  "remainingDatabasesWithPrefix": 5,
-  "processesRemaining": 20,
+  "remainingDatabasesWithPrefix": 11,
+  "processesRemaining": 21,
   "portsRemaining": 1,
   "queryExecuted": true,
-  "issues": []
+  "issues": [
+    "failed to drop database trademind_p7v2_p7v2_current_r3b_recovery4_20260715072627_restar"
+  ]
 }

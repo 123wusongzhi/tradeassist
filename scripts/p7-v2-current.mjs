@@ -2,11 +2,12 @@ import { spawnSync } from 'node:child_process';
 import { freezeRawArtifact } from './p7-v2-artifact-freeze.mjs';
 import { readJSON, valueOf, writeJSON } from './p7-v2-lib.mjs';
 import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
+import { updateR3BManifest } from './p7-v2-r3b-manifest.mjs';
 
 const args = process.argv.slice(2);
 const runId = valueOf(args, '--run-id') || `p7v2-current-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-if (!/^p7v2-current-r3b-recovery3-[a-z0-9_-]+$/.test(runId)) {
-  throw new Error('P7-V2-R3B-REBASELINE2 requires a unique current run ID');
+if (!/^p7v2-current-r3b-recovery4-[a-z0-9_-]+$/.test(runId)) {
+  throw new Error('P7-V2-R3B-FAST-CLOSE requires a unique Recovery4 current run ID');
 }
 const activeBaseline = resolveActiveBaseline();
 if (!activeBaseline.valid) throw new Error(`active frozen baseline is invalid: ${activeBaseline.issues.join('; ')}`);
@@ -89,7 +90,8 @@ try {
     frozenAt: frozen.createdAt,
   };
   writeJSON(registryPath, { ...registry, activeRegressionCurrent: runId, entries: [...(registry.entries || []), entry] });
-  console.log(JSON.stringify({ phase: 'P7-V2-R3B-REBASELINE', kind: 'current', runId, freeze: 'passed', sha256: frozen.sha256 }, null, 2));
+  updateR3BManifest({ currentRunId: runId, status: 'current_frozen' });
+  console.log(JSON.stringify({ phase: 'P7-V2-R3B-FAST-CLOSE', kind: 'current', runId, freeze: 'passed', sha256: frozen.sha256 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ phase: 'P7-V2-R3B-REBASELINE', kind: 'current', runId, freeze: 'failed', error: error.message }, null, 2));
   process.exit(1);

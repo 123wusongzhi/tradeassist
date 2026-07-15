@@ -136,32 +136,40 @@ if (issues.length === 0) {
 
 const scenario = scenarioFromSummary(kind, summaryJSON, exitCode);
 const scenarioMetricNames = {
-  'Product List': ['p7_product_list_duration', 'p7_product_list_requests'],
-  'Order List': ['p7_order_list_duration', 'p7_order_list_requests'],
-  'Inventory List': ['p7_inventory_list_duration', 'p7_inventory_list_requests'],
-  'Task List': ['p7_task_list_duration', 'p7_task_list_requests'],
-  'Webhook Event List': ['p7_webhook_event_list_duration', 'p7_webhook_event_list_requests'],
-  'Operation Log List': ['p7_operation_log_list_duration', 'p7_operation_log_list_requests'],
-  'Webhook Ingestion': ['p7_webhook_ingestion_duration', 'p7_webhook_ingestion_requests'],
-  'Provider Mock Flow': ['p7_provider_mock_flow_duration', 'p7_provider_mock_flow_requests'],
-  'Auth/Security': ['p7_auth_security_duration', 'p7_auth_security_requests'],
+  'Product List': ['p7_product_list_steady_duration', 'p7_product_list_steady_requests'],
+  'Order List': ['p7_order_list_steady_duration', 'p7_order_list_steady_requests'],
+  'Inventory List': ['p7_inventory_list_steady_duration', 'p7_inventory_list_steady_requests'],
+  'Task List': ['p7_task_list_steady_duration', 'p7_task_list_steady_requests'],
+  'Webhook Event List': ['p7_webhook_event_list_steady_duration', 'p7_webhook_event_list_steady_requests'],
+  'Operation Log List': ['p7_operation_log_list_steady_duration', 'p7_operation_log_list_steady_requests'],
+  'Webhook Ingestion': ['p7_webhook_ingestion_steady_duration', 'p7_webhook_ingestion_steady_requests'],
+  'Provider Mock Flow': ['p7_provider_mock_flow_steady_duration', 'p7_provider_mock_flow_steady_requests'],
+  'Auth Invalid Login': ['p7_auth_invalid_login_duration', 'p7_auth_invalid_login_requests'],
+  'Webhook Invalid Signature': ['p7_webhook_invalid_signature_duration', 'p7_webhook_invalid_signature_requests'],
 };
+function summaryValue(summary, name, key) {
+  const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
+  return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
+}
 const scenarios = Object.entries(scenarioMetricNames)
   .map(([name, [durationMetric, requestMetric]]) => {
     const requests = metric(summaryJSON, requestMetric, 'count');
     return {
       scenario: name,
       requests,
+      requestCount: requests,
+      sampleCount: requests,
       rps: metric(summaryJSON, requestMetric, 'rate'),
       errorRate: scenario.errorRate,
-      p50: metric(summaryJSON, durationMetric, 'med'),
-      p90: metric(summaryJSON, durationMetric, 'p(90)'),
-      p95: metric(summaryJSON, durationMetric, 'p(95)'),
-      p99: metric(summaryJSON, durationMetric, 'p(99)'),
-      max: metric(summaryJSON, durationMetric, 'max'),
+      p50: summaryValue(summaryJSON, durationMetric, 'med'),
+      p90: summaryValue(summaryJSON, durationMetric, 'p(90)'),
+      p95: summaryValue(summaryJSON, durationMetric, 'p(95)'),
+      p99: summaryValue(summaryJSON, durationMetric, 'p(99)'),
+      max: summaryValue(summaryJSON, durationMetric, 'max'),
+      avg: summaryValue(summaryJSON, durationMetric, 'avg'),
       timeouts: 0,
-      status429: 0,
-      status5xx: 0,
+      timeoutCount: 0,
+      statusCodeDistribution: {},
       exitCode,
     };
   })
@@ -203,7 +211,9 @@ const absoluteSloPassed =
 const validationIssues = [
   ...issues,
   ...(completedRequests <= 0 ? ['k6 completed zero requests'] : []),
-  ...((kind === 'baseline' || kind === 'current') && scenarios.length < 9 ? ['k6 summary lacks required scenario coverage'] : []),
+  ...((kind === 'baseline' || kind === 'current') && scenarios.length < 10 ? ['k6 summary lacks required scenario coverage'] : []),
+  ...((kind === 'baseline' || kind === 'current') && scenarios.some((item) => item.sampleCount < 100) ? ['steady scenario samples are insufficient'] : []),
+  ...((kind === 'baseline' || kind === 'current') && scenarios.some((item) => !Number.isFinite(item.p99)) ? ['required steady p99 summary statistic is missing'] : []),
 ];
 
 const report = {
@@ -229,12 +239,19 @@ const report = {
   failedScenarios: exitCode === 0 && scenarios.length >= 9 ? 0 : 1,
   thresholdsPassed: exitCode === 0,
   absoluteSloPassed,
-  targetReached: exitCode === 0 && completedRequests > 0 && scenarios.length >= 9,
+  targetReached: exitCode === 0 && completedRequests > 0 && scenarios.length >= 10,
   k6ExitCode: exitCode,
   crashes: 0,
   panics: 0,
   oom: 0,
   steadyMinutes: kind === 'soak' ? 30 : kind === 'baseline' || kind === 'current' ? 10 : kind === 'diagnostic' ? 3 : 2,
+  steadyWindow: {
+    phase: 'steady',
+    steadyStart: `${loadProfile.warmup}+${loadProfile.ramp}`,
+    steadyEnd: `${loadProfile.warmup}+${loadProfile.ramp}+${loadProfile.steady}`,
+    steadyDuration: loadProfile.steady,
+    steadySampleCount: scenarios.reduce((total, item) => total + item.sampleCount, 0),
+  },
   loadProfile,
   environmentFingerprint: fingerprint,
   datasetFingerprint: dataset.datasetFingerprint || '',

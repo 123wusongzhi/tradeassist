@@ -66,8 +66,8 @@ function metricValue(raw, run, scenario, metric) {
   const [durationMetric, requestMetric] = SCENARIO_METRICS[scenario];
   const values = raw?.metrics?.[durationMetric]?.values || raw?.metrics?.[durationMetric] || {};
   const requestValues = raw?.metrics?.[requestMetric]?.values || raw?.metrics?.[requestMetric] || {};
-  if (metric === 'p95') return values['p(95)'] ?? reportScenarioValue(run, scenario, metric);
-  if (metric === 'p99') return values['p(99)'] ?? reportScenarioValue(run, scenario, metric);
+  if (metric === 'p95') return values['p(95)'];
+  if (metric === 'p99') return values['p(99)'];
   if (metric === 'rps') return requestValues.rate ?? reportScenarioValue(run, scenario, metric);
   if (metric === 'errorRate') return raw?.metrics?.http_req_failed?.values?.rate ?? raw?.metrics?.http_req_failed?.rate ?? reportScenarioValue(run, scenario, metric);
   if (metric === 'timeouts') return raw?.metrics?.p7_timeouts?.values?.count ?? raw?.metrics?.p7_timeouts?.count ?? reportScenarioValue(run, scenario, metric);
@@ -86,7 +86,10 @@ function compare(scenario, metric) {
     baselinePresent: basePresent, baselineValue: basePresent ? Number(baselineValue) : null, baselineSampleCount: baselineSamples,
     currentPresent, currentValue: currentPresent ? Number(currentValue) : null, currentSampleCount: currentSamples,
     relativeThreshold: metadata.relativeThreshold, materialityFloor: metadata.materialityFloor, absoluteSlo: current?.absoluteSloPassed === true };
-  if (!basePresent || !currentPresent) return { ...common, finalVerdict: 'not_comparable', reason: 'missing_metric', missingSide: !basePresent && !currentPresent ? 'both' : !basePresent ? 'baseline' : 'current' };
+  if (!basePresent || !currentPresent) {
+    const reason = metric === 'p99' ? 'summary_stat_missing' : 'missing_metric';
+    return { ...common, finalVerdict: metric === 'p99' ? 'summary_stat_missing' : 'not_comparable', reason, missingSide: !basePresent && !currentPresent ? 'both' : !basePresent ? 'baseline' : 'current' };
+  }
   if (!Number.isFinite(Number(baselineValue)) || !Number.isFinite(Number(currentValue))) return { ...common, finalVerdict: 'invalid_metric', reason: 'non_finite_value' };
   if (baselineSamples < metadata.minimumSampleCount || currentSamples < metadata.minimumSampleCount) return { ...common, finalVerdict: 'insufficient_samples', reason: 'minimum_sample_count_not_met' };
   const absoluteDelta = Number(currentValue) - Number(baselineValue);
@@ -112,13 +115,14 @@ const failedMetricCount = comparisons.filter((item) => item.finalVerdict.startsW
 const notComparableCount = comparisons.filter((item) => item.finalVerdict === 'not_comparable').length;
 const invalidMetricCount = comparisons.filter((item) => item.finalVerdict === 'invalid_metric').length;
 const insufficientSampleCount = comparisons.filter((item) => item.finalVerdict === 'insufficient_samples').length;
-const status = issues.length || failedMetricCount || notComparableCount || invalidMetricCount || insufficientSampleCount ? 'failed' : 'passed';
+const summaryStatMissingCount = comparisons.filter((item) => item.finalVerdict === 'summary_stat_missing').length;
+const status = issues.length || failedMetricCount || notComparableCount || invalidMetricCount || insufficientSampleCount || summaryStatMissingCount ? 'failed' : 'passed';
 const report = { phase: fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
   baseline: { path: baselinePath, runId: baseline?.runId || '', artifactSha256: baselineFrozen.actualHash || '', artifactHashVerified: baselineFrozen.valid },
   current: { path: currentPath, runId: current?.runId || '', artifactSha256: currentFrozen.actualHash || '', artifactHashVerified: currentFrozen.valid, independentRun: current?.independentRun === true },
   absoluteSloPassed: current?.absoluteSloPassed === true, relativeRegressionPassed: failedMetricCount === 0 && notComparableCount === 0,
   materialityGatePassed: failedMetricCount === 0, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount,
-  zeroSemanticErrors: 0, fingerprintVersion, comparabilityPath, comparisons, issues };
+  summaryStatMissingCount, zeroSemanticErrors: 0, fingerprintVersion, comparabilityPath, comparisons, issues };
 if (fingerprintVersion === 1 && !fs.existsSync(path.join(root, 'docs/regressions/p7-v2-r3b-regression-v1-failed.json'))) {
   const previous = readJSON('docs/p7-v2-performance-regression-report.json');
   if (previous) writeJSON('docs/regressions/p7-v2-r3b-regression-v1-failed.json', { ...previous, evaluationVersion: 1 });
@@ -128,5 +132,5 @@ const output = fingerprintVersion === 2
   : ['docs/p7-v2-r3b-rebaseline2-regression-v2-report.json', 'docs/P7_V2_R3B_REBASELINE2_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-REBASELINE2 Regression V2'];
 writeJSON(output[0], report);
 writeMarkdown(output[1], `# ${output[2]}\n\nStatus: **${status}**\n\n- Evaluation version: 2\n- Failed metrics: ${failedMetricCount}\n- Not comparable: ${notComparableCount}\n- Invalid metrics: ${invalidMetricCount}\n- Insufficient samples: ${insufficientSampleCount}\n\n## Issues\n${issues.length ? issues.map((item) => `- ${item}`).join('\n') : '- none'}\n`);
-console.log(JSON.stringify({ phase: report.phase, status, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount }, null, 2));
+console.log(JSON.stringify({ phase: report.phase, status, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount, summaryStatMissingCount }, null, 2));
 process.exit(status === 'passed' ? 0 : 1);

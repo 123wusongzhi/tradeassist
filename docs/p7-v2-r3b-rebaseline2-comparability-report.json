@@ -1,15 +1,16 @@
 {
   "phase": "P7-V2-R3B-CI-RG",
   "status": "not_comparable",
-  "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
-  "currentRunId": "p7v2-current-r3b-recovery3-20260715-131400",
+  "baselineRunId": "p7v2-baseline-r3b-recovery4-20260715075855",
+  "currentRunId": "p7v2-current-r3b-recovery4-20260715075855",
   "baseline": {
-    "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
-    "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
-    "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+    "runtimeSourceTreeHash": "d02c6303766ed63fc2277c8a2223731c3663d95f2a64c72b4220e3cd48940d49",
+    "loadScriptsHash": "dcf2b20629048d46190a18891fdf39d5d524fa41a4914c4af853a83cb75c1b37",
+    "metricSemanticsHash": "390927919d640caf34d2abeb6715d7874cb948d53d90ccb6693a500501c65a54",
     "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
     "configFingerprint": "8b7d7af89215a75e",
     "loadProfileFingerprint": "818ce231b0091774",
+    "loadProfileFingerprintV2": "",
     "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
     "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
     "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
@@ -23,12 +24,13 @@
     "baseUrl": "http://127.0.0.1:18080/"
   },
   "current": {
-    "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
-    "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
-    "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+    "runtimeSourceTreeHash": "d02c6303766ed63fc2277c8a2223731c3663d95f2a64c72b4220e3cd48940d49",
+    "loadScriptsHash": "dcf2b20629048d46190a18891fdf39d5d524fa41a4914c4af853a83cb75c1b37",
+    "metricSemanticsHash": "390927919d640caf34d2abeb6715d7874cb948d53d90ccb6693a500501c65a54",
     "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
     "configFingerprint": "8b7d7af89215a75e",
     "loadProfileFingerprint": "ae4c862477ca18d0",
+    "loadProfileFingerprintV2": "",
     "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
     "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
     "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
@@ -43,6 +45,8 @@
   },
   "mismatchCount": 1,
   "notComparableCount": 0,
+  "currentFingerprintVersion": 1,
+  "loadProfileFingerprintMatch": false,
   "checks": [
     {
       "id": "baseline-registry",
