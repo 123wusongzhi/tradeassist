@@ -5,6 +5,7 @@ import {
   DB_PREFIX,
   gitCommit,
   readJSON,
+  resolveP7V2PortConfig,
   root,
   runWSL,
   stopP7V2Server,
@@ -14,6 +15,7 @@ import {
 } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
+const portConfig = resolveP7V2PortConfig();
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
 const dbName = valueOf(args, '--db-name') || runtime.dbName || '';
 const checkOnly = args.includes('--check-only');
@@ -29,7 +31,7 @@ const remaining = psql(`SELECT datname FROM pg_database WHERE datname LIKE '${DB
 const rows = remaining.status === 0 ? (remaining.stdout || '').trim().split('\n').filter(Boolean) : [];
 
 if (!checkOnly && dbName) {
-  stopP7V2Server();
+  stopP7V2Server({ portConfig });
   const drop = psql(`DROP DATABASE IF EXISTS "${dbName.replaceAll('"', '""')}";`);
   if (drop.status !== 0) issues.push(`failed to drop database ${dbName}`);
 }
@@ -38,7 +40,7 @@ const live = psql(`SELECT datname FROM pg_database WHERE datname LIKE '${DB_PREF
 const liveRows = live.status === 0 ? (live.stdout || '').trim().split('\n').filter(Boolean) : [];
 const proc = runWSL("pgrep -af 'p7v2|p7load|p7verify|k6.*p7v2' 2>/dev/null || true");
 const procCount = (proc.stdout || '').trim().split('\n').filter((l) => l && !l.includes('pgrep -af')).length;
-const ports = runWSL("ss -ltn 2>/dev/null | awk 'NR>1 {print $4}' | grep -E ':(18080|18081|16379|15432)$' || true");
+const ports = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {print $4}' || true`);
 const portCount = (ports.stdout || '').trim().split('\n').filter(Boolean).length;
 
 const report = {

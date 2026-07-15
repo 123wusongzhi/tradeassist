@@ -36,6 +36,9 @@ docker compose -f docker-compose.full.yml up -d --build
 | --- | --- | --- | --- | --- |
 | `APP_ENV` | `development` | backend | 否 | 应用环境，生产建议设为 `production`。 |
 | `APP_HTTP_ADDR` | `:8080` | backend | 否 | Go API 监听地址。 |
+| `P7_V2_API_HOST` | `127.0.0.1` | P7-V2 harness | 否 | 仅 P7-V2 性能环境的 loopback API host；禁止公网或 WSL 非 loopback 地址。 |
+| `P7_V2_API_PORT` | `8080` | P7-V2 harness | 否 | 仅 P7-V2 性能环境 API 端口；可迁移至 `18080`、`28080` 或 `38080`。 |
+| `P7_BASE_URL` | 派生自前两项 | P7-V2 harness | 否 | 必须等于 `http://${P7_V2_API_HOST}:${P7_V2_API_PORT}`，供 k6 与探针统一使用。 |
 | `APP_MASTER_KEY` | 空 / 64 位 hex | backend | 是 | AES-GCM 主密钥，用于 settings 敏感配置加密。 |
 | `ADMIN_BOOTSTRAP_EMAIL` | 空 / `admin@example.com` | backend | 否 | 初始管理员邮箱。 |
 | `ADMIN_BOOTSTRAP_PHONE` | 空 | backend | 否 | 初始管理员手机号。 |

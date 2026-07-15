@@ -1,7 +1,8 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { readJSON, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
+import { readJSON, resolveP7V2PortConfig, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
+const portConfig = resolveP7V2PortConfig();
 const runId = valueOf(args, '--run-id') || `p7v2-soak-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const runtimeDatabase = String((readJSON('docs/p7-v2-runtime-environment.json') || {}).dbName || '').replaceAll("'", "''");
 const configured = {
@@ -27,7 +28,7 @@ function wslMetric(command) {
 async function probe() {
   const sample = { capturedAt: new Date().toISOString(), metrics: {}, availability: {} };
   try {
-    const response = await fetch('http://127.0.0.1:8080/health');
+    const response = await fetch(`${portConfig.baseUrl}/health`);
     const payload = await response.json();
     const data = payload?.data || {};
     const queues = ['collectQueue', 'imageQueue', 'orderSyncQueue', 'customerMessageSyncQueue', 'productPublishQueue', 'inventorySyncQueue'];

@@ -8,4 +8,4 @@ Status: passed
 | Planned rows | 1900150 |
 | Actual rows | 1900150 |
 | Failed rows | 0 |
-| Fingerprint | 2ae44035d94f86c256d62f42057b5cfd0aaea7a657156fd93926c9ba628e039d |
+| Fingerprint | a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d |

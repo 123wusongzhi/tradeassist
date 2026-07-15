@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { collectEnvironmentFingerprint, configFingerprint, loadProfileFingerprint, readJSON, root, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
+import { collectEnvironmentFingerprint, configFingerprint, loadProfileFingerprint, readJSON, resolveP7V2PortConfig, root, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest } from './p7-v2-r3-lib.mjs';
 
 const args = process.argv.slice(2);
 const value = (key) => args[args.indexOf(key) + 1] || '';
 const baselineRunId = value('--baseline-run-id');
 const currentRunId = value('--current-run-id');
-if (!/^p7v2-baseline-r3b-recovery2-[a-z0-9_-]+$/.test(baselineRunId) || !/^p7v2-current-r3b-recovery2-[a-z0-9_-]+$/.test(currentRunId) || baselineRunId === currentRunId) {
+if (!/^p7v2-baseline-r3b-recovery3-[a-z0-9_-]+$/.test(baselineRunId) || !/^p7v2-current-r3b-recovery3-[a-z0-9_-]+$/.test(currentRunId) || baselineRunId === currentRunId) {
   throw new Error('distinct Rebaseline2 baseline/current run IDs are required');
 }
 const baselineRegistry = readJSON('docs/baselines/p7-v2-baseline-registry.json') || {};
@@ -23,6 +23,7 @@ const routeMatrix = readJSON('docs/p7-v2-r2-route-credential-matrix.json') || {}
 const policy = readJSON('docs/p7-v2-regression-policy-v2.json') || {};
 const slo = fs.readFileSync(path.join(root, 'docs/SLO.md'), 'utf8');
 const runtimeEnv = readJSON('docs/p7-v2-runtime-environment.json') || {};
+const portConfig = resolveP7V2PortConfig(runtimeEnv.env || process.env);
 const fingerprint = collectEnvironmentFingerprint('rebaseline2-freeze', baselineRunId, {
   configFingerprint: configFingerprint(runtimeEnv.env || {}),
   loadProfileFingerprint: loadProfileFingerprint(profile),
@@ -46,6 +47,10 @@ const report = {
   loadProfileFingerprint: fingerprint.loadProfileFingerprint,
   sloFingerprint: jsonHash(slo),
   routeCredentialMatrixFingerprint: jsonHash(routeMatrix),
+  selectedHost: portConfig.host,
+  selectedPort: portConfig.port,
+  baseUrl: portConfig.baseUrl,
+  previousFreezeSuperseded: true,
   k6Version: fingerprint.k6Version,
   goVersion: fingerprint.goVersion,
   nodeVersion: fingerprint.nodeVersion,

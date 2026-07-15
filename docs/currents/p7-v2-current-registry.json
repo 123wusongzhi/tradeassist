@@ -1,4 +1,29 @@
 {
-  "activeRegressionCurrent": "",
-  "entries": []
+  "activeRegressionCurrent": "p7v2-current-r3b-recovery3-20260715-131400",
+  "entries": [
+    {
+      "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+      "status": "passed",
+      "independentRun": true,
+      "immutable": true,
+      "validForRegression": true,
+      "rawArtifactPath": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/raw-summary.json",
+      "rawArtifactSha256": "19aaa21b4094ee14147621b47b7370003b9a4dbaec12b24f64a32a66162af4c5",
+      "rawArtifactSizeBytes": 10164,
+      "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+      "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
+      "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
+      "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+      "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+      "configFingerprint": "8b7d7af89215a75e",
+      "loadProfileFingerprint": "ae4c862477ca18d0",
+      "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
+      "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+      "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+      "selectedHost": "127.0.0.1",
+      "selectedPort": 18080,
+      "baseUrl": "http://127.0.0.1:18080/",
+      "frozenAt": "2026-07-15T05:58:30.028Z"
+    }
+  ]
 }

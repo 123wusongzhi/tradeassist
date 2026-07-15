@@ -5,7 +5,7 @@ import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 
 const args = process.argv.slice(2);
 const runId = valueOf(args, '--run-id') || `p7v2-current-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-if (!/^p7v2-current-r3b-recovery2-[a-z0-9_-]+$/.test(runId)) {
+if (!/^p7v2-current-r3b-recovery3-[a-z0-9_-]+$/.test(runId)) {
   throw new Error('P7-V2-R3B-REBASELINE2 requires a unique current run ID');
 }
 const activeBaseline = resolveActiveBaseline();
@@ -83,6 +83,9 @@ try {
     sloFingerprint: current.sloFingerprint || '',
     routeCredentialMatrixFingerprint: current.routeCredentialMatrixFingerprint || '',
     regressionPolicyFingerprint: current.regressionPolicyFingerprint || '',
+    selectedHost: current.selectedHost || '',
+    selectedPort: current.selectedPort || 0,
+    baseUrl: current.baseUrl || '',
     frozenAt: frozen.createdAt,
   };
   writeJSON(registryPath, { ...registry, activeRegressionCurrent: runId, entries: [...(registry.entries || []), entry] });

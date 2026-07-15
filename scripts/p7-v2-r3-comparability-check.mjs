@@ -23,6 +23,9 @@ const comparableKeys = [
   'postgresVersion',
   'redisVersion',
   'hostClass',
+  'selectedHost',
+  'selectedPort',
+  'baseUrl',
 ];
 function values(manifest, entry) {
   const environment = manifest.environmentFingerprint || entry.environmentFingerprint || {};
@@ -41,6 +44,9 @@ function values(manifest, entry) {
     postgresVersion: environment.postgresVersion || environment.postgreSQLVersion || '',
     redisVersion: environment.redisVersion || '',
     hostClass: entry.hostClass || environment.hostClass || 'wsl2_local_postgresql_socket',
+    selectedHost: manifest.selectedHost || entry.selectedHost || '',
+    selectedPort: String(manifest.selectedPort || entry.selectedPort || ''),
+    baseUrl: manifest.baseUrl || entry.baseUrl || '',
   };
 }
 const baselineValues = values(baselineManifest, baseline);

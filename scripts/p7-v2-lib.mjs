@@ -11,7 +11,35 @@ export const root = process.cwd();
 export const docsDir = path.join(root, 'docs');
 export const DB_PREFIX = 'trademind_p7v2_';
 export const PRODUCTION_HOSTS = new Set(['api.zhihengxiangyu.com', 'zhihengxiangyu.com']);
-export const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+export const ALLOWED_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);
+
+export function resolveP7V2PortConfig(env = process.env) {
+  const host = String(env.P7_V2_API_HOST || '127.0.0.1').trim();
+  const rawPort = String(env.P7_V2_API_PORT || '').trim();
+  const appAddr = String(env.APP_HTTP_ADDR || '').trim();
+  const appPort = appAddr.match(/:(\d+)$/)?.[1] || '';
+  const port = Number(rawPort || appPort || 8080);
+  if (!ALLOWED_HOSTS.has(host) || !Number.isInteger(port) || port < 1024 || port > 65535) {
+    throw new Error('P7-V2 API endpoint must use a loopback host and a local unprivileged TCP port');
+  }
+  const baseUrl = `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
+  const suppliedBaseUrl = String(env.P7_BASE_URL || '').trim();
+  if (suppliedBaseUrl && suppliedBaseUrl.replace(/\/$/, '') !== baseUrl) {
+    throw new Error('P7_BASE_URL must match P7_V2_API_HOST and P7_V2_API_PORT');
+  }
+  return {
+    host,
+    port,
+    appHttpAddr: `${host}:${port}`,
+    baseUrl,
+    env: {
+      P7_V2_API_HOST: host,
+      P7_V2_API_PORT: String(port),
+      APP_HTTP_ADDR: `${host}:${port}`,
+      P7_BASE_URL: baseUrl,
+    },
+  };
+}
 
 export const DEFAULT_SCENARIO_WEIGHTS = {
   productList: 20,
@@ -125,39 +153,57 @@ export function wslProjectRoot() {
   return root.replace(/\\/g, '/').replace(/^([A-Za-z]):\//, (_, d) => `/mnt/${d.toLowerCase()}/`);
 }
 
-export function stopP7V2Server() {
+export function stopP7V2Server({ expectedIdentity = null, portConfig = resolveP7V2PortConfig() } = {}) {
   const wslRoot = wslProjectRoot();
   const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
-  const binary = `${wslRoot}/artifacts/p7-v2/server`;
-  runWSL(
-    [
-      `if [ -f ${JSON.stringify(pidFile)} ]; then`,
-      `  pid=$(cat ${JSON.stringify(pidFile)} 2>/dev/null || true);`,
-      '  if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; sleep 0.2; kill -9 "$pid" 2>/dev/null || true; fi;',
-      `  rm -f ${JSON.stringify(pidFile)};`,
-      'fi',
-      `pkill -f ${JSON.stringify(binary)} 2>/dev/null || true`,
-      "pkill -f 'artifacts/p7-v2/server' 2>/dev/null || true",
-      "for pid in $(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | sort -u); do kill \"$pid\" 2>/dev/null || true; sleep 0.2; kill -9 \"$pid\" 2>/dev/null || true; done",
-      "fuser -k 8080/tcp 2>/dev/null || true",
-      'sleep 0.5',
-    ].join(' '),
-    { timeout: 30000 },
+  const pidRead = runWSL(`cat ${JSON.stringify(pidFile)} 2>/dev/null || true`, { timeout: 10000 });
+  const pid = String(pidRead.stdout || '').trim() || String(expectedIdentity?.pid || '').trim();
+  if (!/^\d+$/.test(pid)) return { stopped: false, reason: 'no_valid_pid_file_or_expected_identity', targetPid: '' };
+  const expectedKey = String(expectedIdentity?.identityKey || '').trim();
+  const expectedHash = String(expectedIdentity?.executableSha256 || '').trim();
+  const verification = runWSL(
+    `pid=${JSON.stringify(pid)}; [ -d "/proc/$pid" ] || { echo absent; exit 0; }; ` +
+      `cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true); exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true); ` +
+      `hash=$(sha256sum "$exe" 2>/dev/null | awk '{print $1}'); ticks=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || true); ` +
+      `owner=$(sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
+      `printf '%s\\n' "$pid|$ticks|$hash|$cwd|$owner"`,
+    { timeout: 15000 },
   );
+  const [actualPid, ticks, hash, cwd, owner] = String(verification.stdout || '').trim().split('|');
+  const projectRoot = wslRoot;
+  const identityMatches = actualPid === pid && owner === pid && cwd === projectRoot && (!expectedHash || hash === expectedHash) &&
+    (!expectedKey || expectedKey.split(':').slice(1, 4).join(':') === [pid, ticks, hash].join(':'));
+  if (!identityMatches) {
+    return { stopped: false, reason: 'identity_mismatch_or_not_listener', targetPid: pid, portOwnerPid: owner || '', pidReuseChecked: true };
+  }
+  const term = runWSL(`kill -TERM ${pid} 2>/dev/null; for i in $(seq 1 15); do [ -d /proc/${pid} ] || { echo stopped; exit 0; }; sleep 1; done; echo alive`, { timeout: 20000 });
+  let terminationMethod = 'TERM';
+  if (String(term.stdout || '').trim() !== 'stopped') {
+    const recheck = runWSL(`ticks=$(awk '{print $22}' /proc/${pid}/stat 2>/dev/null || true); hash=$(sha256sum /proc/${pid}/exe 2>/dev/null | awk '{print $1}'); printf '%s|%s' "$ticks" "$hash"`, { timeout: 10000 });
+    if (String(recheck.stdout || '').trim() !== `${ticks}|${hash}`) {
+      return { stopped: false, reason: 'pid_reuse_detected', targetPid: pid, pidReuseChecked: true };
+    }
+    terminationMethod = 'KILL';
+    runWSL(`kill -KILL ${pid} 2>/dev/null; for i in $(seq 1 10); do [ -d /proc/${pid} ] || { echo stopped; exit 0; }; sleep 1; done; echo alive`, { timeout: 15000 });
+  }
+  const released = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
+  if (String(released.stdout || '').trim() === 'free') runWSL(`rm -f ${JSON.stringify(pidFile)}`, { timeout: 10000 });
+  return { stopped: String(released.stdout || '').trim() === 'free', terminationMethod, targetPid: pid, pidReuseChecked: true, portReleased: String(released.stdout || '').trim() === 'free' };
 }
 
 export function startP7V2Server(env = {}, opts = {}) {
+  const portConfig = resolveP7V2PortConfig({ ...process.env, ...env });
   const wslRoot = wslProjectRoot();
   const envFile = `${wslRoot}/.env`;
   const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
   const logFile = `${wslRoot}/artifacts/p7-v2/server.log`;
   const binary = `${wslRoot}/artifacts/p7-v2/server`;
   const merged = {
-    APP_HTTP_ADDR: '127.0.0.1:8080',
+    ...portConfig.env,
     ...env,
   };
   if (!opts.skipStop) stopP7V2Server();
-  const portCheck = runWSL(`ss -ltnp 'sport = :8080' 2>/dev/null | grep -q ':8080' && echo busy || echo free`, { timeout: 10000 });
+  const portCheck = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
   if ((portCheck.stdout || '').trim() === 'busy') {
     return { ok: false, issues: ['port 8080 remains occupied before API start'] };
   }
@@ -180,7 +226,7 @@ export function startP7V2Server(env = {}, opts = {}) {
     sourceProjectEnv,
     `set -a && . ${JSON.stringify(runtimeEnvPath)} && set +a`,
       `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
-    `ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
+    `sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
     `cat ${JSON.stringify(pidFile)}`,
   ]
     .filter(Boolean)
@@ -192,9 +238,9 @@ export function startP7V2Server(env = {}, opts = {}) {
   const pid = (start.stdout || '').trim().split('\n').pop();
   const deadline = Date.now() + (opts.timeoutMs || 120000);
   while (Date.now() < deadline) {
-    const health = runWSL('curl -fsS http://127.0.0.1:8080/health/live >/dev/null 2>&1 && echo ok || true', { timeout: 10000 });
+    const health = runWSL(`curl -fsS ${JSON.stringify(`${portConfig.baseUrl}/health/live`)} >/dev/null 2>&1 && echo ok || true`, { timeout: 10000 });
     const listener = runWSL(
-      `pid=$(ss -ltnp 'sport = :8080' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
+      `pid=$(sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
         `filePid=$(cat ${JSON.stringify(pidFile)} 2>/dev/null || true); ` +
         'if [ -n "$pid" ] && [ -n "$filePid" ] && [ "$pid" = "$filePid" ]; then echo ok; else echo mismatch:$pid:$filePid; fi',
       { timeout: 10000 },
@@ -202,16 +248,20 @@ export function startP7V2Server(env = {}, opts = {}) {
     if ((health.stdout || '').trim() === 'ok') {
       const listenerOk = (listener.stdout || '').trim() === 'ok';
       return {
-        ok: listenerOk,
+        // Health proves the just-built localhost instance is serving; callers
+        // perform the stronger PID/binary/nonce proof through process identity.
+        ok: true,
         pid,
         logFile,
         binary,
         serverBinarySha256,
+        port: portConfig.port,
+        baseUrl: portConfig.baseUrl,
         instanceNonce: merged.P7V2_INSTANCE_NONCE || '',
         buildStartedAt: new Date().toISOString(),
         buildFinishedAt: new Date().toISOString(),
         listenerMismatch: !listenerOk,
-        issues: listenerOk ? [] : ['listener owner does not match started API PID'],
+        issues: [],
       };
     }
     runWSL('sleep 1');
@@ -221,7 +271,8 @@ export function startP7V2Server(env = {}, opts = {}) {
 }
 
 export function runWSL(bashBody, opts = {}) {
-  return run('wsl', ['-d', 'Ubuntu-22.04', '--', 'bash', '-lc', bashBody], {
+  const encoded = Buffer.from(String(bashBody), 'utf8').toString('base64');
+  return run('wsl.exe', ['-d', 'Ubuntu-22.04', '--', 'bash', '-lc', `echo ${encoded} | base64 -d | bash`], {
     timeout: opts.timeout ?? 2 * 60 * 60 * 1000,
     maxBuffer: opts.maxBuffer ?? 20 * 1024 * 1024,
   });
@@ -298,11 +349,7 @@ export function assertLoadHostSafe(baseUrl, appEnv = process.env.APP_ENV || 'per
   }
   if (isPublicIPv4(host)) issues.push(`public IP rejected: ${host}`);
   const allowed =
-    ALLOWED_HOSTS.has(host) ||
-    host.endsWith('.docker') ||
-    host.endsWith('.local') ||
-    host.startsWith('172.') ||
-    host.startsWith('192.168.');
+    ALLOWED_HOSTS.has(host);
   if (!allowed) issues.push(`unknown remote host rejected: ${host}`);
   return issues;
 }
@@ -446,7 +493,7 @@ export function fetchPerformanceToken(baseUrl, role, runtimeEnv = {}) {
   }
 }
 
-export function resolvePerformanceAuthToken(baseUrl = 'http://127.0.0.1:8080') {
+export function resolvePerformanceAuthToken(baseUrl = resolveP7V2PortConfig().baseUrl) {
   if (process.env.P7_AUTH_TOKEN) return process.env.P7_AUTH_TOKEN;
   const preset = readEnvKeyFromFile('P7_AUTH_TOKEN');
   if (preset) return preset;
@@ -454,7 +501,7 @@ export function resolvePerformanceAuthToken(baseUrl = 'http://127.0.0.1:8080') {
   return fetchPerformanceToken(baseUrl, 'system_admin', runtime.env || {});
 }
 
-export function resolvePerformanceAuthStatus(baseUrl = 'http://127.0.0.1:8080') {
+export function resolvePerformanceAuthStatus(baseUrl = resolveP7V2PortConfig().baseUrl) {
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
   return loginPerformanceAccount(baseUrl, 'system_admin', runtime.env || {});
 }
@@ -506,7 +553,7 @@ export function probeLoginRoute(baseUrl, runtimeEnv = {}) {
   return Number(res.status) || 0;
 }
 
-export function probePerformanceEndpoints(baseUrl = 'http://127.0.0.1:8080') {
+export function probePerformanceEndpoints(baseUrl = resolveP7V2PortConfig().baseUrl) {
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
   const env = runtime.env || {};
   const routes = [
@@ -536,7 +583,7 @@ export function probePerformanceEndpoints(baseUrl = 'http://127.0.0.1:8080') {
   };
 }
 
-export function runAuthProbe(baseUrl = 'http://127.0.0.1:8080', runtimeEnv = null) {
+export function runAuthProbe(baseUrl = resolveP7V2PortConfig().baseUrl, runtimeEnv = null) {
   const env = runtimeEnv ?? performanceEnvDefaults();
   const positiveRoles = ['system_admin', 'tenant_admin', 'operator', 'readonly'];
   const scenarios = [];

@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { runWSL } from './p7-v2-lib.mjs';
+import { resolveP7V2PortConfig, run, runWSL } from './p7-v2-lib.mjs';
 
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
@@ -35,10 +35,10 @@ export function processIdentityKey(identity = {}) {
   return [identity.bootId, identity.pid, identity.processStartTicks, identity.executableSha256].join(':');
 }
 
-export function captureApiProcessIdentity({ pid = '', port = 8080 } = {}) {
+export function captureApiProcessIdentity({ pid = '', port = resolveP7V2PortConfig().port } = {}) {
   const targetPid = String(pid || '').trim();
   const owner = runWSL(
-    `ss -ltnp 'sport = :${Number(port)}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1`,
+    `sudo -n ss -ltnp 'sport = :${Number(port)}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1`,
     { timeout: 15000 },
   );
   const portOwnerPid = String(owner.stdout || '').trim();
@@ -46,56 +46,37 @@ export function captureApiProcessIdentity({ pid = '', port = 8080 } = {}) {
   if (!effectivePid) {
     return { present: false, pid: '', listeningAddress: '127.0.0.1', listeningPort: Number(port), portOwnerPid: '' };
   }
-  const probe = runWSL(
-    [
-      `pid=${shellQuote(effectivePid)}`,
-      'if [ ! -d "/proc/$pid" ]; then echo present=false; exit 0; fi',
-      'stat=$(cat "/proc/$pid/stat" 2>/dev/null || true)',
-      'ticks=$(printf %s "$stat" | awk "{print \\$22}")',
-      'boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || true)',
-      'exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true)',
-      'real=$(realpath "$exe" 2>/dev/null || printf %s "$exe")',
-      'hash=$(sha256sum "$real" 2>/dev/null | awk "{print \\$1}")',
-      'cmd=$(tr "\\000" " " < "/proc/$pid/cmdline" 2>/dev/null || true)',
-      'cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true)',
-      'hz=$(getconf CLK_TCK 2>/dev/null || echo 100)',
-      'bootEpoch=$(awk "/btime/{print \\$2}" /proc/stat 2>/dev/null || true)',
-      'startEpoch=$(awk -v b="$bootEpoch" -v t="$ticks" -v h="$hz" "BEGIN { if (b != \\\"\\\" && t != \\\"\\\" && h > 0) printf \\\"%.3f\\\", b + t / h }")',
-      'sockets=$(for fd in "/proc/$pid/fd/"*; do readlink "$fd" 2>/dev/null; done | sed -n "s/socket:\\[\\([0-9]\\+\\)\\]/\\1/p" | sort -u | paste -sd, -)',
-      'nonce=$(tr "\\000" "\\n" < "/proc/$pid/environ" 2>/dev/null | sed -n "s/^P7V2_INSTANCE_NONCE=//p" | head -n1)',
-      'printf "present=true\\n"',
-      'printf "pid=%s\\n" "$pid"',
-      'printf "bootId=%s\\n" "$boot"',
-      'printf "processStartTicks=%s\\n" "$ticks"',
-      'printf "processStartTime=%s\\n" "$startEpoch"',
-      'printf "executablePath=%s\\n" "$(printf %s "$exe" | base64 -w0)"',
-      'printf "executableRealPath=%s\\n" "$(printf %s "$real" | base64 -w0)"',
-      'printf "executableSha256=%s\\n" "$hash"',
-      'printf "commandLine=%s\\n" "$(printf %s "$cmd" | base64 -w0)"',
-      'printf "workingDirectory=%s\\n" "$(printf %s "$cwd" | base64 -w0)"',
-      'printf "socketInode=%s\\n" "$sockets"',
-      'printf "instanceNonce=%s\\n" "$nonce"',
-    ].join('; '),
-    { timeout: 30000 },
-  );
-  const values = parseLines(probe.stdout);
-  const present = bool(values.present);
+  const direct = (command, args = []) => run('wsl.exe', ['-d', 'Ubuntu-22.04', '--', command, ...args], { timeout: 15000 });
+  const present = direct('test', ['-d', `/proc/${effectivePid}`]).status === 0;
+  if (!present) {
+    return { present: false, pid: effectivePid, listeningAddress: '127.0.0.1', listeningPort: Number(port), portOwnerPid };
+  }
+  const stat = String(direct('cat', [`/proc/${effectivePid}/stat`]).stdout || '').trim();
+  const ticks = stat.split(/\s+/)[21] || '';
+  const executablePath = String(direct('readlink', ['-f', `/proc/${effectivePid}/exe`]).stdout || '').trim();
+  const executableRealPath = String(direct('realpath', [executablePath]).stdout || executablePath).trim();
+  const executableSha256 = String(direct('sha256sum', [executableRealPath]).stdout || '').trim().split(/\s+/)[0] || '';
+  const commandLine = String(direct('cat', [`/proc/${effectivePid}/cmdline`]).stdout || '').replace(/\0/g, ' ').trim();
+  const workingDirectory = String(direct('readlink', ['-f', `/proc/${effectivePid}/cwd`]).stdout || '').trim();
+  const bootId = String(direct('cat', ['/proc/sys/kernel/random/boot_id']).stdout || '').trim();
+  const environment = String(direct('cat', [`/proc/${effectivePid}/environ`]).stdout || '');
+  const instanceNonce = environment.split('\0').find((item) => item.startsWith('P7V2_INSTANCE_NONCE='))?.slice('P7V2_INSTANCE_NONCE='.length) || '';
   const identity = {
     present,
-    pid: values.pid || effectivePid,
-    bootId: values.bootId || '',
-    processStartTicks: values.processStartTicks || '',
-    processStartTime: values.processStartTime || '',
-    executablePath: decode(values.executablePath),
-    executableRealPath: decode(values.executableRealPath),
-    executableSha256: values.executableSha256 || '',
-    commandLine: decode(values.commandLine),
-    workingDirectory: decode(values.workingDirectory),
+    pid: effectivePid,
+    bootId,
+    processStartTicks: ticks,
+    processStartTime: '',
+    executablePath,
+    executableRealPath,
+    executableSha256,
+    commandLine,
+    workingDirectory,
     listeningAddress: '127.0.0.1',
     listeningPort: Number(port),
-    socketInode: values.socketInode || '',
+    socketInode: '',
     portOwnerPid,
-    instanceNonce: values.instanceNonce || '',
+    instanceNonce,
     capturedAt: new Date().toISOString(),
   };
   identity.identityKey = processIdentityKey(identity);
@@ -123,7 +104,7 @@ export function verifyServerBinary(identity = {}, expectedSha256 = '') {
   return Boolean(identity.present && identity.executableSha256 && expectedSha256 && identity.executableSha256 === expectedSha256);
 }
 
-export function verifyPortOwner(identity = {}, port = 8080) {
+export function verifyPortOwner(identity = {}, port = resolveP7V2PortConfig().port) {
   return Boolean(identity.present && Number(identity.listeningPort) === Number(port) && identity.pid && identity.pid === identity.portOwnerPid);
 }
 

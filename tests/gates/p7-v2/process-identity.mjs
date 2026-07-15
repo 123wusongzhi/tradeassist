@@ -9,7 +9,7 @@ const reused = compareProcessIdentity(base, { ...base, processStartTicks: '11' }
 assert.equal(reused.processChanged, true);
 assert.equal(reused.pidReused, true);
 assert.equal(compareProcessIdentity(base, base).sameProcess, true);
-assert.equal(verifyPortOwner(base), true);
+assert.equal(verifyPortOwner(base, 8080), true);
 assert.equal(verifyServerBinary(base, 'hash'), true);
 assert.equal(verifyInstanceNonce(base, 'nonce'), true);
 assert.equal(verifyInstanceNonce(base, 'other'), false);

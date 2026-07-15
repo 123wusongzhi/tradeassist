@@ -1,6 +1,6 @@
-import { runAuthProbe, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
+import { resolveP7V2PortConfig, runAuthProbe, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
-const baseUrl = process.env.P7_BASE_URL || 'http://127.0.0.1:8080';
+const baseUrl = resolveP7V2PortConfig().baseUrl;
 const probe = runAuthProbe(baseUrl);
 
 const report = {

@@ -2,9 +2,9 @@
 
 Status: passed
 
-- [passed] localhost-allowed: http://localhost:8080
-- [passed] 127-allowed: http://127.0.0.1:8080
-- [passed] wsl-controlled-allowed: http://172.22.144.1:8080
+- [passed] localhost-allowed: http://localhost:18080
+- [passed] 127-allowed: http://127.0.0.1:18080
+- [passed] wsl-nonloopback-rejected: http://172.22.144.1:18080
 - [passed] production-domain-rejected: https://api.zhihengxiangyu.com
-- [passed] public-ip-rejected: http://8.8.8.8:8080
+- [passed] public-ip-rejected: http://8.8.8.8:18080
 - [passed] empty-host-rejected: <empty>

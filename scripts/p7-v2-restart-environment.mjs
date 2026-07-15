@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readJSON, runWSL, safeRunId, valueOf, wslProjectRoot, writeJSON } from './p7-v2-lib.mjs';
+import { readJSON, resolveP7V2PortConfig, runWSL, safeRunId, stopP7V2Server, valueOf, wslProjectRoot, writeJSON } from './p7-v2-lib.mjs';
 import {
   captureApiProcessIdentity,
   compareProcessIdentity,
@@ -16,11 +16,12 @@ if (!activeBaseline.valid) throw new Error(`active frozen baseline is invalid: $
 const baselineRunId = activeBaseline.baseline.runId;
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
 const runId = safeRunId(valueOf(args, '--run-id') || `p7v2-restart-${Date.now()}`);
+const portConfig = resolveP7V2PortConfig();
 const previousDatabaseName = String(runtime.dbName || '');
 const pidFile = `${wslProjectRoot()}/artifacts/p7-v2/server.pid`;
 const pidFileRead = runWSL(`cat ${JSON.stringify(pidFile)} 2>/dev/null || true`, { timeout: 10000 });
 const pidFromFile = String(pidFileRead.stdout || '').trim();
-const previousIdentity = captureApiProcessIdentity({ pid: pidFromFile, port: 8080 });
+const previousIdentity = captureApiProcessIdentity({ pid: pidFromFile, port: portConfig.port });
 const previousApiPresent = previousIdentity.present === true;
 const stalePidFile = Boolean(pidFromFile && !previousIdentity.present);
 const startMode = previousApiPresent ? 'restart' : 'clean_start';
@@ -30,17 +31,12 @@ let oldProcessStopped = !previousApiPresent;
 let portReleased = !previousApiPresent;
 let oldIdentityExists = previousApiPresent;
 if (previousApiPresent) {
-  runWSL(`kill -TERM ${JSON.stringify(oldPid)} 2>/dev/null || true`, { timeout: 10000 });
-  const graceful = runWSL(`for i in $(seq 1 15); do [ -d /proc/${JSON.stringify(oldPid)} ] || { echo stopped; exit 0; }; sleep 1; done; echo alive`, { timeout: 20000 });
-  if ((graceful.stdout || '').trim() !== 'stopped') {
-    runWSL(`kill -KILL ${JSON.stringify(oldPid)} 2>/dev/null || true`, { timeout: 10000 });
-    runWSL(`for i in $(seq 1 10); do [ -d /proc/${JSON.stringify(oldPid)} ] || { echo stopped; exit 0; }; sleep 1; done; echo alive`, { timeout: 15000 });
-  }
-  const afterStop = captureApiProcessIdentity({ pid: oldPid, port: 8080 });
+  stopP7V2Server({ expectedIdentity: previousIdentity, portConfig });
+  const afterStop = captureApiProcessIdentity({ pid: oldPid, port: portConfig.port });
   oldIdentityExists = afterStop.present === true;
   oldProcessStopped = !oldIdentityExists;
 }
-const portBeforeStart = runWSL(`ss -ltnp 'sport = :8080' 2>/dev/null | grep -q ':8080' && echo busy || echo free`, { timeout: 10000 });
+const portBeforeStart = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
 portReleased = (portBeforeStart.stdout || '').trim() === 'free';
 const instanceNonce = generateInstanceNonce();
 const start = oldProcessStopped && portReleased
@@ -54,7 +50,7 @@ const dataset = readJSON('docs/p7-v2-dataset-report.json') || {};
 const authProbe = readJSON('docs/p7-v2-r2-auth-probe-report.json') || {};
 const routeProbe = readJSON('docs/p7-v2-r2-route-probe-report.json') || {};
 const redis = runWSL('redis-cli FLUSHALL >/dev/null 2>&1 && redis-cli DBSIZE 2>/dev/null | grep -qx 0 && echo flushed || echo failed', { timeout: 15000 });
-const currentIdentity = captureApiProcessIdentity({ pid: currentRuntime.serverPid || '', port: 8080 });
+const currentIdentity = captureApiProcessIdentity({ pid: currentRuntime.serverPid || '', port: portConfig.port });
 const identityComparison = compareProcessIdentity(previousIdentity, currentIdentity);
 const currentDatabaseName = String(currentRuntime.dbName || '');
 const databaseStateReset =
@@ -96,7 +92,7 @@ const api = {
   processChanged: identityComparison.processChanged,
   pidReused: identityComparison.pidReused,
   freshProcessVerified: identityComparison.freshProcessVerified && portReleased,
-  portOwnerVerified: verifyPortOwner(currentIdentity, 8080),
+  portOwnerVerified: verifyPortOwner(currentIdentity, portConfig.port),
   serverBinaryVerified: verifyServerBinary(currentIdentity, currentRuntime.serverBinarySha256 || ''),
   instanceNonceVerified: verifyInstanceNonce(currentIdentity, instanceNonce),
 };
@@ -135,6 +131,9 @@ const report = {
   serverReady: currentRuntime.readiness?.loadReady === true,
   currentRunIndependent: false,
   productionResourcesAccessed: false,
+  selectedHost: portConfig.host,
+  selectedPort: portConfig.port,
+  baseUrl: portConfig.baseUrl,
   generatedAt: new Date().toISOString(),
 };
 report.currentRunIndependent =

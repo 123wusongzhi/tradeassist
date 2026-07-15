@@ -1,16 +1,18 @@
 import {
   assertLoadHostSafe,
+  resolveP7V2PortConfig,
   root,
   writeJSON,
   writeMarkdown,
 } from './p7-v2-lib.mjs';
 
+const portConfig = resolveP7V2PortConfig();
 const cases = [
-  { id: 'localhost-allowed', url: 'http://localhost:8080', expectBlocked: false },
-  { id: '127-allowed', url: 'http://127.0.0.1:8080', expectBlocked: false },
-  { id: 'wsl-controlled-allowed', url: 'http://172.22.144.1:8080', expectBlocked: false },
+  { id: 'localhost-allowed', url: `http://localhost:${portConfig.port}`, expectBlocked: false },
+  { id: '127-allowed', url: portConfig.baseUrl, expectBlocked: false },
+  { id: 'wsl-nonloopback-rejected', url: `http://172.22.144.1:${portConfig.port}`, expectBlocked: true },
   { id: 'production-domain-rejected', url: 'https://api.zhihengxiangyu.com', expectBlocked: true },
-  { id: 'public-ip-rejected', url: 'http://8.8.8.8:8080', expectBlocked: true },
+  { id: 'public-ip-rejected', url: `http://8.8.8.8:${portConfig.port}`, expectBlocked: true },
   { id: 'empty-host-rejected', url: '', expectBlocked: true },
 ];
 

@@ -12,6 +12,7 @@ import {
   docsDir,
   discoverK6,
   readJSON,
+  resolveP7V2PortConfig,
   root,
   run,
   runWSL,
@@ -21,7 +22,8 @@ import {
 } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
-const baseUrl = valueOf(args, '--base-url') || process.env.P7_BASE_URL || 'http://127.0.0.1:8080';
+const portConfig = resolveP7V2PortConfig();
+const baseUrl = valueOf(args, '--base-url') || portConfig.baseUrl;
 const issues = [];
 const conflicts = [];
 

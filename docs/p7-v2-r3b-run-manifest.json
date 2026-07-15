@@ -1,8 +1,8 @@
 {
   "phase": "P7-V2-R3B-REBASELINE2",
-  "status": "baseline_blocked",
-  "baselineRunId": "p7v2-baseline-r3b-recovery2-20260715-022554",
-  "currentRunId": "p7v2-current-r3b-recovery2-20260715-022554",
+  "status": "baseline_planned",
+  "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+  "currentRunId": "p7v2-current-r3b-recovery3-20260715-131400",
   "soakRunId": null,
   "demoRun1Id": null,
   "demoRun2Id": null

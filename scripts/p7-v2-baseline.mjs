@@ -4,7 +4,7 @@ import { readJSON, valueOf, writeJSON } from './p7-v2-lib.mjs';
 
 const args = process.argv.slice(2);
 const runId = valueOf(args, '--run-id') || `p7v2-baseline-${new Date().toISOString().replace(/[:.]/g, '-')}`;
-if (!/^p7v2-baseline-r3b-recovery2-[a-z0-9_-]+$/.test(runId)) {
+if (!/^p7v2-baseline-r3b-recovery3-[a-z0-9_-]+$/.test(runId)) {
   throw new Error('P7-V2-R3B-REBASELINE2 requires a unique baseline run ID');
 }
 const res = spawnSync(process.execPath, ['scripts/p7-v2-load.mjs', '--kind', 'baseline', '--run-id', runId, ...args.filter((a) => !a.startsWith('--run-id'))], {

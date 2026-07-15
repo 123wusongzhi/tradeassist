@@ -55,7 +55,7 @@ export function frozenArtifactPath(kind, runId) {
 
 export function freezeRawArtifact({ kind, runId, reportPath }) {
   if (!['baseline', 'current'].includes(kind)) throw new Error(`unsupported freeze kind: ${kind}`);
-  if (!/^p7v2-(baseline|current)-r3b-recovery2-[a-z0-9_-]+$/.test(runId)) {
+  if (!/^p7v2-(baseline|current)-r3b-recovery3-[a-z0-9_-]+$/.test(runId)) {
     throw new Error('a unique Rebaseline2 run ID is required');
   }
 
@@ -129,6 +129,9 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
       sloFingerprint: report.sloFingerprint || '',
       routeCredentialMatrixFingerprint: report.routeCredentialMatrixFingerprint || '',
       regressionPolicyFingerprint: report.regressionPolicyFingerprint || '',
+      selectedHost: report.selectedHost || '',
+      selectedPort: report.selectedPort || 0,
+      baseUrl: report.baseUrl || '',
       environmentFingerprint: report.environmentFingerprint || {},
       immutable: true,
       frozenAt: now,

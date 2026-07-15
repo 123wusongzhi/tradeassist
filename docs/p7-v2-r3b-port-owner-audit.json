@@ -1,0 +1,41 @@
+{
+  "phase": "P7-V2-R3B-PORT-R2",
+  "status": "passed",
+  "selectedHost": "127.0.0.1",
+  "selectedPort": 8080,
+  "classification": "wsl_forwarding_process",
+  "wsl": {
+    "status": "available",
+    "raw": [
+      "State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess",
+      "LISTEN 0      4096       127.0.0.1:8080      0.0.0.0:*    users:((\"server\",pid=1100,fd=19))"
+    ],
+    "pids": [
+      "1100"
+    ],
+    "identity": null,
+    "pidFile": "1100"
+  },
+  "windows": {
+    "status": "available",
+    "listeners": [
+      {
+        "localAddress": "::",
+        "localPort": 8080,
+        "state": 2,
+        "pid": 25116,
+        "name": "server.exe",
+        "executablePath": "C:\\Users\\Administrator\\AppData\\Local\\go-build\\3f\\3fedcb10cf6a3becff678b32b8eb01d5f4f2d3fdc307b95f9e010d2ccb51892c-d\\server.exe",
+        "commandLine": "C:\\Users\\Administrator\\AppData\\Local\\go-build\\3f\\3fedcb10cf6a3becff678b32b8eb01d5f4f2d3fdc307b95f9e010d2ccb51892c-d\\server.exe",
+        "creationDate": "/Date(1784052997603)/"
+      }
+    ]
+  },
+  "portproxy": [],
+  "docker": [],
+  "belongsToTradeMind": false,
+  "strongEvidenceCount": 1,
+  "unknownProcessTerminated": false,
+  "unrelatedServiceAffected": false,
+  "generatedAt": "2026-07-15T04:53:49.557Z"
+}

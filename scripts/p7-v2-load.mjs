@@ -10,6 +10,7 @@ import {
   metric,
   metricCustom,
   performanceEnvDefaults,
+  resolveP7V2PortConfig,
   perfPasswordForRole,
   readJSON,
   redactURL,
@@ -24,7 +25,8 @@ import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeMa
 
 const args = process.argv.slice(2);
 const kind = valueOf(args, '--kind') || 'load';
-const baseUrl = valueOf(args, '--base-url') || process.env.P7_BASE_URL || 'http://127.0.0.1:8080';
+const portConfig = resolveP7V2PortConfig();
+const baseUrl = valueOf(args, '--base-url') || portConfig.baseUrl;
 const runId = valueOf(args, '--run-id') || `p7v2-${kind}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 const targetVUs = Number(valueOf(args, '--target-vus') || process.env.P7_LOAD_VUS || 10);
 
@@ -210,6 +212,8 @@ const report = {
   kind,
   runId,
   baseUrl: redactURL(baseUrl),
+  selectedHost: portConfig.host,
+  selectedPort: portConfig.port,
   configuredVUs: targetVUs,
   peakVUs: targetVUs,
   achievedRPS: metric(summaryJSON, 'http_reqs', 'rate'),

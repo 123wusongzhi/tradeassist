@@ -5,11 +5,12 @@ import {
   probeRouteWithRole,
   probeSignedWebhook,
   readJSON,
+  resolveP7V2PortConfig,
   writeJSON,
   writeMarkdown,
 } from './p7-v2-lib.mjs';
 
-const baseUrl = process.env.P7_BASE_URL || 'http://127.0.0.1:8080';
+const baseUrl = resolveP7V2PortConfig().baseUrl;
 const env = performanceEnvDefaults();
 
 const routes = [

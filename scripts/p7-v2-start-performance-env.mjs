@@ -5,6 +5,7 @@ import {
   collectEnvironmentFingerprint,
   configFingerprint,
   performanceEnvDefaults,
+  resolveP7V2PortConfig,
   probePerformanceEndpoints,
   runAuthProbe,
   runWSL,
@@ -22,6 +23,7 @@ const runId = safeRunId(valueOf(args, '--run-id') || process.env.P7_V2_RUN_ID);
 const dbName = safeDbName(runId);
 const instanceNonce = valueOf(args, '--instance-nonce') || process.env.P7V2_INSTANCE_NONCE || '';
 const issues = [...assertDbNameSafe(dbName)];
+const portConfig = resolveP7V2PortConfig();
 if ((process.env.APP_ENV || 'performance') === 'production') issues.push('APP_ENV=production rejected');
 
 const startedAt = new Date().toISOString();
@@ -50,7 +52,7 @@ const env = performanceEnvDefaults({
   DB_PORT: '5432',
   DB_USER: 'root',
   REDIS_ADDR: '127.0.0.1:6379',
-  APP_HTTP_ADDR: '127.0.0.1:8080',
+  ...portConfig.env,
   P7V2_INSTANCE_NONCE: instanceNonce,
 });
 
@@ -61,7 +63,7 @@ if (issues.length === 0 && !args.includes('--skip-server')) {
     issues.push(...(server.issues || ['failed to start API server']));
   } else {
     bootstrapCompleted = true;
-    const authProbe = runAuthProbe('http://127.0.0.1:8080', env);
+    const authProbe = runAuthProbe(portConfig.baseUrl, env);
     writeJSON('docs/p7-v2-r2-auth-probe-report.json', authProbe);
     authProbePassed = authProbe.status === 'passed';
     if (!authProbePassed) {
@@ -107,7 +109,9 @@ const report = {
   dbName,
   databaseNameHash: fingerprint.databaseNameHash,
   hostClass: 'wsl2_local_postgresql_socket',
-  port: 8080,
+  port: portConfig.port,
+  selectedHost: portConfig.host,
+  baseUrl: portConfig.baseUrl,
   postgreSQLVersion: (pgVersion.stdout || '').trim(),
   redisVersion: (redisVersion.stdout || '').trim(),
   schemaVersion: 'AutoMigrate',
