@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJSON, root, writeJSON } from './p7-v2-lib.mjs';
 import { CORE_SCENARIOS, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
+import { readRuntimeFreezeContract, validateRuntimeFreezeContract } from './p7-v2-r3b-lpc-r3-runtime-freeze.mjs';
 
 const REQUIRED_SCENARIOS = CORE_SCENARIOS;
 
@@ -46,6 +47,22 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
   }
   if (kind === 'current' && (report.currentRunIndependent !== true || report.independentRun !== true)) {
     throw new Error('independent Current evidence is required before freeze');
+  }
+  if (report.loadProfileFingerprintVersion === 3) {
+    const profile = report.canonicalLoadProfile || {};
+    const stages = profile.load?.stages;
+    if (profile.schemaVersion !== 3 || !/^[a-f0-9]{64}$/.test(report.loadProfileFingerprint || '') ||
+        !Number.isSafeInteger(profile.load?.configuredVUs) || profile.load.configuredVUs <= 0 ||
+        !Array.isArray(stages) || !stages.length ||
+        !stages.every((stage) => Number.isSafeInteger(stage.durationMs) && stage.durationMs > 0 && Number.isSafeInteger(stage.targetVUs) && stage.targetVUs >= 0) ||
+        !/^[a-f0-9]{64}$/.test(profile.loadScript?.sha256 || '')) {
+      throw new Error('valid canonical schema V3 load profile evidence is required before freeze');
+    }
+    const runtimeFreeze = readRuntimeFreezeContract();
+    const runtimeFreezeValidation = validateRuntimeFreezeContract(runtimeFreeze, { kind, runId });
+    if (!runtimeFreezeValidation.valid || report.runtimeFreezeId !== runtimeFreeze.contractId || report.runtimeFreezeContractHash !== runtimeFreeze.contractId) {
+      throw new Error('matching Recovery6 runtime freeze metadata is required before freeze');
+    }
   }
 
   const rawPath = path.join(root, 'artifacts', 'p7-v2', kind, runId, `${kind}.summary.json`);
@@ -112,6 +129,9 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
       sloFingerprint: report.sloFingerprint || '',
       routeCredentialMatrixFingerprint: report.routeCredentialMatrixFingerprint || '',
       regressionPolicyFingerprint: report.regressionPolicyFingerprint || '',
+      runtimeFreezeId: report.runtimeFreezeId || '',
+      runtimeFreezeContractHash: report.runtimeFreezeContractHash || '',
+      runtimeFreezeRunId: report.runtimeFreezeRunId || '',
       selectedHost: report.selectedHost || '',
       selectedPort: report.selectedPort || 0,
       baseUrl: report.baseUrl || '',

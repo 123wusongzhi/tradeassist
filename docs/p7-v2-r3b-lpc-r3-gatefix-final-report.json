@@ -1,0 +1,95 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3-GATEFIX",
+  "status": "passed",
+  "failed": 0,
+  "checks": [
+    {
+      "id": "preflightAudit",
+      "status": "passed"
+    },
+    {
+      "id": "determinismReport",
+      "status": "passed"
+    },
+    {
+      "id": "consumerCompatibility",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalSchemaV3",
+      "status": "passed"
+    },
+    {
+      "id": "fingerprintV3",
+      "status": "passed"
+    },
+    {
+      "id": "determinismIterations",
+      "status": "passed"
+    },
+    {
+      "id": "uniqueFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "runKindExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "runIdExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "regressionSupportsV3",
+      "status": "passed"
+    },
+    {
+      "id": "comparabilitySupportsV3",
+      "status": "passed"
+    },
+    {
+      "id": "resolverSupportsV3",
+      "status": "passed"
+    },
+    {
+      "id": "freezeSupportsV3",
+      "status": "passed"
+    },
+    {
+      "id": "scopedGateSupportsV3",
+      "status": "passed"
+    },
+    {
+      "id": "regressionV3FixturesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "stageSchemaFixturesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "fingerprintFixturesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "recovery5Aborted",
+      "status": "passed"
+    },
+    {
+      "id": "recovery6Planned",
+      "status": "passed"
+    },
+    {
+      "id": "noExecution",
+      "status": "passed"
+    }
+  ],
+  "regressionV3FixturesPassed": true,
+  "stageSchemaFixturesPassed": true,
+  "fingerprintFixturesPassed": true,
+  "productionResourcesAccessed": false,
+  "realProviderCalls": 0,
+  "realDouyinWrites": 0,
+  "tagCreated": false,
+  "productionReady": false
+}

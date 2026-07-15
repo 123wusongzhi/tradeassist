@@ -12,15 +12,16 @@ const current = resolvedCurrent.entry || {};
 const baselineManifest = readJSON(`docs/baselines/frozen/${baseline.runId || ''}/manifest.json`) || {};
 const currentManifest = resolvedCurrent.manifest || {};
 const sidecarRoot = `docs/fingerprints/p7-v2/load-profile/v${fingerprintVersion}`;
-const baselineV2 = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${baseline.runId || ''}.json`) || {} : {};
-const currentV2 = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${current.runId || ''}.json`) || {} : {};
+const baselineVersionedProfile = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${baseline.runId || ''}.json`) || {} : {};
+const currentVersionedProfile = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${current.runId || ''}.json`) || {} : {};
+const versionedFingerprintKey = `loadProfileFingerprintV${fingerprintVersion}`;
 const comparableKeys = [
   'runtimeSourceTreeHash',
   'loadScriptsHash',
   'metricSemanticsHash',
   'datasetFingerprint',
   'configFingerprint',
-  fingerprintVersion >= 2 ? 'loadProfileFingerprintV2' : 'loadProfileFingerprint',
+  fingerprintVersion >= 2 ? versionedFingerprintKey : 'loadProfileFingerprint',
   'sloFingerprint',
   'routeCredentialMatrixFingerprint',
   'regressionPolicyFingerprint',
@@ -33,7 +34,7 @@ const comparableKeys = [
   'selectedPort',
   'baseUrl',
 ];
-function values(manifest, entry, v2) {
+function values(manifest, entry, versionedProfile) {
   const environment = manifest.environmentFingerprint || entry.environmentFingerprint || {};
   return {
     runtimeSourceTreeHash: manifest.runtimeSourceTreeHash || '',
@@ -42,7 +43,7 @@ function values(manifest, entry, v2) {
     datasetFingerprint: manifest.datasetFingerprint || '',
     configFingerprint: manifest.configFingerprint || '',
     loadProfileFingerprint: manifest.loadProfileFingerprint || '',
-    loadProfileFingerprintV2: v2.loadProfileFingerprint || '',
+    [versionedFingerprintKey]: versionedProfile.loadProfileFingerprint || '',
     sloFingerprint: manifest.sloFingerprint || '',
     routeCredentialMatrixFingerprint: manifest.routeCredentialMatrixFingerprint || '',
     regressionPolicyFingerprint: manifest.regressionPolicyFingerprint || '',
@@ -56,14 +57,19 @@ function values(manifest, entry, v2) {
     baseUrl: manifest.baseUrl || entry.baseUrl || '',
   };
 }
-const baselineValues = values(baselineManifest, baseline, baselineV2);
-const currentValues = values(currentManifest, current, currentV2);
-const v2ProfileChecks = fingerprintVersion >= 2 ? [
-  ['baseline-versioned-sidecar', baselineV2.fingerprintVersion === fingerprintVersion && baselineV2.derivedEvidence === true && baselineV2.sourceArtifactsModified === false],
-  ['current-versioned-sidecar', currentV2.fingerprintVersion === fingerprintVersion && currentV2.derivedEvidence === true && currentV2.sourceArtifactsModified === false],
-  ['baseline-canonical-profile', Array.isArray(baselineV2.canonicalProfile?.load?.stages) && baselineV2.canonicalProfile.load.configuredVUs > 0 && Array.isArray(baselineV2.canonicalProfile?.scenarios) && baselineV2.canonicalProfile.scenarios.length > 0 && Boolean(baselineV2.canonicalProfile?.loadScript?.sha256)],
-  ['current-canonical-profile', Array.isArray(currentV2.canonicalProfile?.load?.stages) && currentV2.canonicalProfile.load.configuredVUs > 0 && Array.isArray(currentV2.canonicalProfile?.scenarios) && currentV2.canonicalProfile.scenarios.length > 0 && Boolean(currentV2.canonicalProfile?.loadScript?.sha256)],
-  ['versioned-fingerprint-shape', /^[a-f0-9]{64}$/.test(baselineV2.loadProfileFingerprint || '') && /^[a-f0-9]{64}$/.test(currentV2.loadProfileFingerprint || '')],
+const baselineValues = values(baselineManifest, baseline, baselineVersionedProfile);
+const currentValues = values(currentManifest, current, currentVersionedProfile);
+const versionedProfileChecks = fingerprintVersion >= 2 ? [
+  ['baseline-versioned-sidecar', baselineVersionedProfile.fingerprintVersion === fingerprintVersion && baselineVersionedProfile.derivedEvidence === true && baselineVersionedProfile.sourceArtifactsModified === false],
+  ['current-versioned-sidecar', currentVersionedProfile.fingerprintVersion === fingerprintVersion && currentVersionedProfile.derivedEvidence === true && currentVersionedProfile.sourceArtifactsModified === false],
+  ['baseline-canonical-profile', Array.isArray(baselineVersionedProfile.canonicalProfile?.load?.stages) && baselineVersionedProfile.canonicalProfile.load.configuredVUs > 0 && Array.isArray(baselineVersionedProfile.canonicalProfile?.scenarios) && baselineVersionedProfile.canonicalProfile.scenarios.length > 0 && Boolean(baselineVersionedProfile.canonicalProfile?.loadScript?.sha256)],
+  ['current-canonical-profile', Array.isArray(currentVersionedProfile.canonicalProfile?.load?.stages) && currentVersionedProfile.canonicalProfile.load.configuredVUs > 0 && Array.isArray(currentVersionedProfile.canonicalProfile?.scenarios) && currentVersionedProfile.canonicalProfile.scenarios.length > 0 && Boolean(currentVersionedProfile.canonicalProfile?.loadScript?.sha256)],
+  ['versioned-fingerprint-shape', /^[a-f0-9]{64}$/.test(baselineVersionedProfile.loadProfileFingerprint || '') && /^[a-f0-9]{64}$/.test(currentVersionedProfile.loadProfileFingerprint || '')],
+] : [];
+const runtimeFreezeChecks = fingerprintVersion === 3 ? [
+  ['baseline-runtime-freeze-metadata', /^[a-f0-9]{64}$/.test(baselineManifest.runtimeFreezeId || '') && baselineManifest.runtimeFreezeId === baselineManifest.runtimeFreezeContractHash && baselineManifest.runtimeFreezeRunId === baseline.runId],
+  ['current-runtime-freeze-metadata', /^[a-f0-9]{64}$/.test(currentManifest.runtimeFreezeId || '') && currentManifest.runtimeFreezeId === currentManifest.runtimeFreezeContractHash && currentManifest.runtimeFreezeRunId === current.runId],
+  ['matching-runtime-freeze-contract', baselineManifest.runtimeFreezeId === currentManifest.runtimeFreezeId],
 ] : [];
 const checks = [
   ['baseline-registry', resolvedBaseline.valid],
@@ -73,7 +79,8 @@ const checks = [
   ['different-run-id', baseline.runId && current.runId && baseline.runId !== current.runId],
   ['different-artifact', resolvedBaseline.baseline?.rawArtifactSha256 && resolvedCurrent.actualHash && resolvedBaseline.baseline.rawArtifactSha256 !== resolvedCurrent.actualHash],
   ['current-independent', current.independentRun === true && current.baselineRunId === baseline.runId],
-  ...v2ProfileChecks,
+  ...versionedProfileChecks,
+  ...runtimeFreezeChecks,
   ...comparableKeys.map((key) => [key, Boolean(baselineValues[key]) && baselineValues[key] === currentValues[key]]),
 ];
 const failed = checks.filter(([, ok]) => !ok).map(([id]) => id);
@@ -90,7 +97,7 @@ const report = {
   previousMismatchField: fingerprintVersion === 2 ? 'loadProfileFingerprint' : undefined,
   previousFingerprintVersion: fingerprintVersion === 2 ? 1 : undefined,
   currentFingerprintVersion: fingerprintVersion,
-  loadProfileFingerprintMatch: fingerprintVersion >= 2 ? baselineValues.loadProfileFingerprintV2 === currentValues.loadProfileFingerprintV2 : baselineValues.loadProfileFingerprint === currentValues.loadProfileFingerprint,
+  loadProfileFingerprintMatch: fingerprintVersion >= 2 ? baselineValues[versionedFingerprintKey] === currentValues[versionedFingerprintKey] : baselineValues.loadProfileFingerprint === currentValues.loadProfileFingerprint,
   checks: checks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
   issues: [...(resolvedBaseline.valid ? [] : resolvedBaseline.issues), ...failed],
 };

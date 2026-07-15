@@ -1,12 +1,28 @@
 {
-  "phase": "P7-V2-R3B-FAST-CLOSE-R2",
-  "baselineRunId": "p7v2-baseline-r3b-recovery5-20260715091700",
-  "currentRunId": "p7v2-current-r3b-recovery5-20260715091700",
-  "soakRunId": "p7v2-soak-r3b-recovery5-20260715091700",
-  "demoRun1Id": "p7v2-demo1-r3b-recovery5-20260715091700",
-  "demoRun2Id": "p7v2-demo2-r3b-recovery5-20260715091700",
+  "phase": "P7-V2-R3B-FAST-CLOSE-R3",
+  "status": "planned",
+  "canonicalSchemaVersion": 3,
+  "loadProfileFingerprintVersion": 3,
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715095509",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260715095509",
+  "soakRunId": "p7v2-soak-r3b-recovery6-20260715095509",
+  "demoRun1Id": "p7v2-demo1-r3b-recovery6-20260715095509",
+  "demoRun2Id": "p7v2-demo2-r3b-recovery6-20260715095509",
   "selectedHost": "127.0.0.1",
   "selectedPort": 18080,
-  "status": "recovery5_planned",
-  "updatedAt": "2026-07-15T09:13:38.125Z"
+  "baseUrl": "http://127.0.0.1:18080",
+  "runtimeFreezeId": null,
+  "executionStarted": false,
+  "runIdsUnique": true,
+  "previousPlan": {
+    "phase": "P7-V2-R3B-FAST-CLOSE-R2",
+    "baselineRunId": "p7v2-baseline-r3b-recovery5-20260715091700",
+    "status": "aborted_before_execution",
+    "active": false,
+    "validForExecution": false,
+    "baselineArtifactCreated": false,
+    "currentExecuted": false,
+    "reason": "canonical_load_profile_stage_validation_failed"
+  },
+  "updatedAt": "2026-07-15T09:55:09.088Z"
 }

@@ -7,14 +7,22 @@ const dryRun = args.includes('--dry-run');
 const resumeFrom = valueOf(args, '--resume-from');
 const stopAfter = valueOf(args, '--stop-after');
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const runIds = {
+const generatedRunIds = {
   baselineRunId: `p7v2-baseline-r3b-recovery6-${stamp}`,
   currentRunId: `p7v2-current-r3b-recovery6-${stamp}`,
   soakRunId: `p7v2-soak-r3b-recovery6-${stamp}`,
   demoRun1Id: `p7v2-demo1-r3b-recovery6-${stamp}`,
   demoRun2Id: `p7v2-demo2-r3b-recovery6-${stamp}`,
 };
-const commands = [
+const plannedManifest = readR3BManifest();
+const runIds = dryRun ? {
+  baselineRunId: plannedManifest.baselineRunId || generatedRunIds.baselineRunId,
+  currentRunId: plannedManifest.currentRunId || generatedRunIds.currentRunId,
+  soakRunId: plannedManifest.soakRunId || generatedRunIds.soakRunId,
+  demoRun1Id: plannedManifest.demoRun1Id || generatedRunIds.demoRun1Id,
+  demoRun2Id: plannedManifest.demoRun2Id || generatedRunIds.demoRun2Id,
+} : generatedRunIds;
+const formalCommands = [
   ['fixtures', ['pnpm', 'test:p7-v2-load-profile-fingerprint']],
   ['stage-schema-fixtures', ['pnpm', 'test:p7-v2-load-profile-stage-schema']],
   ['gates', ['pnpm', 'test:p7-v2-gates']],
@@ -25,7 +33,7 @@ const commands = [
   ['dataset', ['pnpm', 'p7-v2:dataset', '--', '--run-id', runIds.baselineRunId, '--execute']],
   ['baseline', ['pnpm', 'p7-v2:baseline', '--', '--run-id', runIds.baselineRunId]],
   ['current', ['pnpm', 'p7-v2:r3b:current', '--', '--run-id', runIds.currentRunId]],
-  ['comparability', ['pnpm', 'p7-v2:r3b:comparability']],
+  ['comparability-v3', ['pnpm', 'p7-v2:r3b:comparability']],
   ['regression', ['pnpm', 'p7-v2:r3b:regression']],
   ['soak', ['pnpm', 'p7-v2:r3b:soak', '--', '--run-id', runIds.soakRunId]],
   ['demo-preflight', ['pnpm', 'p7-v2:r3b:demo-preflight']],
@@ -38,13 +46,23 @@ const commands = [
   ['p7-v2-gate', ['pnpm', 'check:p7-v2']],
   ['p7-capacity-gate', ['pnpm', 'check:p7']],
 ];
+const dryRunCommands = [
+  ['preflight-evidence', ['pnpm', 'p7-v2:r3b:lpc-r3:preflight-audit']],
+  ['determinism-evidence', ['pnpm', 'p7-v2:r3b:lpc-r3:determinism']],
+  ['fingerprint-fixtures', ['pnpm', 'test:p7-v2-load-profile-fingerprint']],
+  ['stage-schema-fixtures', ['pnpm', 'test:p7-v2-load-profile-stage-schema']],
+  ['regression-v3-fixtures', ['pnpm', 'test:p7-v2-regression-fingerprint-v3']],
+  ['consumer-compatibility', ['pnpm', 'p7-v2:r3b:lpc-r3:consumer-compatibility']],
+  ['scoped-gate', ['pnpm', 'p7-v2:r3b:lpc-r3:gatefix']],
+];
+const commands = dryRun ? dryRunCommands : formalCommands;
 const start = resumeFrom ? commands.findIndex(([name]) => name === resumeFrom) : 0;
 if (start < 0) throw new Error(`unknown --resume-from step: ${resumeFrom}`);
 const results = [];
 for (let index = start; index < commands.length; index += 1) {
   const [step, command] = commands[index];
   if (!dryRun && step === 'demo-preflight') updateR3BManifest({ ...runIds, status: 'demo_planned' });
-  const result = dryRun ? { status: 0 } : spawnSync(command[0], command.slice(1), {
+  const result = spawnSync(command[0], command.slice(1), {
     stdio: 'inherit',
     shell: process.platform === 'win32',
     env: {

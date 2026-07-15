@@ -5,6 +5,19 @@ import { readJSON, root } from './p7-v2-lib.mjs';
 
 export const REGISTRY_PATH = 'docs/baselines/p7-v2-baseline-registry.json';
 export const PRIORITY = ['frozen_registry', 'r3a_final', 'r3b_latest', 'r3_legacy', 'r2_historical'];
+export const SUPPORTED_CANONICAL_LOAD_PROFILE_SCHEMA_VERSIONS = [1, 2, 3];
+export const SUPPORTED_LOAD_PROFILE_FINGERPRINT_VERSIONS = [1, 2, 3];
+
+export function validateLoadProfileEvidence(manifest = {}) {
+  const schemaVersion = manifest.canonicalLoadProfileVersion ?? manifest.canonicalSchemaVersion ?? 1;
+  const fingerprintVersion = manifest.loadProfileFingerprintVersion ?? 1;
+  if (!SUPPORTED_CANONICAL_LOAD_PROFILE_SCHEMA_VERSIONS.includes(schemaVersion)) return { valid: false, issue: 'unsupported_canonical_load_profile_schema_version' };
+  if (!SUPPORTED_LOAD_PROFILE_FINGERPRINT_VERSIONS.includes(fingerprintVersion)) return { valid: false, issue: 'unsupported_load_profile_fingerprint_version' };
+  if (fingerprintVersion === 3 && (schemaVersion !== 3 || !/^[a-f0-9]{64}$/.test(manifest.loadProfileFingerprint || ''))) {
+    return { valid: false, issue: 'invalid_v3_load_profile_evidence' };
+  }
+  return { valid: true, issue: '' };
+}
 
 export function sha256File(relativePath) {
   const file = path.join(root, relativePath);
@@ -29,6 +42,8 @@ export function validateFrozenBaseline(baseline, { verifyArtifact = true } = {})
   if (verifyArtifact) {
     const manifestPath = `docs/baselines/frozen/${baseline?.runId || ''}/manifest.json`;
     const manifest = readJSON(manifestPath) || {};
+    const profileEvidence = validateLoadProfileEvidence(manifest);
+    if (!profileEvidence.valid) issues.push(profileEvidence.issue);
     const relativePath = manifest?.rawArtifact?.relativePath || (manifest.frozenPath ? path.basename(manifest.frozenPath) : '') || 'raw-summary.json';
     const frozenArtifact = `docs/baselines/frozen/${baseline?.runId || ''}/${relativePath}`;
     const actualHash = sha256File(frozenArtifact);

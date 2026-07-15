@@ -22,7 +22,7 @@ export function updateR3BManifest(update) {
   const next = {
     ...current,
     ...update,
-    phase: 'P7-V2-R3B-FAST-CLOSE',
+    phase: current.phase || 'P7-V2-R3B-FAST-CLOSE',
     selectedHost: '127.0.0.1',
     selectedPort: 18080,
     updatedAt: new Date().toISOString(),

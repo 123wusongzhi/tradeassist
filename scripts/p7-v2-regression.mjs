@@ -4,10 +4,11 @@ import path from 'node:path';
 import { readJSON, root, valueOf, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { CORE_SCENARIOS, METRIC_METADATA, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
 import { resolveActiveBaseline, resolveActiveCurrent } from './p7-v2-evidence-resolver.mjs';
+import { supportedLoadProfileFingerprintVersions, validateLoadProfileFingerprintEvidence } from './p7-v2-regression-fingerprint.mjs';
 
 const args = process.argv.slice(2);
 const fingerprintVersion = Number(valueOf(args, '--fingerprint-version') || 1);
-if (![1, 2].includes(fingerprintVersion)) throw new Error('fingerprint version must be 1 or 2');
+if (!supportedLoadProfileFingerprintVersions.includes(fingerprintVersion)) throw new Error('fingerprint version must be 1, 2, or 3');
 const resolvedBaseline = resolveActiveBaseline();
 const resolvedCurrent = resolveActiveCurrent();
 const baselinePath = valueOf(args, '--baseline') || resolvedBaseline.reportPath;
@@ -16,13 +17,17 @@ const policyPath = valueOf(args, '--policy') || 'docs/p7-v2-regression-policy-v2
 const baseline = valueOf(args, '--baseline') ? readJSON(baselinePath) : resolvedBaseline.baseline;
 const current = { ...(readJSON(currentPath) || {}), ...(resolvedCurrent.entry || {}) };
 const policy = readJSON(policyPath);
-const comparabilityPath = valueOf(args, '--comparability-report') || (fingerprintVersion === 2
+const comparabilityPath = valueOf(args, '--comparability-report') || (fingerprintVersion === 3
+  ? 'docs/p7-v2-r3b-lpc-r3-comparability-report.json'
+  : fingerprintVersion === 2
   ? 'docs/p7-v2-r3b-lpf-comparability-v2-report.json'
   : 'docs/p7-v2-r3b-rebaseline2-comparability-report.json');
 const comparability = readJSON(comparabilityPath) || {};
 const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
 const policyFingerprint = policy ? hash(JSON.stringify(policy)) : '';
 const issues = [];
+const fingerprintEvidence = validateLoadProfileFingerprintEvidence(baseline, current);
+if (!fingerprintEvidence.regressionAllowed) issues.push(fingerprintEvidence.classification);
 
 function frozen(kind, runId) {
   const group = kind === 'baseline' ? 'baselines' : 'currents';
@@ -52,7 +57,7 @@ issues.push(...baselineFrozen.issues, ...currentFrozen.issues);
 if (!resolvedBaseline.valid || !resolvedCurrent.valid) issues.push('active frozen baseline or Current registry entry is invalid');
 if (!baseline || baseline.status !== 'passed' || !current || current.status !== 'passed' || current.independentRun !== true) issues.push('baseline or independent Current report is not passed');
 if (!policy || policy.version !== 2) issues.push('Regression policy version 2 is required');
-if (comparability.status !== 'passed' || (fingerprintVersion === 2 && comparability.currentFingerprintVersion !== 2)) {
+if (comparability.status !== 'passed' || (fingerprintVersion >= 2 && comparability.currentFingerprintVersion !== fingerprintVersion)) {
   issues.push('passed Comparability evidence for the selected fingerprint version is required');
 }
 if (baseline?.runId === current?.runId || baselineFrozen.actualHash === currentFrozen.actualHash) issues.push('baseline and current artifacts are not independent');
@@ -117,17 +122,19 @@ const invalidMetricCount = comparisons.filter((item) => item.finalVerdict === 'i
 const insufficientSampleCount = comparisons.filter((item) => item.finalVerdict === 'insufficient_samples').length;
 const summaryStatMissingCount = comparisons.filter((item) => item.finalVerdict === 'summary_stat_missing').length;
 const status = issues.length || failedMetricCount || notComparableCount || invalidMetricCount || insufficientSampleCount || summaryStatMissingCount ? 'failed' : 'passed';
-const report = { phase: fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
+const report = { phase: fingerprintVersion === 3 ? 'P7-V2-R3B-LPC-R3' : fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
   baseline: { path: baselinePath, runId: baseline?.runId || '', artifactSha256: baselineFrozen.actualHash || '', artifactHashVerified: baselineFrozen.valid },
   current: { path: currentPath, runId: current?.runId || '', artifactSha256: currentFrozen.actualHash || '', artifactHashVerified: currentFrozen.valid, independentRun: current?.independentRun === true },
   absoluteSloPassed: current?.absoluteSloPassed === true, relativeRegressionPassed: failedMetricCount === 0 && notComparableCount === 0,
   materialityGatePassed: failedMetricCount === 0, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount,
-  summaryStatMissingCount, zeroSemanticErrors: 0, fingerprintVersion, comparabilityPath, comparisons, issues };
+  summaryStatMissingCount, zeroSemanticErrors: 0, fingerprintVersion, supportedLoadProfileFingerprintVersions, fingerprintEvidence, comparabilityPath, comparisons, issues };
 if (fingerprintVersion === 1 && !fs.existsSync(path.join(root, 'docs/regressions/p7-v2-r3b-regression-v1-failed.json'))) {
   const previous = readJSON('docs/p7-v2-performance-regression-report.json');
   if (previous) writeJSON('docs/regressions/p7-v2-r3b-regression-v1-failed.json', { ...previous, evaluationVersion: 1 });
 }
-const output = fingerprintVersion === 2
+const output = fingerprintVersion === 3
+  ? ['docs/p7-v2-r3b-lpc-r3-regression-v2-report.json', 'docs/P7_V2_R3B_LPC_R3_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-LPC-R3 Regression V2']
+  : fingerprintVersion === 2
   ? ['docs/p7-v2-r3b-lpf-regression-v2-report.json', 'docs/P7_V2_R3B_LPF_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-LPF-V2 Regression V2']
   : ['docs/p7-v2-r3b-rebaseline2-regression-v2-report.json', 'docs/P7_V2_R3B_REBASELINE2_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-REBASELINE2 Regression V2'];
 writeJSON(output[0], report);

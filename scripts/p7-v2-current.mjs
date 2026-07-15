@@ -3,12 +3,16 @@ import { freezeRawArtifact } from './p7-v2-artifact-freeze.mjs';
 import { readJSON, valueOf, writeJSON } from './p7-v2-lib.mjs';
 import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 import { updateR3BManifest } from './p7-v2-r3b-manifest.mjs';
+import { readRuntimeFreezeContract, validateRuntimeFreezeContract } from './p7-v2-r3b-lpc-r3-runtime-freeze.mjs';
 
 const args = process.argv.slice(2);
 const runId = valueOf(args, '--run-id') || `p7v2-current-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 if (!/^p7v2-current-r3b-recovery6-[a-z0-9_-]+$/.test(runId)) {
   throw new Error('P7-V2-R3B-LPC-R3 requires a unique Recovery6 current run ID');
 }
+const runtimeFreeze = readRuntimeFreezeContract();
+const runtimeFreezeValidation = validateRuntimeFreezeContract(runtimeFreeze, { kind: 'current', runId });
+if (!runtimeFreezeValidation.valid) throw new Error(`valid Recovery6 runtime freeze contract is required: ${runtimeFreezeValidation.issue}`);
 const activeBaseline = resolveActiveBaseline();
 if (!activeBaseline.valid) throw new Error(`active frozen baseline is invalid: ${activeBaseline.issues.join('; ')}`);
 const baselineRunId = activeBaseline.baseline.runId;
@@ -38,6 +42,9 @@ if (current?.runId === runId) {
     restartEvidence.mockProvider?.freshStateVerified === true;
   current.independentRun = current.currentRunIndependent;
   current.baselineRunId = baselineRunId;
+  current.runtimeFreezeId = runtimeFreeze.contractId;
+  current.runtimeFreezeContractHash = runtimeFreeze.contractId;
+  current.runtimeFreezeRunId = runId;
   current.status = current.status === 'passed' && current.independentRun ? 'passed' : 'failed';
   writeJSON('docs/p7-v2-current-load-report.json', current);
   writeJSON(`docs/runs/p7-v2-current-${runId}.json`, current);

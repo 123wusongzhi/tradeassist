@@ -1,0 +1,31 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3-GATEFIX",
+  "status": "passed",
+  "canonicalSchemaVersion": 3,
+  "fingerprintVersion": 3,
+  "iterations": 20,
+  "uniqueFingerprintCount": 1,
+  "sameProfileDifferentRunKindSameHash": true,
+  "sameProfileDifferentRunIdSameHash": true,
+  "sameProfileDifferentTimestampSameHash": true,
+  "sameProfileDifferentAbsolutePathSameHash": true,
+  "stageOrderChangedDifferentHash": true,
+  "stageDurationChangedDifferentHash": true,
+  "stageTargetChangedDifferentHash": true,
+  "configuredVUsChangedDifferentHash": true,
+  "scenarioExecutorChangedDifferentHash": true,
+  "scenarioWeightChangedDifferentHash": true,
+  "loadScriptChangedDifferentHash": true,
+  "emptyProfileRejected": true,
+  "emptyStagesRejected": true,
+  "missingConfiguredVUsRejected": true,
+  "invalidStageRejected": true,
+  "loadScriptHashMissingRejected": true,
+  "crossPlatform": {
+    "windowsExecuted": true,
+    "wslExecuted": false,
+    "fingerprintsMatch": null,
+    "status": "not_executed"
+  },
+  "issues": []
+}
