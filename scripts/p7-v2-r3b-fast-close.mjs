@@ -28,7 +28,7 @@ const formalCommands = [
   ['gates', ['pnpm', 'test:p7-v2-gates']],
   ['host-guard', ['pnpm', 'p7-v2:host-guard']],
   ['preflight', ['pnpm', 'p7-v2:r3b:preflight', '--', '--recovery6']],
-  ['runtime-freeze', ['pnpm', 'p7-v2:r3b:lpc-r3:runtime-freeze']],
+  ['runtime-freeze', ['pnpm', 'p7-v2:r3b:runtime-freeze']],
   ['environment-start', ['pnpm', 'p7-v2:env:start', '--', '--run-id', runIds.baselineRunId]],
   ['dataset', ['pnpm', 'p7-v2:dataset', '--', '--run-id', runIds.baselineRunId, '--execute']],
   ['baseline', ['pnpm', 'p7-v2:baseline', '--', '--run-id', runIds.baselineRunId]],
@@ -47,13 +47,14 @@ const formalCommands = [
   ['p7-capacity-gate', ['pnpm', 'check:p7']],
 ];
 const dryRunCommands = [
+  ['fixtures', ['pnpm', 'test:p7-v2-formal-v3-wiring']],
   ['preflight-evidence', ['pnpm', 'p7-v2:r3b:lpc-r3:preflight-audit']],
   ['determinism-evidence', ['pnpm', 'p7-v2:r3b:lpc-r3:determinism']],
   ['fingerprint-fixtures', ['pnpm', 'test:p7-v2-load-profile-fingerprint']],
   ['stage-schema-fixtures', ['pnpm', 'test:p7-v2-load-profile-stage-schema']],
   ['regression-v3-fixtures', ['pnpm', 'test:p7-v2-regression-fingerprint-v3']],
   ['consumer-compatibility', ['pnpm', 'p7-v2:r3b:lpc-r3:consumer-compatibility']],
-  ['scoped-gate', ['pnpm', 'p7-v2:r3b:lpc-r3:gatefix']],
+  ['scoped-gate', ['pnpm', 'p7-v2:r3b:formal-wiring-final-gate']],
 ];
 const commands = dryRun ? dryRunCommands : formalCommands;
 const start = resumeFrom ? commands.findIndex(([name]) => name === resumeFrom) : 0;
@@ -75,7 +76,7 @@ for (let index = start; index < commands.length; index += 1) {
   });
   results.push({ step, command: command.join(' '), exitCode: result.status ?? 1 });
   if ((result.status ?? 1) !== 0) {
-    const report = { phase: 'P7-V2-R3B-LPC-R3', status: 'incomplete', failedStep: step, command: command.join(' '), exitCode: result.status ?? 1, runIds, results, manifest: readR3BManifest() };
+    const report = { phase: 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL', status: 'incomplete', failedStep: step, command: command.join(' '), exitCode: result.status ?? 1, runIds, results, manifest: readR3BManifest() };
     writeJSON('docs/p7-v2-r3b-fast-close-r3-final-report.json', report);
     writeMarkdown('docs/P7_V2_R3B_FAST_CLOSE_R3_FINAL_REPORT.md', `# P7-V2-R3B Fast Close R3 Final Report\n\nStatus: **incomplete**\n\n- Failed step: ${step}\n- Command: \`${command.join(' ')}\`\n- Exit code: ${result.status ?? 1}\n`);
     process.exit(result.status ?? 1);
@@ -107,7 +108,7 @@ for (let index = start; index < commands.length; index += 1) {
   if (!dryRun && step === 'soak') updateR3BManifest({ soakRunId: runIds.soakRunId, status: 'soak_passed' });
   if (stopAfter === step) break;
 }
-const report = { phase: 'P7-V2-R3B-LPC-R3', status: dryRun ? 'dry_run_passed' : 'passed', runIds, results, manifest: readR3BManifest(), productionReady: false, tagCreated: false };
+const report = { phase: 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL', status: dryRun ? 'dry_run_passed' : 'passed', runIds, results, manifest: readR3BManifest(), productionReady: false, tagCreated: false };
 writeJSON('docs/p7-v2-r3b-fast-close-r3-final-report.json', report);
 writeMarkdown('docs/P7_V2_R3B_FAST_CLOSE_R3_FINAL_REPORT.md', `# P7-V2-R3B Fast Close R3 Final Report\n\nStatus: **${report.status}**\n\n- Production Ready: false\n- Tag deferred: true\n`);
 console.log(JSON.stringify(report, null, 2));

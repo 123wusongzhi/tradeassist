@@ -7,7 +7,8 @@ const required = [
   'docs/p7-v2-r3b-lpc-r3-determinism-report.json',
   'docs/p7-v2-r3b-lpc-r3-consumer-compatibility.json',
 ];
-if (required.some((file) => readJSON(file)?.status !== 'passed')) throw new Error('passed LPC-R3 evidence is required before planning Recovery6');
+if (required.some((file) => readJSON(file)?.status !== 'passed')) throw new Error('passed Formal Wiring evidence is required before planning Recovery6');
+const currentPlan = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const runIds = {
   baselineRunId: `p7v2-baseline-r3b-recovery6-${stamp}`, currentRunId: `p7v2-current-r3b-recovery6-${stamp}`,
@@ -25,15 +26,33 @@ for (const runId of allRunIds) {
       fs.existsSync(path.join(root, 'docs', 'baselines', 'frozen', runId)) || fs.existsSync(path.join(root, 'docs', 'currents', 'frozen', runId)) ||
       JSON.stringify(registries).includes(runId)) throw new Error(`Recovery6 run ID already exists: ${runId}`);
 }
-const previousPlan = {
-  phase: 'P7-V2-R3B-FAST-CLOSE-R2', baselineRunId: 'p7v2-baseline-r3b-recovery5-20260715091700',
-  status: 'aborted_before_execution', active: false, validForExecution: false, baselineArtifactCreated: false,
-  currentExecuted: false, reason: 'canonical_load_profile_stage_validation_failed',
-};
+const supersededPlan = currentPlan?.baselineRunId
+  ? {
+      ...currentPlan,
+      status: 'superseded_before_formal_execution',
+      active: false,
+      validForExecution: false,
+      executionStarted: false,
+      reason: currentPlan.runtimeFreezeId ? 'runtime_freeze_revalidation_failed' : 'formal_pair_wiring_completed_after_plan_creation',
+      supersededAt: new Date().toISOString(),
+    }
+  : {
+      phase: 'P7-V2-R3B-FAST-CLOSE-R2',
+      baselineRunId: 'p7v2-baseline-r3b-recovery5-20260715091700',
+      status: 'aborted_before_execution',
+      active: false,
+      validForExecution: false,
+      executionStarted: false,
+      baselineArtifactCreated: false,
+      currentExecuted: false,
+      reason: 'canonical_load_profile_stage_validation_failed',
+    };
+writeJSON('docs/p7-v2-r3b-recovery6-superseded-plan.json', supersededPlan);
 const manifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3', status: 'planned', canonicalSchemaVersion: 3, loadProfileFingerprintVersion: 3,
   ...runIds, selectedHost: '127.0.0.1', selectedPort: 18080, baseUrl: 'http://127.0.0.1:18080',
-  runtimeFreezeId: null, executionStarted: false, runIdsUnique: true, previousPlan, updatedAt: new Date().toISOString(),
+  runtimeFreezeId: /^[a-f0-9]{64}$/.test(currentPlan.runtimeFreezeId || '') && !String(currentPlan.status || '').startsWith('superseded') ? currentPlan.runtimeFreezeId : null,
+  executionStarted: false, runIdsUnique: true, previousPlan: supersededPlan, updatedAt: new Date().toISOString(),
 };
 writeJSON('docs/p7-v2-r3b-run-manifest.json', manifest);
 console.log(JSON.stringify(manifest, null, 2));

@@ -4,6 +4,7 @@ Status: **passed**
 
 - producer: canonical V3=true; fingerprint V3=true
 - artifactFreeze: canonical V3=true; fingerprint V3=true
+- loadWrappers: canonical V3=true; fingerprint V3=true
 - registry: canonical V3=true; fingerprint V3=true
 - evidenceResolver: canonical V3=true; fingerprint V3=true
 - comparability: canonical V3=true; fingerprint V3=true

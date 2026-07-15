@@ -1,0 +1,18 @@
+{
+  "phase": "P7-V2-R3B-SOAK-SEMANTICS-PROBE",
+  "status": "passed",
+  "diagnosticOnly": true,
+  "runtimeProbeExecuted": false,
+  "shortProbePassed": true,
+  "probeType": "deterministic_semantics_fixture_probe",
+  "note": "This Stage A probe validates metric binding and evaluator semantics without starting formal runtime execution.",
+  "checks": {
+    "missingMetricNotZero": true,
+    "zeroSampleNotSuccess": true,
+    "insufficientSampleNotSuccess": true,
+    "absoluteSloMissingNotFalse": true,
+    "absoluteSloRealFailureSeparated": true,
+    "targetReachedSplit": true
+  },
+  "formalMetricRegistryHash": "007b936da729c167154dc265037f95d95fa894b790c1be0e7cf6e770f04ca89a"
+}

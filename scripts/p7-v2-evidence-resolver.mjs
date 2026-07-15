@@ -107,3 +107,116 @@ export function resolveActiveBaseline({ verifyArtifact = true } = {}) {
 export function readR3BManifest() {
   return readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 }
+
+function registryEntry(registry, runId, collection) {
+  const entries = Array.isArray(registry?.[collection]) ? registry[collection] : [];
+  return entries.find((entry) => entry.runId === runId) || null;
+}
+
+function currentEntry(registry, runId) {
+  const entries = Array.isArray(registry?.entries) ? registry.entries : [];
+  return entries.find((entry) => entry.runId === runId) || null;
+}
+
+function frozenEvidence(kind, runId) {
+  const group = kind === 'baseline' ? 'baselines' : 'currents';
+  const manifestPath = `docs/${group}/frozen/${runId}/manifest.json`;
+  const manifest = readJSON(manifestPath) || {};
+  const relativePath = manifest?.rawArtifact?.relativePath || (manifest.frozenPath ? path.basename(manifest.frozenPath) : '') || 'raw-summary.json';
+  const artifactPath = `docs/${group}/frozen/${runId}/${relativePath}`;
+  const artifactSha256 = sha256File(artifactPath);
+  return {
+    manifestPath,
+    manifest,
+    artifactPath,
+    artifactSha256,
+    artifactExists: Boolean(artifactSha256),
+  };
+}
+
+function formalComparabilityPath() {
+  return 'docs/p7-v2-r3b-fast-close-r3-comparability-report.json';
+}
+
+export function resolveFormalPairEvidence({
+  runManifestPath = 'docs/p7-v2-r3b-run-manifest.json',
+  baselineRunId = '',
+  currentRunId = '',
+  requireFrozen = true,
+  requireComparability = false,
+  comparabilityPath = formalComparabilityPath(),
+} = {}) {
+  const issues = [];
+  const manifest = readJSON(runManifestPath) || {};
+  const selectedBaselineRunId = baselineRunId || manifest.baselineRunId || '';
+  const selectedCurrentRunId = currentRunId || manifest.currentRunId || '';
+  if (!selectedBaselineRunId) issues.push('baseline_run_id_missing');
+  if (!selectedCurrentRunId) issues.push('current_run_id_missing');
+  if (selectedBaselineRunId && selectedCurrentRunId && selectedBaselineRunId === selectedCurrentRunId) issues.push('run_pair_not_independent');
+
+  const baselineRegistry = readJSON(REGISTRY_PATH) || {};
+  const currentRegistry = readJSON(CURRENT_REGISTRY_PATH) || {};
+  const baseline = registryEntry(baselineRegistry, selectedBaselineRunId, 'baselines');
+  const current = currentEntry(currentRegistry, selectedCurrentRunId);
+  if (!baseline) issues.push('baseline_registry_entry_missing');
+  if (!current) issues.push('current_registry_entry_missing');
+
+  const baselineFrozen = selectedBaselineRunId ? frozenEvidence('baseline', selectedBaselineRunId) : {};
+  const currentFrozen = selectedCurrentRunId ? frozenEvidence('current', selectedCurrentRunId) : {};
+  if (requireFrozen) {
+    if (!baselineFrozen.artifactExists || baselineFrozen.manifest?.runId !== selectedBaselineRunId) issues.push('baseline_frozen_manifest_missing_or_mismatched');
+    if (!currentFrozen.artifactExists || currentFrozen.manifest?.runId !== selectedCurrentRunId) issues.push('current_frozen_manifest_missing_or_mismatched');
+  }
+
+  const runtimeFreeze = readJSON('docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json') || {};
+  const runtimeFreezeId = runtimeFreeze.runtimeFreezeId || runtimeFreeze.contractId || baselineFrozen.manifest?.runtimeFreezeId || currentFrozen.manifest?.runtimeFreezeId || '';
+  if (requireFrozen && baselineFrozen.manifest?.runtimeFreezeId && currentFrozen.manifest?.runtimeFreezeId && baselineFrozen.manifest.runtimeFreezeId !== currentFrozen.manifest.runtimeFreezeId) {
+    issues.push('runtime_freeze_binding_mismatch');
+  }
+  if (requireFrozen && runtimeFreezeId && (baselineFrozen.manifest?.runtimeFreezeId || currentFrozen.manifest?.runtimeFreezeId)) {
+    if (baselineFrozen.manifest?.runtimeFreezeId && baselineFrozen.manifest.runtimeFreezeId !== runtimeFreezeId) issues.push('baseline_runtime_freeze_mismatch');
+    if (currentFrozen.manifest?.runtimeFreezeId && currentFrozen.manifest.runtimeFreezeId !== runtimeFreezeId) issues.push('current_runtime_freeze_mismatch');
+  }
+
+  const comparability = readJSON(comparabilityPath) || {};
+  if (requireComparability) {
+    if (!comparability || comparability.status !== 'passed') issues.push('comparability_not_passed');
+    if (comparability.baselineRunId !== selectedBaselineRunId) issues.push('comparability_baseline_run_id_mismatch');
+    if (comparability.currentRunId !== selectedCurrentRunId) issues.push('comparability_current_run_id_mismatch');
+    if (baselineFrozen.artifactSha256 && comparability.baselineArtifactSha256 !== baselineFrozen.artifactSha256) issues.push('comparability_baseline_artifact_hash_binding_mismatch');
+    if (currentFrozen.artifactSha256 && comparability.currentArtifactSha256 !== currentFrozen.artifactSha256) issues.push('comparability_current_artifact_hash_binding_mismatch');
+    if (runtimeFreezeId && comparability.runtimeFreezeId !== runtimeFreezeId) issues.push('comparability_runtime_freeze_binding_mismatch');
+    if (Number(comparability.mismatchCount || 0) !== 0 || Number(comparability.notComparableCount || 0) !== 0) issues.push('comparability_pair_not_clean');
+  }
+
+  let classification = 'accepted';
+  if (issues.includes('comparability_baseline_artifact_hash_binding_mismatch') || issues.includes('comparability_current_artifact_hash_binding_mismatch')) {
+    classification = 'comparability_artifact_hash_binding_mismatch';
+  } else if (issues.some((issue) => issue.includes('run_id_mismatch') || issue.includes('runtime_freeze') || issue === 'comparability_pair_not_clean')) {
+    classification = 'comparability_pair_binding_mismatch';
+  } else if (issues.length) {
+    classification = 'formal_pair_evidence_missing';
+  }
+
+  return {
+    status: issues.length ? 'failed' : 'passed',
+    regressionAllowed: issues.length === 0,
+    classification,
+    runManifestPath,
+    baselineRunId: selectedBaselineRunId,
+    currentRunId: selectedCurrentRunId,
+    baselineRegistryEntry: baseline,
+    currentRegistryEntry: current,
+    baselineFrozenManifest: baselineFrozen.manifest,
+    currentFrozenManifest: currentFrozen.manifest,
+    baselineFrozenManifestPath: baselineFrozen.manifestPath || '',
+    currentFrozenManifestPath: currentFrozen.manifestPath || '',
+    selectedBaselineArtifactSha256: baselineFrozen.artifactSha256 || '',
+    selectedCurrentArtifactSha256: currentFrozen.artifactSha256 || '',
+    runtimeFreeze,
+    runtimeFreezeId,
+    comparabilityPath,
+    comparability,
+    issues,
+  };
+}

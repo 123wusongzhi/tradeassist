@@ -6,6 +6,9 @@ const determinism = readJSON('docs/p7-v2-r3b-lpc-r3-determinism-report.json') ||
 const compatibility = readJSON('docs/p7-v2-r3b-lpc-r3-consumer-compatibility.json') || {};
 const manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const ids = [manifest.baselineRunId, manifest.currentRunId, manifest.soakRunId, manifest.demoRun1Id, manifest.demoRun2Id];
+const previousPlanClosed =
+  (manifest.previousPlan?.status === 'aborted_before_execution' && manifest.previousPlan?.validForExecution === false) ||
+  (manifest.previousPlan?.status === 'superseded_before_execution' && manifest.previousPlan?.validForExecution === false && manifest.previousPlan?.executionStarted === false);
 const fixture = (file) => spawnSync(process.execPath, [file], { stdio: 'ignore' }).status === 0;
 const regressionV3FixturesPassed = fixture('tests/gates/p7-v2/regression-fingerprint-v3/fixtures.mjs');
 const stageSchemaFixturesPassed = fixture('tests/gates/p7-v2/load-profile-stage-schema/fixtures.mjs');
@@ -23,7 +26,7 @@ const checks = [
   ['loadWrappersPropagateFreeze', compatibility.consumers?.find((x) => x.consumer === 'loadWrappers')?.supportsFingerprintV3 === true],
   ['scopedGateSupportsV3', compatibility.consumers?.find((x) => x.consumer === 'scopedGate')?.supportsFingerprintV3 === true],
   ['regressionV3FixturesPassed', regressionV3FixturesPassed], ['stageSchemaFixturesPassed', stageSchemaFixturesPassed], ['fingerprintFixturesPassed', fingerprintFixturesPassed], ['runtimeFreezeContractFixturesPassed', runtimeFreezeContractFixturesPassed],
-  ['recovery5Aborted', manifest.previousPlan?.status === 'aborted_before_execution' && manifest.previousPlan?.validForExecution === false],
+  ['recovery5Aborted', previousPlanClosed],
   ['recovery6Planned', manifest.status === 'planned' && manifest.executionStarted === false && manifest.runIdsUnique === true && new Set(ids).size === 5 && ids.every(Boolean)],
   ['noExecution', Object.values(preflight.execution || {}).every((value) => value === false)],
 ];

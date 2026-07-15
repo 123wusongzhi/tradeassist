@@ -60,9 +60,10 @@ export function validateDemo(run1 = {}, run2 = {}) {
 
 export function validateCleanup(cleanup = {}) {
   const issues = [];
-  for (const key of ['remainingDatabasesWithPrefix', 'processesRemaining', 'portsRemaining']) {
+  for (const key of ['currentFormalResidualCount', 'failedAttemptResidualCount', 'unknownDatabaseCount', 'processesRemaining', 'portsRemaining']) {
     if (Number(cleanup[key]) !== 0) issues.push(`${key} is not zero`);
   }
+  if (cleanup.cleanupGateSemanticsValid !== true) issues.push('cleanup gate semantics are not valid');
   return { valid: cleanup.status === 'passed' && issues.length === 0, issues };
 }
 

@@ -20,8 +20,8 @@ export const SCENARIO_METRICS = {
   'Operation Log List': ['p7_operation_log_list_steady_duration', 'p7_operation_log_list_steady_requests'],
   'Webhook Ingestion': ['p7_webhook_ingestion_steady_duration', 'p7_webhook_ingestion_steady_requests'],
   'Provider Mock Flow': ['p7_provider_mock_flow_steady_duration', 'p7_provider_mock_flow_steady_requests'],
-  'Auth Invalid Login': ['p7_auth_invalid_login_duration', 'p7_auth_invalid_login_requests'],
-  'Webhook Invalid Signature': ['p7_webhook_invalid_signature_duration', 'p7_webhook_invalid_signature_requests'],
+  'Auth Invalid Login': ['p7_auth_invalid_login_steady_duration', 'p7_auth_invalid_login_steady_requests'],
+  'Webhook Invalid Signature': ['p7_webhook_invalid_signature_steady_duration', 'p7_webhook_invalid_signature_steady_requests'],
 };
 
 export const METRIC_METADATA = {

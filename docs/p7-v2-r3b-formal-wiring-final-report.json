@@ -1,0 +1,131 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
+  "status": "passed",
+  "failed": 0,
+  "checks": [
+    {
+      "id": "runtimeFreezeContractPathCorrect",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezePhaseCorrect",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeFieldsComplete",
+      "status": "passed"
+    },
+    {
+      "id": "pairSpecificResolverPassed",
+      "status": "passed"
+    },
+    {
+      "id": "historicalFallbackDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "comparabilityPairBindingPassed",
+      "status": "passed"
+    },
+    {
+      "id": "artifactHashBindingPassed",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeBindingPassed",
+      "status": "passed"
+    },
+    {
+      "id": "baselineV3PropagationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "currentV3PropagationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "registryV3SchemaPassed",
+      "status": "passed"
+    },
+    {
+      "id": "recovery6PreflightPassed",
+      "status": "passed"
+    },
+    {
+      "id": "oldRecovery6PlanSuperseded",
+      "status": "passed"
+    },
+    {
+      "id": "newRecovery6PlanCreated",
+      "status": "passed"
+    },
+    {
+      "id": "newRecovery6RunIdsUnique",
+      "status": "passed"
+    },
+    {
+      "id": "newRecovery6ExecutionStarted",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeCreated",
+      "status": "passed"
+    },
+    {
+      "id": "environmentStarted",
+      "status": "passed"
+    },
+    {
+      "id": "datasetExecuted",
+      "status": "passed"
+    },
+    {
+      "id": "k6Executed",
+      "status": "passed"
+    },
+    {
+      "id": "registryActiveEntryModified",
+      "status": "passed"
+    }
+  ],
+  "results": [
+    {
+      "step": "formal-v3-wiring-fixtures",
+      "command": "D:\\nvm\\nodejs\\node.exe tests/gates/p7-v2/formal-v3-wiring/fixtures.mjs",
+      "exitCode": 0
+    },
+    {
+      "step": "runtime-freeze-contract-fixtures",
+      "command": "D:\\nvm\\nodejs\\node.exe tests/gates/p7-v2/runtime-freeze-contract/fixtures.mjs",
+      "exitCode": 0
+    },
+    {
+      "step": "new-recovery6-plan",
+      "command": "D:\\nvm\\nodejs\\node.exe scripts/p7-v2-r3b-lpc-r3-recovery6-plan.mjs",
+      "exitCode": 0
+    },
+    {
+      "step": "recovery6-preflight",
+      "command": "D:\\nvm\\nodejs\\node.exe scripts/p7-v2-r3b-preflight.mjs --recovery6",
+      "exitCode": 0
+    }
+  ],
+  "runtimeFreezeId": "2f50393574d3c55ce6b673fc5e9e2ad67e0d2f5b777f8ff9ef199769114d52e2",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715103749",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260715103749",
+  "execution": {
+    "runtimeFreezeCreated": false,
+    "environmentStarted": false,
+    "datasetExecuted": false,
+    "k6Executed": false,
+    "registryActiveEntryModified": false
+  },
+  "productionResourcesAccessed": false,
+  "realProviderCalls": 0,
+  "realDouyinCalls": 0,
+  "platformWrites": 0,
+  "autoListingTriggered": false,
+  "tagCreated": false,
+  "productionReady": false,
+  "issues": []
+}

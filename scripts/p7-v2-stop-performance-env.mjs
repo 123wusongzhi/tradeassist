@@ -13,6 +13,7 @@ import {
   writeJSON,
   writeMarkdown,
 } from './p7-v2-lib.mjs';
+import { classifyP7V2Database, summarizeCleanupClassifications } from './p7-v2-r3b-cleanup-classifier.mjs';
 
 const args = process.argv.slice(2);
 const portConfig = resolveP7V2PortConfig();
@@ -29,30 +30,50 @@ function psql(sql) {
 
 const remaining = psql(`SELECT datname FROM pg_database WHERE datname LIKE '${DB_PREFIX}%' ORDER BY datname;`);
 const rows = remaining.status === 0 ? (remaining.stdout || '').trim().split('\n').filter(Boolean) : [];
+const beforeClassifications = rows.map((databaseName) => classifyP7V2Database(databaseName));
+const droppedDatabases = [];
 
-if (!checkOnly && dbName) {
+if (!checkOnly) {
   stopP7V2Server({ portConfig });
-  const drop = psql(`DROP DATABASE IF EXISTS "${dbName.replaceAll('"', '""')}";`);
-  if (drop.status !== 0) issues.push(`failed to drop database ${dbName}`);
+  const targets = beforeClassifications
+    .filter((item) => item.cleanupEligible === true || item.databaseName === dbName)
+    .map((item) => item.databaseName);
+  for (const target of [...new Set(targets)]) {
+    const drop = psql(`DROP DATABASE IF EXISTS "${target.replaceAll('"', '""')}";`);
+    if (drop.status !== 0) issues.push(`failed to drop database ${target}`);
+    else droppedDatabases.push(target);
+  }
 }
 
 const live = psql(`SELECT datname FROM pg_database WHERE datname LIKE '${DB_PREFIX}%' ORDER BY datname;`);
 const liveRows = live.status === 0 ? (live.stdout || '').trim().split('\n').filter(Boolean) : [];
+const classifications = liveRows.map((databaseName) => classifyP7V2Database(databaseName));
+const summary = summarizeCleanupClassifications(classifications);
 const proc = runWSL("pgrep -af 'p7v2|p7load|p7verify|k6.*p7v2' 2>/dev/null || true");
 const procCount = (proc.stdout || '').trim().split('\n').filter((l) => l && !l.includes('pgrep -af')).length;
 const ports = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {print $4}' || true`);
 const portCount = (ports.stdout || '').trim().split('\n').filter(Boolean).length;
+const cleanupPassed = issues.length === 0 &&
+  summary.currentFormalResidualCount === 0 &&
+  summary.failedAttemptResidualCount === 0 &&
+  summary.unknownDatabaseCount === 0 &&
+  procCount === 0 &&
+  portCount === 0;
 
 const report = {
   phase: 'P7-V2',
   component: 'runtime-cleanup',
-  status: issues.length === 0 && liveRows.length === 0 && procCount === 0 && portCount === 0 ? 'passed' : issues.length ? 'failed' : 'incomplete',
+  status: cleanupPassed ? 'passed' : issues.length ? 'failed' : 'incomplete',
   checkedAt: new Date().toISOString(),
   gitCommit: gitCommit(),
   databasePrefix: DB_PREFIX,
   droppedDatabase: checkOnly ? '' : dbName,
+  droppedDatabases,
   remainingDatabases: liveRows,
   remainingDatabasesWithPrefix: liveRows.length,
+  databaseClassifications: classifications,
+  cleanupGateSemanticsValid: summary.unknownDatabaseCount === 0,
+  ...summary,
   processesRemaining: procCount,
   portsRemaining: portCount,
   queryExecuted: remaining.status === 0,
@@ -69,6 +90,10 @@ Status: ${report.status}
 | Field | Value |
 | --- | --- |
 | Remaining DBs | ${report.remainingDatabasesWithPrefix} |
+| Current formal residual DBs | ${report.currentFormalResidualCount} |
+| Failed attempt residual DBs | ${report.failedAttemptResidualCount} |
+| Historical evidence DBs | ${report.historicalEvidenceDatabaseCount} |
+| Unknown DBs | ${report.unknownDatabaseCount} |
 | Processes | ${report.processesRemaining} |
 | Ports | ${report.portsRemaining} |
 `,

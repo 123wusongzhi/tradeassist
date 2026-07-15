@@ -2,8 +2,8 @@
 
 Status: **passed**
 
-- Port: `8080`
-- Classification: `wsl_forwarding_process`
-- TradeMind evidence count: 1
+- Port: `18080`
+- Classification: `stale_trademind_process`
+- TradeMind evidence count: 2
 - Unknown process terminated: false
 - Unrelated service affected: false

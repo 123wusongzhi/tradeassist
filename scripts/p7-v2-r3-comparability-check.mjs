@@ -1,16 +1,17 @@
 import { readJSON } from './p7-v2-lib.mjs';
 import { writeR3Report } from './p7-v2-r3-lib.mjs';
-import { resolveActiveBaseline, resolveActiveCurrent } from './p7-v2-evidence-resolver.mjs';
+import { resolveActiveBaseline, resolveActiveCurrent, resolveFormalPairEvidence } from './p7-v2-evidence-resolver.mjs';
 
 const args = process.argv.slice(2);
 const fingerprintVersion = Number(args[args.indexOf('--fingerprint-version') + 1] || 1);
 if (![1, 2, 3].includes(fingerprintVersion)) throw new Error('fingerprint version must be 1, 2, or 3');
 const resolvedBaseline = resolveActiveBaseline();
 const resolvedCurrent = resolveActiveCurrent();
-const baseline = resolvedBaseline.baseline || {};
-const current = resolvedCurrent.entry || {};
-const baselineManifest = readJSON(`docs/baselines/frozen/${baseline.runId || ''}/manifest.json`) || {};
-const currentManifest = resolvedCurrent.manifest || {};
+const formalPair = fingerprintVersion === 3 ? resolveFormalPairEvidence({ requireFrozen: true, requireComparability: false }) : null;
+const baseline = fingerprintVersion === 3 ? (formalPair.baselineRegistryEntry || {}) : (resolvedBaseline.baseline || {});
+const current = fingerprintVersion === 3 ? (formalPair.currentRegistryEntry || {}) : (resolvedCurrent.entry || {});
+const baselineManifest = fingerprintVersion === 3 ? (formalPair.baselineFrozenManifest || {}) : (readJSON(`docs/baselines/frozen/${baseline.runId || ''}/manifest.json`) || {});
+const currentManifest = fingerprintVersion === 3 ? (formalPair.currentFrozenManifest || {}) : (resolvedCurrent.manifest || {});
 const sidecarRoot = `docs/fingerprints/p7-v2/load-profile/v${fingerprintVersion}`;
 const baselineVersionedProfile = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${baseline.runId || ''}.json`) || {} : {};
 const currentVersionedProfile = fingerprintVersion >= 2 ? readJSON(`${sidecarRoot}/${current.runId || ''}.json`) || {} : {};
@@ -72,12 +73,14 @@ const runtimeFreezeChecks = fingerprintVersion === 3 ? [
   ['matching-runtime-freeze-contract', baselineManifest.runtimeFreezeId === currentManifest.runtimeFreezeId],
 ] : [];
 const checks = [
-  ['baseline-registry', resolvedBaseline.valid],
-  ['current-registry', resolvedCurrent.valid],
+  ['baseline-registry', fingerprintVersion === 3 ? Boolean(formalPair.baselineRegistryEntry) : resolvedBaseline.valid],
+  ['current-registry', fingerprintVersion === 3 ? Boolean(formalPair.currentRegistryEntry) : resolvedCurrent.valid],
   ['baseline-manifest', baselineManifest.immutable === true && baselineManifest.validForRegression === true],
   ['current-manifest', currentManifest.immutable === true && currentManifest.validForRegression === true],
   ['different-run-id', baseline.runId && current.runId && baseline.runId !== current.runId],
-  ['different-artifact', resolvedBaseline.baseline?.rawArtifactSha256 && resolvedCurrent.actualHash && resolvedBaseline.baseline.rawArtifactSha256 !== resolvedCurrent.actualHash],
+  ['different-artifact', fingerprintVersion === 3
+    ? formalPair.selectedBaselineArtifactSha256 && formalPair.selectedCurrentArtifactSha256 && formalPair.selectedBaselineArtifactSha256 !== formalPair.selectedCurrentArtifactSha256
+    : resolvedBaseline.baseline?.rawArtifactSha256 && resolvedCurrent.actualHash && resolvedBaseline.baseline.rawArtifactSha256 !== resolvedCurrent.actualHash],
   ['current-independent', current.independentRun === true && current.baselineRunId === baseline.runId],
   ...versionedProfileChecks,
   ...runtimeFreezeChecks,
@@ -85,10 +88,18 @@ const checks = [
 ];
 const failed = checks.filter(([, ok]) => !ok).map(([id]) => id);
 const report = {
-  phase: fingerprintVersion === 3 ? 'P7-V2-R3B-LPC-R3' : fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-CI-RG',
+  phase: fingerprintVersion === 3 ? 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL' : fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-CI-RG',
   status: failed.length ? 'not_comparable' : 'passed',
   baselineRunId: baseline.runId || '',
   currentRunId: current.runId || '',
+  baselineArtifactSha256: fingerprintVersion === 3 ? formalPair.selectedBaselineArtifactSha256 : (resolvedBaseline.baseline?.rawArtifactSha256 || ''),
+  currentArtifactSha256: fingerprintVersion === 3 ? formalPair.selectedCurrentArtifactSha256 : (resolvedCurrent.actualHash || ''),
+  baselineFrozenManifestPath: fingerprintVersion === 3 ? formalPair.baselineFrozenManifestPath : `docs/baselines/frozen/${baseline.runId || ''}/manifest.json`,
+  currentFrozenManifestPath: fingerprintVersion === 3 ? formalPair.currentFrozenManifestPath : `docs/currents/frozen/${current.runId || ''}/manifest.json`,
+  runtimeFreezeId: fingerprintVersion === 3 ? formalPair.runtimeFreezeId : (baselineManifest.runtimeFreezeId || currentManifest.runtimeFreezeId || ''),
+  canonicalSchemaVersion: fingerprintVersion === 3 ? 3 : undefined,
+  loadProfileFingerprintVersion: fingerprintVersion,
+  loadProfileFingerprint: fingerprintVersion >= 2 ? baselineValues[versionedFingerprintKey] : baselineValues.loadProfileFingerprint,
   baseline: baselineValues,
   current: currentValues,
   mismatchCount: failed.filter((item) => comparableKeys.includes(item)).length,
@@ -99,10 +110,11 @@ const report = {
   currentFingerprintVersion: fingerprintVersion,
   loadProfileFingerprintMatch: fingerprintVersion >= 2 ? baselineValues[versionedFingerprintKey] === currentValues[versionedFingerprintKey] : baselineValues.loadProfileFingerprint === currentValues.loadProfileFingerprint,
   checks: checks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
-  issues: [...(resolvedBaseline.valid ? [] : resolvedBaseline.issues), ...failed],
+  pairBinding: fingerprintVersion === 3 ? formalPair : undefined,
+  issues: [...(fingerprintVersion === 3 ? formalPair.issues : (resolvedBaseline.valid ? [] : resolvedBaseline.issues)), ...failed],
 };
 const output = fingerprintVersion === 3
-  ? ['docs/p7-v2-r3b-lpc-r3-comparability-report.json', 'docs/P7_V2_R3B_LPC_R3_COMPARABILITY_REPORT.md', 'P7-V2-R3B-LPC-R3 Comparability Report']
+  ? ['docs/p7-v2-r3b-fast-close-r3-comparability-report.json', 'docs/P7_V2_R3B_FAST_CLOSE_R3_COMPARABILITY_REPORT.md', 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL Comparability Report']
   : fingerprintVersion === 2
   ? ['docs/p7-v2-r3b-lpf-comparability-v2-report.json', 'docs/P7_V2_R3B_LPF_COMPARABILITY_V2_REPORT.md', 'P7-V2-R3B-LPF-V2 Comparability Report']
   : ['docs/p7-v2-r3b-rebaseline2-comparability-report.json', 'docs/P7_V2_R3B_REBASELINE2_COMPARABILITY_REPORT.md', 'P7-V2-R3B-REBASELINE2 Comparability Report'];

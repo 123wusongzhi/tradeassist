@@ -1,6 +1,6 @@
 {
   "fingerprintType": "load_profile",
-  "activeVersion": 2,
+  "activeVersion": 3,
   "entries": [
     {
       "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
@@ -11,6 +11,36 @@
       "runId": "p7v2-current-r3b-recovery3-20260715-131400",
       "path": "docs/fingerprints/p7-v2/load-profile/v2/p7v2-current-r3b-recovery3-20260715-131400.json",
       "loadProfileFingerprint": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683"
+    },
+    {
+      "runId": "p7v2-baseline-r3b-recovery6-20260715112749",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-baseline-r3b-recovery6-20260715112749.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "6ebabfd8050b8a788bff6d53f297d18e5ae6cfe5167316cad404a68b8287204e"
+    },
+    {
+      "runId": "p7v2-baseline-r3b-recovery6-20260715125505",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-baseline-r3b-recovery6-20260715125505.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "6ebabfd8050b8a788bff6d53f297d18e5ae6cfe5167316cad404a68b8287204e"
+    },
+    {
+      "runId": "p7v2-current-r3b-recovery6-20260715125505",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-current-r3b-recovery6-20260715125505.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "6ebabfd8050b8a788bff6d53f297d18e5ae6cfe5167316cad404a68b8287204e"
+    },
+    {
+      "runId": "p7v2-baseline-r3b-recovery6-20260715153726",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-baseline-r3b-recovery6-20260715153726.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066"
+    },
+    {
+      "runId": "p7v2-current-r3b-recovery6-20260715153726",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-current-r3b-recovery6-20260715153726.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066"
     }
   ],
   "sourceArtifactsModified": false

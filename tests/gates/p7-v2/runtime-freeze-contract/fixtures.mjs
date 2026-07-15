@@ -27,9 +27,9 @@ assert.match(source('scripts/p7-v2-current.mjs'), /runtimeFreezeId = runtimeFree
 assert.match(source('scripts/p7-v2-artifact-freeze.mjs'), /runtimeFreezeContractHash/);
 assert.match(source('scripts/p7-v2-r3-comparability-check.mjs'), /loadProfileFingerprintV\$\{fingerprintVersion\}/);
 assert.match(source('scripts/p7-v2-r3-comparability-check.mjs'), /matching-runtime-freeze-contract/);
-assert.match(source('scripts/p7-v2-regression.mjs'), /p7-v2-r3b-lpc-r3-comparability-report\.json/);
+assert.match(source('scripts/p7-v2-regression.mjs'), /p7-v2-r3b-fast-close-r3-comparability-report\.json/);
 assert.match(source('scripts/p7-v2-r3b-fast-close.mjs'), /comparability-v3/);
 assert.match(source('scripts/p7-v2-r3b-preflight.mjs'), /const recovery6 = process\.argv\.includes\('--recovery6'\)/);
 assert.match(source('scripts/p7-v2-r3b-manifest.mjs'), /phase: current\.phase \|\| 'P7-V2-R3B-FAST-CLOSE'/);
 
-console.log(JSON.stringify({ phase: 'P7-V2-R3B-LPC-R3', status: 'passed', fixtures: 14 }, null, 2));
+console.log(JSON.stringify({ phase: 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL', status: 'passed', fixtures: 14 }, null, 2));

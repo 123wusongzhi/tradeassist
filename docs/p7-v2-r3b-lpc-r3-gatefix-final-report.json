@@ -56,6 +56,10 @@
       "status": "passed"
     },
     {
+      "id": "loadWrappersPropagateFreeze",
+      "status": "passed"
+    },
+    {
       "id": "scopedGateSupportsV3",
       "status": "passed"
     },
@@ -69,6 +73,10 @@
     },
     {
       "id": "fingerprintFixturesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeContractFixturesPassed",
       "status": "passed"
     },
     {
@@ -87,6 +95,7 @@
   "regressionV3FixturesPassed": true,
   "stageSchemaFixturesPassed": true,
   "fingerprintFixturesPassed": true,
+  "runtimeFreezeContractFixturesPassed": true,
   "productionResourcesAccessed": false,
   "realProviderCalls": 0,
   "realDouyinWrites": 0,

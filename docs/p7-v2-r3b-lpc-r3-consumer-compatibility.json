@@ -15,6 +15,12 @@
       "source": "scripts/p7-v2-artifact-freeze.mjs"
     },
     {
+      "consumer": "loadWrappers",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-baseline.mjs"
+    },
+    {
       "consumer": "registry",
       "supportsCanonicalSchemaV3": true,
       "supportsFingerprintV3": true,

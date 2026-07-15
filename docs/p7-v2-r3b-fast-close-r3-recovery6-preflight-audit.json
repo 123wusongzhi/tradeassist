@@ -1,0 +1,27 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
+  "component": "preflight-audit",
+  "status": "passed",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715125505",
+  "baselineStatus": "passed",
+  "baselineImmutable": true,
+  "baselineValidForRegression": true,
+  "baselineRequests": 29407,
+  "baselineArtifactHashVerified": true,
+  "expectedRuntimeSourceTreeHash": "6ab0d52843b57cae7aced870a5157606cef85a3d991272ab40fa4797f99f8814",
+  "currentRuntimeSourceTreeHash": "6e949c9d9281ebbd6785851c92c386010bc4d83e59f16a47bd408c66ce5426f4",
+  "runtimeSourceTreeMatch": false,
+  "recovery5Required": false,
+  "recovery6Planned": true,
+  "runtimeFreezeRequired": true,
+  "currentExecutionAllowed": false,
+  "execution": {
+    "runtimeFreezeCreated": false,
+    "currentStarted": false,
+    "regressionStarted": false,
+    "soakStarted": false,
+    "demoStarted": false
+  },
+  "issues": [],
+  "nextRequiredAction": "Generate and verify the Recovery6 runtime-freeze contract before the baseline run."
+}

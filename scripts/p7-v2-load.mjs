@@ -23,6 +23,8 @@ import {
 } from './p7-v2-lib.mjs';
 import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest } from './p7-v2-r3-lib.mjs';
 import { calculateLoadProfileFingerprint } from './p7-v2-load-profile-fingerprint.mjs';
+import { CORE_SCENARIOS, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
+import { classifyMetricEvidence, evaluateAbsoluteSlo, evaluateTargetReached } from './p7-v2-soak-semantics.mjs';
 
 const args = process.argv.slice(2);
 const kind = valueOf(args, '--kind') || 'load';
@@ -163,31 +165,30 @@ if (issues.length === 0) {
 }
 
 const scenario = scenarioFromSummary(kind, summaryJSON, exitCode);
-const scenarioMetricNames = {
-  'Product List': ['p7_product_list_steady_duration', 'p7_product_list_steady_requests'],
-  'Order List': ['p7_order_list_steady_duration', 'p7_order_list_steady_requests'],
-  'Inventory List': ['p7_inventory_list_steady_duration', 'p7_inventory_list_steady_requests'],
-  'Task List': ['p7_task_list_steady_duration', 'p7_task_list_steady_requests'],
-  'Webhook Event List': ['p7_webhook_event_list_steady_duration', 'p7_webhook_event_list_steady_requests'],
-  'Operation Log List': ['p7_operation_log_list_steady_duration', 'p7_operation_log_list_steady_requests'],
-  'Webhook Ingestion': ['p7_webhook_ingestion_steady_duration', 'p7_webhook_ingestion_steady_requests'],
-  'Provider Mock Flow': ['p7_provider_mock_flow_steady_duration', 'p7_provider_mock_flow_steady_requests'],
-  'Auth Invalid Login': ['p7_auth_invalid_login_duration', 'p7_auth_invalid_login_requests'],
-  'Webhook Invalid Signature': ['p7_webhook_invalid_signature_duration', 'p7_webhook_invalid_signature_requests'],
-};
 function summaryValue(summary, name, key) {
   const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
   return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null;
 }
-const scenarios = Object.entries(scenarioMetricNames)
+const scenarios = Object.entries(SCENARIO_METRICS)
   .map(([name, [durationMetric, requestMetric]]) => {
-    const requests = metric(summaryJSON, requestMetric, 'count');
+    const evidence = classifyMetricEvidence({
+      metricDefinition: { metricId: name, metricName: durationMetric, metricType: 'trend' },
+      rawMetric: summaryJSON?.metrics?.[durationMetric],
+      sampleMetric: summaryJSON?.metrics?.[requestMetric],
+      minimumSampleCount: 100,
+      aggregation: 'p(95)',
+    });
+    const requests = evidence.sampleCount ?? null;
     return {
       scenario: name,
       requests,
       requestCount: requests,
       sampleCount: requests,
-      rps: metric(summaryJSON, requestMetric, 'rate'),
+      metricEvidenceClassification: evidence.classification,
+      metricPresent: evidence.metricPresent,
+      sampleMetricPresent: evidence.sampleMetricPresent,
+      minimumSampleCount: 100,
+      rps: metric(summaryJSON, requestMetric, 'rate') ?? null,
       errorRate: scenario.errorRate,
       p50: summaryValue(summaryJSON, durationMetric, 'med'),
       p90: summaryValue(summaryJSON, durationMetric, 'p(90)'),
@@ -201,9 +202,10 @@ const scenarios = Object.entries(scenarioMetricNames)
       exitCode,
     };
   })
-  .filter((item) => item.requests > 0);
+  .filter((item) => item.sampleCount !== null || kind === 'soak' || kind === 'baseline' || kind === 'current');
 const completedRequests = metric(summaryJSON, 'http_reqs', 'count');
-const failedRequests = Math.round(completedRequests * scenario.errorRate);
+const completedRequestCount = Number(completedRequests || 0);
+const failedRequests = Number.isFinite(Number(scenario.errorRate)) ? Math.round(completedRequestCount * scenario.errorRate) : null;
 const unexpected401 = metricCustom(summaryJSON, 'unexpected_401');
 const unexpected403 = metricCustom(summaryJSON, 'unexpected_403');
 const unexpected404 = metricCustom(summaryJSON, 'unexpected_404');
@@ -229,20 +231,54 @@ const metricSemanticsHash = jsonHash([
   ...runtimeSource.files.filter((file) => file.path === 'scripts/p7-v2-regression-metrics.mjs'),
 ]);
 
-const absoluteSloPassed =
+const routeSloEvaluations = scenarios.map((item) => evaluateAbsoluteSlo({
+  sloId: `${item.scenario}:p95`,
+  metricId: item.scenario,
+  metricName: SCENARIO_METRICS[item.scenario]?.[0] || '',
+  rawMetric: summaryJSON?.metrics?.[SCENARIO_METRICS[item.scenario]?.[0] || ''],
+  sampleMetric: summaryJSON?.metrics?.[SCENARIO_METRICS[item.scenario]?.[1] || ''],
+  minimumSampleCount: 100,
+  aggregation: 'p(95)',
+  threshold: item.scenario === 'Webhook Ingestion' ? 1200 : item.scenario === 'Provider Mock Flow' || item.scenario.includes('Auth') || item.scenario.includes('Signature') ? 500 : 800,
+}));
+const unexpectedMetricEvidence = [
+  ['unexpected_401', unexpected401],
+  ['unexpected_403', unexpected403],
+  ['unexpected_404', unexpected404],
+].map(([name, value]) => ({ metricName: name, metricPresent: value !== undefined, actualValue: value ?? null, evaluationStatus: value === undefined ? 'not_evaluable_metric_missing' : 'evaluated', verdict: value === 0 ? 'passed' : value === undefined ? 'not_evaluable' : 'failed' }));
+const sloEvaluationCompleted =
   exitCode === 0 &&
-  completedRequests > 0 &&
-  scenario.p95 > 0 &&
-  unexpected401 === 0 &&
-  unexpected403 === 0 &&
-  unexpected404 === 0 &&
+  routeSloEvaluations.every((item) => item.evaluationStatus === 'evaluated') &&
+  unexpectedMetricEvidence.every((item) => item.evaluationStatus === 'evaluated') &&
+  Number.isFinite(Number(scenario.errorRate));
+const absoluteSloPassed =
+  sloEvaluationCompleted &&
+  routeSloEvaluations.every((item) => item.verdict === 'passed') &&
+  unexpectedMetricEvidence.every((item) => item.verdict === 'passed') &&
   scenario.errorRate < 0.01;
+const requiredScenarioMissingCount = CORE_SCENARIOS.filter((name) => {
+  const row = scenarios.find((item) => item.scenario === name);
+  return !row || row.metricEvidenceClassification !== 'present';
+}).length;
+const scenarioCoverageReached = requiredScenarioMissingCount === 0;
+const sampleTargetReached = scenarios.every((item) => Number(item.sampleCount || 0) >= 100);
+const loadTargetReached = exitCode === 0 && completedRequestCount > 0;
+const targetReachedComponents = evaluateTargetReached({
+  loadTargetReached,
+  steadyStageEntered: completedRequestCount > 0,
+  steadyStageCompleted: exitCode === 0 && completedRequestCount > 0,
+  steadyDurationReached: exitCode === 0 && completedRequestCount > 0,
+  scenarioCoverageReached,
+  sampleTargetReached,
+  sloEvaluationCompleted,
+});
 const validationIssues = [
   ...issues,
-  ...(completedRequests <= 0 ? ['k6 completed zero requests'] : []),
-  ...((kind === 'baseline' || kind === 'current') && scenarios.length < 10 ? ['k6 summary lacks required scenario coverage'] : []),
-  ...((kind === 'baseline' || kind === 'current') && scenarios.some((item) => item.sampleCount < 100) ? ['steady scenario samples are insufficient'] : []),
-  ...((kind === 'baseline' || kind === 'current') && scenarios.some((item) => !Number.isFinite(item.p99)) ? ['required steady p99 summary statistic is missing'] : []),
+  ...(completedRequestCount <= 0 ? ['k6 completed zero requests'] : []),
+  ...((kind === 'baseline' || kind === 'current' || kind === 'soak') && requiredScenarioMissingCount > 0 ? [`required scenario metrics missing: ${requiredScenarioMissingCount}`] : []),
+  ...((kind === 'baseline' || kind === 'current' || kind === 'soak') && scenarios.some((item) => item.sampleCount !== null && item.sampleCount < 100) ? ['steady scenario samples are insufficient'] : []),
+  ...((kind === 'baseline' || kind === 'current' || kind === 'soak') && scenarios.some((item) => item.metricEvidenceClassification === 'summary_stat_missing') ? ['required steady summary statistic is missing'] : []),
+  ...((kind === 'baseline' || kind === 'current' || kind === 'soak') && !sloEvaluationCompleted ? ['absolute SLO evidence is not evaluable'] : []),
 ];
 
 const report = {
@@ -265,10 +301,19 @@ const report = {
   unexpected5xx,
   authLoginFailures,
   scenarios: scenarios.length ? scenarios : [scenario],
-  failedScenarios: exitCode === 0 && scenarios.length >= 9 ? 0 : 1,
+  failedScenarios: exitCode === 0 && requiredScenarioMissingCount === 0 ? 0 : 1,
   thresholdsPassed: exitCode === 0,
   absoluteSloPassed,
-  targetReached: exitCode === 0 && completedRequests > 0 && scenarios.length >= 10,
+  absoluteSloEvaluationStatus: sloEvaluationCompleted ? 'evaluated' : 'not_evaluable',
+  realAbsoluteSloFailure: sloEvaluationCompleted && routeSloEvaluations.some((item) => item.realAbsoluteSloFailure),
+  sloEvaluations: routeSloEvaluations,
+  unexpectedMetricEvidence,
+  targetReached: targetReachedComponents.targetReached,
+  targetReachedComponents,
+  requiredScenarioMissingCount,
+  scenarioCoverageReached,
+  sampleTargetReached,
+  sloEvaluationCompleted,
   k6ExitCode: exitCode,
   crashes: 0,
   panics: 0,
@@ -279,7 +324,7 @@ const report = {
     steadyStart: `${loadProfile.warmup}+${loadProfile.ramp}`,
     steadyEnd: `${loadProfile.warmup}+${loadProfile.ramp}+${loadProfile.steady}`,
     steadyDuration: loadProfile.steady,
-    steadySampleCount: scenarios.reduce((total, item) => total + item.sampleCount, 0),
+    steadySampleCount: scenarios.reduce((total, item) => total + Number(item.sampleCount || 0), 0),
   },
   loadProfile,
   canonicalLoadProfile: canonicalLoadProfile.canonicalProfile,

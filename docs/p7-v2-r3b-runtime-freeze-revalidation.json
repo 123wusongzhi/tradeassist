@@ -1,0 +1,79 @@
+{
+  "phase": "P7-V2-R3B-RUNTIME-FREEZE-LIFECYCLE-FIX",
+  "component": "runtime-freeze-revalidation",
+  "status": "passed",
+  "validationMode": "revalidate",
+  "runtimeFreezeStillValid": true,
+  "runtimeFreezeScopeVersion": 2,
+  "configFingerprintVersion": 2,
+  "runtimeFreezeLifecycleContractVersion": 2,
+  "storedRuntimeFreezeId": "a39c1f26e709d612670525759d0d2badc9d54f6c508d98d0965b2a919a95d53b",
+  "rebuiltRuntimeFreezeId": "a39c1f26e709d612670525759d0d2badc9d54f6c508d98d0965b2a919a95d53b",
+  "storedTrackedDiffHash": "e31650e5a770000a99dcab3cacf814e8ba1d5d611b2fbf00f4fa8b1ee463924d",
+  "rebuiltTrackedDiffHash": "e31650e5a770000a99dcab3cacf814e8ba1d5d611b2fbf00f4fa8b1ee463924d",
+  "storedConfigFingerprint": "3bdc50af4e983846336c880ef2884fa7ee3a9743f72654fb49737a69b2c65a1c",
+  "rebuiltConfigFingerprint": "3bdc50af4e983846336c880ef2884fa7ee3a9743f72654fb49737a69b2c65a1c",
+  "rebuildError": "",
+  "checks": [
+    {
+      "key": "runtimeSourceTreeHash",
+      "stored": "6e949c9d9281ebbd6785851c92c386010bc4d83e59f16a47bd408c66ce5426f4",
+      "rebuilt": "6e949c9d9281ebbd6785851c92c386010bc4d83e59f16a47bd408c66ce5426f4",
+      "match": true
+    },
+    {
+      "key": "evidenceToolingHash",
+      "stored": "7e224db920f4035f59b4a4dbccf6ebbba0a1dd62a96993d5e92042a16fbc7979",
+      "rebuilt": "7e224db920f4035f59b4a4dbccf6ebbba0a1dd62a96993d5e92042a16fbc7979",
+      "match": true
+    },
+    {
+      "key": "loadScriptsHash",
+      "stored": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+      "rebuilt": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+      "match": true
+    },
+    {
+      "key": "metricSemanticsHash",
+      "stored": "83ea454a3ea44bd423474b4b6d5062c2a4b3a069512dffc40b4297216830170f",
+      "rebuilt": "83ea454a3ea44bd423474b4b6d5062c2a4b3a069512dffc40b4297216830170f",
+      "match": true
+    },
+    {
+      "key": "datasetGeneratorHash",
+      "stored": "09185795a37e57346a12ebfe39c431005a5219c47a3ce26ec5d490fd6734ee18",
+      "rebuilt": "09185795a37e57346a12ebfe39c431005a5219c47a3ce26ec5d490fd6734ee18",
+      "match": true
+    },
+    {
+      "key": "configFingerprint",
+      "stored": "3bdc50af4e983846336c880ef2884fa7ee3a9743f72654fb49737a69b2c65a1c",
+      "rebuilt": "3bdc50af4e983846336c880ef2884fa7ee3a9743f72654fb49737a69b2c65a1c",
+      "match": true
+    },
+    {
+      "key": "sloFingerprint",
+      "stored": "b2e577551e8394ed659d38600aab127c42798e829ac04238d18a5085d45b26fa",
+      "rebuilt": "b2e577551e8394ed659d38600aab127c42798e829ac04238d18a5085d45b26fa",
+      "match": true
+    },
+    {
+      "key": "routeCredentialMatrixFingerprint",
+      "stored": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+      "rebuilt": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+      "match": true
+    },
+    {
+      "key": "regressionPolicyFingerprint",
+      "stored": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+      "rebuilt": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+      "match": true
+    },
+    {
+      "key": "immutableTrackedDiffHash",
+      "stored": "e31650e5a770000a99dcab3cacf814e8ba1d5d611b2fbf00f4fa8b1ee463924d",
+      "rebuilt": "e31650e5a770000a99dcab3cacf814e8ba1d5d611b2fbf00f4fa8b1ee463924d",
+      "match": true
+    }
+  ]
+}

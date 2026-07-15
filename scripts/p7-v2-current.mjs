@@ -4,11 +4,13 @@ import { readJSON, valueOf, writeJSON } from './p7-v2-lib.mjs';
 import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 import { updateR3BManifest } from './p7-v2-r3b-manifest.mjs';
 import { readRuntimeFreezeContract, validateRuntimeFreezeContract } from './p7-v2-r3b-lpc-r3-runtime-freeze.mjs';
+import { revalidateRuntimeFreeze } from './p7-v2-runtime-freeze-revalidate.mjs';
+import { validateFormalExecutionLifecycle } from './p7-v2-r3b-lifecycle.mjs';
 
 const args = process.argv.slice(2);
 const runId = valueOf(args, '--run-id') || `p7v2-current-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 if (!/^p7v2-current-r3b-recovery6-[a-z0-9_-]+$/.test(runId)) {
-  throw new Error('P7-V2-R3B-LPC-R3 requires a unique Recovery6 current run ID');
+  throw new Error('P7-V2-R3B-FAST-CLOSE-R3-FORMAL requires a unique Recovery6 current run ID');
 }
 const runtimeFreeze = readRuntimeFreezeContract();
 const runtimeFreezeValidation = validateRuntimeFreezeContract(runtimeFreeze, { kind: 'current', runId });
@@ -98,7 +100,12 @@ try {
   };
   writeJSON(registryPath, { ...registry, activeRegressionCurrent: runId, entries: [...(registry.entries || []), entry] });
   updateR3BManifest({ currentRunId: runId, status: 'current_frozen' });
-  console.log(JSON.stringify({ phase: 'P7-V2-R3B-LPC-R3', kind: 'current', runId, freeze: 'passed', sha256: frozen.sha256 }, null, 2));
+  const freezeRevalidation = revalidateRuntimeFreeze({ writeReport: true, mode: 'revalidate' });
+  if (freezeRevalidation.status !== 'passed') throw new Error(`runtime freeze immutable revalidation failed after current freeze: ${freezeRevalidation.rebuildError || 'immutable mismatch'}`);
+  const lifecycle = validateFormalExecutionLifecycle({ previousState: 'current_completed', nextState: 'current_frozen' });
+  writeJSON('docs/p7-v2-r3b-runtime-freeze-lifecycle-validation.json', lifecycle);
+  if (lifecycle.status !== 'passed') throw new Error(`current lifecycle validation failed: ${lifecycle.issues.map((issue) => issue.issue).join('; ')}`);
+  console.log(JSON.stringify({ phase: 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL', kind: 'current', runId, freeze: 'passed', sha256: frozen.sha256 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ phase: 'P7-V2-R3B-REBASELINE', kind: 'current', runId, freeze: 'failed', error: error.message }, null, 2));
   process.exit(1);

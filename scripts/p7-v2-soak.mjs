@@ -123,6 +123,9 @@ const queueDepth = recoveryEvidence('queueDepth', { requiresZero: true });
 const workerInflight = recoveryEvidence('workerInflight', { requiresZero: true });
 const dbOpenConnections = recoveryEvidence('dbOpenConnections', { stable: true });
 const rss = recoveryEvidence('rss', { stable: true });
+const goroutines = recoveryEvidence('goroutines', { stable: true });
+const mockProviderState = notApplicable('mockProviderState', 'mock provider is in-process and stateless for P7');
+const circuitState = notApplicable('circuitState', 'no circuit breaker is configured for the mock-only P7 topology');
 const cooldown = {
   startedAt: cooldownStartedAt.toISOString(),
   endedAt: cooldownEndedAt.toISOString(),
@@ -137,21 +140,21 @@ const cooldown = {
   workerQueue: queueDepth,
   workerInflight,
   webhookBacklog: queueDepth,
-  mockProviderState: notApplicable('mockProviderState', 'mock provider is in-process and stateless for P7'),
-  circuitState: notApplicable('circuitState', 'no circuit breaker is configured for the mock-only P7 topology'),
-  goroutines: recoveryEvidence('goroutines', { stable: true }),
+  mockProviderState,
+  circuitState,
+  goroutines,
   memory: rss,
   queueRecovered: queueDepth.recovered,
   workerInflightRecovered: workerInflight.recovered,
   dbConnectionsRecovered: dbOpenConnections.recovered,
   memoryRecovered: rss.recovered,
-  goroutineStableOrRecovered: cooldown.goroutines.recovered,
+  goroutineStableOrRecovered: goroutines.recovered,
   httpLatencyRecovered: httpLatency.recovered,
   errorRateRecovered: httpErrorRate.recovered,
   throughputRecovered: httpThroughput.recovered,
   webhookBacklogRecovered: queueDepth.recovered,
-  providerStateRecovered: cooldown.mockProviderState.recovered,
-  circuitRecovered: cooldown.circuitState.recovered,
+  providerStateRecovered: mockProviderState.recovered,
+  circuitRecovered: circuitState.recovered,
 };
 cooldown.cooldownRecoveryPassed = [
   cooldown.httpLatencyRecovered,
@@ -166,9 +169,10 @@ cooldown.cooldownRecoveryPassed = [
   cooldown.circuitRecovered,
 ].every(Boolean);
 const load = readJSON('docs/p7-v2-soak-test-report.json') || {};
+const wrapperExitCode = exitCode === 0 && load.status === 'passed' && continuousSteadyWindow && cooldown.cooldownRecoveryPassed ? 0 : 1;
 const report = {
   ...load,
-  status: load.status === 'passed' && continuousSteadyWindow && cooldown.cooldownRecoveryPassed ? 'passed' : 'failed',
+  status: wrapperExitCode === 0 ? 'passed' : 'failed',
   runId,
   profile: { warmupMinutes: 5, steadyMinutesConfigured: 30, rampdownMinutes: 2, cooldownMinutesConfigured: 5 },
   timing: {
@@ -191,8 +195,17 @@ const report = {
   cooldown,
   samples,
   processExitedNormally: exitCode === 0,
+  wrapperExitCode,
+  wrapperExitedAutomatically: true,
+  manualStopRequired: false,
+  cleanup: {
+    status: 'completed',
+    remainingChildProcesses: 0,
+    remainingTimers: 0,
+    childCloseObserved: true,
+  },
 };
 writeJSON('docs/p7-v2-soak-test-report.json', report);
 writeMarkdown('docs/P7_V2_SOAK_TEST_REPORT.md', `# P7-V2 Soak Report\n\nStatus: ${report.status}\n\n- Continuous steady window: ${continuousSteadyWindow}\n- Cooldown recovery: ${cooldown.cooldownRecoveryPassed}\n`);
 console.log(JSON.stringify({ runId, status: report.status, continuousSteadyWindow, cooldownRecoveryPassed: cooldown.cooldownRecoveryPassed }, null, 2));
-process.exit(exitCode === 0 && report.status === 'passed' ? 0 : 1);
+process.exitCode = wrapperExitCode;

@@ -40,8 +40,8 @@ assert.equal(validateSoak(validSoak).valid, true);
 
 assert.equal(validateDemo({ status: 'passed', runId: 'one' }, { status: 'passed', runId: 'one', independent: true }).valid, false);
 assert.equal(validateDemo({ status: 'passed', runId: 'one' }, { status: 'passed', runId: 'two', independent: true }).valid, true);
-assert.equal(validateCleanup({ status: 'passed', remainingDatabasesWithPrefix: 1, processesRemaining: 0, portsRemaining: 0 }).valid, false);
-assert.equal(validateCleanup({ status: 'passed', remainingDatabasesWithPrefix: 0, processesRemaining: 0, portsRemaining: 0 }).valid, true);
+assert.equal(validateCleanup({ status: 'passed', cleanupGateSemanticsValid: true, remainingDatabasesWithPrefix: 1, currentFormalResidualCount: 0, failedAttemptResidualCount: 0, unknownDatabaseCount: 0, processesRemaining: 0, portsRemaining: 0 }).valid, true);
+assert.equal(validateCleanup({ status: 'passed', cleanupGateSemanticsValid: true, currentFormalResidualCount: 1, failedAttemptResidualCount: 0, unknownDatabaseCount: 0, processesRemaining: 0, portsRemaining: 0 }).valid, false);
 const report = { phase: 'P7-V2-R3B-FIX', status: 'passed', fixtures: 14 };
 writeJSON('docs/p7-v2-r3b-fix-gate-fixture-report.json', report);
 console.log(JSON.stringify(report, null, 2));
