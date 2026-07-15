@@ -1,0 +1,282 @@
+{
+  "phase": "P7-V2-R3B-PRR-A",
+  "status": "completed",
+  "results": [
+    {
+      "scenario": "Task List",
+      "routeId": "GET /api/v1/task-center/failures?pageSize=20",
+      "metric": "p95",
+      "metricFamily": "latency",
+      "direction": "lower_is_better",
+      "unit": "ms",
+      "baselinePresent": true,
+      "baselineValue": 49.463726399999985,
+      "baselineSampleCount": 2517,
+      "currentPresent": true,
+      "currentValue": 60.92983575,
+      "currentSampleCount": 2506,
+      "relativeThreshold": 0.1,
+      "materialityFloor": {
+        "type": "absolute_delta",
+        "value": 2,
+        "unit": "ms"
+      },
+      "absoluteSlo": true,
+      "absoluteDelta": 11.466109350000018,
+      "relativeDelta": 0.2318084419535367,
+      "relativeExceeded": true,
+      "materialityExceeded": true,
+      "finalVerdict": "failed_material_regression",
+      "reason": "failed_material_regression",
+      "baseline": {
+        "durationMetric": "p7_task_list_duration",
+        "requestMetric": "p7_task_list_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_task_list_duration",
+        "p50": 39.186513,
+        "p90": 46.5005442,
+        "p95": 49.463726399999985,
+        "p99": null,
+        "max": 605.430919,
+        "avg": 41.20294366626933,
+        "min": 34.122739,
+        "requestCount": 2517,
+        "throughput": 2.0681580632506837,
+        "sampleCount": 2517
+      },
+      "current": {
+        "durationMetric": "p7_task_list_duration",
+        "requestMetric": "p7_task_list_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_task_list_duration",
+        "p50": 41.5421975,
+        "p90": 57.3636745,
+        "p95": 60.92983575,
+        "p99": null,
+        "max": 118.835347,
+        "avg": 45.15478018914609,
+        "min": 34.7724,
+        "requestCount": 2506,
+        "throughput": 2.0394004451851444,
+        "sampleCount": 2506
+      },
+      "distribution": {
+        "broadlyShifted": true,
+        "p95Only": false,
+        "throughputDeclined": true,
+        "comparablePercentiles": [
+          "p50",
+          "p90",
+          "p95"
+        ]
+      },
+      "classification": "statistical_variance_insufficient_evidence",
+      "primaryRootCause": "statistical_variance_insufficient_evidence",
+      "secondaryContributors": [
+        "database_state_asymmetry",
+        "environmental_variance"
+      ],
+      "confidence": "low",
+      "supportingEvidence": [
+        "Raw p95 changed from 49.463726399999985 ms to 60.92983575 ms.",
+        "Request counts are 2517 and 2506; ratio=0.9956.",
+        "Runtime/load/dataset/config fingerprints match, while the independent runs use different database identities.",
+        "Distribution analysis: broadlyShifted=true; p95Only=false; throughputDeclined=true."
+      ],
+      "contradictingEvidence": [
+        "No frozen query plan, slow-query trace, lock metric, connection-pool metric, or database statistics snapshot is available."
+      ],
+      "missingEvidence": [
+        "EXPLAIN (ANALYZE, BUFFERS) from the original databases",
+        "PostgreSQL lock/pool/auto-vacuum evidence",
+        "steady-window-only samples",
+        "host CPU, memory, disk, GC, goroutine, worker, and Redis telemetry"
+      ],
+      "recommendedAction": "Run a diagnostic Recovery4 with deterministic database-state preparation and capture plans, pool wait, locks, and process telemetry; do not alter runtime until that evidence exists."
+    },
+    {
+      "scenario": "Webhook Ingestion",
+      "routeId": "POST /api/v1/webhooks/internal-test/ping",
+      "metric": "p95",
+      "metricFamily": "latency",
+      "direction": "lower_is_better",
+      "unit": "ms",
+      "baselinePresent": true,
+      "baselineValue": 16.161770999999998,
+      "baselineSampleCount": 2517,
+      "currentPresent": true,
+      "currentValue": 65.24907179999998,
+      "currentSampleCount": 2505,
+      "relativeThreshold": 0.1,
+      "materialityFloor": {
+        "type": "absolute_delta",
+        "value": 2,
+        "unit": "ms"
+      },
+      "absoluteSlo": true,
+      "absoluteDelta": 49.08730079999998,
+      "relativeDelta": 3.0372476382693447,
+      "relativeExceeded": true,
+      "materialityExceeded": true,
+      "finalVerdict": "failed_material_regression",
+      "reason": "failed_material_regression",
+      "baseline": {
+        "durationMetric": "p7_webhook_ingestion_duration",
+        "requestMetric": "p7_webhook_ingestion_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_webhook_ingestion_duration",
+        "p50": 12.365287,
+        "p90": 15.1407296,
+        "p95": 16.161770999999998,
+        "p99": null,
+        "max": 383.647828,
+        "avg": 13.457343122367899,
+        "min": 6.423312,
+        "requestCount": 2517,
+        "throughput": 2.0681580632506837,
+        "sampleCount": 2517
+      },
+      "current": {
+        "durationMetric": "p7_webhook_ingestion_duration",
+        "requestMetric": "p7_webhook_ingestion_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_webhook_ingestion_duration",
+        "p50": 13.989027,
+        "p90": 52.5013432,
+        "p95": 65.24907179999998,
+        "p99": null,
+        "max": 727.02577,
+        "avg": 23.058940007584848,
+        "min": 5.971259,
+        "requestCount": 2505,
+        "throughput": 2.0385866381439692,
+        "sampleCount": 2505
+      },
+      "distribution": {
+        "broadlyShifted": true,
+        "p95Only": false,
+        "throughputDeclined": true,
+        "comparablePercentiles": [
+          "p50",
+          "p90",
+          "p95"
+        ]
+      },
+      "classification": "statistical_variance_insufficient_evidence",
+      "primaryRootCause": "statistical_variance_insufficient_evidence",
+      "secondaryContributors": [
+        "database_state_asymmetry",
+        "environmental_variance"
+      ],
+      "confidence": "low",
+      "supportingEvidence": [
+        "Raw p95 changed from 16.161770999999998 ms to 65.24907179999998 ms.",
+        "Request counts are 2517 and 2505; ratio=0.9952.",
+        "Runtime/load/dataset/config fingerprints match, while the independent runs use different database identities.",
+        "Distribution analysis: broadlyShifted=true; p95Only=false; throughputDeclined=true."
+      ],
+      "contradictingEvidence": [
+        "No frozen query plan, slow-query trace, lock metric, connection-pool metric, or database statistics snapshot is available."
+      ],
+      "missingEvidence": [
+        "EXPLAIN (ANALYZE, BUFFERS) from the original databases",
+        "PostgreSQL lock/pool/auto-vacuum evidence",
+        "steady-window-only samples",
+        "host CPU, memory, disk, GC, goroutine, worker, and Redis telemetry"
+      ],
+      "recommendedAction": "Run a diagnostic Recovery4 with deterministic database-state preparation and capture plans, pool wait, locks, and process telemetry; do not alter runtime until that evidence exists."
+    },
+    {
+      "scenario": "Auth/Security",
+      "routeId": "aggregated: POST /api/v1/auth/login invalid-login + POST /api/v1/webhooks/internal-test/ping invalid-signature",
+      "metric": "p95",
+      "metricFamily": "latency",
+      "direction": "lower_is_better",
+      "unit": "ms",
+      "baselinePresent": true,
+      "baselineValue": 6.64309025,
+      "baselineSampleCount": 2376,
+      "currentPresent": true,
+      "currentValue": 33.26310325,
+      "currentSampleCount": 2366,
+      "relativeThreshold": 0.1,
+      "materialityFloor": {
+        "type": "absolute_delta",
+        "value": 2,
+        "unit": "ms"
+      },
+      "absoluteSlo": true,
+      "absoluteDelta": 26.620013,
+      "relativeDelta": 4.007173167638359,
+      "relativeExceeded": true,
+      "materialityExceeded": true,
+      "finalVerdict": "failed_material_regression",
+      "reason": "failed_material_regression",
+      "baseline": {
+        "durationMetric": "p7_auth_security_duration",
+        "requestMetric": "p7_auth_security_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_auth_security_duration",
+        "p50": 2.8080160000000003,
+        "p90": 5.4750084999999995,
+        "p95": 6.64309025,
+        "p99": null,
+        "max": 496.809155,
+        "avg": 4.739357391835016,
+        "min": 0.277938,
+        "requestCount": 2376,
+        "throughput": 1.9523017712688218,
+        "sampleCount": 2376
+      },
+      "current": {
+        "durationMetric": "p7_auth_security_duration",
+        "requestMetric": "p7_auth_security_requests",
+        "rawMetricPresent": true,
+        "rawMetricPath": "metrics.p7_auth_security_duration",
+        "p50": 2.9893205,
+        "p90": 10.2759655,
+        "p95": 33.26310325,
+        "p99": null,
+        "max": 207.478328,
+        "avg": 6.958282500422652,
+        "min": 0.314856,
+        "requestCount": 2366,
+        "throughput": 1.9254674594206114,
+        "sampleCount": 2366
+      },
+      "distribution": {
+        "broadlyShifted": true,
+        "p95Only": false,
+        "throughputDeclined": true,
+        "comparablePercentiles": [
+          "p50",
+          "p90",
+          "p95"
+        ]
+      },
+      "classification": "metric_tag_aggregation_bug",
+      "primaryRootCause": "metric_tag_aggregation_bug",
+      "secondaryContributors": [
+        "database_state_asymmetry"
+      ],
+      "confidence": "high",
+      "supportingEvidence": [
+        "tests/load/p7v2-baseline.js adds both POST /api/v1/auth/login invalid-login latency and POST /api/v1/webhooks/internal-test/ping invalid-signature latency to p7_auth_security_duration.",
+        "Raw p95 changed from 6.64309025 ms to 33.26310325 ms.",
+        "Request counts are 2376 and 2366; ratio=0.9958.",
+        "Runtime/load/dataset/config fingerprints match, while the independent runs use different database identities."
+      ],
+      "contradictingEvidence": [
+        "The aggregated p95 remains a real end-to-end timing distribution, so aggregation alone does not prove no runtime-state contribution."
+      ],
+      "missingEvidence": [
+        "Route-specific percentile summaries for the two constituent routes",
+        "EXPLAIN (ANALYZE, BUFFERS) from the original databases",
+        "PostgreSQL lock/pool/auto-vacuum evidence",
+        "steady-window-only samples",
+        "host CPU, memory, disk, GC, goroutine, worker, and Redis telemetry"
+      ],
+      "recommendedAction": "Split Auth/Security into route-specific latency trends for invalid login and invalid webhook signature; retain aggregate only as a non-gating diagnostic metric, then rerun Recovery4 because metric collection changes."
+    }
+  ]
+}
