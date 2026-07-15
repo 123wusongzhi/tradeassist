@@ -36,8 +36,8 @@ export function frozenArtifactPath(kind, runId) {
 
 export function freezeRawArtifact({ kind, runId, reportPath }) {
   if (!['baseline', 'current'].includes(kind)) throw new Error(`unsupported freeze kind: ${kind}`);
-  if (!/^p7v2-(baseline|current)-r3b-recovery4-[a-z0-9_-]+$/.test(runId)) {
-    throw new Error('a unique Recovery4 run ID is required');
+  if (!/^p7v2-(baseline|current)-r3b-recovery6-[a-z0-9_-]+$/.test(runId)) {
+    throw new Error('a unique Recovery6 run ID is required');
   }
 
   const report = readJSON(reportPath);
@@ -107,6 +107,8 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
       datasetFingerprint: report.datasetFingerprint || '',
       configFingerprint: report.configFingerprint || '',
       loadProfileFingerprint: report.loadProfileFingerprint || '',
+      canonicalLoadProfileVersion: report.canonicalLoadProfile?.schemaVersion || 0,
+      loadProfileFingerprintVersion: report.loadProfileFingerprintVersion || 0,
       sloFingerprint: report.sloFingerprint || '',
       routeCredentialMatrixFingerprint: report.routeCredentialMatrixFingerprint || '',
       regressionPolicyFingerprint: report.regressionPolicyFingerprint || '',
@@ -128,7 +130,9 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
     });
     writeJSON(path.relative(root, path.join(staging, 'load-profile.json')), {
       loadProfile: report.loadProfile || {},
+      canonicalLoadProfile: report.canonicalLoadProfile || {},
       loadProfileFingerprint: manifest.loadProfileFingerprint,
+      fingerprintVersion: report.loadProfileFingerprintVersion || 0,
     });
     writeJSON(path.relative(root, path.join(staging, 'config-fingerprint.json')), {
       configFingerprint: manifest.configFingerprint,
@@ -143,6 +147,26 @@ export function freezeRawArtifact({ kind, runId, reportPath }) {
       writeJSON(path.relative(root, path.join(staging, 'restart-evidence.json')), report.restartEvidence || {});
     }
     fs.renameSync(staging, destination);
+    if (report.loadProfileFingerprintVersion === 3 && report.canonicalLoadProfile) {
+      const sidecarPath = `docs/fingerprints/p7-v2/load-profile/v3/${runId}.json`;
+      writeJSON(sidecarPath, {
+        fingerprintVersion: 3,
+        runId,
+        runKind: kind,
+        loadProfileFingerprint: manifest.loadProfileFingerprint,
+        canonicalProfile: report.canonicalLoadProfile,
+        derivedEvidence: true,
+        sourceArtifactsModified: false,
+      });
+      const registryPath = 'docs/fingerprints/p7-v2/load-profile-registry.json';
+      const registry = readJSON(registryPath) || { fingerprintType: 'load_profile', activeVersion: 3, entries: [] };
+      if ((registry.entries || []).some((entry) => entry.runId === runId)) throw new Error(`load-profile registry already contains run ID: ${runId}`);
+      writeJSON(registryPath, {
+        ...registry,
+        activeVersion: 3,
+        entries: [...(registry.entries || []), { runId, path: sidecarPath, fingerprintVersion: 3, loadProfileFingerprint: manifest.loadProfileFingerprint }],
+      });
+    }
     return { ...manifest, archivePath: path.relative(root, destination).replaceAll('\\', '/') };
   } catch (error) {
     fs.rmSync(staging, { recursive: true, force: true });

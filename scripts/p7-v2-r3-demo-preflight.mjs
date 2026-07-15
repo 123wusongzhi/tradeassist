@@ -6,12 +6,14 @@ import { readR3BManifest } from './p7-v2-r3b-manifest.mjs';
 
 const pkg = readJSON('package.json');
 const manifest = readR3BManifest();
-const regression = readJSON('docs/p7-v2-performance-regression-report.json');
+const regression = readJSON('docs/p7-v2-r3b-lpf-regression-v2-report.json');
+const comparability = readJSON('docs/p7-v2-r3b-lpf-comparability-v2-report.json');
 const soak = readJSON('docs/p7-v2-soak-test-report.json');
 const command = pkg?.scripts?.['p7-v2:demo'] || '';
 const issues = [];
 if (!command) issues.push('p7-v2 demo command is missing');
 if (regression?.status !== 'passed') issues.push('regression has not passed');
+if (comparability?.status !== 'passed') issues.push('comparability has not passed');
 if (soak?.status !== 'passed' || Number(soak?.steadyMinutes || 0) < 30) issues.push('30-minute soak has not passed');
 if (!manifest?.demoRun1Id || !manifest?.demoRun2Id || manifest.demoRun1Id === manifest.demoRun2Id) issues.push('demo run IDs are missing or not independent');
 const report = {

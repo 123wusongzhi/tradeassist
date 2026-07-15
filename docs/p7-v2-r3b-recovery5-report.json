@@ -1,0 +1,20 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE-R2",
+  "status": "passed",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715093546",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260715093546",
+  "manifest": {
+    "phase": "P7-V2-R3B-FAST-CLOSE-R2",
+    "baselineRunId": "p7v2-baseline-r3b-recovery5-20260715091700",
+    "currentRunId": "p7v2-current-r3b-recovery5-20260715091700",
+    "soakRunId": "p7v2-soak-r3b-recovery5-20260715091700",
+    "demoRun1Id": "p7v2-demo1-r3b-recovery5-20260715091700",
+    "demoRun2Id": "p7v2-demo2-r3b-recovery5-20260715091700",
+    "selectedHost": "127.0.0.1",
+    "selectedPort": 18080,
+    "status": "recovery5_planned",
+    "updatedAt": "2026-07-15T09:13:38.125Z"
+  },
+  "immutable": true,
+  "independentRun": true
+}

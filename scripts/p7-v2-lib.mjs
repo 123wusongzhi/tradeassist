@@ -669,7 +669,7 @@ export function performanceEnvDefaults(extra = {}) {
 export function metricCustom(summary, name, key = 'count') {
   const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
   const value = values?.[key] ?? (key === 'count' ? values?.value : undefined);
-  return typeof value === 'number' ? value : 0;
+  return typeof value === 'number' ? value : undefined;
 }
 
 
@@ -745,7 +745,7 @@ export function collectEnvironmentFingerprint(runType, runId, extra = {}) {
 export function metric(summary, name, key) {
   const values = summary?.metrics?.[name]?.values || summary?.metrics?.[name] || {};
   const value = values?.[key] ?? (key === 'rate' ? values?.value : undefined);
-  return typeof value === 'number' ? value : 0;
+  return typeof value === 'number' ? value : undefined;
 }
 
 export function scenarioFromSummary(name, summaryJSON, exitCode = 0) {

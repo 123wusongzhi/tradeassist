@@ -8,6 +8,12 @@ const base = {
   ramp: '3m',
   steady: '10m',
   rampdown: '2m',
+  stages: [
+    { name: 'warmup', duration: '5m', targetVUs: 10 },
+    { name: 'ramp', duration: '3m', targetVUs: 10 },
+    { name: 'steady', duration: '10m', targetVUs: 10 },
+    { name: 'rampdown', duration: '2m', targetVUs: 0 },
+  ],
   scenarios: [{ name: 'steady', executor: 'constant-vus', startTime: '0s', gracefulStop: '0s' }],
   loadScript: { path: 'D:\\project\\trademind-ai\\tests\\load\\p7.js', sha256: scriptHash },
 };
@@ -22,14 +28,14 @@ assert.notEqual(fingerprint(base), fingerprint({ ...base, stages: [
   { name: 'ramp', duration: '3m', targetVUs: 10 },
   { name: 'warmup', duration: '5m', targetVUs: 10 },
 ] }));
-assert.notEqual(fingerprint(base), fingerprint({ ...base, steady: '11m' }));
-assert.notEqual(fingerprint(base), fingerprint({ ...base, targetVUs: 11 }));
+assert.notEqual(fingerprint(base), fingerprint({ ...base, stages: base.stages.map((stage, index) => index === 2 ? { ...stage, duration: '11m' } : stage) }));
+assert.notEqual(fingerprint(base), fingerprint({ ...base, stages: base.stages.map((stage, index) => index === 2 ? { ...stage, targetVUs: 11 } : stage) }));
 assert.notEqual(fingerprint({ ...base, scenarios: [{ name: 'steady', executor: 'constant-vus', startTime: '0s', gracefulStop: '0s', weight: 1 }] }), fingerprint({ ...base, scenarios: [{ name: 'steady', executor: 'constant-vus', startTime: '0s', gracefulStop: '0s', weight: 2 }] }));
 assert.notEqual(fingerprint(base), fingerprint({ ...base, loadScript: { ...base.loadScript, sha256: 'b'.repeat(64) } }));
-assert.throws(() => fingerprint({ ...base, targetVUs: undefined }), InvalidLoadProfileError);
+assert.throws(() => fingerprint({ ...base, configuredVUs: undefined }), InvalidLoadProfileError);
 const unknown = calculateLoadProfileFingerprint({ ...base, unrecognized: true }, { repositoryRoot: 'D:\\project\\trademind-ai' });
 assert.deepEqual(unknown.unknownFields, ['unrecognized']);
 const repeated = new Set(Array.from({ length: 10 }, () => fingerprint(base)));
 assert.equal(repeated.size, 1);
 
-console.log(JSON.stringify({ phase: 'P7-V2-R3B-LPF-V2', status: 'passed', fixtures: 14, uniqueFingerprintCount: repeated.size }, null, 2));
+console.log(JSON.stringify({ phase: 'P7-V2-R3B-LPC-R3', status: 'passed', fixtures: 14, uniqueFingerprintCount: repeated.size }, null, 2));

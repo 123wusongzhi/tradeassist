@@ -1,10 +1,12 @@
 import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 import { validateCleanup, validateCurrent, validateRegression, validateSoak } from './p7-v2-r3b-gate-lib.mjs';
+import { readR3BManifest } from './p7-v2-r3b-manifest.mjs';
 
+const manifest = readR3BManifest();
 const baseline = resolveActiveBaseline();
 const current = validateCurrent(readJSON('docs/p7-v2-current-load-report.json') || {});
-const regression = validateRegression(readJSON('docs/p7-v2-performance-regression-report.json') || {});
+const regression = validateRegression(readJSON('docs/p7-v2-r3b-lpf-regression-v2-report.json') || {});
 const soak = validateSoak(readJSON('docs/p7-v2-soak-test-report.json') || {});
 const cleanup = validateCleanup(readJSON('docs/p7-v2-runtime-cleanup-report.json') || {});
 const checks = [
@@ -13,6 +15,7 @@ const checks = [
   ['Regression', regression.valid, regression.issues],
   ['Soak', soak.valid, soak.issues],
   ['Cleanup', cleanup.valid, cleanup.issues],
+  ['Canonical-Manifest', manifest.baselineRunId === baseline.baseline?.runId && manifest.currentRunId === (readJSON('docs/p7-v2-current-load-report.json') || {}).runId, ['canonical R3B manifest does not match active Recovery5 evidence']],
 ];
 const failed = checks.filter(([, ok]) => !ok).length;
 const report = {

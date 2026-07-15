@@ -1,0 +1,137 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3",
+  "status": "dry_run_passed",
+  "runIds": {
+    "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715093546",
+    "currentRunId": "p7v2-current-r3b-recovery6-20260715093546",
+    "soakRunId": "p7v2-soak-r3b-recovery6-20260715093546",
+    "demoRun1Id": "p7v2-demo1-r3b-recovery6-20260715093546",
+    "demoRun2Id": "p7v2-demo2-r3b-recovery6-20260715093546"
+  },
+  "results": [
+    {
+      "step": "fixtures",
+      "command": "pnpm test:p7-v2-load-profile-fingerprint",
+      "exitCode": 0
+    },
+    {
+      "step": "stage-schema-fixtures",
+      "command": "pnpm test:p7-v2-load-profile-stage-schema",
+      "exitCode": 0
+    },
+    {
+      "step": "gates",
+      "command": "pnpm test:p7-v2-gates",
+      "exitCode": 0
+    },
+    {
+      "step": "host-guard",
+      "command": "pnpm p7-v2:host-guard",
+      "exitCode": 0
+    },
+    {
+      "step": "preflight",
+      "command": "pnpm p7-v2:r3b:preflight -- --recovery6",
+      "exitCode": 0
+    },
+    {
+      "step": "runtime-freeze",
+      "command": "pnpm p7-v2:r3b:lpc-r3:runtime-freeze",
+      "exitCode": 0
+    },
+    {
+      "step": "environment-start",
+      "command": "pnpm p7-v2:env:start -- --run-id p7v2-baseline-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "dataset",
+      "command": "pnpm p7-v2:dataset -- --run-id p7v2-baseline-r3b-recovery6-20260715093546 --execute",
+      "exitCode": 0
+    },
+    {
+      "step": "baseline",
+      "command": "pnpm p7-v2:baseline -- --run-id p7v2-baseline-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "current",
+      "command": "pnpm p7-v2:r3b:current -- --run-id p7v2-current-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "comparability",
+      "command": "pnpm p7-v2:r3b:comparability",
+      "exitCode": 0
+    },
+    {
+      "step": "regression",
+      "command": "pnpm p7-v2:r3b:regression",
+      "exitCode": 0
+    },
+    {
+      "step": "soak",
+      "command": "pnpm p7-v2:r3b:soak -- --run-id p7v2-soak-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "demo-preflight",
+      "command": "pnpm p7-v2:r3b:demo-preflight",
+      "exitCode": 0
+    },
+    {
+      "step": "demo-run1",
+      "command": "pnpm p7-v2:r3b:demo -- --run 1 --run-id p7v2-demo1-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "demo-run2",
+      "command": "pnpm p7-v2:r3b:demo -- --run 2 --run-id p7v2-demo2-r3b-recovery6-20260715093546",
+      "exitCode": 0
+    },
+    {
+      "step": "stability",
+      "command": "pnpm p7-v2:r3b:stability",
+      "exitCode": 0
+    },
+    {
+      "step": "race",
+      "command": "pnpm p7-v2:r3b:race",
+      "exitCode": 0
+    },
+    {
+      "step": "cleanup",
+      "command": "pnpm p7-v2:r3b:cleanup",
+      "exitCode": 0
+    },
+    {
+      "step": "p1-p7-gate",
+      "command": "pnpm check:p1-p7",
+      "exitCode": 0
+    },
+    {
+      "step": "p7-v2-gate",
+      "command": "pnpm check:p7-v2",
+      "exitCode": 0
+    },
+    {
+      "step": "p7-capacity-gate",
+      "command": "pnpm check:p7",
+      "exitCode": 0
+    }
+  ],
+  "manifest": {
+    "phase": "P7-V2-R3B-FAST-CLOSE-R2",
+    "baselineRunId": "p7v2-baseline-r3b-recovery5-20260715091700",
+    "currentRunId": "p7v2-current-r3b-recovery5-20260715091700",
+    "soakRunId": "p7v2-soak-r3b-recovery5-20260715091700",
+    "demoRun1Id": "p7v2-demo1-r3b-recovery5-20260715091700",
+    "demoRun2Id": "p7v2-demo2-r3b-recovery5-20260715091700",
+    "selectedHost": "127.0.0.1",
+    "selectedPort": 18080,
+    "status": "recovery5_planned",
+    "updatedAt": "2026-07-15T09:13:38.125Z"
+  },
+  "productionReady": false,
+  "tagCreated": false
+}

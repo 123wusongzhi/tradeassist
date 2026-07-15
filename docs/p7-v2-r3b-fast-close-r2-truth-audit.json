@@ -1,0 +1,51 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE-R2",
+  "status": "passed",
+  "recovery5Permitted": true,
+  "fixtures": {
+    "status": "passed",
+    "commands": [
+      "pnpm test:p7-v2-gates",
+      "pnpm test:p7-v2-regression",
+      "pnpm test:p7-v2-load-profile-fingerprint",
+      "pnpm test:p7-v2-process-identity",
+      "pnpm test:p7-v2-current-independence",
+      "pnpm test:p7-v2-artifact-freeze",
+      "pnpm test:p7-v2-port-owner",
+      "pnpm test:p7-v2-fast-close"
+    ]
+  },
+  "checks": {
+    "fastCloseOrchestratorImplemented": true,
+    "fastCloseOrchestratorFailFast": true,
+    "fastCloseSupportsResumeFrom": true,
+    "fastCloseSupportsStopAfter": true,
+    "fastCloseSupportsDryRun": true,
+    "p99ExplicitlyRequestedFromK6": true,
+    "p99MissingDefaultsToZero": false,
+    "p99NullHandlingStrict": true,
+    "p99NonFiniteHandlingStrict": true,
+    "authSecurityMetricsSplit": true,
+    "taskListMetricIndependent": true,
+    "webhookIngestionMetricIndependent": true,
+    "steadyWindowMetricsImplemented": true,
+    "minimumSampleGateImplemented": true,
+    "cooldownEvidenceRuntimeCollected": true,
+    "cooldownFieldsHardcoded": false,
+    "cooldownMissingMetricsHandled": true,
+    "demoManifestCanonical": true,
+    "demoPreflightReadsCanonicalManifest": true,
+    "demoRun1ReadsCanonicalManifest": true,
+    "demoRun2ReadsCanonicalManifest": true,
+    "finalGateReadsCanonicalManifest": true,
+    "frozenArtifactResolvedFromManifest": true,
+    "loadProfileFingerprintExcludesRunKind": true
+  },
+  "blockingFindings": [],
+  "recovery4": {
+    "preserved": true,
+    "validForRegression": false,
+    "superseded": true,
+    "reason": "load_profile_fingerprint_semantics_changed_after_execution"
+  }
+}

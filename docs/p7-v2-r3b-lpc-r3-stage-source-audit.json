@@ -1,0 +1,31 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3",
+  "status": "passed",
+  "failedRecovery5RunId": "p7v2-baseline-r3b-recovery5-20260715091700",
+  "sourceAudit": {
+    "stageIndex": 0,
+    "rawStage": {
+      "name": "warmup",
+      "duration": "5m"
+    },
+    "sourcePath": "scripts/p7-v2-load.mjs:loadProfile -> scripts/p7-v2-load-profile-fingerprint.mjs:normalizeStages",
+    "sourceKind": "script_default_expansion",
+    "hasTarget": false,
+    "hasTargetVUs": false,
+    "hasStartVUs": false,
+    "rawDuration": "5m",
+    "rawTarget": null,
+    "rawTargetVUs": null,
+    "rawStartVUs": null
+  },
+  "rootCause": "The formal load profile supplied configuredVUs but did not supply an explicit stages array. The v2 canonicalizer expanded a warmup stage with profile.targetVUs, which was undefined.",
+  "checkedSources": [
+    "CLI parameter --target-vus",
+    "environment P7_LOAD_VUS",
+    "scripts/p7-v2-load.mjs loadProfile",
+    "k6 environment TARGET_VUS/VUS/WARMUP/RAMP/STEADY/RAMPDOWN",
+    "scenario stages",
+    "scripts/p7-v2-load-profile-fingerprint.mjs canonicalizer input"
+  ],
+  "sensitiveValuesIncluded": false
+}

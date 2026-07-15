@@ -43,6 +43,14 @@ async function probe() {
     sample.availability.httpLatencyMs = true;
     sample.availability.httpErrorRate = true;
     sample.availability.httpThroughput = true;
+    const goroutines = await fetch(`${portConfig.baseUrl}/debug/pprof/goroutine?debug=1`);
+    const goroutineText = await goroutines.text();
+    const goroutineMatch = goroutineText.match(/goroutine profile: total (\d+)/);
+    const goroutineCount = Number(goroutineMatch?.[1]);
+    if (goroutines.ok && Number.isFinite(goroutineCount)) {
+      sample.metrics.goroutines = goroutineCount;
+      sample.availability.goroutines = true;
+    }
   } catch {
     sample.availability.queueDepth = false;
     sample.availability.workerInflight = false;
@@ -99,15 +107,15 @@ const recoveryEvidence = (metric, { requiresZero = false, stable = false } = {})
     .filter((sample) => new Date(sample.capturedAt) >= cooldownStartedAt && sample.availability?.[metric] === true)
     .map((sample) => sample.metrics?.[metric])
     .filter((value) => Number.isFinite(value));
-  if (values.length < 2 || cooldownValues.length < 2) return { status: 'missing', recovered: false, evidence: { samples: values.length, cooldownSamples: cooldownValues.length } };
+  if (values.length < 2 || cooldownValues.length < 2) return { status: 'failed', recovered: false, reason: 'runtime_evidence_missing', evidence: { samples: values.length, cooldownSamples: cooldownValues.length } };
   const steadyPeak = Math.max(...values);
   const baseline = values[0];
   const last = cooldownValues.at(-1);
   const recovered = requiresZero ? last === 0 : stable ? last <= Math.max(baseline, steadyPeak) : last <= baseline;
-  return { status: 'available', recovered, evidence: { baseline, steadyPeak, last, samples: values.length, cooldownSamples: cooldownValues.length } };
+  return { status: recovered ? 'passed' : 'failed', recovered, evidence: { baseline, steadyPeak, last, samples: values.length, cooldownSamples: cooldownValues.length } };
 };
 const notApplicable = (metric, topologyReason) => ({ status: 'not_applicable', recovered: true, topologyReason: `TradeMind P7 local topology has no independent ${metric} component: ${topologyReason}` });
-const unsupported = (metric) => ({ status: 'missing', recovered: false, reason: `required runtime collector is unavailable for ${metric}` });
+const unavailable = (metric) => ({ status: 'failed', recovered: false, reason: `required runtime collector is unavailable for ${metric}` });
 const httpLatency = recoveryEvidence('httpLatencyMs');
 const httpErrorRate = recoveryEvidence('httpErrorRate', { requiresZero: true });
 const httpThroughput = recoveryEvidence('httpThroughput', { stable: true });
@@ -131,18 +139,19 @@ const cooldown = {
   webhookBacklog: queueDepth,
   mockProviderState: notApplicable('mockProviderState', 'mock provider is in-process and stateless for P7'),
   circuitState: notApplicable('circuitState', 'no circuit breaker is configured for the mock-only P7 topology'),
-  goroutines: unsupported('goroutines'),
+  goroutines: recoveryEvidence('goroutines', { stable: true }),
   memory: rss,
   queueRecovered: queueDepth.recovered,
   workerInflightRecovered: workerInflight.recovered,
   dbConnectionsRecovered: dbOpenConnections.recovered,
   memoryRecovered: rss.recovered,
+  goroutineStableOrRecovered: cooldown.goroutines.recovered,
   httpLatencyRecovered: httpLatency.recovered,
   errorRateRecovered: httpErrorRate.recovered,
   throughputRecovered: httpThroughput.recovered,
   webhookBacklogRecovered: queueDepth.recovered,
-  providerStateRecovered: true,
-  circuitRecovered: true,
+  providerStateRecovered: cooldown.mockProviderState.recovered,
+  circuitRecovered: cooldown.circuitState.recovered,
 };
 cooldown.cooldownRecoveryPassed = [
   cooldown.httpLatencyRecovered,

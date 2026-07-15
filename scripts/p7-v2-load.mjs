@@ -1,12 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   assertLoadHostSafe,
   collectEnvironmentFingerprint,
   configFingerprint,
   fetchPerformanceToken,
   k6Binary,
-  loadProfileFingerprint,
   metric,
   metricCustom,
   performanceEnvDefaults,
@@ -22,6 +22,7 @@ import {
   writeMarkdown,
 } from './p7-v2-lib.mjs';
 import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeManifest } from './p7-v2-r3-lib.mjs';
+import { calculateLoadProfileFingerprint } from './p7-v2-load-profile-fingerprint.mjs';
 
 const args = process.argv.slice(2);
 const kind = valueOf(args, '--kind') || 'load';
@@ -84,13 +85,40 @@ if (kind === 'baseline') {
 }
 
 const loadProfile = {
-  kind,
-  targetVUs,
+  configuredVUs: targetVUs,
   warmup: kind === 'diagnostic' ? '0m' : '5m',
   ramp: kind === 'soak' || kind === 'diagnostic' ? '0m' : '3m',
   steady: kind === 'soak' ? '30m' : kind === 'smoke' ? '2m' : kind === 'diagnostic' ? '3m' : '10m',
   rampdown: kind === 'smoke' || kind === 'diagnostic' ? '0m' : '2m',
+  // Canonical stage input is explicit: stage targets are not inferred from configuredVUs.
+  stages: [
+    { name: 'warmup', duration: kind === 'diagnostic' ? '1ms' : '5m', targetVUs },
+    { name: 'ramp', duration: kind === 'soak' || kind === 'diagnostic' ? '1ms' : '3m', targetVUs },
+    { name: 'steady', duration: kind === 'soak' ? '30m' : kind === 'smoke' ? '2m' : kind === 'diagnostic' ? '3m' : '10m', targetVUs },
+    { name: 'rampdown', duration: kind === 'smoke' || kind === 'diagnostic' ? '1ms' : '2m', targetVUs: 0 },
+  ],
+  scenarios: [
+    { name: 'warmup', executor: 'constant-vus', startTime: '0s' },
+    { name: 'ramp', executor: 'ramping-vus', startTime: kind === 'diagnostic' ? '0s' : '5m' },
+    { name: 'steady', executor: 'constant-vus', startTime: kind === 'diagnostic' ? '0s' : kind === 'soak' ? '5m' : '8m' },
+    { name: 'rampdown', executor: 'ramping-vus', startTime: kind === 'diagnostic' ? '3m' : kind === 'soak' ? '35m' : '18m' },
+    { name: 'security_negative', executor: 'constant-vus', startTime: '0s', weight: 1 },
+  ],
+  requestMix: [
+    ['product_list', 20], ['order_list', 20], ['inventory_list', 15], ['task_list', 10],
+    ['webhook_event_list', 8], ['operation_log_list', 7], ['webhook_ingestion', 5],
+    ['provider_mock_flow', 5], ['auth_security', 2],
+  ].map(([routeId, weight]) => ({ routeId, method: routeId === 'webhook_ingestion' ? 'POST' : 'GET', weight })),
+  credentialMix: [
+    { role: 'system_admin', weight: 1 }, { role: 'tenant_admin', weight: 1 },
+    { role: 'operator', weight: 1 }, { role: 'readonly', weight: 1 },
+  ],
+  loadScript: {
+    path: script,
+    sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(root, script))).digest('hex'),
+  },
 };
+const canonicalLoadProfile = calculateLoadProfileFingerprint(loadProfile, { repositoryRoot: root });
 
 fs.mkdirSync(artifacts, { recursive: true });
 const summaryPath = path.join(artifacts, `${kind}.summary.json`);
@@ -185,7 +213,8 @@ const authLoginFailures = metricCustom(summaryJSON, 'auth_login_failures');
 const fingerprint = collectEnvironmentFingerprint(kind, runId, {
   datasetFingerprint: dataset.datasetFingerprint || '',
   configFingerprint: configFingerprint(runtime.env || {}),
-  loadProfileFingerprint: loadProfileFingerprint(loadProfile),
+  loadProfileFingerprint: canonicalLoadProfile.loadProfileFingerprint,
+  loadProfileFingerprintVersion: canonicalLoadProfile.fingerprintVersion,
   databaseNameHash: runtime.databaseNameHash || '',
 });
 const runtimeSource = runtimeSourceFingerprint();
@@ -253,10 +282,12 @@ const report = {
     steadySampleCount: scenarios.reduce((total, item) => total + item.sampleCount, 0),
   },
   loadProfile,
+  canonicalLoadProfile: canonicalLoadProfile.canonicalProfile,
   environmentFingerprint: fingerprint,
   datasetFingerprint: dataset.datasetFingerprint || '',
   configFingerprint: fingerprint.configFingerprint,
-  loadProfileFingerprint: fingerprint.loadProfileFingerprint,
+  loadProfileFingerprint: canonicalLoadProfile.loadProfileFingerprint,
+  loadProfileFingerprintVersion: canonicalLoadProfile.fingerprintVersion,
   trackedDiffHash: trackedDiff.hash,
   untrackedRuntimeManifestHash: untrackedRuntime.hash,
   runtimeSourceTreeHash: runtimeSource.hash,

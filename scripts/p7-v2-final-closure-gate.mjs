@@ -1,10 +1,12 @@
 import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 import { validateCleanup, validateCurrent, validateDemo, validateRegression, validateSoak } from './p7-v2-r3b-gate-lib.mjs';
+import { readR3BManifest } from './p7-v2-r3b-manifest.mjs';
 
+const manifest = readR3BManifest();
 const baseline = resolveActiveBaseline();
 const current = validateCurrent(readJSON('docs/p7-v2-current-load-report.json') || {});
-const regression = validateRegression(readJSON('docs/p7-v2-performance-regression-report.json') || {});
+const regression = validateRegression(readJSON('docs/p7-v2-r3b-lpf-regression-v2-report.json') || {});
 const soak = validateSoak(readJSON('docs/p7-v2-soak-test-report.json') || {});
 const demo = validateDemo(readJSON('docs/p7-v2-demo-acceptance-run1.json') || {}, readJSON('docs/p7-v2-demo-acceptance-run2.json') || {});
 const cleanup = validateCleanup(readJSON('docs/p7-v2-runtime-cleanup-report.json') || {});
@@ -21,6 +23,7 @@ const checks = [
   ['race', ['passed', 'valid_reuse'].includes(race.status), ['race status is not passed or valid_reuse']],
   ['cleanup', cleanup.valid, cleanup.issues],
   ['p1-p7', p1p7.status === 'passed', ['P1-P7 final gate is not passed']],
+  ['canonical-manifest', manifest.baselineRunId === baseline.baseline?.runId && manifest.currentRunId === (readJSON('docs/p7-v2-current-load-report.json') || {}).runId, ['canonical R3B manifest does not match active Recovery5 evidence']],
 ];
 const failed = checks.filter(([, ok]) => !ok).length;
 const report = {
