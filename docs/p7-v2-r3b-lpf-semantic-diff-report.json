@@ -1,0 +1,27 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "rootCause": "non_semantic_canonicalization_bug",
+  "actualLoadProfileDrift": false,
+  "differences": [
+    {
+      "jsonPath": "$.loadProfile.kind",
+      "baselineRawValue": "baseline",
+      "currentRawValue": "current",
+      "classification": "non_semantic_run_metadata",
+      "semanticImpact": false,
+      "includedInV1": true,
+      "includedInV2": false,
+      "reason": "Run taxonomy is not an input to k6 load generation."
+    }
+  ],
+  "v1": {
+    "baseline": "818ce231b0091774",
+    "current": "ae4c862477ca18d0"
+  },
+  "v2": {
+    "baseline": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683",
+    "current": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683"
+  },
+  "sourceArtifactsModified": false
+}

@@ -1,0 +1,99 @@
+{
+  "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+  "runKind": "current",
+  "fingerprintType": "load_profile",
+  "fingerprintVersion": 2,
+  "sourceManifestPath": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/manifest.json",
+  "sourceManifestSha256": "c4270a7e0c88a8e25a9a81e2aeff2f8fbe98b35b30948312104591d62199142d",
+  "rawArtifactSha256": "19aaa21b4094ee14147621b47b7370003b9a4dbaec12b24f64a32a66162af4c5",
+  "canonicalProfile": {
+    "credentialMix": [],
+    "load": {
+      "configuredVUs": 10,
+      "stages": [
+        {
+          "durationMs": 300000,
+          "name": "warmup",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 180000,
+          "name": "ramp",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 600000,
+          "name": "steady",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 120000,
+          "name": "rampdown",
+          "targetVUs": 0
+        }
+      ]
+    },
+    "loadEngine": {
+      "name": "k6"
+    },
+    "loadLibraries": [],
+    "loadScript": {
+      "relativePath": "tests/load/p7v2-baseline.js",
+      "sha256": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c"
+    },
+    "requestMix": [],
+    "scenarios": [
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "warmup",
+        "startTimeMs": 0
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "ramp",
+        "stages": [
+          {
+            "durationMs": 180000,
+            "name": "ramp",
+            "targetVUs": 10
+          }
+        ],
+        "startTimeMs": 300000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "steady",
+        "startTimeMs": 480000
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "rampdown",
+        "stages": [
+          {
+            "durationMs": 120000,
+            "name": "rampdown",
+            "targetVUs": 0
+          }
+        ],
+        "startTimeMs": 1080000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "security_negative",
+        "startTimeMs": 0
+      }
+    ],
+    "schemaVersion": 2
+  },
+  "canonicalJsonSha256": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683",
+  "loadProfileFingerprint": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683",
+  "generatedAt": "2026-07-15T06:16:04.217Z",
+  "derivedEvidence": true,
+  "sourceArtifactsModified": false,
+  "unknownFields": []
+}

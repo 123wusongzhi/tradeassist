@@ -6,6 +6,8 @@ import { CORE_SCENARIOS, METRIC_METADATA, SCENARIO_METRICS } from './p7-v2-regre
 import { resolveActiveBaseline, resolveActiveCurrent } from './p7-v2-evidence-resolver.mjs';
 
 const args = process.argv.slice(2);
+const fingerprintVersion = Number(valueOf(args, '--fingerprint-version') || 1);
+if (![1, 2].includes(fingerprintVersion)) throw new Error('fingerprint version must be 1 or 2');
 const resolvedBaseline = resolveActiveBaseline();
 const resolvedCurrent = resolveActiveCurrent();
 const baselinePath = valueOf(args, '--baseline') || resolvedBaseline.reportPath;
@@ -14,6 +16,10 @@ const policyPath = valueOf(args, '--policy') || 'docs/p7-v2-regression-policy-v2
 const baseline = valueOf(args, '--baseline') ? readJSON(baselinePath) : resolvedBaseline.baseline;
 const current = { ...(readJSON(currentPath) || {}), ...(resolvedCurrent.entry || {}) };
 const policy = readJSON(policyPath);
+const comparabilityPath = valueOf(args, '--comparability-report') || (fingerprintVersion === 2
+  ? 'docs/p7-v2-r3b-lpf-comparability-v2-report.json'
+  : 'docs/p7-v2-r3b-rebaseline2-comparability-report.json');
+const comparability = readJSON(comparabilityPath) || {};
 const hash = (data) => crypto.createHash('sha256').update(data).digest('hex');
 const policyFingerprint = policy ? hash(JSON.stringify(policy)) : '';
 const issues = [];
@@ -46,26 +52,34 @@ issues.push(...baselineFrozen.issues, ...currentFrozen.issues);
 if (!resolvedBaseline.valid || !resolvedCurrent.valid) issues.push('active frozen baseline or Current registry entry is invalid');
 if (!baseline || baseline.status !== 'passed' || !current || current.status !== 'passed' || current.independentRun !== true) issues.push('baseline or independent Current report is not passed');
 if (!policy || policy.version !== 2) issues.push('Regression policy version 2 is required');
+if (comparability.status !== 'passed' || (fingerprintVersion === 2 && comparability.currentFingerprintVersion !== 2)) {
+  issues.push('passed Comparability evidence for the selected fingerprint version is required');
+}
 if (baseline?.runId === current?.runId || baselineFrozen.actualHash === currentFrozen.actualHash) issues.push('baseline and current artifacts are not independent');
 
-function metricValue(raw, scenario, metric) {
+function reportScenarioValue(run, scenario, metric) {
+  const row = (run?.scenarios || []).find((item) => item.scenario === scenario);
+  return row?.[metric];
+}
+
+function metricValue(raw, run, scenario, metric) {
   const [durationMetric, requestMetric] = SCENARIO_METRICS[scenario];
-  const values = raw?.metrics?.[durationMetric]?.values || {};
-  const requestValues = raw?.metrics?.[requestMetric]?.values || {};
-  if (metric === 'p95') return values['p(95)'];
-  if (metric === 'p99') return values['p(99)'];
-  if (metric === 'rps') return requestValues.rate;
-  if (metric === 'errorRate') return raw?.metrics?.http_req_failed?.values?.rate;
-  if (metric === 'timeouts') return raw?.metrics?.p7_timeouts?.values?.count;
+  const values = raw?.metrics?.[durationMetric]?.values || raw?.metrics?.[durationMetric] || {};
+  const requestValues = raw?.metrics?.[requestMetric]?.values || raw?.metrics?.[requestMetric] || {};
+  if (metric === 'p95') return values['p(95)'] ?? reportScenarioValue(run, scenario, metric);
+  if (metric === 'p99') return values['p(99)'] ?? reportScenarioValue(run, scenario, metric);
+  if (metric === 'rps') return requestValues.rate ?? reportScenarioValue(run, scenario, metric);
+  if (metric === 'errorRate') return raw?.metrics?.http_req_failed?.values?.rate ?? raw?.metrics?.http_req_failed?.rate ?? reportScenarioValue(run, scenario, metric);
+  if (metric === 'timeouts') return raw?.metrics?.p7_timeouts?.values?.count ?? raw?.metrics?.p7_timeouts?.count ?? reportScenarioValue(run, scenario, metric);
   return undefined;
 }
 
 function compare(scenario, metric) {
   const metadata = METRIC_METADATA[metric];
-  const baselineValue = metricValue(baselineFrozen.raw, scenario, metric);
-  const currentValue = metricValue(currentFrozen.raw, scenario, metric);
-  const baselineSamples = Number(baselineFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.values?.count ?? 0);
-  const currentSamples = Number(currentFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.values?.count ?? 0);
+  const baselineValue = metricValue(baselineFrozen.raw, baseline, scenario, metric);
+  const currentValue = metricValue(currentFrozen.raw, current, scenario, metric);
+  const baselineSamples = Number(baselineFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.values?.count ?? baselineFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.count ?? 0);
+  const currentSamples = Number(currentFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.values?.count ?? currentFrozen.raw?.metrics?.[SCENARIO_METRICS[scenario][1]]?.count ?? 0);
   const basePresent = baselineValue !== null && baselineValue !== undefined;
   const currentPresent = currentValue !== null && currentValue !== undefined;
   const common = { scenario, metric, metricFamily: metadata.metricFamily, direction: metadata.direction, unit: metadata.unit,
@@ -99,19 +113,20 @@ const notComparableCount = comparisons.filter((item) => item.finalVerdict === 'n
 const invalidMetricCount = comparisons.filter((item) => item.finalVerdict === 'invalid_metric').length;
 const insufficientSampleCount = comparisons.filter((item) => item.finalVerdict === 'insufficient_samples').length;
 const status = issues.length || failedMetricCount || notComparableCount || invalidMetricCount || insufficientSampleCount ? 'failed' : 'passed';
-const report = { phase: 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
+const report = { phase: fingerprintVersion === 2 ? 'P7-V2-R3B-LPF-V2' : 'P7-V2-R3B-REBASELINE2', status, evaluationVersion: 2, policyVersion: policy?.version || 0, policyFingerprint,
   baseline: { path: baselinePath, runId: baseline?.runId || '', artifactSha256: baselineFrozen.actualHash || '', artifactHashVerified: baselineFrozen.valid },
   current: { path: currentPath, runId: current?.runId || '', artifactSha256: currentFrozen.actualHash || '', artifactHashVerified: currentFrozen.valid, independentRun: current?.independentRun === true },
   absoluteSloPassed: current?.absoluteSloPassed === true, relativeRegressionPassed: failedMetricCount === 0 && notComparableCount === 0,
   materialityGatePassed: failedMetricCount === 0, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount,
-  zeroSemanticErrors: 0, comparisons, issues };
-if (!fs.existsSync(path.join(root, 'docs/regressions/p7-v2-r3b-regression-v1-failed.json'))) {
+  zeroSemanticErrors: 0, fingerprintVersion, comparabilityPath, comparisons, issues };
+if (fingerprintVersion === 1 && !fs.existsSync(path.join(root, 'docs/regressions/p7-v2-r3b-regression-v1-failed.json'))) {
   const previous = readJSON('docs/p7-v2-performance-regression-report.json');
   if (previous) writeJSON('docs/regressions/p7-v2-r3b-regression-v1-failed.json', { ...previous, evaluationVersion: 1 });
 }
-writeJSON('docs/p7-v2-r3b-rebaseline2-regression-v2-report.json', report);
-writeJSON('docs/p7-v2-performance-regression-report.json', report);
-writeMarkdown('docs/P7_V2_R3B_REBASELINE2_REGRESSION_V2_REPORT.md', `# P7-V2-R3B-REBASELINE2 Regression V2\n\nStatus: **${status}**\n\n- Evaluation version: 2\n- Failed metrics: ${failedMetricCount}\n- Not comparable: ${notComparableCount}\n- Invalid metrics: ${invalidMetricCount}\n- Insufficient samples: ${insufficientSampleCount}\n\n## Issues\n${issues.length ? issues.map((item) => `- ${item}`).join('\n') : '- none'}\n`);
-writeMarkdown('docs/P7_V2_PERFORMANCE_REGRESSION_REPORT.md', `# P7-V2 Performance Regression Report\n\nEvaluation Version: 2\n\nStatus: **${status}**\n`);
+const output = fingerprintVersion === 2
+  ? ['docs/p7-v2-r3b-lpf-regression-v2-report.json', 'docs/P7_V2_R3B_LPF_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-LPF-V2 Regression V2']
+  : ['docs/p7-v2-r3b-rebaseline2-regression-v2-report.json', 'docs/P7_V2_R3B_REBASELINE2_REGRESSION_V2_REPORT.md', 'P7-V2-R3B-REBASELINE2 Regression V2'];
+writeJSON(output[0], report);
+writeMarkdown(output[1], `# ${output[2]}\n\nStatus: **${status}**\n\n- Evaluation version: 2\n- Failed metrics: ${failedMetricCount}\n- Not comparable: ${notComparableCount}\n- Invalid metrics: ${invalidMetricCount}\n- Insufficient samples: ${insufficientSampleCount}\n\n## Issues\n${issues.length ? issues.map((item) => `- ${item}`).join('\n') : '- none'}\n`);
 console.log(JSON.stringify({ phase: report.phase, status, failedMetricCount, notComparableCount, invalidMetricCount, insufficientSampleCount }, null, 2));
 process.exit(status === 'passed' ? 0 : 1);

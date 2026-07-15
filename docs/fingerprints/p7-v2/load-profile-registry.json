@@ -1,0 +1,17 @@
+{
+  "fingerprintType": "load_profile",
+  "activeVersion": 2,
+  "entries": [
+    {
+      "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+      "path": "docs/fingerprints/p7-v2/load-profile/v2/p7v2-baseline-r3b-recovery3-20260715-131400.json",
+      "loadProfileFingerprint": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683"
+    },
+    {
+      "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+      "path": "docs/fingerprints/p7-v2/load-profile/v2/p7v2-current-r3b-recovery3-20260715-131400.json",
+      "loadProfileFingerprint": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683"
+    }
+  ],
+  "sourceArtifactsModified": false
+}

@@ -52,6 +52,10 @@ pnpm dev:reset
 - `pnpm dev:infra`：仅启动 PostgreSQL 与 Redis。
 - `pnpm p7:dataset -- --profile small`：运行 P7 数据集生成器 dry-run；写入隔离数据库需额外传 `--write` 并满足 performance 环境守卫。
 - `pnpm check:p7` / `pnpm check:p7:regression`：生成 P7 性能容量与回归门闸报告；真实负载 / Soak / Race 证据未齐时会失败。
+- `pnpm p7-v2:r3b:lpf-audit`：仅从冻结 Recovery3 evidence 导出并校验 Load Profile V2；不会启动 k6 或修改 Raw Artifact。
+- `pnpm p7-v2:r3b:lpf-comparability`：使用版本化 V2 sidecar 执行 Recovery3 comparability；V1 报告保持不变。
+- `pnpm p7-v2:r3b:regression`：仅在 Comparability V2 通过后评估冻结 Raw Artifact；不重新执行性能负载。
+- `pnpm p7-v2:r3b:lpf-gate`：执行 LPF-V2 scoped gate；Soak、Demo、最终 Gate 不属于该命令范围。
 - `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）/ collector 端口上残留的上一进程，避免端口占用导致 backend 启动失败。
 - `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。

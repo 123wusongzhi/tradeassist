@@ -1,0 +1,161 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+    "sources": {
+      "loadProfile": "docs/baselines/frozen/p7v2-baseline-r3b-recovery3-20260715-131400/load-profile.json",
+      "manifest": "docs/baselines/frozen/p7v2-baseline-r3b-recovery3-20260715-131400/manifest.json",
+      "rawSummary": "docs/baselines/frozen/p7v2-baseline-r3b-recovery3-20260715-131400/raw-summary.json",
+      "loadScript": "tests/load/p7v2-baseline.js"
+    },
+    "rawProfile": {
+      "kind": "baseline",
+      "targetVUs": 10,
+      "warmup": "5m",
+      "ramp": "3m",
+      "steady": "10m",
+      "rampdown": "2m",
+      "configuredVUs": 10,
+      "scenarios": [
+        {
+          "name": "warmup",
+          "executor": "constant-vus",
+          "startTime": "0s",
+          "gracefulStop": "0s",
+          "startTimeMs": 0,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "ramp",
+          "executor": "ramping-vus",
+          "startTime": "5m",
+          "gracefulStop": "0s",
+          "stages": [
+            {
+              "name": "ramp",
+              "duration": "3m",
+              "targetVUs": 10
+            }
+          ],
+          "startTimeMs": 300000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "steady",
+          "executor": "constant-vus",
+          "startTime": "5m+3m",
+          "gracefulStop": "0s",
+          "startTimeMs": 480000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "rampdown",
+          "executor": "ramping-vus",
+          "startTime": "5m+3m+10m",
+          "gracefulStop": "0s",
+          "stages": [
+            {
+              "name": "rampdown",
+              "duration": "2m",
+              "targetVUs": 0
+            }
+          ],
+          "startTimeMs": 1080000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "security_negative",
+          "executor": "constant-vus",
+          "startTime": "0s",
+          "gracefulStop": "0s",
+          "startTimeMs": 0,
+          "gracefulStopMs": 0
+        }
+      ],
+      "loadScript": {
+        "relativePath": "tests/load/p7v2-baseline.js",
+        "sha256": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c"
+      }
+    }
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+    "sources": {
+      "loadProfile": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/load-profile.json",
+      "manifest": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/manifest.json",
+      "rawSummary": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/raw-summary.json",
+      "loadScript": "tests/load/p7v2-baseline.js"
+    },
+    "rawProfile": {
+      "kind": "current",
+      "targetVUs": 10,
+      "warmup": "5m",
+      "ramp": "3m",
+      "steady": "10m",
+      "rampdown": "2m",
+      "configuredVUs": 10,
+      "scenarios": [
+        {
+          "name": "warmup",
+          "executor": "constant-vus",
+          "startTime": "0s",
+          "gracefulStop": "0s",
+          "startTimeMs": 0,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "ramp",
+          "executor": "ramping-vus",
+          "startTime": "5m",
+          "gracefulStop": "0s",
+          "stages": [
+            {
+              "name": "ramp",
+              "duration": "3m",
+              "targetVUs": 10
+            }
+          ],
+          "startTimeMs": 300000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "steady",
+          "executor": "constant-vus",
+          "startTime": "5m+3m",
+          "gracefulStop": "0s",
+          "startTimeMs": 480000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "rampdown",
+          "executor": "ramping-vus",
+          "startTime": "5m+3m+10m",
+          "gracefulStop": "0s",
+          "stages": [
+            {
+              "name": "rampdown",
+              "duration": "2m",
+              "targetVUs": 0
+            }
+          ],
+          "startTimeMs": 1080000,
+          "gracefulStopMs": 0
+        },
+        {
+          "name": "security_negative",
+          "executor": "constant-vus",
+          "startTime": "0s",
+          "gracefulStop": "0s",
+          "startTimeMs": 0,
+          "gracefulStopMs": 0
+        }
+      ],
+      "loadScript": {
+        "relativePath": "tests/load/p7v2-baseline.js",
+        "sha256": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c"
+      }
+    }
+  },
+  "sourceArtifactsModified": false
+}

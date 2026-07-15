@@ -1,0 +1,80 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "failed",
+  "branch": "recovery3_reuse",
+  "checks": [
+    {
+      "id": "artifact-integrity",
+      "status": "passed"
+    },
+    {
+      "id": "no-semantic-drift",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalization-deterministic",
+      "status": "passed"
+    },
+    {
+      "id": "v2-fingerprints-match",
+      "status": "passed"
+    },
+    {
+      "id": "recovery3-reusable",
+      "status": "passed"
+    },
+    {
+      "id": "comparability-v2",
+      "status": "passed"
+    },
+    {
+      "id": "regression-v2",
+      "status": "failed"
+    },
+    {
+      "id": "source-artifacts-unchanged",
+      "status": "passed"
+    },
+    {
+      "id": "soak-pending",
+      "status": "passed"
+    },
+    {
+      "id": "demo-pending",
+      "status": "passed"
+    },
+    {
+      "id": "no-production-access",
+      "status": "passed"
+    },
+    {
+      "id": "tag-not-created",
+      "status": "passed"
+    },
+    {
+      "id": "not-production-ready",
+      "status": "passed"
+    }
+  ],
+  "failed": [
+    "regression-v2"
+  ],
+  "recovery3Reusable": true,
+  "recovery4Required": false,
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": false,
+    "realDouyinWrites": false,
+    "autoListingTriggered": false,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "soak": {
+    "status": "pending",
+    "executed": false
+  },
+  "demo": {
+    "status": "pending",
+    "executed": false
+  }
+}

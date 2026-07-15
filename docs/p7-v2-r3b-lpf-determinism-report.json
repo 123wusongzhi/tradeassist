@@ -1,0 +1,14 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "version": 2,
+  "repetitions": 10,
+  "uniqueFingerprintCount": 1,
+  "deterministic": true,
+  "windowsNode": {
+    "executed": true,
+    "fingerprint": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683"
+  },
+  "crossPlatformVerification": "not_executed",
+  "crossPlatformDeterministic": null
+}
