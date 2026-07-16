@@ -2,12 +2,12 @@
   "phase": "P7-V2",
   "component": "runtime-cleanup",
   "status": "passed",
-  "checkedAt": "2026-07-15T16:48:19.338Z",
-  "gitCommit": "9c55130512b7d23b7a8593780820512cfe6fcb95",
+  "checkedAt": "2026-07-16T10:53:59.022Z",
+  "gitCommit": "f31a54fa2cd9da45f84ebf2ec46b48df10e11e0b",
   "databasePrefix": "trademind_p7v2_",
-  "droppedDatabase": "trademind_p7v2_p7v2_current_r3b_recovery6_20260715153726_restar",
+  "droppedDatabase": "trademind_p7v2_p7v2_current_r3b_recovery6_20260716082252_restar",
   "droppedDatabases": [
-    "trademind_p7v2_p7v2_current_r3b_recovery6_20260715153726_restar"
+    "trademind_p7v2_p7v2_current_r3b_recovery6_20260716082252_restar"
   ],
   "remainingDatabases": [
     "trademind_p7v2_p7v2_baseline_r3b_20260714163000",
@@ -16,18 +16,20 @@
     "trademind_p7v2_p7v2_baseline_r3b_recovery4_20260715075855",
     "trademind_p7v2_p7v2_baseline_r3b_recovery5_20260715091700",
     "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715125505",
+    "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715165422",
     "trademind_p7v2_p7v2_baseline_r3b_recovery_20260714_1719",
     "trademind_p7v2_p7v2_current_r3b_20260714164500_restart",
     "trademind_p7v2_p7v2_current_r3b_recovery3_20260715_131400_resta",
     "trademind_p7v2_p7v2_current_r3b_recovery4_20260715072627_restar",
     "trademind_p7v2_p7v2_current_r3b_recovery4_20260715075855_restar",
+    "trademind_p7v2_p7v2_current_r3b_recovery6_20260715165422_restar",
     "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
     "trademind_p7v2_p7v2_port_r2_1784091324060_clean_start",
     "trademind_p7v2_p7v2_port_r2_1784091630880_clean_start",
     "trademind_p7v2_p7v2_port_r2_diagnostic2_20260715_130800",
     "trademind_p7v2_p7v2_port_r2_diagnostic_20260715_130700"
   ],
-  "remainingDatabasesWithPrefix": 16,
+  "remainingDatabasesWithPrefix": 18,
   "databaseClassifications": [
     {
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_20260714163000",
@@ -96,6 +98,17 @@
       "reason": "registered baseline/current evidence is retained and not counted as current residual"
     },
     {
+      "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715165422",
+      "associatedRunId": "p7v2-baseline-r3b-recovery6-20260715165422",
+      "associatedRuntimeFreezeId": "",
+      "registryStatus": "registered_historical_evidence",
+      "artifactFrozen": true,
+      "evidenceRetentionRequired": true,
+      "classification": "historical_evidence_resource",
+      "cleanupEligible": false,
+      "reason": "registered baseline/current evidence is retained and not counted as current residual"
+    },
+    {
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery_20260714_1719",
       "associatedRunId": "p7v2-baseline-r3b-recovery-20260714-1719",
       "associatedRuntimeFreezeId": "",
@@ -149,6 +162,17 @@
       "classification": "historical_evidence_resource",
       "cleanupEligible": false,
       "reason": "registered baseline/current evidence is retained and not counted as current residual"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260715165422_restar",
+      "associatedRunId": "",
+      "associatedRuntimeFreezeId": "",
+      "registryStatus": "superseded_or_diagnostic_history",
+      "artifactFrozen": false,
+      "evidenceRetentionRequired": true,
+      "classification": "superseded_run_resource",
+      "cleanupEligible": false,
+      "reason": "known superseded P7-V2 formal/diagnostic database retained for historical audit context"
     },
     {
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
@@ -209,8 +233,8 @@
   "cleanupGateSemanticsValid": true,
   "currentFormalResidualCount": 0,
   "failedAttemptResidualCount": 0,
-  "historicalEvidenceDatabaseCount": 7,
-  "supersededRunDatabaseCount": 9,
+  "historicalEvidenceDatabaseCount": 8,
+  "supersededRunDatabaseCount": 10,
   "unknownDatabaseCount": 0,
   "nonTradeMindDatabaseCount": 0,
   "processesRemaining": 0,

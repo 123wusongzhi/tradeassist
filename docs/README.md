@@ -141,6 +141,12 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 - 较大模块或阶段性变更：更新 [PROGRESS.md](PROGRESS.md)。
 
 详细规则见 [ai-coding-rules.md](ai-coding-rules.md)。
+## P7-V2 R3B Audit Docs
+
+| Document | Purpose |
+| --- | --- |
+| [P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md](P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md) | Dual p99 regression common-cause audit, cleanup evidence, root-cause classification, and final gate entry. |
+
 ## Phase P3.2 Douyin Webhook Docs
 
 | Document | Purpose |
