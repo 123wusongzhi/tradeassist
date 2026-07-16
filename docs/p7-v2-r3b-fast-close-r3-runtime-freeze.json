@@ -1,19 +1,19 @@
 {
   "current": {
     "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
-    "status": "passed",
+    "status": "blocked_identity_collision",
     "runtimeFrozen": true,
     "formalWiringPassed": true,
     "preFreezePassed": true,
-    "createdAt": "2026-07-16T06:44:35.424Z",
-    "frozenAt": "2026-07-16T06:44:35.424Z",
+    "createdAt": "2026-07-16T08:27:52.876Z",
+    "frozenAt": "2026-07-16T08:27:52.876Z",
     "runIds": {},
     "plannedRunIdsAtFreeze": {
-      "baselineRunId": "p7v2-baseline-r3b-recovery6-20260716063639",
-      "currentRunId": "p7v2-current-r3b-recovery6-20260716063639",
-      "soakRunId": "p7v2-soak-r3b-recovery6-20260716063639",
-      "demoRun1Id": "p7v2-demo1-r3b-recovery6-20260716063639",
-      "demoRun2Id": "p7v2-demo2-r3b-recovery6-20260716063639"
+      "baselineRunId": "p7v2-baseline-r3b-recovery6-20260716082252",
+      "currentRunId": "p7v2-current-r3b-recovery6-20260716082252",
+      "soakRunId": "p7v2-soak-r3b-recovery6-20260716082252",
+      "demoRun1Id": "p7v2-demo1-r3b-recovery6-20260716082252",
+      "demoRun2Id": "p7v2-demo2-r3b-recovery6-20260716082252"
     },
     "runIdBindingPolicy": "recovery6_pattern_validated_after_plan",
     "runtimeFreezeScopeVersion": 2,
@@ -5046,7 +5046,7 @@
       }
     },
     "git": {
-      "commit": "c182977694a616ddd263c42e7089a88fb5093c9c",
+      "commit": "963011f659204e579e53458e699d0b25cb608ee5",
       "dirty": false,
       "trackedDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "immutableTrackedDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
@@ -5262,7 +5262,14 @@
       "immutableTrackedDiffHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     "contractId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43",
-    "runtimeFreezeId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43"
+    "runtimeFreezeId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43",
+    "active": false,
+    "validForFormalExecution": false,
+    "validForFinalClosure": false,
+    "semanticGatePassed": false,
+    "classification": "runtime_freeze_identity_collision",
+    "oldRuntimeFreezeIdReused": true,
+    "collisionClosedAt": "2026-07-16T09:04:09.712Z"
   },
   "history": [
     {

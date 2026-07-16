@@ -40,6 +40,9 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     match: Boolean(storedValue && rebuiltValue && storedValue === rebuiltValue),
   });
   const checks = [
+    compare('runtimeFreezeId', stored.runtimeFreezeId, rebuilt.runtimeFreezeId),
+    compare('runtimeContentHash', stored.runtimeContentHash, rebuilt.runtimeContentHash),
+    compare('planBindingHash', stored.planBindingHash, rebuilt.planBindingHash),
     compare('runtimeSourceTreeHash', stored.runtimeSourceTreeHash, rebuilt.runtimeSourceTreeHash),
     compare('evidenceToolingHash', stored.evidenceToolingHash, rebuilt.evidenceToolingHash),
     compare('loadScriptsHash', stored.loadScriptsHash, rebuilt.loadScriptsHash),
@@ -52,6 +55,7 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     compare('immutableTrackedDiffHash', stored.git?.immutableTrackedDiffHash || stored.git?.trackedDiffHash, rebuilt.git?.immutableTrackedDiffHash || rebuilt.git?.trackedDiffHash),
   ];
   const versionsValid =
+    (stored.runtimeFreezeIdentityVersion ?? 1) === 2 &&
     (stored.runtimeFreezeScopeVersion ?? 1) === RUNTIME_FREEZE_SCOPE_VERSION &&
     (stored.configFingerprintVersion ?? 1) === CONFIG_FINGERPRINT_VERSION &&
     (stored.runtimeFreezeLifecycleContractVersion ?? 1) === RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION &&
@@ -69,6 +73,17 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     runtimeFreezeLifecycleContractVersion: stored.runtimeFreezeLifecycleContractVersion ?? null,
     storedRuntimeFreezeId: stored.runtimeFreezeId || '',
     rebuiltRuntimeFreezeId: rebuilt.runtimeFreezeId || '',
+    runtimeFreezeIdentityVersion: stored.runtimeFreezeIdentityVersion ?? null,
+    runtimeContentHash: stored.runtimeContentHash || '',
+    rebuiltRuntimeContentHash: rebuilt.runtimeContentHash || '',
+    planBindingHash: stored.planBindingHash || '',
+    rebuiltPlanBindingHash: rebuilt.planBindingHash || '',
+    runtimeContentHashMatch: Boolean(stored.runtimeContentHash && rebuilt.runtimeContentHash && stored.runtimeContentHash === rebuilt.runtimeContentHash),
+    planBindingHashMatch: Boolean(stored.planBindingHash && rebuilt.planBindingHash && stored.planBindingHash === rebuilt.planBindingHash),
+    plannedManifestBindingPassed: Boolean(stored.planBindingHash && rebuilt.planBindingHash && stored.planBindingHash === rebuilt.planBindingHash),
+    plannedRunIdsBindingPassed: ['baselineRunId', 'currentRunId', 'soakRunId', 'demoRun1Id', 'demoRun2Id'].every((key) => stored.planBindingPayload?.[key] && stored.planBindingPayload?.[key] === rebuilt.planBindingPayload?.[key]),
+    gitCommitMatch: Boolean(stored.planBindingPayload?.planCheckpoint && stored.planBindingPayload?.planCheckpoint === rebuilt.planBindingPayload?.planCheckpoint),
+    immutableMismatchFields: checks.filter((check) => !check.match).map((check) => check.key),
     storedTrackedDiffHash: stored.git?.immutableTrackedDiffHash || stored.git?.trackedDiffHash || '',
     rebuiltTrackedDiffHash: rebuilt.git?.immutableTrackedDiffHash || rebuilt.git?.trackedDiffHash || '',
     storedConfigFingerprint: stored.configFingerprint || '',

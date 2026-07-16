@@ -18,6 +18,7 @@ import {
 
 export const FORMAL_PHASE = 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL';
 export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 2;
+export const RUNTIME_FREEZE_IDENTITY_VERSION = 2;
 export const RUNTIME_FREEZE_PATH = 'docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json';
 export const RUNTIME_FREEZE_MARKDOWN_PATH = 'docs/P7_V2_R3B_FAST_CLOSE_R3_RUNTIME_FREEZE.md';
 const RECOVERY6_RUN_ID = /^p7v2-(baseline|current|soak|demo[12])-r3b-recovery6-[a-z0-9_-]+$/;
@@ -25,13 +26,74 @@ const hash = (value) => crypto.createHash('sha256').update(JSON.stringify(value)
 const sha256Text = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 const asSha256 = (value, fallback) => /^[a-f0-9]{64}$/.test(String(value || '')) ? String(value) : sha256Text(JSON.stringify(value ?? fallback));
 
+export function buildRuntimeContentIdentity({ fingerprints, loadProfileFingerprint, immutableTrackedDiffHash } = {}) {
+  return {
+    runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    runtimeFreezeScopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
+    configFingerprintVersion: CONFIG_FINGERPRINT_VERSION,
+    runtimeFreezeLifecycleContractVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
+    canonicalSchemaVersion: 3,
+    loadProfileFingerprintVersion: 3,
+    runtimeSourceTreeHash: fingerprints.runtimeSourceTreeHash,
+    configFingerprint: fingerprints.configFingerprint,
+    loadProfileFingerprint,
+    metricSchemaFingerprint: fingerprints.metricSemanticsHash,
+    datasetProfileFingerprint: fingerprints.datasetGeneratorHash,
+    evidenceToolingHash: fingerprints.evidenceToolingHash,
+    loadScriptsHash: fingerprints.loadScriptsHash,
+    sloFingerprint: fingerprints.sloFingerprint,
+    routeCredentialMatrixFingerprint: fingerprints.routeCredentialMatrixFingerprint,
+    regressionPolicyFingerprint: fingerprints.regressionPolicyFingerprint,
+    immutableTrackedDiffHash,
+  };
+}
+
+export function buildFormalPlanIdentity(manifest = {}, { planCheckpoint = gitCommit() } = {}) {
+  return {
+    planType: manifest.phase || 'P7-V2-R3B-FAST-CLOSE-R3',
+    planSchemaVersion: Number(manifest.canonicalSchemaVersion || 3),
+    planCheckpoint,
+    baselineRunId: manifest.baselineRunId || '',
+    currentRunId: manifest.currentRunId || '',
+    soakRunId: manifest.soakRunId || '',
+    demoRun1Id: manifest.demoRun1Id || '',
+    demoRun2Id: manifest.demoRun2Id || '',
+    providerMode: manifest.providerMode || 'mock',
+    datasetProfile: manifest.datasetProfile || 'medium',
+    expectedRows: Number(manifest.expectedRows || 1900150),
+    host: manifest.selectedHost || '127.0.0.1',
+    port: Number(manifest.selectedPort || 18080),
+  };
+}
+
+export function buildRuntimeFreezeIdentity({ runtimeContentIdentity, planBindingPayload } = {}) {
+  const runtimeContentHash = sha256Json(runtimeContentIdentity);
+  const planBindingHash = sha256Json(planBindingPayload);
+  const payload = {
+    runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    runtimeContentHash,
+    planBindingHash,
+  };
+  return {
+    runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    runtimeContentIdentity,
+    planBindingPayload,
+    runtimeContentHash,
+    planBindingHash,
+    runtimeFreezeIdentityPayload: payload,
+    runtimeFreezeId: sha256Json(payload),
+  };
+}
+
 export function validateRuntimeFreezeContract(contract, { kind, runId } = {}) {
   contract = freezeCurrentContract(contract);
   if (!contract || contract.phase !== FORMAL_PHASE || contract.status !== 'passed') return { valid: false, issue: 'missing_runtime_freeze_contract' };
   if ((contract.canonicalSchemaVersion ?? contract.canonicalLoadProfileVersion) !== 3 || contract.loadProfileFingerprintVersion !== 3) return { valid: false, issue: 'invalid_runtime_freeze_version' };
   if ((contract.runtimeFreezeScopeVersion ?? 1) !== RUNTIME_FREEZE_SCOPE_VERSION || (contract.configFingerprintVersion ?? 1) !== CONFIG_FINGERPRINT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_scope_version' };
   if ((contract.runtimeFreezeLifecycleContractVersion ?? 1) !== RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_lifecycle_contract_version' };
+  if ((contract.runtimeFreezeIdentityVersion ?? 1) !== RUNTIME_FREEZE_IDENTITY_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_identity_version' };
   if (!/^[a-f0-9]{64}$/.test(contract.contractId || '') || !/^[a-f0-9]{64}$/.test(contract.runtimeFreezeId || '') || !/^[a-f0-9]{64}$/.test(contract.loadProfileFingerprint || '')) return { valid: false, issue: 'invalid_runtime_freeze_fingerprint' };
+  if (!/^[a-f0-9]{64}$/.test(contract.runtimeContentHash || '') || !/^[a-f0-9]{64}$/.test(contract.planBindingHash || '')) return { valid: false, issue: 'invalid_runtime_freeze_identity_hash' };
   if (!Array.isArray(contract.canonicalLoadProfile?.load?.stages) || contract.canonicalLoadProfile.load.stages.length === 0) return { valid: false, issue: 'invalid_runtime_freeze_stages' };
   for (const key of ['runtimeSourceTreeHash', 'evidenceToolingHash', 'loadScriptsHash', 'metricSemanticsHash', 'datasetGeneratorHash', 'configFingerprint', 'sloFingerprint', 'routeCredentialMatrixFingerprint', 'regressionPolicyFingerprint']) {
     if (!/^[a-f0-9]{64}$/.test(contract.fingerprints?.[key] || contract[key] || '')) return { valid: false, issue: `invalid_runtime_freeze_hash:${key}` };
@@ -64,7 +126,7 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
   return { valid: issues.length === 0, issues, runIds, classification: issues.length ? 'runtime_freeze_creation_precondition_failed' : '' };
 }
 
-export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}, now = new Date().toISOString(), bindRunIds = true, skipCreationPreconditions = false } = {}) {
+export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}, now = new Date().toISOString(), bindRunIds = true, skipCreationPreconditions = false, planCheckpoint = gitCommit() } = {}) {
   const creation = validateRuntimeFreezeCreationPreconditions(manifest);
   const runIds = creation.runIds;
   if (!skipCreationPreconditions && !creation.valid) {
@@ -110,18 +172,15 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     ...baseFingerprints,
     configFingerprint: configFingerprint.hash,
   };
-  const immutablePayload = {
-    phase: FORMAL_PHASE,
-    runtimeFreezeScopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
-    configFingerprintVersion: CONFIG_FINGERPRINT_VERSION,
-    runtimeFreezeLifecycleContractVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
-    canonicalSchemaVersion: 3,
-    loadProfileFingerprintVersion: 3,
-    loadProfileFingerprint: canonical.loadProfileFingerprint,
+  const runtimeContentIdentity = buildRuntimeContentIdentity({
     fingerprints,
+    loadProfileFingerprint: canonical.loadProfileFingerprint,
     immutableTrackedDiffHash: immutableDiff.hash,
-  };
-  const contractId = sha256Json(immutablePayload);
+  });
+  const planBindingPayload = buildFormalPlanIdentity(manifest, { planCheckpoint });
+  const identity = buildRuntimeFreezeIdentity({ runtimeContentIdentity, planBindingPayload });
+  const immutablePayload = identity.runtimeFreezeIdentityPayload;
+  const contractId = identity.runtimeFreezeId;
   const contractBase = {
     phase: FORMAL_PHASE,
     status: 'passed',
@@ -132,7 +191,14 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     frozenAt: now,
     runIds: bindRunIds ? runIds : {},
     plannedRunIdsAtFreeze: runIds,
-    runIdBindingPolicy: bindRunIds ? 'bound_at_freeze' : 'recovery6_pattern_validated_after_plan',
+    runIdBindingPolicy: 'bound_in_plan_binding_hash',
+    runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    runtimeContentIdentity,
+    planBindingPayload,
+    immutablePlanBindingPayload: planBindingPayload,
+    runtimeContentHash: identity.runtimeContentHash,
+    planBindingHash: identity.planBindingHash,
+    runtimeFreezeIdentityPayload: identity.runtimeFreezeIdentityPayload,
     runtimeFreezeScopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
     configFingerprintVersion: CONFIG_FINGERPRINT_VERSION,
     runtimeFreezeLifecycleContractVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
@@ -199,9 +265,33 @@ export function revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze = readRun
       runIdsUnique: true,
     },
     now: stored.createdAt || new Date().toISOString(),
-    bindRunIds: false,
+    bindRunIds: true,
     skipCreationPreconditions: true,
+    planCheckpoint: stored.planBindingPayload?.planCheckpoint || stored.git?.commit || gitCommit(),
   });
+}
+
+export function detectRuntimeFreezeIdentityCollision(existingDoc, report) {
+  const candidates = [
+    existingDoc?.current,
+    freezeCurrentContract(existingDoc),
+    ...(Array.isArray(existingDoc?.history) ? existingDoc.history : []),
+  ].filter(Boolean).filter((entry, index, array) => array.indexOf(entry) === index);
+  const collisions = candidates.filter((entry) =>
+    entry.runtimeFreezeId &&
+    entry.runtimeFreezeId === report.runtimeFreezeId &&
+    entry.planBindingHash &&
+    entry.planBindingHash !== report.planBindingHash);
+  return {
+    identityCollision: collisions.length > 0,
+    classification: collisions.length ? 'runtime_freeze_identity_collision' : '',
+    collisions: collisions.map((entry) => ({
+      runtimeFreezeId: entry.runtimeFreezeId,
+      status: entry.status || '',
+      planBindingHash: entry.planBindingHash || '',
+      validForFinalClosure: entry.validForFinalClosure ?? null,
+    })),
+  };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -211,8 +301,24 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     console.error(JSON.stringify({ status: 'failed', classification: 'unsupported_runtime_freeze_validation_mode', mode }, null, 2));
     process.exit(1);
   }
-  const report = buildRuntimeFreezeContract({ bindRunIds: false });
+  const report = buildRuntimeFreezeContract({ bindRunIds: true });
   const existing = readJSON(RUNTIME_FREEZE_PATH) || null;
+  const collision = detectRuntimeFreezeIdentityCollision(existing, report);
+  if (collision.identityCollision) {
+    const failure = {
+      phase: FORMAL_PHASE,
+      status: 'failed',
+      semanticGatePassed: false,
+      classification: collision.classification,
+      runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+      runtimeFreezeId: report.runtimeFreezeId,
+      planBindingHash: report.planBindingHash,
+      runtimeContentHash: report.runtimeContentHash,
+      collisions: collision.collisions,
+    };
+    console.error(JSON.stringify(failure, null, 2));
+    process.exit(1);
+  }
   const previousCurrent = freezeCurrentContract(existing);
   const history = Array.isArray(existing?.history) ? [...existing.history] : [];
   if (previousCurrent?.runtimeFreezeId && previousCurrent.runtimeFreezeId !== report.runtimeFreezeId) {

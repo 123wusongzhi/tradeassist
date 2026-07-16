@@ -295,5 +295,19 @@
     "consumed": true,
     "supersededAt": "2026-07-16T08:22:52.534Z"
   },
-  "updatedAt": "2026-07-16T08:22:52.535Z"
+  "updatedAt": "2026-07-16T09:04:09.720Z",
+  "lastFreezeAttempt": {
+    "status": "blocked",
+    "reason": "runtime_freeze_identity_collision",
+    "oldRuntimeFreezeId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43",
+    "generatedRuntimeFreezeId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43",
+    "oldRuntimeFreezeIdReused": true,
+    "semanticGatePassed": false,
+    "formalExecutionStarted": false,
+    "baselineStarted": false,
+    "datasetExecuted": false,
+    "k6Executed": false,
+    "artifactCreated": false,
+    "recordedAt": "2026-07-16T09:04:09.719Z"
+  }
 }

@@ -26,9 +26,12 @@ assert.equal(validateRuntimeFreezeCreationPreconditions(plannedManifest).valid, 
 assert.equal(validateRuntimeFreezeCreationPreconditions({ ...plannedManifest, status: 'baseline_frozen' }).valid, false);
 
 const freeze = buildRuntimeFreezeContract({ manifest: plannedManifest, now: '2026-07-15T12:00:00.000Z', bindRunIds: false });
+assert.equal(freeze.runtimeFreezeIdentityVersion, 2);
 for (const status of ['baseline_frozen', 'current_frozen', 'comparability_passed', 'regression_passed', 'soak_passed', 'completed']) {
   const rebuilt = revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze: freeze, manifest: { ...plannedManifest, status } });
   assert.equal(rebuilt.runtimeFreezeId, freeze.runtimeFreezeId);
+  assert.equal(rebuilt.runtimeContentHash, freeze.runtimeContentHash);
+  assert.equal(rebuilt.planBindingHash, freeze.planBindingHash);
   assert.equal(rebuilt.runtimeSourceTreeHash, freeze.runtimeSourceTreeHash);
   assert.equal(rebuilt.configFingerprint, freeze.configFingerprint);
 }
