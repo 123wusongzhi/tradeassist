@@ -332,7 +332,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     });
   }
   writeJSON(RUNTIME_FREEZE_PATH, { current: report, history });
-  updateR3BManifest({ runtimeFreezeId: report.contractId, status: 'runtime_frozen' });
+  updateR3BManifest({
+    runtimeFreezeId: report.contractId,
+    runtimeFreezeCreated: true,
+    runtimeFreezeCreatedAt: report.createdAt,
+    runtimeFreezeIdentityVersion: report.runtimeFreezeIdentityVersion,
+    runtimeContentHash: report.runtimeContentHash,
+    planBindingHash: report.planBindingHash,
+    planCheckpoint: report.planBindingPayload?.planCheckpoint || report.git?.commit || '',
+    status: 'runtime_frozen',
+  });
   writeMarkdown(RUNTIME_FREEZE_MARKDOWN_PATH, `# P7-V2-R3B FAST-CLOSE-R3 Runtime Freeze\n\nStatus: **passed**\n\n- Phase: \`${report.phase}\`\n- Runtime freeze ID: \`${report.runtimeFreezeId}\`\n- Canonical schema version: \`${report.canonicalSchemaVersion}\`\n- Load-profile fingerprint version: \`${report.loadProfileFingerprintVersion}\`\n`);
   console.log(JSON.stringify(report, null, 2));
 }
