@@ -51,8 +51,25 @@ writeJSON('docs/p7-v2-r3b-recovery6-superseded-plan.json', supersededPlan);
 const manifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3', status: 'planned', canonicalSchemaVersion: 3, loadProfileFingerprintVersion: 3,
   ...runIds, selectedHost: '127.0.0.1', selectedPort: 18080, baseUrl: 'http://127.0.0.1:18080',
-  runtimeFreezeId: /^[a-f0-9]{64}$/.test(currentPlan.runtimeFreezeId || '') && !String(currentPlan.status || '').startsWith('superseded') ? currentPlan.runtimeFreezeId : null,
-  executionStarted: false, runIdsUnique: true, previousPlan: supersededPlan, updatedAt: new Date().toISOString(),
+  runtimeFreezeId: null,
+  formal: true,
+  active: true,
+  validForExecution: true,
+  executionStarted: false,
+  formalExecutionStarted: false,
+  runtimeFreezeCreated: false,
+  environmentStarted: false,
+  datasetExecuted: false,
+  baselineExecuted: false,
+  currentExecuted: false,
+  comparabilityExecuted: false,
+  regressionExecuted: false,
+  soakExecuted: false,
+  demoExecuted: false,
+  providerMode: 'mock',
+  datasetProfile: 'medium',
+  expectedRows: 1900150,
+  runIdsUnique: true, previousPlan: supersededPlan, updatedAt: new Date().toISOString(),
 };
 writeJSON('docs/p7-v2-r3b-run-manifest.json', manifest);
 console.log(JSON.stringify(manifest, null, 2));

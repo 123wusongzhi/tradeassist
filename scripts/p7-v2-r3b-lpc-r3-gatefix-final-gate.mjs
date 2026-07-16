@@ -8,7 +8,9 @@ const manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const ids = [manifest.baselineRunId, manifest.currentRunId, manifest.soakRunId, manifest.demoRun1Id, manifest.demoRun2Id];
 const previousPlanClosed =
   (manifest.previousPlan?.status === 'aborted_before_execution' && manifest.previousPlan?.validForExecution === false) ||
-  (manifest.previousPlan?.status === 'superseded_before_execution' && manifest.previousPlan?.validForExecution === false && manifest.previousPlan?.executionStarted === false);
+  (['superseded_before_execution', 'superseded_before_formal_execution'].includes(manifest.previousPlan?.status) &&
+    manifest.previousPlan?.validForExecution === false &&
+    manifest.previousPlan?.executionStarted === false);
 const fixture = (file) => spawnSync(process.execPath, [file], { stdio: 'ignore' }).status === 0;
 const regressionV3FixturesPassed = fixture('tests/gates/p7-v2/regression-fingerprint-v3/fixtures.mjs');
 const stageSchemaFixturesPassed = fixture('tests/gates/p7-v2/load-profile-stage-schema/fixtures.mjs');
