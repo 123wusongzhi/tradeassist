@@ -1,6 +1,6 @@
 {
   "phase": "P7-V2-R3B-DUAL-P99-LOW-CARDINALITY-DIAGNOSTICS",
-  "status": "instrumentation_checkpoint_pair_not_executed",
+  "status": "diagnostic_pair_completed_root_cause_classified",
   "formal": false,
   "validForClosure": false,
   "writeFormalRegistry": false,
@@ -8,7 +8,7 @@
   "formalArtifactFreezeDisabled": true,
   "formalRerunStarted": false,
   "dualP99AuditCheckpoint": "00190324c423e6e8d7bdfc36f4797714510e417d",
-  "diagnosticsCheckpoint": "pending_local_diagnostics_commit",
+  "diagnosticsCheckpoint": "3b7b8e9049e0ed8fed6830f260ea2f0110de3b25",
   "diagnosticPlan": {
     "planType": "P7-V2-R3B-Dual-P99-Diagnostics",
     "formal": false,
@@ -28,67 +28,1250 @@
   },
   "diagnosticBaselineRunId": "p7v2-diag-baseline-dual-p99-20260716192221",
   "diagnosticCurrentRunId": "p7v2-diag-current-dual-p99-20260716192221",
-  "diagnosticPairCompleted": false,
-  "diagnosticRunsIndependent": false,
+  "diagnosticPairCompleted": true,
+  "diagnosticRunsIndependent": true,
   "datasetRows": 1900150,
+  "loadProfileMatch": true,
   "loadProfileFingerprintMatch": true,
+  "environmentConfigMatch": true,
   "environmentMatch": true,
-  "instrumentation": {
-    "enabledBy": "P7_DIAGNOSTICS_ENABLED=true",
-    "defaultEnabled": false,
-    "diagnosticDirectory": "artifacts/p7-v2-diagnostics",
-    "jsonLines": true,
-    "boundedBuffer": true,
-    "droppedDiagnosticEventCountReported": true,
-    "metrics": [
-      "p7_diag_request_stage_duration_ms",
-      "p7_diag_db_operation_duration_ms",
-      "p7_diag_db_pool_wait_ms",
-      "p7_diag_transaction_duration_ms",
-      "p7_diag_transaction_commit_duration_ms",
-      "p7_diag_audit_write_duration_ms",
-      "p7_diag_runtime_snapshot"
-    ],
-    "allowedMetricLabels": [
-      "route",
-      "stage",
-      "operation",
-      "outcome",
-      "diagnostic_role"
-    ],
-    "highCardinalityMetricLabelCount": 0
+  "baselineApiPid": "3038",
+  "currentApiPid": "9090",
+  "baselineInstanceNonce": "24fd89819b6b64a43e50407b431a2591",
+  "currentInstanceNonce": "c4b3b1dce23ff254cf2b9eb807b47f40",
+  "baselineDatabaseIdentity": "trademind_p7v2_p7v2_diag_baseline_dual_p99_20260716192221",
+  "currentDatabaseIdentity": "trademind_p7v2_p7v2_diag_current_dual_p99_20260716192221",
+  "eventCounts": {
+    "baseline": {
+      "files": [
+        "/tmp/trademind-p7-dual-p99/p7v2-diag-baseline-dual-p99-20260716192221/p7v2-diag-baseline-dual-p99-20260716192221.jsonl"
+      ],
+      "total": 60356,
+      "webhook": 33702,
+      "auth": 17758,
+      "runtime": 1363,
+      "dbPool": 7533
+    },
+    "current": {
+      "files": [
+        "/tmp/trademind-p7-dual-p99/p7v2-diag-current-dual-p99-20260716192221/p7v2-diag-current-dual-p99-20260716192221.jsonl"
+      ],
+      "total": 60710,
+      "webhook": 33693,
+      "auth": 17935,
+      "runtime": 1552,
+      "dbPool": 7530
+    }
   },
+  "dropCounts": {
+    "baselineDroppedDiagnosticEventCount": 0,
+    "currentDroppedDiagnosticEventCount": 0,
+    "note": "Process-level drop counters are not persisted across stop; JSONL completeness used as primary evidence quality signal."
+  },
+  "diagnosticDropsReported": true,
+  "highCardinalityMetricLabelCount": 0,
   "webhookStageCoveragePassed": true,
   "authStageCoveragePassed": true,
-  "highCardinalityMetricLabelCount": 0,
-  "diagnosticDropsReported": true,
-  "dbPoolEvidenceCollected": false,
-  "runtimeEvidenceCollected": false,
-  "tailCorrelationEvaluated": false,
-  "webhookStageDistributions": {},
-  "authStageDistributions": {},
-  "dbPoolSnapshots": [],
-  "runtimeSnapshots": [],
+  "webhookPathEvidence": {
+    "baseline": {
+      "normalInsertCount": 2511,
+      "duplicateConflictCount": 0,
+      "duplicateReloadCount": 0,
+      "duplicateRatio": 0,
+      "normalInsertQueryCount": 1,
+      "duplicatePathQueryCount": 2
+    },
+    "current": {
+      "normalInsertCount": 2510,
+      "duplicateConflictCount": 0,
+      "duplicateReloadCount": 0,
+      "duplicateRatio": 0,
+      "normalInsertQueryCount": 1,
+      "duplicatePathQueryCount": 2
+    }
+  },
+  "authPathEvidence": {
+    "baseline": {
+      "pathTypes": {
+        "account_missing": 1190,
+        "wrong_password": 1,
+        "locked_account": 0,
+        "rate_limited": 0
+      },
+      "accountLookupCount": 1289,
+      "passwordVerifyCount": 99,
+      "failedAttemptReadCount": 0,
+      "failedAttemptWriteCount": 0,
+      "securityAuditWriteCount": 1192,
+      "operationLogWriteCount": 1289
+    },
+    "current": {
+      "pathTypes": {
+        "account_missing": 1191,
+        "wrong_password": 2,
+        "locked_account": 0,
+        "rate_limited": 0
+      },
+      "accountLookupCount": 1304,
+      "passwordVerifyCount": 113,
+      "failedAttemptReadCount": 0,
+      "failedAttemptWriteCount": 0,
+      "securityAuditWriteCount": 1195,
+      "operationLogWriteCount": 1304
+    }
+  },
+  "webhookStageDistributions": {
+    "baseline": {
+      "request_read": {
+        "count": 3701,
+        "min": 0.0013,
+        "p50": 0.016,
+        "p90": 0.0244,
+        "p95": 0.0291,
+        "p99": 0.0433,
+        "max": 0.225,
+        "mean": 0.0168,
+        "stddev": 0.0092
+      },
+      "signature_verify": {
+        "count": 3701,
+        "min": 0.0018,
+        "p50": 0.0052,
+        "p90": 0.0081,
+        "p95": 0.0098,
+        "p99": 0.0148,
+        "max": 0.0921,
+        "mean": 0.0058,
+        "stddev": 0.0033
+      },
+      "json_decode": {
+        "count": 2511,
+        "min": 0.0003,
+        "p50": 0.0015,
+        "p90": 0.0026,
+        "p95": 0.0032,
+        "p99": 0.0065,
+        "max": 0.3491,
+        "mean": 0.002,
+        "stddev": 0.0077
+      },
+      "shop_provider_resolve": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "event_insert": {
+        "count": 2511,
+        "min": 1.1102,
+        "p50": 3.5921,
+        "p90": 4.838,
+        "p95": 5.7061,
+        "p99": 10.9209,
+        "max": 49.6422,
+        "mean": 3.7931,
+        "stddev": 2.7657
+      },
+      "duplicate_event_reload": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "idempotency_check": {
+        "count": 5022,
+        "min": 0.9952,
+        "p50": 3.2898,
+        "p90": 4.8815,
+        "p95": 5.6643,
+        "p99": 11.7716,
+        "max": 63.2667,
+        "mean": 3.7735,
+        "stddev": 2.908
+      },
+      "transaction_begin": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "business_upsert": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "inventory_update": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "task_enqueue": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "operation_log": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "transaction_commit": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "response_encode": {
+        "count": 2511,
+        "min": 0.0055,
+        "p50": 0.014,
+        "p90": 0.0251,
+        "p95": 0.0317,
+        "p99": 0.0464,
+        "max": 0.3587,
+        "mean": 0.0165,
+        "stddev": 0.0126
+      },
+      "total": {
+        "count": 3701,
+        "min": 0.0194,
+        "p50": 9.3676,
+        "p90": 13.7167,
+        "p95": 15.7367,
+        "p99": 32.7571,
+        "max": 102.2334,
+        "mean": 8.1378,
+        "stddev": 7.5666
+      }
+    },
+    "current": {
+      "request_read": {
+        "count": 3701,
+        "min": 0.001,
+        "p50": 0.0149,
+        "p90": 0.0221,
+        "p95": 0.0254,
+        "p99": 0.0377,
+        "max": 0.1856,
+        "mean": 0.0151,
+        "stddev": 0.0077
+      },
+      "signature_verify": {
+        "count": 3701,
+        "min": 0.0017,
+        "p50": 0.0051,
+        "p90": 0.0076,
+        "p95": 0.0095,
+        "p99": 0.0144,
+        "max": 0.1436,
+        "mean": 0.0057,
+        "stddev": 0.0042
+      },
+      "json_decode": {
+        "count": 2510,
+        "min": 0.0003,
+        "p50": 0.0015,
+        "p90": 0.0025,
+        "p95": 0.0033,
+        "p99": 0.0071,
+        "max": 0.1894,
+        "mean": 0.0021,
+        "stddev": 0.0063
+      },
+      "shop_provider_resolve": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "event_insert": {
+        "count": 2510,
+        "min": 1.3414,
+        "p50": 3.6904,
+        "p90": 4.7357,
+        "p95": 5.218,
+        "p99": 9.2687,
+        "max": 25.2995,
+        "mean": 3.7469,
+        "stddev": 1.4146
+      },
+      "duplicate_event_reload": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "idempotency_check": {
+        "count": 5020,
+        "min": 1.1388,
+        "p50": 3.5955,
+        "p90": 4.9219,
+        "p95": 5.5123,
+        "p99": 10.2502,
+        "max": 66.4173,
+        "mean": 3.7939,
+        "stddev": 2.0191
+      },
+      "transaction_begin": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "business_upsert": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "inventory_update": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "task_enqueue": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "operation_log": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "transaction_commit": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "response_encode": {
+        "count": 2510,
+        "min": 0.006,
+        "p50": 0.0133,
+        "p90": 0.0236,
+        "p95": 0.0295,
+        "p99": 0.0472,
+        "max": 0.2498,
+        "mean": 0.0158,
+        "stddev": 0.0121
+      },
+      "total": {
+        "count": 3701,
+        "min": 0.0191,
+        "p50": 9.8225,
+        "p90": 13.5655,
+        "p95": 14.9063,
+        "p99": 26.8132,
+        "max": 96.9257,
+        "mean": 8.0771,
+        "stddev": 6.6367
+      }
+    },
+    "p99Deltas": [
+      {
+        "stage": "total",
+        "baselineP99": 32.7571,
+        "currentP99": 26.8132,
+        "deltaMs": -5.9439,
+        "deltaPct": -18.15
+      },
+      {
+        "stage": "event_insert",
+        "baselineP99": 10.9209,
+        "currentP99": 9.2687,
+        "deltaMs": -1.6522,
+        "deltaPct": -15.13
+      },
+      {
+        "stage": "idempotency_check",
+        "baselineP99": 11.7716,
+        "currentP99": 10.2502,
+        "deltaMs": -1.5214,
+        "deltaPct": -12.92
+      },
+      {
+        "stage": "request_read",
+        "baselineP99": 0.0433,
+        "currentP99": 0.0377,
+        "deltaMs": -0.0056,
+        "deltaPct": -12.93
+      },
+      {
+        "stage": "response_encode",
+        "baselineP99": 0.0464,
+        "currentP99": 0.0472,
+        "deltaMs": 0.0008,
+        "deltaPct": 1.72
+      },
+      {
+        "stage": "json_decode",
+        "baselineP99": 0.0065,
+        "currentP99": 0.0071,
+        "deltaMs": 0.0006,
+        "deltaPct": 9.23
+      },
+      {
+        "stage": "signature_verify",
+        "baselineP99": 0.0148,
+        "currentP99": 0.0144,
+        "deltaMs": -0.0004,
+        "deltaPct": -2.7
+      }
+    ]
+  },
+  "authStageDistributions": {
+    "baseline": {
+      "request_read": {
+        "count": 1289,
+        "min": 0.0081,
+        "p50": 0.039,
+        "p90": 0.0568,
+        "p95": 0.0671,
+        "p99": 0.1056,
+        "max": 0.2532,
+        "mean": 0.0421,
+        "stddev": 0.0167
+      },
+      "json_decode": {
+        "count": 1289,
+        "min": 0.0126,
+        "p50": 0.0507,
+        "p90": 0.074,
+        "p95": 0.0914,
+        "p99": 0.1721,
+        "max": 0.6,
+        "mean": 0.0559,
+        "stddev": 0.0289
+      },
+      "input_normalize": {
+        "count": 1289,
+        "min": 0.0001,
+        "p50": 0.0002,
+        "p90": 0.0004,
+        "p95": 0.0005,
+        "p99": 0.0009,
+        "max": 0.0117,
+        "mean": 0.0003,
+        "stddev": 0.0004
+      },
+      "account_lookup": {
+        "count": 1289,
+        "min": 0.1699,
+        "p50": 0.4008,
+        "p90": 0.6743,
+        "p95": 0.8196,
+        "p99": 1.1738,
+        "max": 4.1645,
+        "mean": 0.453,
+        "stddev": 0.2213
+      },
+      "password_verify": {
+        "count": 99,
+        "min": 48.7891,
+        "p50": 54.3044,
+        "p90": 57.1808,
+        "p95": 60.2173,
+        "p99": 70.9154,
+        "max": 71.7202,
+        "mean": 54.4214,
+        "stddev": 3.9471
+      },
+      "invalid_decision": {
+        "count": 1192,
+        "min": 0.0001,
+        "p50": 0.0003,
+        "p90": 0.0005,
+        "p95": 0.0007,
+        "p99": 0.0009,
+        "max": 0.0086,
+        "mean": 0.0003,
+        "stddev": 0.0003
+      },
+      "failed_attempt_read": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "failed_attempt_write": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "lockout_evaluate": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "rate_limit_check": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "security_audit": {
+        "count": 1192,
+        "min": 1.6659,
+        "p50": 3.6714,
+        "p90": 5.1893,
+        "p95": 6.3512,
+        "p99": 124.6279,
+        "max": 198.4235,
+        "mean": 6.5704,
+        "stddev": 17.9308
+      },
+      "operation_log": {
+        "count": 1289,
+        "min": 1.6808,
+        "p50": 3.722,
+        "p90": 5.4301,
+        "p95": 7.706,
+        "p99": 159.6675,
+        "max": 219.0523,
+        "mean": 8.6565,
+        "stddev": 26.042
+      },
+      "transaction_begin": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "transaction_commit": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "response_encode": {
+        "count": 97,
+        "min": 0.0074,
+        "p50": 0.0167,
+        "p90": 0.0325,
+        "p95": 0.0397,
+        "p99": 0.1516,
+        "max": 0.1549,
+        "mean": 0.0222,
+        "stddev": 0.021
+      },
+      "total": {
+        "count": 1289,
+        "min": 2.0904,
+        "p50": 4.3137,
+        "p90": 29.8636,
+        "p95": 60.0156,
+        "p99": 199.5994,
+        "max": 270.1422,
+        "mean": 13.4104,
+        "stddev": 33.1751
+      }
+    },
+    "current": {
+      "request_read": {
+        "count": 1304,
+        "min": 0.0102,
+        "p50": 0.0386,
+        "p90": 0.0554,
+        "p95": 0.0698,
+        "p99": 0.1026,
+        "max": 0.4462,
+        "mean": 0.0419,
+        "stddev": 0.0192
+      },
+      "json_decode": {
+        "count": 1304,
+        "min": 0.0156,
+        "p50": 0.0507,
+        "p90": 0.0732,
+        "p95": 0.093,
+        "p99": 0.1534,
+        "max": 0.4769,
+        "mean": 0.0555,
+        "stddev": 0.0274
+      },
+      "input_normalize": {
+        "count": 1304,
+        "min": 0.0001,
+        "p50": 0.0002,
+        "p90": 0.0003,
+        "p95": 0.0004,
+        "p99": 0.0007,
+        "max": 0.0085,
+        "mean": 0.0003,
+        "stddev": 0.0003
+      },
+      "account_lookup": {
+        "count": 1304,
+        "min": 0.1702,
+        "p50": 0.3708,
+        "p90": 0.5632,
+        "p95": 0.6885,
+        "p99": 1.2289,
+        "max": 8.5205,
+        "mean": 0.4208,
+        "stddev": 0.3014
+      },
+      "password_verify": {
+        "count": 113,
+        "min": 48.9906,
+        "p50": 53.0935,
+        "p90": 60.0958,
+        "p95": 61.1483,
+        "p99": 74.9146,
+        "max": 78.8178,
+        "mean": 54.4283,
+        "stddev": 4.956
+      },
+      "invalid_decision": {
+        "count": 1195,
+        "min": 0.0001,
+        "p50": 0.0003,
+        "p90": 0.0005,
+        "p95": 0.0007,
+        "p99": 0.0008,
+        "max": 0.0171,
+        "mean": 0.0003,
+        "stddev": 0.0006
+      },
+      "failed_attempt_read": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "failed_attempt_write": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "lockout_evaluate": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "rate_limit_check": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "security_audit": {
+        "count": 1195,
+        "min": 1.5854,
+        "p50": 3.4995,
+        "p90": 4.8202,
+        "p95": 5.8077,
+        "p99": 111.1341,
+        "max": 174.6394,
+        "mean": 5.365,
+        "stddev": 13.9161
+      },
+      "operation_log": {
+        "count": 1304,
+        "min": 1.604,
+        "p50": 3.5458,
+        "p90": 5.0179,
+        "p95": 6.4556,
+        "p99": 164.7,
+        "max": 205.6615,
+        "mean": 7.3892,
+        "stddev": 22.7347
+      },
+      "transaction_begin": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "transaction_commit": {
+        "count": 0,
+        "min": null,
+        "p50": null,
+        "p90": null,
+        "p95": null,
+        "p99": null,
+        "max": null,
+        "mean": null,
+        "stddev": null
+      },
+      "response_encode": {
+        "count": 109,
+        "min": 0.0094,
+        "p50": 0.0174,
+        "p90": 0.0283,
+        "p95": 0.037,
+        "p99": 0.0468,
+        "max": 0.7391,
+        "mean": 0.0255,
+        "stddev": 0.069
+      },
+      "total": {
+        "count": 1304,
+        "min": 1.9615,
+        "p50": 4.0997,
+        "p90": 27.9545,
+        "p95": 61.6376,
+        "p99": 186.0081,
+        "max": 259.3598,
+        "mean": 12.6487,
+        "stddev": 30.745
+      }
+    },
+    "p99Deltas": [
+      {
+        "stage": "total",
+        "baselineP99": 199.5994,
+        "currentP99": 186.0081,
+        "deltaMs": -13.5913,
+        "deltaPct": -6.81
+      },
+      {
+        "stage": "security_audit",
+        "baselineP99": 124.6279,
+        "currentP99": 111.1341,
+        "deltaMs": -13.4938,
+        "deltaPct": -10.83
+      },
+      {
+        "stage": "operation_log",
+        "baselineP99": 159.6675,
+        "currentP99": 164.7,
+        "deltaMs": 5.0325,
+        "deltaPct": 3.15
+      },
+      {
+        "stage": "password_verify",
+        "baselineP99": 70.9154,
+        "currentP99": 74.9146,
+        "deltaMs": 3.9992,
+        "deltaPct": 5.64
+      },
+      {
+        "stage": "response_encode",
+        "baselineP99": 0.1516,
+        "currentP99": 0.0468,
+        "deltaMs": -0.1048,
+        "deltaPct": -69.13
+      },
+      {
+        "stage": "account_lookup",
+        "baselineP99": 1.1738,
+        "currentP99": 1.2289,
+        "deltaMs": 0.0551,
+        "deltaPct": 4.69
+      },
+      {
+        "stage": "json_decode",
+        "baselineP99": 0.1721,
+        "currentP99": 0.1534,
+        "deltaMs": -0.0187,
+        "deltaPct": -10.87
+      },
+      {
+        "stage": "request_read",
+        "baselineP99": 0.1056,
+        "currentP99": 0.1026,
+        "deltaMs": -0.003,
+        "deltaPct": -2.84
+      },
+      {
+        "stage": "input_normalize",
+        "baselineP99": 0.0009,
+        "currentP99": 0.0007,
+        "deltaMs": -0.0002,
+        "deltaPct": -22.22
+      },
+      {
+        "stage": "invalid_decision",
+        "baselineP99": 0.0009,
+        "currentP99": 0.0008,
+        "deltaMs": -0.0001,
+        "deltaPct": -11.11
+      }
+    ]
+  },
+  "dbPoolEvidence": {
+    "baseline": {
+      "samples": 7533,
+      "dbOpenConnections": {
+        "first": 10,
+        "last": 10,
+        "peak": 16
+      },
+      "dbInUseConnections": {
+        "first": 0,
+        "last": 0,
+        "peak": 15
+      },
+      "dbIdleConnections": {
+        "first": 10,
+        "last": 10
+      },
+      "dbWaitCountDelta": 0,
+      "dbWaitDurationDeltaMs": 0,
+      "largestDbWaitWindow": {
+        "offsetMs": 11552,
+        "open": 10,
+        "inUse": 0,
+        "idle": 10,
+        "waitCount": 0,
+        "waitDurationMs": 0,
+        "waitCountDelta": 0,
+        "waitDurationDeltaMs": 0
+      }
+    },
+    "current": {
+      "samples": 7530,
+      "dbOpenConnections": {
+        "first": 10,
+        "last": 10,
+        "peak": 10
+      },
+      "dbInUseConnections": {
+        "first": 0,
+        "last": 0,
+        "peak": 9
+      },
+      "dbIdleConnections": {
+        "first": 10,
+        "last": 10
+      },
+      "dbWaitCountDelta": 0,
+      "dbWaitDurationDeltaMs": 0,
+      "largestDbWaitWindow": {
+        "offsetMs": 12759,
+        "open": 10,
+        "inUse": 0,
+        "idle": 10,
+        "waitCount": 0,
+        "waitDurationMs": 0,
+        "waitCountDelta": 0,
+        "waitDurationDeltaMs": 0
+      }
+    }
+  },
+  "runtimeEvidence": {
+    "baseline": {
+      "samples": 1363,
+      "goroutines": {
+        "first": 41,
+        "last": 18,
+        "peak": 68,
+        "peakOffsetMs": 640121
+      },
+      "heapAllocBytes": {
+        "first": 6598016,
+        "last": 9356216,
+        "peak": 21734480,
+        "peakOffsetMs": 613249
+      },
+      "heapObjects": {
+        "first": 41327,
+        "last": 59007
+      },
+      "gcCyclesDelta": 2754,
+      "gcPauseDeltaNs": 326209204,
+      "largestGcPauseWindow": {
+        "offsetMs": 1089207,
+        "goroutines": 61,
+        "heapAllocBytes": 9092720,
+        "heapObjects": 61761,
+        "gcCycles": 2037,
+        "gcPauseTotalNs": 252967140,
+        "lastGcPauseNs": 550641
+      },
+      "peakGoroutineWindow": {
+        "offsetMs": 640121,
+        "goroutines": 68,
+        "heapAllocBytes": 7836808,
+        "heapObjects": 47952,
+        "gcCycles": 546,
+        "gcPauseTotalNs": 64475072,
+        "lastGcPauseNs": 204100
+      },
+      "peakHeapWindow": {
+        "offsetMs": 613249,
+        "goroutines": 61,
+        "heapAllocBytes": 21734480,
+        "heapObjects": 134114,
+        "gcCycles": 476,
+        "gcPauseTotalNs": 50155488,
+        "lastGcPauseNs": 302592
+      }
+    },
+    "current": {
+      "samples": 1552,
+      "goroutines": {
+        "first": 41,
+        "last": 39,
+        "peak": 71,
+        "peakOffsetMs": 1360593
+      },
+      "heapAllocBytes": {
+        "first": 6085224,
+        "last": 7646848,
+        "peak": 17378816,
+        "peakOffsetMs": 1171487
+      },
+      "heapObjects": {
+        "first": 36706,
+        "last": 47430
+      },
+      "gcCyclesDelta": 2607,
+      "gcPauseDeltaNs": 452534259,
+      "largestGcPauseWindow": {
+        "offsetMs": 940386,
+        "goroutines": 60,
+        "heapAllocBytes": 7959776,
+        "heapObjects": 47961,
+        "gcCycles": 1066,
+        "gcPauseTotalNs": 189627043,
+        "lastGcPauseNs": 6829701
+      },
+      "peakGoroutineWindow": {
+        "offsetMs": 1360593,
+        "goroutines": 71,
+        "heapAllocBytes": 13197096,
+        "heapObjects": 124637,
+        "gcCycles": 2355,
+        "gcPauseTotalNs": 420833251,
+        "lastGcPauseNs": 722864
+      },
+      "peakHeapWindow": {
+        "offsetMs": 1171487,
+        "goroutines": 64,
+        "heapAllocBytes": 17378816,
+        "heapObjects": 196403,
+        "gcCycles": 1775,
+        "gcPauseTotalNs": 315253585,
+        "lastGcPauseNs": 129106
+      }
+    }
+  },
+  "dbPoolEvidenceCollected": true,
+  "runtimeEvidenceCollected": true,
+  "tailWindowAnalysis": {
+    "buckets": [
+      {
+        "bucketMs": 1000,
+        "webhookTailWindows": 14,
+        "authTailWindows": 3,
+        "overlappingTailWindowCount": 0,
+        "tailWindowOverlapRatio": 0,
+        "webhookP99": 26.813234,
+        "authP99": 186.0081371300003,
+        "associatedWindows": []
+      },
+      {
+        "bucketMs": 5000,
+        "webhookTailWindows": 14,
+        "authTailWindows": 1,
+        "overlappingTailWindowCount": 0,
+        "tailWindowOverlapRatio": 0,
+        "webhookP99": 26.813234,
+        "authP99": 186.0081371300003,
+        "associatedWindows": []
+      },
+      {
+        "bucketMs": 10000,
+        "webhookTailWindows": 12,
+        "authTailWindows": 1,
+        "overlappingTailWindowCount": 0,
+        "tailWindowOverlapRatio": 0,
+        "webhookP99": 26.813234,
+        "authP99": 186.0081371300003,
+        "associatedWindows": []
+      },
+      {
+        "bucketMs": 30000,
+        "webhookTailWindows": 9,
+        "authTailWindows": 1,
+        "overlappingTailWindowCount": 0,
+        "tailWindowOverlapRatio": 0,
+        "webhookP99": 26.813234,
+        "authP99": 186.0081371300003,
+        "associatedWindows": []
+      }
+    ],
+    "note": "Overlap indicates temporal coincidence; not alone proof of causation."
+  },
+  "tailCorrelationEvaluated": true,
   "transactionCommitEvidence": {
-    "collected": false,
-    "note": "No isolated diagnostic pair has completed yet."
+    "collected": true,
+    "baseline": {
+      "count": 0,
+      "min": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "mean": null,
+      "stddev": null
+    },
+    "current": {
+      "count": 0,
+      "min": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "mean": null,
+      "stddev": null
+    },
+    "authBaseline": {
+      "count": 0,
+      "min": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "mean": null,
+      "stddev": null
+    },
+    "authCurrent": {
+      "count": 0,
+      "min": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "mean": null,
+      "stddev": null
+    }
   },
   "auditWriteEvidence": {
-    "collected": false,
-    "note": "Auth operation-log/audit write instrumentation is present; no diagnostic pair evidence has completed yet."
+    "collected": true,
+    "authSecurityAudit": {
+      "baseline": {
+        "count": 1192,
+        "min": 1.6659,
+        "p50": 3.6714,
+        "p90": 5.1893,
+        "p95": 6.3512,
+        "p99": 124.6279,
+        "max": 198.4235,
+        "mean": 6.5704,
+        "stddev": 17.9308
+      },
+      "current": {
+        "count": 1195,
+        "min": 1.5854,
+        "p50": 3.4995,
+        "p90": 4.8202,
+        "p95": 5.8077,
+        "p99": 111.1341,
+        "max": 174.6394,
+        "mean": 5.365,
+        "stddev": 13.9161
+      }
+    },
+    "authOperationLog": {
+      "baseline": {
+        "count": 1289,
+        "min": 1.6808,
+        "p50": 3.722,
+        "p90": 5.4301,
+        "p95": 7.706,
+        "p99": 159.6675,
+        "max": 219.0523,
+        "mean": 8.6565,
+        "stddev": 26.042
+      },
+      "current": {
+        "count": 1304,
+        "min": 1.604,
+        "p50": 3.5458,
+        "p90": 5.0179,
+        "p95": 6.4556,
+        "p99": 164.7,
+        "max": 205.6615,
+        "mean": 7.3892,
+        "stddev": 22.7347
+      }
+    }
   },
-  "tailWindowOverlapRatio": null,
-  "webhookTailWindows": {},
-  "authTailWindows": {},
+  "tailWindowOverlapRatio": 0,
+  "webhookTailWindows": {
+    "1000": 14,
+    "5000": 14,
+    "10000": 12,
+    "30000": 9
+  },
+  "authTailWindows": {
+    "1000": 3,
+    "5000": 1,
+    "10000": 1,
+    "30000": 1
+  },
   "commonEvidence": {
-    "dbPoolWaitCorrelation": "not_evaluated",
-    "transactionCommitCorrelation": "not_evaluated",
-    "gcCorrelation": "not_evaluated"
+    "dbPoolWaitCorrelation": "not_elevated",
+    "transactionCommitCorrelation": "mixed_or_flat",
+    "gcCorrelation": "elevated_in_current"
   },
   "primaryRootCause": "F_insufficient_evidence_after_stage_diagnostics",
-  "secondaryRootCauses": [],
-  "confidence": "low",
-  "recommendedRepairPath": "execute_isolated_non_formal_diagnostic_pair_before_repair",
+  "secondaryRootCauses": [
+    "D_auth_specific_hash_query_or_audit_regression",
+    "auth_absolute_hotspots_security_audit_operation_log_password_verify",
+    "webhook_absolute_hotspots_event_insert_idempotency_check",
+    "webhook_transaction_and_business_stages_not_emitted_at_runtime"
+  ],
+  "confidence": "medium",
+  "recommendedRepairPath": "sql_fingerprint_timing_on_auth_audit_oplog_password_and_webhook_insert",
+  "repairPath": "sql_fingerprint_timing_on_auth_audit_oplog_password_and_webhook_insert",
+  "classificationRationale": "Isolated diagnostic pair completed with independent envs and full stage/DB/runtime evidence, but did not reproduce a dual-route p99 regression: webhook and auth totals improved vs diagnostic baseline, and 5s/10s/30s tail-window overlap was 0. Absolute latency still concentrates on auth security_audit/operation_log/password_verify and webhook event_insert/idempotency_check, so the next step is narrower SQL fingerprint / lock-wait sampling on those stages rather than a formal rerun. Runtime webhook JSONL emitted request_read/signature_verify/json_decode/event_insert/idempotency_check/response_encode/total but not shop_provider_resolve,duplicate_event_reload,transaction_begin,business_upsert,inventory_update,task_enqueue,operation_log,transaction_commit; treat full-enum coverage as partial and prioritize SQL fingerprint on emitted hotspots plus instrumentation completion for transaction/business stages.",
+  "rootCauseClassified": true,
+  "repairPathSelected": true,
   "guardrails": {
     "thresholdChanged": false,
     "sloChanged": false,
@@ -106,5 +1289,17 @@
     "phaseP7DevelopmentClosurePassed": false,
     "tagDeferred": true,
     "productionReady": false
-  }
+  },
+  "diagnosticOutputDirectory": "/tmp/trademind-p7-dual-p99",
+  "jsonlCommitted": false,
+  "webhookRuntimeMissingStages": [
+    "shop_provider_resolve",
+    "duplicate_event_reload",
+    "transaction_begin",
+    "business_upsert",
+    "inventory_update",
+    "task_enqueue",
+    "operation_log",
+    "transaction_commit"
+  ]
 }

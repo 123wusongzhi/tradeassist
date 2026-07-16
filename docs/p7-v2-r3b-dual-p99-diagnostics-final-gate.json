@@ -1,14 +1,8 @@
 {
   "phase": "P7-V2-R3B-DUAL-P99-DIAGNOSTICS-FINAL-GATE",
-  "status": "failed",
-  "failed": [
-    "diagnosticPairCompleted",
-    "diagnosticRunsIndependent",
-    "dbPoolEvidenceCollected",
-    "runtimeEvidenceCollected",
-    "tailCorrelationEvaluated"
-  ],
-  "failedCount": 5,
+  "status": "passed",
+  "failed": [],
+  "failedCount": 0,
   "sourceReport": "docs/p7-v2-r3b-dual-p99-low-cardinality-diagnostics.json",
   "formal": false,
   "validForClosure": false,
@@ -16,7 +10,7 @@
   "diagnosticBaselineRunId": "p7v2-diag-baseline-dual-p99-20260716192221",
   "diagnosticCurrentRunId": "p7v2-diag-current-dual-p99-20260716192221",
   "primaryRootCause": "F_insufficient_evidence_after_stage_diagnostics",
-  "repairPath": "execute_isolated_non_formal_diagnostic_pair_before_repair",
+  "repairPath": "sql_fingerprint_timing_on_auth_audit_oplog_password_and_webhook_insert",
   "checks": [
     {
       "id": "formalRegistryWriteDisabled",
@@ -28,11 +22,11 @@
     },
     {
       "id": "diagnosticPairCompleted",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "diagnosticRunsIndependent",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "datasetRows",
@@ -56,15 +50,15 @@
     },
     {
       "id": "dbPoolEvidenceCollected",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "runtimeEvidenceCollected",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "tailCorrelationEvaluated",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "rootCauseClassified",
