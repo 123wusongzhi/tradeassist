@@ -3,7 +3,7 @@
 Status: **failed**
 
 - Evaluation version: 2
-- Failed metrics: 1
+- Failed metrics: 2
 - Not comparable: 0
 - Invalid metrics: 0
 - Insufficient samples: 0

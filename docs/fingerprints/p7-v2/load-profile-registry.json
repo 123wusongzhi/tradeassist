@@ -47,6 +47,18 @@
       "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-baseline-r3b-recovery6-20260715165422.json",
       "fingerprintVersion": 3,
       "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066"
+    },
+    {
+      "runId": "p7v2-baseline-r3b-recovery6-20260716082252",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-baseline-r3b-recovery6-20260716082252.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066"
+    },
+    {
+      "runId": "p7v2-current-r3b-recovery6-20260716082252",
+      "path": "docs/fingerprints/p7-v2/load-profile/v3/p7v2-current-r3b-recovery6-20260716082252.json",
+      "fingerprintVersion": 3,
+      "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066"
     }
   ],
   "sourceArtifactsModified": false

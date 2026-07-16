@@ -1,8 +1,8 @@
 {
   "status": "passed",
   "runtimeFreezeLifecycleContractVersion": 2,
-  "previousState": "baseline_completed",
-  "nextState": "baseline_frozen",
+  "previousState": "current_completed",
+  "nextState": "current_frozen",
   "transitionValid": true,
   "evidenceComplete": true,
   "issues": []

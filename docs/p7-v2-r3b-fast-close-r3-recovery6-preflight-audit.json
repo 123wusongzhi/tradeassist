@@ -2,26 +2,196 @@
   "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
   "component": "preflight-audit",
   "status": "passed",
-  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715165422",
-  "baselineStatus": "passed",
-  "baselineImmutable": true,
-  "baselineValidForRegression": true,
-  "baselineRequests": 29407,
-  "baselineArtifactHashVerified": true,
-  "expectedRuntimeSourceTreeHash": "0084e6292c15bc0dc8503b8149a763c55fcae58aba2af637079bcb8869aa46eb",
-  "currentRuntimeSourceTreeHash": "f51a93f6ad763b1c93a0581b1f1dfb6985cd1c3294f9faf6a6f5f01957a10b3e",
-  "runtimeSourceTreeMatch": false,
-  "recovery5Required": false,
-  "recovery6Planned": true,
-  "runtimeFreezeRequired": true,
-  "currentExecutionAllowed": false,
-  "execution": {
-    "runtimeFreezeCreated": false,
-    "currentStarted": false,
-    "regressionStarted": false,
-    "soakStarted": false,
-    "demoStarted": false
-  },
+  "semanticGatePassed": true,
+  "classification": "accepted",
+  "preflightBindingVersion": 2,
+  "formalRecovery6Mode": true,
+  "canonicalManifestPath": "docs/p7-v2-r3b-run-manifest.json",
+  "canonicalManifestSha256": "2ab0ddd2d4f2007ed4d927c9ccb989429e3caf5a4822132a545ad86924692904",
+  "canonicalManifestStatus": "runtime_frozen",
+  "selectedManifestPath": "docs/p7-v2-r3b-run-manifest.json",
+  "selectedManifestReason": "canonical_active_recovery6_manifest",
+  "manifestCandidates": [
+    "docs/p7-v2-r3b-run-manifest.json"
+  ],
+  "baselineRunIdSource": "docs/p7-v2-r3b-run-manifest.json",
+  "runtimeFreezeIdSource": "docs/p7-v2-r3b-run-manifest.json",
+  "runtimeFreezeCreatedSource": "docs/p7-v2-r3b-run-manifest.json",
+  "legacyFallbackUsed": false,
+  "staleCandidatePaths": [
+    "docs/baselines/p7-v2-baseline-registry.json",
+    "docs/p7-v2-current-load-report.json"
+  ],
+  "resolvedPlanCheckpoint": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
+  "planCheckpoint": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
+  "currentGitHead": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
+  "planCheckpointMatch": true,
+  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260716082252",
+  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260716082252",
+  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260716082252",
+  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260716082252",
+  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260716082252",
+  "resolvedRuntimeFreezeId": "db08320b4e37b1cb11f1ad3182ad7ce09730906e7aaa912230f1c7b82279116f",
+  "runtimeFreezeIdentityVersion": 2,
+  "runtimeFreezeCreated": true,
+  "planBindingHash": "da2323e1dccf2ecab614146c07cde5427a8701b33dceb2192aa50ccc26e721a9",
+  "runtimeContentHash": "649fea3f13a09854a75047be338bd55d933b0e1dd9dd4160f71038a7c5ac23bc",
+  "planBindingHashMatch": true,
+  "runtimeContentHashMatch": true,
+  "runtimeFreezeStillValid": true,
+  "immutableMismatchFields": [],
+  "plannedRunIdsBindingPassed": true,
+  "legacyBaselineRunIdDetected": "p7v2-baseline-r3b-recovery6-20260715165422",
+  "legacyBaselineRunIdIgnored": true,
+  "legacyBaselineCandidates": [
+    "p7v2-baseline-r3b-recovery6-20260715165422"
+  ],
+  "ignoredHistoricalCandidates": [
+    "p7v2-baseline-r3b-recovery6-20260715165422"
+  ],
+  "runIdCollisionCount": 0,
+  "freshRunIdsConsumed": false,
+  "databaseCreated": false,
+  "environmentStarted": false,
+  "datasetExecuted": false,
+  "k6Executed": false,
+  "rawArtifactCreated": false,
+  "frozenArtifactCreated": false,
+  "listener18080Count": 0,
+  "port18080Available": true,
+  "freshPidExists": false,
+  "unknownDatabaseCount": 0,
+  "failedChecks": [],
+  "checks": [
+    {
+      "id": "canonical_manifest_present",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_phase",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_status",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_active",
+      "status": "passed"
+    },
+    {
+      "id": "formal_execution_not_started",
+      "status": "passed"
+    },
+    {
+      "id": "environment_not_started",
+      "status": "passed"
+    },
+    {
+      "id": "dataset_not_executed",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_not_executed",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_present",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_unique",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_pattern",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_created",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_id_present",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_evidence_present",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_identity_v2",
+      "status": "passed"
+    },
+    {
+      "id": "plan_binding_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_content_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "plan_checkpoint_match",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "current_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "soak_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "demo1_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "demo2_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_still_valid",
+      "status": "passed"
+    },
+    {
+      "id": "immutable_mismatch_fields_empty",
+      "status": "passed"
+    },
+    {
+      "id": "legacy_fallback_not_used",
+      "status": "passed"
+    },
+    {
+      "id": "database_not_created",
+      "status": "passed"
+    },
+    {
+      "id": "listener18080_absent",
+      "status": "passed"
+    },
+    {
+      "id": "fresh_pid_absent",
+      "status": "passed"
+    },
+    {
+      "id": "raw_artifact_absent",
+      "status": "passed"
+    },
+    {
+      "id": "frozen_artifact_absent",
+      "status": "passed"
+    }
+  ],
   "issues": [],
-  "nextRequiredAction": "Generate and verify the Recovery6 runtime-freeze contract before the baseline run."
+  "nextRequiredAction": "Recovery6 formal baseline may begin."
 }
