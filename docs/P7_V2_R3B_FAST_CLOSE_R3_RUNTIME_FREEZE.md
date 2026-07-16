@@ -3,6 +3,6 @@
 Status: **passed**
 
 - Phase: `P7-V2-R3B-FAST-CLOSE-R3-FORMAL`
-- Runtime freeze ID: `f918b0454de17f2b2da96ac60ce24c43c3091bd1b4dfe7f241fbf105099c8271`
+- Runtime freeze ID: `169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43`
 - Canonical schema version: `3`
 - Load-profile fingerprint version: `3`
