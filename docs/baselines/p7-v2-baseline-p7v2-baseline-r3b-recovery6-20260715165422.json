@@ -759,5 +759,18 @@
   "connectionLeakDetected": false,
   "queueLeakDetected": false,
   "issues": [],
-  "productionReady": false
+  "productionReady": false,
+  "runtimeFreezeId": "f918b0454de17f2b2da96ac60ce24c43c3091bd1b4dfe7f241fbf105099c8271",
+  "runtimeFreezeContractHash": "f918b0454de17f2b2da96ac60ce24c43c3091bd1b4dfe7f241fbf105099c8271",
+  "runtimeFreezeRunId": "p7v2-baseline-r3b-recovery6-20260715165422",
+  "immutable": true,
+  "validForRegression": true,
+  "rawArtifactPath": "artifacts/p7-v2/baseline/p7v2-baseline-r3b-recovery6-20260715165422/baseline.summary.json",
+  "rawArtifactSha256": "c6f2224dc8e23cbe0db6026aeda717f0c9eae6f68673ff8b537622970bcaef02",
+  "rawArtifactSizeBytes": 15704,
+  "rawArtifactHashVerified": true,
+  "scenarioCoverage": true,
+  "frozenAt": "2026-07-15T17:18:17.537Z",
+  "frozenArtifactPath": "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715165422/raw-summary.json",
+  "reportPath": "docs/baselines/p7-v2-baseline-p7v2-baseline-r3b-recovery6-20260715165422.json"
 }

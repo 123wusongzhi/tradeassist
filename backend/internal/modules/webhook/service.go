@@ -327,14 +327,18 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		return nil, createRes.Error
 	}
 
-	if err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&ev).Error; err != nil {
-		s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
-		s.ObserveWebhook(platform, req.EventType, "request", "failure", CodeStoreFailed, time.Since(start))
-		return nil, err
-	}
-
 	// Concurrent insert: another writer won ON CONFLICT DoNothing.
 	if createRes.RowsAffected == 0 {
+		var duplicate Event
+		if err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&duplicate).Error; err != nil {
+			s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
+			s.ObserveWebhook(platform, req.EventType, "request", "failure", CodeStoreFailed, time.Since(start))
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("webhook event conflict reload consistency error: platform=%s event_id=%s: %w", platform, eventID, err)
+			}
+			return nil, fmt.Errorf("webhook event conflict reload failed: platform=%s event_id=%s: %w", platform, eventID, err)
+		}
+		ev = duplicate
 		if idemJob != nil && s.Idempotency != nil {
 			_ = s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
 				ResponseCode:    "WEBHOOK_DUPLICATE",

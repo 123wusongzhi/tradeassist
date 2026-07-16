@@ -1,0 +1,140 @@
+{
+  "phase": "P7-V2-R3B-WEBHOOK-P99-LOCAL-REPAIR",
+  "status": "local_repair_verified_formal_pending",
+  "generatedAt": "2026-07-16T12:20:00+08:00",
+  "repairFile": "backend/internal/modules/webhook/service.go",
+  "repairDescription": "Normal INSERT success no longer reloads the webhook event. The ON CONFLICT DO NOTHING duplicate branch still reloads the existing event, now into a fresh Event struct so GORM does not add the losing insert UUID as an implicit primary-key predicate. Conflict reload failures return explicit wrapped errors, with missing duplicate rows classified as a consistency error.",
+  "normalInsertReloadRemoved": true,
+  "duplicateReloadPreserved": true,
+  "duplicateReloadUsesFreshStruct": true,
+  "businessSemanticsUnchanged": true,
+  "idempotencySemanticsUnchanged": true,
+  "transactionSemanticsUnchanged": true,
+  "auditSemanticsUnchanged": true,
+  "taskSemanticsUnchanged": true,
+  "orderEntityUpsertSemanticsUnchanged": true,
+  "beforeQueryCount": 2,
+  "afterQueryCount": 1,
+  "queryReduction": 1,
+  "removedQuery": "event reload query after successful normal INSERT",
+  "duplicatePathQueryCount": 2,
+  "queryBudgetPassed": true,
+  "targetedTestsPassed": true,
+  "targetedWebhookTestsPassed": true,
+  "webhookRacePassed": false,
+  "racePassed": false,
+  "raceBlocked": true,
+  "raceBlockedReason": "go test -race requires cgo and gcc is not installed in PATH",
+  "dataRaces": null,
+  "fullGoTestsPassed": true,
+  "buildPassed": true,
+  "frontendBuildPassed": true,
+  "collectorBuildPassed": true,
+  "uiCopyPassed": true,
+  "gitDiffCheckPassed": true,
+  "formalVerification": {
+    "status": "pending",
+    "baselineRunId": null,
+    "currentRunId": null,
+    "runtimeFreezeId": null,
+    "reason": "local race verification is blocked; existing recovery6 current run 20260715165422 remains blocked and invalid for formal regression"
+  },
+  "blockedCurrentRun": {
+    "runId": "p7v2-current-r3b-recovery6-20260715165422",
+    "status": "blocked",
+    "active": false,
+    "validForRegression": false,
+    "validForComparability": false,
+    "validForClosure": false,
+    "reason": "k6_exit_non_zero"
+  },
+  "validationCommands": [
+    {
+      "command": "go test ./internal/modules/webhook/...",
+      "status": "passed"
+    },
+    {
+      "command": "go test -run '^$' -bench 'Webhook|Ingestion|Idempotency' -benchmem ./internal/modules/webhook/...",
+      "status": "passed_no_benchmarks"
+    },
+    {
+      "command": "go test -race ./internal/modules/webhook/...",
+      "status": "blocked",
+      "reason": "cgo disabled by default; with CGO_ENABLED=1, gcc was not found"
+    },
+    {
+      "command": "go test ./...",
+      "status": "passed"
+    },
+    {
+      "command": "go build ./cmd/server/... ./cmd/p7load ./cmd/p7verify",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-regression",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-runtime-freeze",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-runtime-freeze-lifecycle",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-soak-semantics",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-gates",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm test:p7-v2-webhook-p99",
+      "status": "not_available",
+      "reason": "package.json has no matching script"
+    },
+    {
+      "command": "pnpm test:p7-v2-comparability",
+      "status": "not_available",
+      "reason": "package.json has no matching script"
+    },
+    {
+      "command": "pnpm p7-v2:r3b:comparability",
+      "status": "not_comparable",
+      "reason": "existing recovery6 current registry/manifest evidence is missing and the blocked current run is invalid for formal comparison"
+    },
+    {
+      "command": "pnpm check:dev",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm check:ui-copy --strict",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm build:admin",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm build:collector",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "downstreamStepsNotExecuted": [
+    "new runtime freeze",
+    "formal baseline",
+    "independent current",
+    "formal regression",
+    "soak",
+    "demo runs",
+    "race gate",
+    "cleanup",
+    "final gates"
+  ]
+}

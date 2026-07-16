@@ -115,6 +115,8 @@
     "test:p7-v2-port-owner": "node tests/gates/p7-v2/port-owner.mjs",
     "test:p7-v2-port-config": "node tests/gates/p7-v2/port-config.mjs",
     "test:p7-v2-fast-close": "node tests/gates/p7-v2/fast-close.mjs",
+    "test:p7-v2-webhook-p99": "node tests/gates/p7-v2/webhook-p99/fixtures.mjs",
+    "test:p7-v2-comparability": "node tests/gates/p7-v2/comparability/fixtures.mjs",
     "test:p7-v2-soak-cooldown": "node tests/gates/p7-v2/soak-cooldown.mjs",
     "test:p7-v2-soak-semantics": "node tests/gates/p7-v2/soak-semantics/fixtures.mjs",
     "test:p7-v2-cleanup-preflight": "node tests/gates/p7-v2/cleanup-preflight/fixtures.mjs",

@@ -25,11 +25,47 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+type webhookEventSelectCounterLogger struct {
+	logger.Interface
+	count             atomic.Int64
+	conflictDB        *gorm.DB
+	conflictEventID   string
+	conflictInserted  atomic.Bool
+	conflictInsertSQL atomic.Int64
+	conflictDelete    bool
+	conflictDeleted   atomic.Bool
+}
+
+func (l *webhookEventSelectCounterLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
+	sql, rows := fc()
+	normalized := strings.ToLower(strings.TrimSpace(sql))
+	if strings.HasPrefix(normalized, "select") && strings.Contains(normalized, "webhook_events") && strings.Contains(normalized, "event_id") {
+		l.count.Add(1)
+		if l.conflictDB != nil && l.conflictEventID != "" && !l.conflictInserted.Swap(true) {
+			now := time.Now().UTC()
+			_ = l.conflictDB.Exec(`INSERT INTO webhook_events (id, created_at, updated_at, platform, tenant_id, platform_shop_id, event_id, event_type, payload_hash, payload_body, status, raw_summary, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				uuid.New().String(), now, now, webhook.PlatformInternalTest, int64(1), "", l.conflictEventID, "ping", strings.Repeat("a", 64), `{"seeded":true}`, webhook.StatusQueued, `{"seeded":true}`, `{}`).Error
+		}
+	}
+	if strings.HasPrefix(normalized, "insert") && strings.Contains(normalized, "webhook_events") && l.conflictDB != nil && l.conflictDelete {
+		if l.conflictInsertSQL.Add(1) >= 2 && !l.conflictDeleted.Swap(true) {
+			_ = l.conflictDB.Exec(`DELETE FROM webhook_events WHERE platform = ? AND tenant_id = ? AND platform_shop_id = ? AND event_id = ?`,
+				webhook.PlatformInternalTest, int64(1), "", l.conflictEventID).Error
+		}
+	}
+	l.Interface.Trace(ctx, begin, func() (string, int64) { return sql, rows }, err)
+}
+
 func openWebhookTestDB(t *testing.T) *gorm.DB {
+	return openWebhookTestDBWithLogger(t, logger.Default.LogMode(logger.Silent))
+}
+
+func openWebhookTestDBWithLogger(t *testing.T, log logger.Interface) *gorm.DB {
 	t.Helper()
 	dsn := fmt.Sprintf("file:webhook_%s?mode=memory&cache=shared", uuid.New().String())
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger:                 log,
+		SkipDefaultTransaction: true,
 	})
 	if err != nil {
 		t.Skipf("sqlite unavailable: %v", err)
@@ -44,8 +80,12 @@ func openWebhookTestDB(t *testing.T) *gorm.DB {
 }
 
 func testService(t *testing.T, enableTest bool) (*webhook.Service, *gorm.DB) {
+	return testServiceWithLogger(t, enableTest, logger.Default.LogMode(logger.Silent))
+}
+
+func testServiceWithLogger(t *testing.T, enableTest bool, log logger.Interface) (*webhook.Service, *gorm.DB) {
 	t.Helper()
-	db := openWebhookTestDB(t)
+	db := openWebhookTestDBWithLogger(t, log)
 	cfg := &config.Config{
 		AppEnv:                     config.EnvDevelopment,
 		WebhookEnableTestVerifier:  enableTest,
@@ -151,6 +191,75 @@ func TestWebhookDuplicateEventID(t *testing.T) {
 	require.NoError(t, json.Unmarshal(w2.Body.Bytes(), &env))
 	data := env["data"].(map[string]any)
 	require.Equal(t, true, data["duplicate"])
+}
+
+func TestWebhookNormalInsertDoesNotReloadEvent(t *testing.T) {
+	counter := &webhookEventSelectCounterLogger{Interface: logger.Default.LogMode(logger.Silent)}
+	svc, _ := testServiceWithLogger(t, true, counter)
+	counter.count.Store(0)
+
+	res, err := svc.Ingest(context.Background(), webhook.IngestRequest{
+		Platform:  webhook.PlatformInternalTest,
+		EventID:   "evt-query-budget-normal",
+		EventType: "ping",
+		Payload:   json.RawMessage(`{"eventId":"evt-query-budget-normal","n":1}`),
+		Timestamp: svc.Now(),
+	})
+	require.NoError(t, err)
+	require.False(t, res.Duplicate)
+	require.Equal(t, webhook.StatusQueued, res.Status)
+	require.Equal(t, int64(1), counter.count.Load(), "normal insert should only run the initial event existence query")
+}
+
+func TestWebhookConflictDuplicateReloadsExistingEventOnce(t *testing.T) {
+	counter := &webhookEventSelectCounterLogger{Interface: logger.Default.LogMode(logger.Silent)}
+	svc, db := testServiceWithLogger(t, true, counter)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(5)
+	counter.conflictDB = db
+	counter.conflictEventID = "evt-query-budget-conflict"
+	counter.count.Store(0)
+
+	res, err := svc.Ingest(context.Background(), webhook.IngestRequest{
+		Platform:  webhook.PlatformInternalTest,
+		EventID:   "evt-query-budget-conflict",
+		EventType: "ping",
+		Payload:   json.RawMessage(`{"eventId":"evt-query-budget-conflict","n":1}`),
+		Timestamp: svc.Now(),
+	})
+	require.NoError(t, err)
+	require.True(t, res.Duplicate)
+	require.Equal(t, webhook.StatusQueued, res.Status)
+	require.Equal(t, int64(2), counter.count.Load(), "conflict duplicate should run initial lookup plus one event reload")
+
+	var count int64
+	require.NoError(t, db.Model(&webhook.Event{}).Where("event_id = ?", "evt-query-budget-conflict").Count(&count).Error)
+	require.Equal(t, int64(1), count)
+}
+
+func TestWebhookConflictReloadMissingReturnsConsistencyError(t *testing.T) {
+	counter := &webhookEventSelectCounterLogger{Interface: logger.Default.LogMode(logger.Silent)}
+	svc, db := testServiceWithLogger(t, true, counter)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(5)
+	counter.conflictDB = db
+	counter.conflictEventID = "evt-query-budget-missing"
+	counter.conflictDelete = true
+	counter.count.Store(0)
+
+	res, err := svc.Ingest(context.Background(), webhook.IngestRequest{
+		Platform:  webhook.PlatformInternalTest,
+		EventID:   "evt-query-budget-missing",
+		EventType: "ping",
+		Payload:   json.RawMessage(`{"eventId":"evt-query-budget-missing","n":1}`),
+		Timestamp: svc.Now(),
+	})
+	require.Error(t, err)
+	require.Nil(t, res)
+	require.Contains(t, err.Error(), "conflict reload consistency error")
+	require.Equal(t, int64(2), counter.count.Load(), "missing duplicate still attempts exactly one conflict reload before failing")
 }
 
 func TestWebhookSamePayloadNoEventID(t *testing.T) {
