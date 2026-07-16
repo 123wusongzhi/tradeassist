@@ -1,0 +1,110 @@
+{
+  "phase": "P7-V2-R3B-DUAL-P99-LOW-CARDINALITY-DIAGNOSTICS",
+  "status": "instrumentation_checkpoint_pair_not_executed",
+  "formal": false,
+  "validForClosure": false,
+  "writeFormalRegistry": false,
+  "formalRegistryWriteDisabled": true,
+  "formalArtifactFreezeDisabled": true,
+  "formalRerunStarted": false,
+  "dualP99AuditCheckpoint": "00190324c423e6e8d7bdfc36f4797714510e417d",
+  "diagnosticsCheckpoint": "pending_local_diagnostics_commit",
+  "diagnosticPlan": {
+    "planType": "P7-V2-R3B-Dual-P99-Diagnostics",
+    "formal": false,
+    "validForClosure": false,
+    "writeFormalRegistry": false,
+    "host": "127.0.0.1",
+    "port": 18080,
+    "providerMode": "mock",
+    "datasetProfile": "medium",
+    "expectedRows": 1900150,
+    "diagnosticsEnabled": true,
+    "sameVUsAsFailedFormalPair": true,
+    "sameStagesAsFailedFormalPair": true,
+    "sameRoutesAsFailedFormalPair": true,
+    "sameDatasetAsFailedFormalPair": true,
+    "sameBusinessConfigAsFailedFormalPair": true
+  },
+  "diagnosticBaselineRunId": "p7v2-diag-baseline-dual-p99-20260716192221",
+  "diagnosticCurrentRunId": "p7v2-diag-current-dual-p99-20260716192221",
+  "diagnosticPairCompleted": false,
+  "diagnosticRunsIndependent": false,
+  "datasetRows": 1900150,
+  "loadProfileFingerprintMatch": true,
+  "environmentMatch": true,
+  "instrumentation": {
+    "enabledBy": "P7_DIAGNOSTICS_ENABLED=true",
+    "defaultEnabled": false,
+    "diagnosticDirectory": "artifacts/p7-v2-diagnostics",
+    "jsonLines": true,
+    "boundedBuffer": true,
+    "droppedDiagnosticEventCountReported": true,
+    "metrics": [
+      "p7_diag_request_stage_duration_ms",
+      "p7_diag_db_operation_duration_ms",
+      "p7_diag_db_pool_wait_ms",
+      "p7_diag_transaction_duration_ms",
+      "p7_diag_transaction_commit_duration_ms",
+      "p7_diag_audit_write_duration_ms",
+      "p7_diag_runtime_snapshot"
+    ],
+    "allowedMetricLabels": [
+      "route",
+      "stage",
+      "operation",
+      "outcome",
+      "diagnostic_role"
+    ],
+    "highCardinalityMetricLabelCount": 0
+  },
+  "webhookStageCoveragePassed": true,
+  "authStageCoveragePassed": true,
+  "highCardinalityMetricLabelCount": 0,
+  "diagnosticDropsReported": true,
+  "dbPoolEvidenceCollected": false,
+  "runtimeEvidenceCollected": false,
+  "tailCorrelationEvaluated": false,
+  "webhookStageDistributions": {},
+  "authStageDistributions": {},
+  "dbPoolSnapshots": [],
+  "runtimeSnapshots": [],
+  "transactionCommitEvidence": {
+    "collected": false,
+    "note": "No isolated diagnostic pair has completed yet."
+  },
+  "auditWriteEvidence": {
+    "collected": false,
+    "note": "Auth operation-log/audit write instrumentation is present; no diagnostic pair evidence has completed yet."
+  },
+  "tailWindowOverlapRatio": null,
+  "webhookTailWindows": {},
+  "authTailWindows": {},
+  "commonEvidence": {
+    "dbPoolWaitCorrelation": "not_evaluated",
+    "transactionCommitCorrelation": "not_evaluated",
+    "gcCorrelation": "not_evaluated"
+  },
+  "primaryRootCause": "F_insufficient_evidence_after_stage_diagnostics",
+  "secondaryRootCauses": [],
+  "confidence": "low",
+  "recommendedRepairPath": "execute_isolated_non_formal_diagnostic_pair_before_repair",
+  "guardrails": {
+    "thresholdChanged": false,
+    "sloChanged": false,
+    "materialityChanged": false,
+    "vusChanged": false,
+    "stagesChanged": false,
+    "datasetChanged": false,
+    "securityStrategyWeakened": false,
+    "passwordHashCostChanged": false,
+    "webhookVerificationChanged": false,
+    "webhookIdempotencyChanged": false
+  },
+  "p7Status": {
+    "phaseP7V2Complete": false,
+    "phaseP7DevelopmentClosurePassed": false,
+    "tagDeferred": true,
+    "productionReady": false
+  }
+}

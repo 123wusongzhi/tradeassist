@@ -1,0 +1,94 @@
+{
+  "phase": "P7-V2-R3B-DUAL-P99-LOW-CARDINALITY-DIAGNOSTICS-FIXTURES",
+  "status": "passed",
+  "diagnosticsEnabledDefault": false,
+  "highCardinalityMetricLabelCount": 0,
+  "checks": [
+    {
+      "id": "default-off-env-gate",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "ignored-local-diagnostic-dir",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "bounded-buffer",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "runtime-sampler-released",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "db-pool-snapshot-fields",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "runtime-snapshot-fields",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "required-metric-names",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "no-forbidden-event-fields",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-stage-enum",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-stage-enum",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-normal-count",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-duplicate-reload-count",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-no-normal-duplicate-reload",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-path-types",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-counts",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-handler-instrumented",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-handler-instrumented",
+      "status": "passed",
+      "detail": ""
+    }
+  ],
+  "failed": []
+}

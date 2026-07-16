@@ -1,0 +1,106 @@
+{
+  "phase": "P7-V2-R3B-DUAL-P99-DIAGNOSTICS-FINAL-GATE",
+  "status": "failed",
+  "failed": [
+    "diagnosticPairCompleted",
+    "diagnosticRunsIndependent",
+    "dbPoolEvidenceCollected",
+    "runtimeEvidenceCollected",
+    "tailCorrelationEvaluated"
+  ],
+  "failedCount": 5,
+  "sourceReport": "docs/p7-v2-r3b-dual-p99-low-cardinality-diagnostics.json",
+  "formal": false,
+  "validForClosure": false,
+  "formalRerunStarted": false,
+  "diagnosticBaselineRunId": "p7v2-diag-baseline-dual-p99-20260716192221",
+  "diagnosticCurrentRunId": "p7v2-diag-current-dual-p99-20260716192221",
+  "primaryRootCause": "F_insufficient_evidence_after_stage_diagnostics",
+  "repairPath": "execute_isolated_non_formal_diagnostic_pair_before_repair",
+  "checks": [
+    {
+      "id": "formalRegistryWriteDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "validForClosure",
+      "status": "passed"
+    },
+    {
+      "id": "diagnosticPairCompleted",
+      "status": "failed"
+    },
+    {
+      "id": "diagnosticRunsIndependent",
+      "status": "failed"
+    },
+    {
+      "id": "datasetRows",
+      "status": "passed"
+    },
+    {
+      "id": "webhookStageCoveragePassed",
+      "status": "passed"
+    },
+    {
+      "id": "authStageCoveragePassed",
+      "status": "passed"
+    },
+    {
+      "id": "highCardinalityMetricLabelCount",
+      "status": "passed"
+    },
+    {
+      "id": "diagnosticDropsReported",
+      "status": "passed"
+    },
+    {
+      "id": "dbPoolEvidenceCollected",
+      "status": "failed"
+    },
+    {
+      "id": "runtimeEvidenceCollected",
+      "status": "failed"
+    },
+    {
+      "id": "tailCorrelationEvaluated",
+      "status": "failed"
+    },
+    {
+      "id": "rootCauseClassified",
+      "status": "passed"
+    },
+    {
+      "id": "repairPathSelected",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "materialityChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    }
+  ]
+}

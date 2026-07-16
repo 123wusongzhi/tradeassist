@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -40,22 +41,43 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 		return nil, fmt.Errorf("auth: misconfigured")
 	}
 	guard := &LoginGuard{Cfg: s.Cfg, DB: s.DB}
+	stageStart := time.Now()
 	if err := guard.CheckAllowed(ctx, account, ip); err != nil {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "rate_limit_check", authOutcome(err), stageStart)
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "lockout_evaluate", authOutcome(err), stageStart)
+		if err.Error() == ErrAccountTemporarilyLocked {
+			p7diag.Path(p7diag.RouteAuthInvalidLogin, "locked_account")
+		} else if err.Error() == ErrTooManyAttempts {
+			p7diag.Path(p7diag.RouteAuthInvalidLogin, "rate_limited")
+		}
 		return nil, err
 	}
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "rate_limit_check", p7diag.OutcomeSuccess, stageStart)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "lockout_evaluate", p7diag.OutcomeSuccess, stageStart)
 
+	stageStart = time.Now()
 	u, err := s.Admins.ByLoginAccount(ctx, account)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "account_lookup", authOutcome(err), stageStart)
+	p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "account_lookup", authOutcome(err), stageStart)
+	p7diag.Count(p7diag.RouteAuthInvalidLogin, "accountLookupCount", 1)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			p7diag.Path(p7diag.RouteAuthInvalidLogin, "account_missing")
 			_ = guard.RecordFailure(ctx, account, ip)
 			return nil, errors.New(ErrInvalidCredentials)
 		}
 		return nil, err
 	}
+	stageStart = time.Now()
 	if err := admin.CheckPassword(u.PasswordHash, password); err != nil {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeExpectedRejection, stageStart)
+		p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
+		p7diag.Path(p7diag.RouteAuthInvalidLogin, "wrong_password")
 		_ = guard.RecordFailure(ctx, account, ip)
 		return nil, errors.New(ErrInvalidCredentials)
 	}
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeSuccess, stageStart)
+	p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return nil, errors.New(ErrUserDisabled)
 	}

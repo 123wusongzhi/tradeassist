@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"gorm.io/gorm"
 )
 
@@ -66,16 +68,27 @@ func (s *LoginService) Login(ctx context.Context, account, password, ip, userAge
 }
 
 func (s *LoginService) legacyLogin(ctx context.Context, account, password string) (*LoginResult, error) {
+	stageStart := time.Now()
 	u, err := s.Admins.ByLoginAccount(ctx, account)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "account_lookup", authOutcome(err), stageStart)
+	p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "account_lookup", authOutcome(err), stageStart)
+	p7diag.Count(p7diag.RouteAuthInvalidLogin, "accountLookupCount", 1)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			p7diag.Path(p7diag.RouteAuthInvalidLogin, "account_missing")
 			return nil, errors.New(ErrInvalidCredentials)
 		}
 		return nil, err
 	}
+	stageStart = time.Now()
 	if err := admin.CheckPassword(u.PasswordHash, password); err != nil {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeExpectedRejection, stageStart)
+		p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
+		p7diag.Path(p7diag.RouteAuthInvalidLogin, "wrong_password")
 		return nil, errors.New(ErrInvalidCredentials)
 	}
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "password_verify", p7diag.OutcomeSuccess, stageStart)
+	p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 		return nil, errors.New(ErrUserDisabled)
 	}
@@ -99,4 +112,14 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 			DisplayName: dn,
 		},
 	}, nil
+}
+
+func authOutcome(err error) string {
+	if err == nil {
+		return p7diag.OutcomeSuccess
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return p7diag.OutcomeExpectedRejection
+	}
+	return p7diag.OutcomeError
 }

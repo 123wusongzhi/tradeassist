@@ -146,6 +146,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | Document | Purpose |
 | --- | --- |
 | [P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md](P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md) | Dual p99 regression common-cause audit, cleanup evidence, root-cause classification, and final gate entry. |
+| [P7_V2_R3B_DUAL_P99_LOW_CARDINALITY_DIAGNOSTICS.md](P7_V2_R3B_DUAL_P99_LOW_CARDINALITY_DIAGNOSTICS.md) | Non-formal dual p99 low-cardinality diagnostics instrumentation checkpoint and diagnostic pair plan. |
 
 ## Phase P3.2 Douyin Webhook Docs
 

@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authcookie"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/gorm"
@@ -37,23 +39,41 @@ type loginBody struct {
 
 // Login POST /api/v1/auth/login
 func (h *Handler) Login(c *gin.Context) {
+	totalStart := time.Now()
+	totalOutcome := p7diag.OutcomeSuccess
+	defer func() {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "total", totalOutcome, totalStart)
+	}()
 	if h == nil || h.LoginSvc == nil {
+		totalOutcome = p7diag.OutcomeError
 		response.Fail(c, 500, response.CodeInternalError, "auth unavailable")
 		return
 	}
 	var body loginBody
+	stageStart := time.Now()
 	if err := c.ShouldBindJSON(&body); err != nil {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_read", p7diag.OutcomeExpectedRejection, stageStart)
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "json_decode", p7diag.OutcomeExpectedRejection, stageStart)
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_read", p7diag.OutcomeSuccess, stageStart)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "json_decode", p7diag.OutcomeSuccess, stageStart)
+	stageStart = time.Now()
 	account := strings.TrimSpace(body.Account)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "input_normalize", p7diag.OutcomeSuccess, stageStart)
 	if account == "" {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		response.Fail(c, 400, response.CodeBadRequest, "account is required")
 		return
 	}
 	res, err := h.LoginSvc.Login(c.Request.Context(), account, body.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
+		totalOutcome = p7diag.OutcomeExpectedRejection
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "invalid_decision", p7diag.OutcomeExpectedRejection, time.Now())
 		if h.OpLog != nil {
+			stageStart = time.Now()
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
 				Username: account,
 				Action:   "login",
@@ -61,6 +81,11 @@ func (h *Handler) Login(c *gin.Context) {
 				Status:   "failed",
 				Message:  err.Error(),
 			})
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "security_audit", p7diag.OutcomeSuccess, stageStart)
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "operation_log", p7diag.OutcomeSuccess, stageStart)
+			p7diag.ObserveAuditWrite(p7diag.RouteAuthInvalidLogin, "security_audit", p7diag.OutcomeSuccess, stageStart)
+			p7diag.Count(p7diag.RouteAuthInvalidLogin, "securityAuditWriteCount", 1)
+			p7diag.Count(p7diag.RouteAuthInvalidLogin, "operationLogWriteCount", 1)
 		}
 		code := response.CodeUnauthorized
 		msg := err.Error()
@@ -72,6 +97,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	uid, perr := uuid.Parse(res.User.ID)
 	if perr == nil && h.OpLog != nil {
+		stageStart = time.Now()
 		_ = h.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: &uid,
 			Username:    res.User.Username,
@@ -79,6 +105,7 @@ func (h *Handler) Login(c *gin.Context) {
 			Resource:    "auth",
 			Status:      "success",
 		})
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "operation_log", p7diag.OutcomeSuccess, stageStart)
 	}
 	out := gin.H{
 		"token":     res.Token,
@@ -99,7 +126,9 @@ func (h *Handler) Login(c *gin.Context) {
 	if h.Cfg != nil && h.Cfg.Auth.SessionMode == config.AuthSessionModeLegacy {
 		out["deprecatedSessionMode"] = true
 	}
+	stageStart = time.Now()
 	response.OK(c, out)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "response_encode", p7diag.OutcomeSuccess, stageStart)
 }
 
 // Profile GET /api/v1/auth/profile

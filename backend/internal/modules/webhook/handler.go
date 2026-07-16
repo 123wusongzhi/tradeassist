@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -97,13 +98,20 @@ func (h *Handler) ListEvents(c *gin.Context) {
 
 // Receive POST /api/v1/webhooks/:platform/:eventType
 func (h *Handler) Receive(c *gin.Context) {
+	totalStart := time.Now()
+	totalOutcome := p7diag.OutcomeSuccess
+	defer func() {
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "total", totalOutcome, totalStart)
+	}()
 	if h == nil || h.Svc == nil {
+		totalOutcome = p7diag.OutcomeError
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "webhook unavailable")
 		return
 	}
 	platform := strings.TrimSpace(c.Param("platform"))
 	eventType := strings.TrimSpace(c.Param("eventType"))
 	if platform == "" || eventType == "" {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "platform and eventType are required")
 		return
 	}
@@ -113,12 +121,16 @@ func (h *Handler) Receive(c *gin.Context) {
 
 	ct := strings.ToLower(strings.TrimSpace(c.GetHeader("Content-Type")))
 	if !strings.HasPrefix(ct, "application/json") {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		failWebhook(c, newCodeError(CodeInvalidContentType, http.StatusUnsupportedMediaType, CodeInvalidContentType))
 		return
 	}
 
+	stageStart := time.Now()
 	raw, err := io.ReadAll(c.Request.Body)
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "request_read", outcomeFromErr(err, false), stageStart)
 	if err != nil {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) || isBodyTooLarge(err) {
 			failWebhook(c, newCodeError(CodePayloadTooLarge, http.StatusRequestEntityTooLarge, CodePayloadTooLarge))
@@ -132,10 +144,12 @@ func (h *Handler) Receive(c *gin.Context) {
 	nonce := extractNonceHeader(c.Request.Header)
 	ts, tsErr := parseWebhookTimestamp(extractTimestampHeader(c.Request.Header), raw)
 	if tsErr != nil && extractTimestampHeader(c.Request.Header) != "" {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		failWebhook(c, newCodeError(CodeTimestampExpired, http.StatusUnauthorized, CodeTimestampExpired))
 		return
 	}
 
+	stageStart = time.Now()
 	if h.Svc.Verifiers != nil {
 		if err := h.Svc.Verifiers.Verify(c.Request.Context(), VerifyInput{
 			Platform:  platform,
@@ -145,39 +159,56 @@ func (h *Handler) Receive(c *gin.Context) {
 			Nonce:     nonce,
 			Signature: sig,
 		}); err != nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "signature_verify", p7diag.OutcomeExpectedRejection, stageStart)
+			totalOutcome = p7diag.OutcomeExpectedRejection
 			failWebhook(c, err)
 			return
 		}
 	} else {
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "signature_verify", p7diag.OutcomeError, stageStart)
+		totalOutcome = p7diag.OutcomeError
 		failWebhook(c, newCodeError(CodeVerifierNotConfigured, http.StatusUnauthorized, CodeVerifierNotConfigured))
 		return
 	}
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "signature_verify", p7diag.OutcomeSuccess, stageStart)
 
 	if err := h.Svc.ValidateTimestamp(ts, !ts.IsZero()); err != nil {
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		failWebhook(c, err)
 		return
 	}
 
+	stageStart = time.Now()
 	if !json.Valid(raw) {
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "json_decode", p7diag.OutcomeExpectedRejection, stageStart)
+		totalOutcome = p7diag.OutcomeExpectedRejection
 		failWebhook(c, newCodeError(CodeInvalidJSON, http.StatusBadRequest, CodeInvalidJSON))
 		return
 	}
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "json_decode", p7diag.OutcomeSuccess, stageStart)
 
 	var resolved *ResolvedWebhookShop
 	if isDouyinWebhookPlatform(platform) {
+		stageStart = time.Now()
 		resolveInput, err := ExtractResolveWebhookShopInput(platform, eventType, c.Request.Header, raw)
 		if err != nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "shop_provider_resolve", p7diag.OutcomeExpectedRejection, stageStart)
+			totalOutcome = p7diag.OutcomeExpectedRejection
 			response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid webhook payload")
 			return
 		}
 		resolveInput.AppEnv = h.Svc.AppEnv
 		resolveInput.RequestID = c.GetString("requestId")
 		if h.Svc.ShopResolver == nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "shop_provider_resolve", p7diag.OutcomeExpectedRejection, stageStart)
+			totalOutcome = p7diag.OutcomeExpectedRejection
 			failWebhook(c, newCodeError(CodeDouyinWebhookShopNotResolved, http.StatusForbidden, CodeDouyinWebhookShopNotResolved))
 			return
 		}
 		resolved, err = h.Svc.ShopResolver.Resolve(c.Request.Context(), resolveInput)
 		if err != nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "shop_provider_resolve", p7diag.OutcomeError, stageStart)
+			totalOutcome = p7diag.OutcomeError
 			if ce, ok := AsCodeError(err); ok {
 				failWebhook(c, ce)
 				return
@@ -185,6 +216,7 @@ func (h *Handler) Receive(c *gin.Context) {
 			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "webhook shop resolve failed")
 			return
 		}
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "shop_provider_resolve", p7diag.OutcomeSuccess, stageStart)
 	}
 
 	eventID := extractEventID(raw)
@@ -197,7 +229,9 @@ func (h *Handler) Receive(c *gin.Context) {
 		ResolvedShop: resolved,
 	})
 	if err != nil {
+		totalOutcome = p7diag.OutcomeError
 		if ce, ok := AsCodeError(err); ok {
+			totalOutcome = p7diag.OutcomeExpectedRejection
 			failWebhook(c, ce)
 			return
 		}
@@ -206,11 +240,23 @@ func (h *Handler) Receive(c *gin.Context) {
 		return
 	}
 
+	stageStart = time.Now()
 	response.JSON(c, http.StatusOK, response.CodeOK, "accepted", gin.H{
 		"eventId":   result.EventID,
 		"status":    result.Status,
 		"duplicate": result.Duplicate,
 	})
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "response_encode", p7diag.OutcomeSuccess, stageStart)
+}
+
+func outcomeFromErr(err error, expected bool) string {
+	if err == nil {
+		return p7diag.OutcomeSuccess
+	}
+	if expected {
+		return p7diag.OutcomeExpectedRejection
+	}
+	return p7diag.OutcomeError
 }
 
 func failWebhook(c *gin.Context, err error) {

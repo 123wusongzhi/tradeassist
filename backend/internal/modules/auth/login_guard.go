@@ -8,6 +8,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"gorm.io/gorm"
 )
 
@@ -37,7 +38,11 @@ func (g *LoginGuard) CheckAllowed(ctx context.Context, account, ip string) error
 			continue
 		}
 		var row AuthLoginAttempt
+		stageStart := time.Now()
 		err := g.DB.WithContext(ctx).Where("account_key = ?", key).First(&row).Error
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", authOutcome(err), stageStart)
+		p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", authOutcome(err), stageStart)
+		p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptReadCount", 1)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			continue
 		}
@@ -67,7 +72,11 @@ func (g *LoginGuard) RecordFailure(ctx context.Context, account, ip string) erro
 			continue
 		}
 		var row AuthLoginAttempt
+		stageStart := time.Now()
 		err := g.DB.WithContext(ctx).Where("account_key = ?", key).First(&row).Error
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", authOutcome(err), stageStart)
+		p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", authOutcome(err), stageStart)
+		p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptReadCount", 1)
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			row = AuthLoginAttempt{
 				AccountKey:   key,
@@ -75,9 +84,15 @@ func (g *LoginGuard) RecordFailure(ctx context.Context, account, ip string) erro
 				FailedCount:  1,
 				LastFailedAt: &now,
 			}
+			stageStart = time.Now()
 			if err := g.DB.WithContext(ctx).Create(&row).Error; err != nil {
+				p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", authOutcome(err), stageStart)
+				p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", authOutcome(err), stageStart)
 				return err
 			}
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", p7diag.OutcomeSuccess, stageStart)
+			p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", p7diag.OutcomeSuccess, stageStart)
+			p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptWriteCount", 1)
 			continue
 		}
 		if err != nil {
@@ -92,9 +107,15 @@ func (g *LoginGuard) RecordFailure(ctx context.Context, account, ip string) erro
 			lockUntil := now.Add(time.Duration(lockMinutes) * time.Minute)
 			row.LockedUntil = &lockUntil
 		}
+		stageStart = time.Now()
 		if err := g.DB.WithContext(ctx).Save(&row).Error; err != nil {
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", authOutcome(err), stageStart)
+			p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", authOutcome(err), stageStart)
 			return err
 		}
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", p7diag.OutcomeSuccess, stageStart)
+		p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", p7diag.OutcomeSuccess, stageStart)
+		p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptWriteCount", 1)
 	}
 	return nil
 }
