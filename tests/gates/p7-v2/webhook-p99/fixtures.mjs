@@ -10,7 +10,10 @@ function source(relPath) {
 const service = source('backend/internal/modules/webhook/service.go');
 const tests = source('backend/internal/modules/webhook/handler_test.go');
 
-const createStart = service.indexOf('createRes := s.DB.WithContext(ctx)');
+let createStart = service.indexOf('createRes := s.DB.WithContext(ctx)');
+if (createStart < 0) {
+  createStart = service.indexOf('createRes = s.DB.WithContext(ctx)');
+}
 const conflictStart = service.indexOf('if createRes.RowsAffected == 0', createStart);
 assert.ok(createStart > 0, 'webhook insert statement must exist');
 assert.ok(conflictStart > createStart, 'conflict branch must follow insert');

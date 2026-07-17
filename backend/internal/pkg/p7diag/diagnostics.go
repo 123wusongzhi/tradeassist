@@ -111,7 +111,27 @@ type asyncWriter struct {
 
 // Enabled returns true only for the explicit P7 diagnostics switch.
 func Enabled() bool {
+	if formalDiagnosticsDisabled() {
+		return false
+	}
 	return strings.EqualFold(strings.TrimSpace(os.Getenv("P7_DIAGNOSTICS_ENABLED")), "true")
+}
+
+func formalDiagnosticsDisabled() bool {
+	appEnv := strings.ToLower(strings.TrimSpace(os.Getenv("APP_ENV")))
+	formal := envBool("formal") || envBool("FORMAL") || envBool("P7_FORMAL")
+	diagnosticOnlySet := envSet("diagnosticOnly") || envSet("DIAGNOSTIC_ONLY") || envSet("P7_DIAGNOSTIC_ONLY")
+	diagnosticOnly := envBool("diagnosticOnly") || envBool("DIAGNOSTIC_ONLY") || envBool("P7_DIAGNOSTIC_ONLY")
+	return appEnv == "performance" && formal && diagnosticOnlySet && !diagnosticOnly
+}
+
+func envSet(key string) bool {
+	_, ok := os.LookupEnv(key)
+	return ok
+}
+
+func envBool(key string) bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv(key)), "true")
 }
 
 // WriterCreated reports whether enabling diagnostics opened a local writer.

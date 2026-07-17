@@ -31,6 +31,7 @@ func migrateP7Performance(db *gorm.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_collect_tasks_p7_tenant_updated_id ON collect_tasks (tenant_id, updated_at DESC, id DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_webhook_events_p7_tenant_status_created ON webhook_events (tenant_id, status, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_operation_logs_p7_tenant_created_id ON operation_logs (tenant_id, created_at DESC, id DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_operation_logs_p7_chain_partition_created_id ON operation_logs (chain_partition, created_at DESC, id DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_files_p7_tenant_security_created ON files (tenant_id, security_status, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_backup_jobs_p7_status_created ON backup_jobs (status, created_at DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_release_runs_p7_environment_state ON release_runs (environment, state)`,

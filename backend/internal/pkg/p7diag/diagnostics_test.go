@@ -26,6 +26,31 @@ func TestDefaultOffDoesNotCreateWriter(t *testing.T) {
 	}
 }
 
+func TestFormalPerformanceModeDisablesDiagnosticWriter(t *testing.T) {
+	dir := t.TempDir()
+	resetForTest(t)
+	t.Setenv("APP_ENV", "performance")
+	t.Setenv("formal", "true")
+	t.Setenv("diagnosticOnly", "false")
+	t.Setenv("P7_DIAGNOSTICS_ENABLED", "true")
+	t.Setenv("P7_DIAGNOSTIC_DIR", dir)
+	t.Setenv("P7_DIAGNOSTIC_RUN_ID", "p7v2-formal")
+
+	ObserveStage(RouteAuthInvalidLogin, "total", OutcomeExpectedRejection, time.Now().Add(-time.Millisecond))
+	SnapshotRuntime()
+	Shutdown(context.Background())
+
+	if Enabled() {
+		t.Fatal("formal performance mode must disable diagnostics")
+	}
+	if WriterCreated() {
+		t.Fatal("writer should not start in formal performance mode")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "p7v2-formal.jsonl")); !os.IsNotExist(err) {
+		t.Fatalf("formal diagnostics file state = %v, want not exists", err)
+	}
+}
+
 func TestFixedStageAndNoHighCardinalityLabels(t *testing.T) {
 	dir := t.TempDir()
 	resetForTest(t)

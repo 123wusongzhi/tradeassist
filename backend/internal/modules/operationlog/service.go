@@ -146,6 +146,19 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 
 func (s *Service) writeWithDiagnostics(ctx context.Context, row *OperationLog, opts WriteOpts) error {
 	authDiag := isAuthLoginDiagnostic(opts)
+	if row != nil {
+		if row.CreatedAt.IsZero() {
+			row.CreatedAt = time.Now().UTC()
+		}
+		row.CreatedAt = row.CreatedAt.UTC().Truncate(time.Microsecond)
+		row.ChainPartition = chainPartition(row.TenantID, row.CreatedAt)
+	}
+	partition := ""
+	if row != nil {
+		partition = row.ChainPartition
+	}
+	unlock := lockLocalHashChainScope(partition)
+	defer unlock()
 	txStart := time.Now()
 	if authDiag {
 		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "transaction_begin", p7diag.OutcomeSuccess, txStart)
