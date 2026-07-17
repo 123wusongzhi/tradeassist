@@ -148,6 +148,8 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md](P7_V2_R3B_DUAL_P99_REGRESSION_COMMON_CAUSE_AUDIT.md) | Dual p99 regression common-cause audit, cleanup evidence, root-cause classification, and final gate entry. |
 | [P7_V2_R3B_DUAL_P99_LOW_CARDINALITY_DIAGNOSTICS.md](P7_V2_R3B_DUAL_P99_LOW_CARDINALITY_DIAGNOSTICS.md) | Non-formal dual p99 low-cardinality diagnostics instrumentation checkpoint and diagnostic pair plan. |
 | [P7_V2_R3B_SQL_FINGERPRINT_PG_WAIT_DIAGNOSTICS.md](P7_V2_R3B_SQL_FINGERPRINT_PG_WAIT_DIAGNOSTICS.md) | Non-formal SQL fingerprint / PG wait diagnostics pair, root-cause close, and repair-path selection (not valid for P7 closure). |
+| [P7_V2_R3B_WEBHOOK_TAIL_REGRESSION_REPAIR.md](P7_V2_R3B_WEBHOOK_TAIL_REGRESSION_REPAIR.md) | Webhook Ingestion p95/p99 failed-metric audit, branch-mix evidence, minimal repair path, and local verification summary. |
+| [P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md](P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md) | Generated final gate for the local webhook tail repair evidence; this does not close P7-V2 without a new formal pair. |
 
 ## Phase P3.2 Douyin Webhook Docs
 
