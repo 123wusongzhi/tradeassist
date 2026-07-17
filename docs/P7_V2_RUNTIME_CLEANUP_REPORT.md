@@ -4,10 +4,16 @@ Status: passed
 
 | Field | Value |
 | --- | --- |
-| Remaining DBs | 18 |
-| Current formal residual DBs | 0 |
-| Failed attempt residual DBs | 0 |
-| Historical evidence DBs | 8 |
-| Unknown DBs | 0 |
-| Processes | 0 |
-| Ports | 0 |
+| Cleanup contract | 2 |
+| Latest attempt | cleanup-v2-20260717074140-cf7f9bcf |
+| Latest mode | check |
+| Attempt path | artifacts/p7-v2/cleanup-attempts/cleanup-v2-20260717074140-cf7f9bcf.json |
+| Historical attempts | 6 |
+| Current formal residuals | 0 |
+| Unknown databases | 0 |
+| Unknown processes | 0 |
+| Unknown connections | 0 |
+| Listener 18080 count | 0 |
+| Known retained diagnostic DBs | 1 |
+| Completed diagnostic ephemeral DBs | 1 |
+| Destructive actions | 0 |

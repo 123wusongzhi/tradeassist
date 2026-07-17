@@ -1,74 +1,18 @@
 {
-  "phase": "P7-V2",
-  "component": "load-host-guard",
-  "status": "passed",
-  "failed": 0,
-  "passed": 6,
-  "cases": [
+  "cleanupContractVersion": 2,
+  "cleanupAttemptId": "cleanup-v2-20260717073328-7d533e48",
+  "mode": "check",
+  "startedAt": "2026-07-17T07:33:28.024Z",
+  "completedAt": "2026-07-17T07:33:33.426Z",
+  "targetScope": {
+    "runId": "p7v2-current-r3b-recovery6-20260717051755",
+    "databaseName": "",
+    "pid": "",
+    "diagnosticRunId": ""
+  },
+  "discoveredResources": [
     {
-      "id": "localhost-allowed",
-      "url": "http://localhost:18080",
-      "blocked": false,
-      "issues": [],
-      "status": "passed"
-    },
-    {
-      "id": "127-allowed",
-      "url": "http://127.0.0.1:18080",
-      "blocked": false,
-      "issues": [],
-      "status": "passed"
-    },
-    {
-      "id": "wsl-nonloopback-rejected",
-      "url": "http://172.22.144.1:18080",
-      "blocked": true,
-      "issues": [
-        "unknown remote host rejected: 172.22.144.1"
-      ],
-      "status": "passed"
-    },
-    {
-      "id": "production-domain-rejected",
-      "url": "https://api.zhihengxiangyu.com",
-      "blocked": true,
-      "issues": [
-        "production domain rejected: api.zhihengxiangyu.com",
-        "unknown remote host rejected: api.zhihengxiangyu.com"
-      ],
-      "status": "passed"
-    },
-    {
-      "id": "public-ip-rejected",
-      "url": "http://8.8.8.8:18080",
-      "blocked": true,
-      "issues": [
-        "unknown remote host rejected: 8.8.8.8"
-      ],
-      "status": "passed"
-    },
-    {
-      "id": "empty-host-rejected",
-      "url": "<empty>",
-      "blocked": true,
-      "issues": [
-        "invalid base URL"
-      ],
-      "status": "passed"
-    }
-  ],
-  "port18080Available": true,
-  "listener18080Count": 0,
-  "unknownPortOwner": false,
-  "bindProbePassed": true,
-  "probeReleased": true,
-  "currentFormalResidualCount": 0,
-  "unknownDatabaseCount": 0,
-  "unknownProcessCount": 0,
-  "knownRetainedDiagnosticDatabaseCount": 1,
-  "databaseQueryExecuted": true,
-  "databases": [
-    {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_20260714163000",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 2014691843,
@@ -85,6 +29,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery3_20260715_131400",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1921901059,
@@ -101,6 +46,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery4_20260715075740",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 8634883,
@@ -117,6 +63,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery4_20260715075855",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1921303043,
@@ -133,6 +80,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery5_20260715091700",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1951842819,
@@ -149,6 +97,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715125505",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1920590339,
@@ -165,6 +114,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715165422",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1920254467,
@@ -181,6 +131,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery_20260714_1719",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1903968771,
@@ -197,6 +148,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_20260714164500_restart",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1903903235,
@@ -213,6 +165,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery3_20260715_131400_resta",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1990763011,
@@ -229,6 +182,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery4_20260715072627_restar",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1920279043,
@@ -245,6 +199,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery4_20260715075855_restar",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1930977795,
@@ -261,6 +216,7 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260715165422_restar",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 2019369475,
@@ -277,6 +233,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1906991619,
@@ -293,6 +250,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071614582",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1928069635,
@@ -309,6 +267,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071616012",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1931210075,
@@ -325,6 +284,7 @@
       "reason": "diagnostic final gate and raw JSONL evidence are preserved"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_diag_current_sql_fingerprint_20260716145825",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1925669379,
@@ -341,6 +301,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_diag_sqlfp_probe3",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 8634883,
@@ -357,6 +318,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_port_r2_1784091324060_clean_start",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 17170947,
@@ -373,6 +335,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_port_r2_1784091630880_clean_start",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 17187331,
@@ -389,6 +352,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_port_r2_diagnostic2_20260715_130800",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 17146371,
@@ -405,6 +369,7 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "resourceType": "database",
       "databaseName": "trademind_p7v2_p7v2_port_r2_diagnostic_20260715_130700",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 17293827,
@@ -421,7 +386,34 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     }
   ],
-  "listenerRows": [],
-  "processRows": [],
-  "generatedAt": "2026-07-17T07:41:40.310Z"
+  "classificationSummary": {
+    "currentFormalResidualCount": 0,
+    "oldFormalPairResidueCount": 0,
+    "historicalEvidenceDatabaseCount": 21,
+    "historicalFormalEvidenceDatabaseCount": 21,
+    "diagnosticDatabaseCount": 1,
+    "completedDiagnosticEphemeralCount": 1,
+    "knownRetainedDiagnosticDatabaseCount": 1,
+    "activeRequiredDiagnosticDatabaseCount": 0,
+    "unknownDatabaseCount": 0,
+    "unknownProcessCount": 0,
+    "unknownConnectionCount": 0,
+    "listener18080Count": 0
+  },
+  "plannedActions": [],
+  "executedActions": [],
+  "verification": {
+    "queryExecuted": true,
+    "listener18080Count": 0,
+    "targetResidualCount": 0,
+    "dropVerification": []
+  },
+  "semanticGatePassed": true,
+  "status": "passed",
+  "destructiveActionCount": 0,
+  "unexpectedDatabaseDeletedCount": 0,
+  "unexpectedProcessKilledCount": 0,
+  "historicalFrozenEvidencePreserved": true,
+  "historicalEvidencePreserved": true,
+  "issues": []
 }
