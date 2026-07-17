@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	"gorm.io/gorm"
 )
@@ -117,6 +118,8 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 	}
 
 	now := s.now()
+	// Ingest ACK path has no enveloping business transaction; processor claim/update are discrete statements.
+	// Emit transaction_* / inventory_update / task_enqueue only when real code paths exist (not forged).
 	claim := s.DB.WithContext(ctx).Model(&Event{}).
 		Where("id = ? AND status IN ?", ev.ID, []string{StatusQueued, StatusReceived, StatusFailedRetryable}).
 		Updates(map[string]any{
@@ -138,11 +141,23 @@ func (s *Service) processEventRow(ctx context.Context, ev *Event) error {
 		return nil
 	}
 
+	businessStart := time.Now()
+	businessApplicable := ev.Platform == "douyin_shop" || ev.Platform == "douyin"
 	if err := s.handlePlatformEvent(ctx, ev); err != nil {
+		if businessApplicable {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "business_upsert", p7diag.OutcomeError, businessStart)
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "order_or_entity_upsert", p7diag.OutcomeError, businessStart)
+		}
 		_ = s.markFailed(ctx, ev.ID, StatusFailedRetryable, "WEBHOOK_PROCESS_FAILED", err.Error())
 		s.failProcess(ctx, idemJob, "WEBHOOK_PROCESS_FAILED", true)
 		s.ObserveWebhook(ev.Platform, ev.EventType, "processed", "failure", "process_failed", time.Since(start))
 		return err
+	}
+	if businessApplicable {
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "business_upsert", p7diag.OutcomeSuccess, businessStart)
+		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "order_or_entity_upsert", p7diag.OutcomeSuccess, businessStart)
+		p7diag.Path(p7diag.RouteWebhookIngestion, "business_upsert")
+		p7diag.Count(p7diag.RouteWebhookIngestion, "businessUpsertCount", 1)
 	}
 
 	processedAt := s.now()

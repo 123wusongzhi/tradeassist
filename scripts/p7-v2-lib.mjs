@@ -270,11 +270,28 @@ export function startP7V2Server(env = {}, opts = {}) {
   return { ok: false, pid, issues: [`server health check timeout: ${(tail.stdout || '').slice(0, 800)}`] };
 }
 
+function runningInsideWSLGuest() {
+  if (process.platform !== 'linux') return false;
+  try {
+    const version = fs.readFileSync('/proc/version', 'utf8').toLowerCase();
+    return version.includes('microsoft') || version.includes('wsl');
+  } catch {
+    return false;
+  }
+}
+
 export function runWSL(bashBody, opts = {}) {
+  const timeout = opts.timeout ?? 2 * 60 * 60 * 1000;
+  const maxBuffer = opts.maxBuffer ?? 20 * 1024 * 1024;
+  // When Node already runs inside the WSL guest, nesting wsl.exe executes the
+  // Windows PE binary under Linux bash and breaks CREATE DATABASE / health probes.
+  if (runningInsideWSLGuest()) {
+    return run('bash', ['-lc', String(bashBody)], { timeout, maxBuffer });
+  }
   const encoded = Buffer.from(String(bashBody), 'utf8').toString('base64');
   return run('wsl.exe', ['-d', 'Ubuntu-22.04', '--', 'bash', '-lc', `echo ${encoded} | base64 -d | bash`], {
-    timeout: opts.timeout ?? 2 * 60 * 60 * 1000,
-    maxBuffer: opts.maxBuffer ?? 20 * 1024 * 1024,
+    timeout,
+    maxBuffer,
   });
 }
 

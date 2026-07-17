@@ -53,12 +53,14 @@ func (h *Handler) Login(c *gin.Context) {
 	stageStart := time.Now()
 	if err := c.ShouldBindJSON(&body); err != nil {
 		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_read", p7diag.OutcomeExpectedRejection, stageStart)
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_decode", p7diag.OutcomeExpectedRejection, stageStart)
 		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "json_decode", p7diag.OutcomeExpectedRejection, stageStart)
 		totalOutcome = p7diag.OutcomeExpectedRejection
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
 	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_read", p7diag.OutcomeSuccess, stageStart)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "request_decode", p7diag.OutcomeSuccess, stageStart)
 	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "json_decode", p7diag.OutcomeSuccess, stageStart)
 	stageStart = time.Now()
 	account := strings.TrimSpace(body.Account)
@@ -81,8 +83,7 @@ func (h *Handler) Login(c *gin.Context) {
 				Status:   "failed",
 				Message:  err.Error(),
 			})
-			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "security_audit", p7diag.OutcomeSuccess, stageStart)
-			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "operation_log", p7diag.OutcomeSuccess, stageStart)
+			// security_audit / operation_log / transaction_* stages are emitted inside OpLog.Write.
 			p7diag.ObserveAuditWrite(p7diag.RouteAuthInvalidLogin, "security_audit", p7diag.OutcomeSuccess, stageStart)
 			p7diag.Count(p7diag.RouteAuthInvalidLogin, "securityAuditWriteCount", 1)
 			p7diag.Count(p7diag.RouteAuthInvalidLogin, "operationLogWriteCount", 1)
@@ -92,7 +93,10 @@ func (h *Handler) Login(c *gin.Context) {
 		if msg == ErrAccountTemporarilyLocked || msg == ErrTooManyAttempts {
 			code = response.CodeForbidden
 		}
+		stageStart = time.Now()
 		response.Fail(c, 401, code, msg)
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "response_encode", p7diag.OutcomeExpectedRejection, stageStart)
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "response_write", p7diag.OutcomeExpectedRejection, stageStart)
 		return
 	}
 	uid, perr := uuid.Parse(res.User.ID)
@@ -129,6 +133,7 @@ func (h *Handler) Login(c *gin.Context) {
 	stageStart = time.Now()
 	response.OK(c, out)
 	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "response_encode", p7diag.OutcomeSuccess, stageStart)
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "response_write", p7diag.OutcomeSuccess, stageStart)
 }
 
 // Profile GET /api/v1/auth/profile

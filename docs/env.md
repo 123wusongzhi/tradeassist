@@ -39,7 +39,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | `P7_V2_API_HOST` | `127.0.0.1` | P7-V2 harness | 否 | 仅 P7-V2 性能环境的 loopback API host；禁止公网或 WSL 非 loopback 地址。 |
 | `P7_V2_API_PORT` | `8080` | P7-V2 harness | 否 | 仅 P7-V2 性能环境 API 端口；可迁移至 `18080`、`28080` 或 `38080`。 |
 | `P7_BASE_URL` | 派生自前两项 | P7-V2 harness | 否 | 必须等于 `http://${P7_V2_API_HOST}:${P7_V2_API_PORT}`，供 k6 与探针统一使用。 |
-| `P7_DIAGNOSTICS_*` | `P7_DIAGNOSTICS_ENABLED=false` | P7-V2 diagnostics | 否 | R3B dual-p99 local diagnostics switch and metadata. When explicitly enabled, writes bounded JSONL diagnostics to ignored `artifacts/p7-v2-diagnostics/`; diagnostic runs are non-formal and invalid for closure. |
+| `P7_DIAGNOSTICS_*` | `P7_DIAGNOSTICS_ENABLED=false` | P7-V2 diagnostics | 否 | R3B local diagnostics switch and metadata (`P7_DIAGNOSTIC_RUN_ID` / `ROLE` / `DIR` / buffer / runtime + PG sample intervals). When explicitly enabled, writes bounded JSONL diagnostics to ignored `artifacts/p7-v2-diagnostics/` (or an external `/tmp/...` dir); diagnostic runs are non-formal and invalid for closure. |
 | `APP_MASTER_KEY` | 空 / 64 位 hex | backend | 是 | AES-GCM 主密钥，用于 settings 敏感配置加密。 |
 | `ADMIN_BOOTSTRAP_EMAIL` | 空 / `admin@example.com` | backend | 否 | 初始管理员邮箱。 |
 | `ADMIN_BOOTSTRAP_PHONE` | 空 | backend | 否 | 初始管理员手机号。 |

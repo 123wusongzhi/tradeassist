@@ -1,0 +1,96 @@
+{
+  "phase": "P7-V2-R3B-SQL-FINGERPRINT-DIAGNOSTICS-FINAL-GATE",
+  "status": "passed",
+  "failed": [],
+  "failedCount": 0,
+  "sourceReport": "docs/p7-v2-r3b-sql-fingerprint-pg-wait-diagnostics.json",
+  "formal": false,
+  "validForClosure": false,
+  "formalRerunStarted": false,
+  "diagnosticBaselineRunId": "p7v2-diag-baseline-sql-fingerprint-20260716160124",
+  "diagnosticCurrentRunId": "p7v2-diag-current-sql-fingerprint-20260716160124",
+  "primaryRootCause": "B_auth_audit_or_operation_log_db_tail",
+  "repairPath": "auth_operation_log_hash_chain_or_commit_path_minimal_fix",
+  "checks": [
+    {
+      "id": "diagnosticPairIndependent",
+      "status": "passed"
+    },
+    {
+      "id": "datasetRows",
+      "status": "passed"
+    },
+    {
+      "id": "authStageCoveragePassed",
+      "status": "passed"
+    },
+    {
+      "id": "webhookStageCoveragePassed",
+      "status": "passed"
+    },
+    {
+      "id": "sqlFingerprintCoveragePassed",
+      "status": "passed"
+    },
+    {
+      "id": "pgWaitEvidenceCollected",
+      "status": "passed"
+    },
+    {
+      "id": "dbPoolEvidenceCollected",
+      "status": "passed"
+    },
+    {
+      "id": "rawSqlParameterLeakCount",
+      "status": "passed"
+    },
+    {
+      "id": "credentialLeakCount",
+      "status": "passed"
+    },
+    {
+      "id": "highCardinalityLabelCount",
+      "status": "passed"
+    },
+    {
+      "id": "rootCauseClassified",
+      "status": "passed"
+    },
+    {
+      "id": "repairPathSelected",
+      "status": "passed"
+    },
+    {
+      "id": "formal",
+      "status": "passed"
+    },
+    {
+      "id": "validForClosure",
+      "status": "passed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    }
+  ]
+}

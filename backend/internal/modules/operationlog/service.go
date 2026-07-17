@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/gorm"
 )
@@ -112,12 +113,7 @@ func (s *Service) Write(c *gin.Context, opts WriteOpts) error {
 			row.AdminRole = p.Role
 		}
 	}
-	return s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := s.appendHashChain(tx, row); err != nil {
-			return err
-		}
-		return tx.Create(row).Error
-	})
+	return s.writeWithDiagnostics(c.Request.Context(), row, opts)
 }
 
 // WriteBackground inserts one log row without an HTTP request (workers, cron).
@@ -145,12 +141,79 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 		Message:     truncateRunes(opts.Message, 2000),
 		CreatedAt:   time.Now().UTC(),
 	}
-	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.appendHashChain(tx, row); err != nil {
-			return err
+	return s.writeWithDiagnostics(ctx, row, opts)
+}
+
+func (s *Service) writeWithDiagnostics(ctx context.Context, row *OperationLog, opts WriteOpts) error {
+	authDiag := isAuthLoginDiagnostic(opts)
+	txStart := time.Now()
+	if authDiag {
+		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "transaction_begin", p7diag.OutcomeSuccess, txStart)
+	}
+	var commitStart time.Time
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		chainStart := time.Now()
+		chainTiming, chainErr := p7diag.TimedGorm(tx, func() error {
+			return s.appendHashChain(tx, row)
+		})
+		chainTiming.TransactionState = "open"
+		if authDiag {
+			outcome := p7diag.OutcomeSuccess
+			if chainErr != nil {
+				outcome = p7diag.OutcomeError
+			}
+			p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.operation_log_chain_lookup", "select", "operation_logs", outcome, true, chainTiming)
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "security_audit", outcome, chainStart)
 		}
-		return tx.Create(row).Error
+		if chainErr != nil {
+			return chainErr
+		}
+		insertStart := time.Now()
+		insertTiming, insertErr := p7diag.TimedGormRows(tx, func() (int64, error) {
+			res := tx.Create(row)
+			return res.RowsAffected, res.Error
+		})
+		insertTiming.TransactionState = "open"
+		if authDiag {
+			outcome := p7diag.OutcomeSuccess
+			if insertErr != nil {
+				outcome = p7diag.OutcomeError
+			}
+			p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.operation_log_insert", "insert", "operation_logs", outcome, true, insertTiming)
+			p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.security_audit_insert", "insert", "operation_logs", outcome, true, insertTiming)
+			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "operation_log", outcome, insertStart)
+		}
+		commitStart = time.Now()
+		return insertErr
 	})
+	if !authDiag {
+		return err
+	}
+	txOutcome := p7diag.OutcomeSuccess
+	state := "committed"
+	if err != nil {
+		txOutcome = p7diag.OutcomeError
+		state = "rolled_back"
+	}
+	commitMs := 0.0
+	if !commitStart.IsZero() {
+		commitMs = float64(time.Since(commitStart).Nanoseconds()) / float64(time.Millisecond)
+	}
+	p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "transaction_commit", txOutcome, commitStart)
+	// Emit commit/transaction envelope without a second fingerprint call count.
+	if commitMs > 0 || !txStart.IsZero() {
+		p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.operation_log_insert", "insert", "operation_logs", txOutcome, true, p7diag.SQLTiming{
+			TransactionMs:    float64(time.Since(txStart).Nanoseconds()) / float64(time.Millisecond),
+			CommitMs:         commitMs,
+			TransactionState: state,
+		})
+	}
+	return err
+}
+
+func isAuthLoginDiagnostic(opts WriteOpts) bool {
+	return strings.EqualFold(strings.TrimSpace(opts.Action), "login") &&
+		strings.EqualFold(strings.TrimSpace(opts.Resource), "auth")
 }
 
 // ListQuery binds query params for listing operation logs.

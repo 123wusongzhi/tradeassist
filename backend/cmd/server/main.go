@@ -42,6 +42,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/logging"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
 	securitypkg "github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tracing"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -144,6 +145,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = database.Close(db) }()
+	if sqlDB, sqlErr := db.DB(); sqlErr == nil {
+		p7diag.BindSamplingDB(sqlDB)
+	}
+	defer func() {
+		shCtx, shCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shCancel()
+		p7diag.Shutdown(shCtx)
+	}()
 
 	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second)
 	defer migrateCancel()

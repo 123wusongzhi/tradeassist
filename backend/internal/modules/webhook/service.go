@@ -266,14 +266,18 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 
 	var existing Event
 	dbStart := time.Now()
-	err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&existing).Error
+	lookupTiming, err := p7diag.TimedGorm(s.DB, func() error {
+		return s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&existing).Error
+	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "observedDbEntryLatency", p7diag.OutcomeExpectedRejection, dbStart)
 	} else {
 		p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "observedDbEntryLatency", outcomeFromError(err), dbStart)
 	}
+	p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.idempotency_lookup", "select", "webhook_events", outcomeFromError(err), false, lookupTiming)
 	p7diag.SnapshotGormDB(s.DB)
 	if err == nil {
+		p7diag.Path(p7diag.RouteWebhookIngestion, "duplicate_conflict")
 		s.ObserveWebhook(platform, req.EventType, "duplicate", "duplicate", "", 0)
 		s.ObserveWebhook(platform, req.EventType, "request", "success", "", time.Since(start))
 		return &IngestResult{EventID: eventID, Status: existing.Status, Duplicate: true}, nil
@@ -285,9 +289,15 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	var idemJob *webhookAcquire
 	if s.Idempotency != nil {
 		stageStart := time.Now()
-		res, acqErr := s.Idempotency.Acquire(ctx, idempotency.ScopeWebhook, key, reqHash, owner, idempotency.DefaultLease)
+		var res *idempotency.AcquireResult
+		var acqErr error
+		idemTiming, _ := p7diag.TimedGorm(s.DB, func() error {
+			res, acqErr = s.Idempotency.Acquire(ctx, idempotency.ScopeWebhook, key, reqHash, owner, idempotency.DefaultLease)
+			return acqErr
+		})
 		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "idempotency_check", outcomeFromError(acqErr), stageStart)
 		p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "idempotency_check", outcomeFromError(acqErr), stageStart)
+		p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.idempotency_lookup", "select", "idempotency_keys", outcomeFromError(acqErr), false, idemTiming)
 		p7diag.SnapshotGormDB(s.DB)
 		decision, rec, _ := idempotency.Classify(res, acqErr)
 		switch decision {
@@ -330,12 +340,22 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 		ev.TenantID = devTestWebhookTenant(platform, s.AppEnv)
 	}
 	stageStart := time.Now()
-	createRes := s.DB.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "platform"}, {Name: "tenant_id"}, {Name: "platform_shop_id"}, {Name: "event_id"}},
-		DoNothing: true,
-	}).Create(&ev)
-	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "event_insert", outcomeFromError(createRes.Error), stageStart)
-	p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "event_insert", outcomeFromError(createRes.Error), stageStart)
+	var createRes *gorm.DB
+	insertTiming, _ := p7diag.TimedGormRows(s.DB, func() (int64, error) {
+		createRes = s.DB.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "platform"}, {Name: "tenant_id"}, {Name: "platform_shop_id"}, {Name: "event_id"}},
+			DoNothing: true,
+		}).Create(&ev)
+		return createRes.RowsAffected, createRes.Error
+	})
+	insertOutcome := outcomeFromError(createRes.Error)
+	if createRes.Error == nil && createRes.RowsAffected == 0 {
+		insertOutcome = p7diag.OutcomeExpectedConflict
+		insertTiming.QueryError = "expected_conflict"
+	}
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "event_insert", insertOutcome, stageStart)
+	p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "event_insert", insertOutcome, stageStart)
+	p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.event_insert", "upsert", "webhook_events", insertOutcome, false, insertTiming)
 	p7diag.SnapshotGormDB(s.DB)
 	if createRes.Error != nil {
 		s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
@@ -347,32 +367,41 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	if createRes.RowsAffected == 0 {
 		var duplicate Event
 		p7diag.Count(p7diag.RouteWebhookIngestion, "duplicateConflictCount", 1)
+		p7diag.Path(p7diag.RouteWebhookIngestion, "duplicate_conflict")
 		stageStart = time.Now()
-		if err := s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&duplicate).Error; err != nil {
-			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "duplicate_event_reload", outcomeFromError(err), stageStart)
-			p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "duplicate_event_reload", outcomeFromError(err), stageStart)
+		reloadTiming, reloadErr := p7diag.TimedGorm(s.DB, func() error {
+			return s.eventScopeQuery(ctx, platform, eventID, req.ResolvedShop).First(&duplicate).Error
+		})
+		if reloadErr != nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "duplicate_event_reload", outcomeFromError(reloadErr), stageStart)
+			p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "duplicate_event_reload", outcomeFromError(reloadErr), stageStart)
+			p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.event_conflict_reload", "select", "webhook_events", outcomeFromError(reloadErr), false, reloadTiming)
 			p7diag.SnapshotGormDB(s.DB)
 			s.failWebhookIngest(ctx, idemJob, CodeStoreFailed, true)
 			s.ObserveWebhook(platform, req.EventType, "request", "failure", CodeStoreFailed, time.Since(start))
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("webhook event conflict reload consistency error: platform=%s event_id=%s: %w", platform, eventID, err)
+			if errors.Is(reloadErr, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("webhook event conflict reload consistency error: platform=%s event_id=%s: %w", platform, eventID, reloadErr)
 			}
-			return nil, fmt.Errorf("webhook event conflict reload failed: platform=%s event_id=%s: %w", platform, eventID, err)
+			return nil, fmt.Errorf("webhook event conflict reload failed: platform=%s event_id=%s: %w", platform, eventID, reloadErr)
 		}
 		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "duplicate_event_reload", p7diag.OutcomeSuccess, stageStart)
 		p7diag.ObserveDBOperation(p7diag.RouteWebhookIngestion, "duplicate_event_reload", p7diag.OutcomeSuccess, stageStart)
+		p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.event_conflict_reload", "select", "webhook_events", p7diag.OutcomeSuccess, false, reloadTiming)
 		p7diag.SnapshotGormDB(s.DB)
 		p7diag.Count(p7diag.RouteWebhookIngestion, "duplicateReloadCount", 1)
 		ev = duplicate
 		if idemJob != nil && s.Idempotency != nil {
 			stageStart = time.Now()
-			_ = s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
-				ResponseCode:    "WEBHOOK_DUPLICATE",
-				ResponseSummary: `{"duplicate":true}`,
-				ResourceType:    "webhook_event",
-				ResourceID:      eventID,
+			completeTiming, _ := p7diag.TimedGorm(s.DB, func() error {
+				return s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
+					ResponseCode:    "WEBHOOK_DUPLICATE",
+					ResponseSummary: `{"duplicate":true}`,
+					ResourceType:    "webhook_event",
+					ResourceID:      eventID,
+				})
 			})
 			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "idempotency_check", p7diag.OutcomeSuccess, stageStart)
+			p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.idempotency_complete", "update", "idempotency_keys", p7diag.OutcomeSuccess, false, completeTiming)
 		}
 		s.ObserveWebhook(platform, req.EventType, "duplicate", "duplicate", "", 0)
 		s.ObserveWebhook(platform, req.EventType, "request", "success", "", time.Since(start))
@@ -380,19 +409,27 @@ func (s *Service) Ingest(ctx context.Context, req IngestRequest) (*IngestResult,
 	}
 
 	p7diag.Count(p7diag.RouteWebhookIngestion, "normalInsertCount", 1)
+	p7diag.Path(p7diag.RouteWebhookIngestion, "normal_insert")
 	if idemJob != nil && s.Idempotency != nil {
 		summary, _ := json.Marshal(map[string]string{"eventId": eventID, "status": ev.Status})
 		stageStart = time.Now()
-		if err := s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
-			ResponseCode:    "WEBHOOK_RECEIVED",
-			ResponseSummary: string(summary),
-			ResourceType:    "webhook_event",
-			ResourceID:      eventID,
-		}); err != nil {
-			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "idempotency_check", outcomeFromError(err), stageStart)
-			return nil, err
+		var completeErr error
+		completeTiming, _ := p7diag.TimedGorm(s.DB, func() error {
+			completeErr = s.Idempotency.Complete(ctx, idemJob.RecordID, idemJob.Owner, idempotency.CompleteResult{
+				ResponseCode:    "WEBHOOK_RECEIVED",
+				ResponseSummary: string(summary),
+				ResourceType:    "webhook_event",
+				ResourceID:      eventID,
+			})
+			return completeErr
+		})
+		if completeErr != nil {
+			p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "idempotency_check", outcomeFromError(completeErr), stageStart)
+			p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.idempotency_complete", "update", "idempotency_keys", outcomeFromError(completeErr), false, completeTiming)
+			return nil, completeErr
 		}
 		p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "idempotency_check", p7diag.OutcomeSuccess, stageStart)
+		p7diag.ObserveSQL(p7diag.RouteWebhookIngestion, "webhook", "webhook.idempotency_complete", "update", "idempotency_keys", p7diag.OutcomeSuccess, false, completeTiming)
 	}
 
 	s.ObserveWebhook(platform, req.EventType, "persisted", "success", "", 0)

@@ -94,6 +94,63 @@ func TestDBSnapshotDeltasAreNonNegative(t *testing.T) {
 	}
 }
 
+func TestSQLFingerprintAndPasswordVerifyEvents(t *testing.T) {
+	dir := t.TempDir()
+	resetForTest(t)
+	t.Setenv("P7_DIAGNOSTICS_ENABLED", "true")
+	t.Setenv("P7_DIAGNOSTIC_DIR", dir)
+	t.Setenv("P7_DIAGNOSTIC_RUN_ID", "p7v2-diag-sql")
+	t.Setenv("P7_DIAGNOSTIC_ROLE", RoleCurrent)
+
+	ObserveSQL(RouteAuthInvalidLogin, "auth", "auth.operation_log_insert", "insert", "operation_logs", OutcomeSuccess, true, SQLTiming{
+		ConnectionAcquireMs: 0.5,
+		QueryExecutionMs:    3.2,
+		RowsAffected:        1,
+		TransactionState:    "open",
+	})
+	ObservePasswordVerify(PathKnownWrongPassword, PasswordAlgoBcrypt, 10, 1, time.Now().Add(-20*time.Millisecond))
+	Path(RouteWebhookIngestion, "normal_insert")
+	Shutdown(context.Background())
+
+	events := readEvents(t, filepath.Join(dir, "p7v2-diag-sql.jsonl"))
+	var sawSQL, sawPwd, sawPath bool
+	for _, ev := range events {
+		blob, _ := json.Marshal(ev)
+		s := string(blob)
+		for _, leak := range []string{"password=", "sk-", "@example", "SELECT * FROM", "userId", "eventId"} {
+			if strings.Contains(s, leak) {
+				t.Fatalf("diagnostic event leaked sensitive/high-cardinality content %q: %s", leak, s)
+			}
+		}
+		if ev["type"] == "sql_fingerprint" {
+			sawSQL = true
+			sqlObj, _ := ev["sql"].(map[string]any)
+			if sqlObj["queryFingerprint"] == nil || sqlObj["operation"] == nil {
+				t.Fatalf("sql fingerprint missing fields: %#v", ev)
+			}
+		}
+		if ev["type"] == "password_verify" {
+			sawPwd = true
+		}
+		if ev["type"] == "path_type" && ev["pathType"] == "normal_insert" {
+			sawPath = true
+		}
+	}
+	if !sawSQL || !sawPwd || !sawPath {
+		t.Fatalf("missing expected events sql=%v pwd=%v path=%v from %d events", sawSQL, sawPwd, sawPath, len(events))
+	}
+}
+
+func TestPGSnapshotSchemaWhenDBNil(t *testing.T) {
+	resetForTest(t)
+	t.Setenv("P7_DIAGNOSTICS_ENABLED", "true")
+	t.Setenv("P7_DIAGNOSTIC_DIR", t.TempDir())
+	t.Setenv("P7_DIAGNOSTIC_RUN_ID", "p7v2-diag-pg")
+	BindSamplingDB(nil)
+	SnapshotPG()
+	Shutdown(context.Background())
+}
+
 func TestRuntimeSamplerStops(t *testing.T) {
 	resetForTest(t)
 	t.Setenv("P7_DIAGNOSTICS_ENABLED", "true")

@@ -45,6 +45,21 @@ if (issues.length === 0) {
 const pgVersion = runWSL(`psql -h /var/run/postgresql -U root -At -d postgres -c "select version();"`);
 const redisVersion = runWSL('redis-cli --version 2>/dev/null || true');
 
+const diagnosticEnv = {};
+for (const key of [
+  'P7_DIAGNOSTICS_ENABLED',
+  'P7_DIAGNOSTIC_RUN_ID',
+  'P7_DIAGNOSTIC_ROLE',
+  'P7_DIAGNOSTIC_DIR',
+  'P7_DIAGNOSTIC_BUFFER',
+  'P7_DIAGNOSTIC_RUNTIME_SNAPSHOT_INTERVAL_MS',
+  'P7_DIAGNOSTIC_PG_SAMPLE_INTERVAL_MS',
+]) {
+  if (process.env[key] != null && String(process.env[key]).trim() !== '') {
+    diagnosticEnv[key] = String(process.env[key]).trim();
+  }
+}
+
 const env = performanceEnvDefaults({
   DB_NAME: dbName,
   DB_DRIVER: 'postgres',
@@ -54,6 +69,7 @@ const env = performanceEnvDefaults({
   REDIS_ADDR: '127.0.0.1:6379',
   ...portConfig.env,
   P7V2_INSTANCE_NONCE: instanceNonce,
+  ...diagnosticEnv,
 });
 
 let server = { ok: false, pid: '', issues: [] };

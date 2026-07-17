@@ -129,6 +129,7 @@ func (h *Handler) Receive(c *gin.Context) {
 	stageStart := time.Now()
 	raw, err := io.ReadAll(c.Request.Body)
 	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "request_read", outcomeFromErr(err, false), stageStart)
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "request_decode", outcomeFromErr(err, false), stageStart)
 	if err != nil {
 		totalOutcome = p7diag.OutcomeExpectedRejection
 		var maxErr *http.MaxBytesError
@@ -247,6 +248,7 @@ func (h *Handler) Receive(c *gin.Context) {
 		"duplicate": result.Duplicate,
 	})
 	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "response_encode", p7diag.OutcomeSuccess, stageStart)
+	p7diag.ObserveStage(p7diag.RouteWebhookIngestion, "response_write", p7diag.OutcomeSuccess, stageStart)
 }
 
 func outcomeFromErr(err error, expected bool) string {

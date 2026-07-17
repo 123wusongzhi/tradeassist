@@ -30,6 +30,7 @@ const (
 	OutcomeSuccess                   = "success"
 	OutcomeExpectedRejection         = "expected_rejection"
 	OutcomeError                     = "error"
+	OutcomeExpectedConflict          = "expected_conflict"
 	RoleBaseline                     = "baseline"
 	RoleCurrent                      = "current"
 	DefaultDiagnosticDir             = "artifacts/p7-v2-diagnostics"
@@ -51,22 +52,26 @@ var (
 
 // Event is the low-cardinality JSONL diagnostic record.
 type Event struct {
-	DiagnosticMode     string         `json:"diagnosticMode"`
-	DiagnosticRunID    string         `json:"diagnosticRunId,omitempty"`
-	DiagnosticSequence uint64         `json:"diagnosticSequence"`
-	DiagnosticRole     string         `json:"diagnostic_role"`
-	OffsetMs           int64          `json:"offsetMs"`
-	Metric             string         `json:"metric"`
-	Type               string         `json:"type"`
-	Route              string         `json:"route,omitempty"`
-	Stage              string         `json:"stage,omitempty"`
-	Operation          string         `json:"operation,omitempty"`
-	Outcome            string         `json:"outcome,omitempty"`
-	PathType           string         `json:"pathType,omitempty"`
-	DurationMs         float64        `json:"durationMs,omitempty"`
-	Value              float64        `json:"value,omitempty"`
-	Runtime            *RuntimeFields `json:"runtime,omitempty"`
-	DB                 *DBFields      `json:"db,omitempty"`
+	DiagnosticMode     string                `json:"diagnosticMode"`
+	DiagnosticRunID    string                `json:"diagnosticRunId,omitempty"`
+	DiagnosticSequence uint64                `json:"diagnosticSequence"`
+	DiagnosticRole     string                `json:"diagnostic_role"`
+	OffsetMs           int64                 `json:"offsetMs"`
+	Metric             string                `json:"metric"`
+	Type               string                `json:"type"`
+	Route              string                `json:"route,omitempty"`
+	Stage              string                `json:"stage,omitempty"`
+	Operation          string                `json:"operation,omitempty"`
+	Outcome            string                `json:"outcome,omitempty"`
+	PathType           string                `json:"pathType,omitempty"`
+	DurationMs         float64               `json:"durationMs,omitempty"`
+	Value              float64               `json:"value,omitempty"`
+	Runtime            *RuntimeFields        `json:"runtime,omitempty"`
+	DB                 *DBFields             `json:"db,omitempty"`
+	SQL                *FingerprintFields    `json:"sql,omitempty"`
+	SQLTiming          *SQLTiming            `json:"sqlTiming,omitempty"`
+	Password           *PasswordVerifyFields `json:"passwordVerify,omitempty"`
+	PG                 *PGFields             `json:"pg,omitempty"`
 }
 
 type RuntimeFields struct {
@@ -91,6 +96,9 @@ type DBFields struct {
 	WaitDurationMs     float64 `json:"dbWaitDurationMs"`
 	MaxOpenConnections int     `json:"dbMaxOpenConnections"`
 	MaxIdleConnections int64   `json:"dbMaxIdleConnections"`
+	MaxIdleClosed      int64   `json:"dbMaxIdleClosed"`
+	MaxIdleTimeClosed  int64   `json:"dbMaxIdleTimeClosed"`
+	MaxLifetimeClosed  int64   `json:"dbMaxLifetimeClosed"`
 	WaitCountDelta     int64   `json:"waitCountDelta"`
 	WaitDurationDelta  float64 `json:"waitDurationDeltaMs"`
 }
@@ -183,16 +191,23 @@ func Count(route, operation string, n int) {
 	})
 }
 
-// Path records the fixed invalid-login path type without exposing account data.
+// Path records a fixed low-cardinality path type without exposing account/event identifiers.
 func Path(route, pathType string) {
-	if !Enabled() || route != RouteAuthInvalidLogin || !validPathType(pathType) {
+	if !Enabled() || !validRoute(route) || !validPathType(pathType) {
 		return
+	}
+	outcome := OutcomeExpectedRejection
+	if route == RouteWebhookIngestion {
+		outcome = OutcomeSuccess
+		if pathType == "duplicate_conflict" {
+			outcome = OutcomeExpectedConflict
+		}
 	}
 	emit(Event{
 		Metric:   MetricRequestCount,
 		Type:     "path_type",
 		Route:    route,
-		Outcome:  OutcomeExpectedRejection,
+		Outcome:  outcome,
 		PathType: pathType,
 		Value:    1,
 	})
@@ -257,6 +272,9 @@ func SnapshotDB(db *sql.DB) {
 			WaitDurationMs:     durationMs(st.WaitDuration),
 			MaxOpenConnections: st.MaxOpenConnections,
 			MaxIdleConnections: st.MaxIdleClosed,
+			MaxIdleClosed:      st.MaxIdleClosed,
+			MaxIdleTimeClosed:  st.MaxIdleTimeClosed,
+			MaxLifetimeClosed:  st.MaxLifetimeClosed,
 			WaitCountDelta:     waitCountDelta,
 			WaitDurationDelta:  durationMs(waitDurationDelta),
 		},
@@ -350,6 +368,7 @@ func ensureWriter() *asyncWriter {
 	writerOpened.Store(true)
 	go writer.run()
 	startRuntimeSamplerLocked()
+	startPGSamplerLocked()
 	return writer
 }
 
@@ -399,7 +418,20 @@ func Shutdown(ctx context.Context) {
 	done := samplerDone
 	samplerStop = nil
 	samplerDone = nil
+	pgStop := pgSamplerStop
+	pgDone := pgSamplerDone
+	pgSamplerStop = nil
+	pgSamplerDone = nil
 	mu.Unlock()
+	if pgStop != nil {
+		close(pgStop)
+		if pgDone != nil {
+			select {
+			case <-pgDone:
+			case <-ctx.Done():
+			}
+		}
+	}
 	if stop != nil {
 		close(stop)
 		if done != nil {
@@ -466,12 +498,14 @@ func validRoute(v string) bool {
 }
 
 func validOutcome(v string) bool {
-	return v == OutcomeSuccess || v == OutcomeExpectedRejection || v == OutcomeError
+	return v == OutcomeSuccess || v == OutcomeExpectedRejection || v == OutcomeError || v == OutcomeExpectedConflict
 }
 
 func validPathType(v string) bool {
 	switch v {
-	case "account_missing", "wrong_password", "locked_account", "rate_limited":
+	case "account_missing", "wrong_password", "locked_account", "rate_limited",
+		PathUnknownAccount, PathKnownWrongPassword,
+		"normal_insert", "duplicate_conflict", "business_upsert":
 		return true
 	default:
 		return false
@@ -484,13 +518,13 @@ func validStage(route, stage string) bool {
 	}
 	if route == RouteWebhookIngestion {
 		switch stage {
-		case "request_read", "signature_verify", "json_decode", "shop_provider_resolve", "event_insert", "duplicate_event_reload", "idempotency_check", "transaction_begin", "business_upsert", "inventory_update", "task_enqueue", "operation_log", "transaction_commit", "response_encode", "total":
+		case "request_read", "request_decode", "signature_verify", "json_decode", "shop_provider_resolve", "event_insert", "duplicate_event_reload", "idempotency_check", "transaction_begin", "business_upsert", "order_or_entity_upsert", "inventory_update", "task_enqueue", "operation_log", "transaction_commit", "response_encode", "response_write", "total":
 			return true
 		}
 	}
 	if route == RouteAuthInvalidLogin {
 		switch stage {
-		case "request_read", "json_decode", "input_normalize", "account_lookup", "password_verify", "invalid_decision", "failed_attempt_read", "failed_attempt_write", "lockout_evaluate", "rate_limit_check", "security_audit", "operation_log", "transaction_begin", "transaction_commit", "response_encode", "total":
+		case "request_read", "request_decode", "json_decode", "input_normalize", "account_lookup", "password_verify", "invalid_decision", "failed_attempt_read", "failed_attempt_write", "lockout_evaluate", "rate_limit_check", "security_audit", "operation_log", "transaction_begin", "transaction_commit", "response_encode", "response_write", "total":
 			return true
 		}
 	}
@@ -499,9 +533,10 @@ func validStage(route, stage string) bool {
 
 func validOperation(v string) bool {
 	switch v {
-	case "observedDbEntryLatency", "event_insert", "duplicate_event_reload", "idempotency_check", "account_lookup", "password_verify", "failed_attempt_read", "failed_attempt_write", "security_audit", "operation_log", "normalInsertCount", "duplicateConflictCount", "duplicateReloadCount", "businessUpsertCount", "taskEnqueueCount", "operationLogCount", "accountLookupCount", "passwordVerifyCount", "failedAttemptReadCount", "failedAttemptWriteCount", "securityAuditWriteCount", "operationLogWriteCount":
+	case "observedDbEntryLatency", "event_insert", "duplicate_event_reload", "idempotency_check", "account_lookup", "password_verify", "failed_attempt_read", "failed_attempt_write", "security_audit", "operation_log", "normalInsertCount", "duplicateConflictCount", "duplicateReloadCount", "businessUpsertCount", "taskEnqueueCount", "operationLogCount", "accountLookupCount", "passwordVerifyCount", "failedAttemptReadCount", "failedAttemptWriteCount", "securityAuditWriteCount", "operationLogWriteCount",
+		"unknownAccountQueryCount", "wrongPasswordQueryCount", "lockedAccountQueryCount":
 		return true
 	default:
-		return false
+		return validSQLOperation(v)
 	}
 }

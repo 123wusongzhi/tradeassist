@@ -1,0 +1,951 @@
+{
+  "phase": "P7-V2-R3B-SQL-FINGERPRINT-PG-WAIT-DIAGNOSTICS",
+  "status": "diagnostic_pair_completed_root_cause_classified",
+  "formal": false,
+  "validForClosure": false,
+  "validForRegression": false,
+  "validForComparability": false,
+  "diagnosticOnly": true,
+  "writeFormalRegistry": false,
+  "formalRegistryWriteDisabled": true,
+  "formalRerunStarted": false,
+  "dualP99AuditCheckpoint": "00190324c423e6e8d7bdfc36f4797714510e417d",
+  "diagnosticsCheckpoint": "3b7b8e9049e0ed8fed6830f260ea2f0110de3b25",
+  "parentCheckpoint": "3b7b8e9049e0ed8fed6830f260ea2f0110de3b25",
+  "diagnosticBaselineRunId": "p7v2-diag-baseline-sql-fingerprint-20260716160124",
+  "diagnosticCurrentRunId": "p7v2-diag-current-sql-fingerprint-20260716160124",
+  "diagnosticPairCompleted": true,
+  "diagnosticRunsIndependent": true,
+  "datasetRows": 1900150,
+  "diagnosticLoadFingerprint": "037bcdd4e8a3a099",
+  "baselineDiagnosticLoadFingerprint": "037bcdd4e8a3a099",
+  "currentDiagnosticLoadFingerprint": "037bcdd4e8a3a099",
+  "fingerprintsMatch": true,
+  "baselineApiPid": "1161",
+  "currentApiPid": "3775",
+  "baselineInstanceNonce": "7a738aa4-1cf2-4b14-b48b-4699279dc5d6",
+  "currentInstanceNonce": "838b3853-8b88-471e-b0b7-327cfc8af0e8",
+  "baselineDatabaseIdentity": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071616012",
+  "currentDatabaseIdentity": "trademind_p7v2_p7v2_diag_current_sql_fingerprint_20260716160124",
+  "eventCounts": {
+    "baseline": {
+      "total": 113327,
+      "webhook": 62432,
+      "auth": 40765,
+      "runtime": 1303,
+      "dbPool": 7524,
+      "pg": 1303
+    },
+    "current": {
+      "total": 112301,
+      "webhook": 61996,
+      "auth": 40221,
+      "runtime": 1304,
+      "dbPool": 7476,
+      "pg": 1304
+    }
+  },
+  "authStageMetrics": {
+    "auth_invalid_login|request_read": {
+      "route": "auth_invalid_login",
+      "stage": "request_read",
+      "count": 1269,
+      "p50": 0.048,
+      "p90": 0.0836,
+      "p95": 0.0999,
+      "p99": 0.1503,
+      "max": 1.0142,
+      "mean": 0.0565
+    },
+    "auth_invalid_login|request_decode": {
+      "route": "auth_invalid_login",
+      "stage": "request_decode",
+      "count": 1269,
+      "p50": 0.0633,
+      "p90": 0.1128,
+      "p95": 0.1332,
+      "p99": 0.2,
+      "max": 1.5837,
+      "mean": 0.0753
+    },
+    "auth_invalid_login|json_decode": {
+      "route": "auth_invalid_login",
+      "stage": "json_decode",
+      "count": 1269,
+      "p50": 0.0655,
+      "p90": 0.1159,
+      "p95": 0.1365,
+      "p99": 0.2043,
+      "max": 1.587,
+      "mean": 0.0779
+    },
+    "auth_invalid_login|input_normalize": {
+      "route": "auth_invalid_login",
+      "stage": "input_normalize",
+      "count": 1269,
+      "p50": 0.0003,
+      "p90": 0.0006,
+      "p95": 0.0008,
+      "p99": 0.0012,
+      "max": 0.0072,
+      "mean": 0.0004
+    },
+    "auth_invalid_login|account_lookup": {
+      "route": "auth_invalid_login",
+      "stage": "account_lookup",
+      "count": 1269,
+      "p50": 0.7431,
+      "p90": 1.3865,
+      "p95": 1.9538,
+      "p99": 40.3185,
+      "max": 207.7417,
+      "mean": 2.1159
+    },
+    "auth_invalid_login|password_verify": {
+      "route": "auth_invalid_login",
+      "stage": "password_verify",
+      "count": 99,
+      "p50": 54.1882,
+      "p90": 58.5236,
+      "p95": 60.1573,
+      "p99": 64.6723,
+      "max": 65.8936,
+      "mean": 54.3766
+    },
+    "auth_invalid_login|transaction_begin": {
+      "route": "auth_invalid_login",
+      "stage": "transaction_begin",
+      "count": 1269,
+      "p50": 0.0002,
+      "p90": 0.0003,
+      "p95": 0.0004,
+      "p99": 0.001,
+      "max": 0.0044,
+      "mean": 0.0002
+    },
+    "auth_invalid_login|security_audit": {
+      "route": "auth_invalid_login",
+      "stage": "security_audit",
+      "count": 1269,
+      "p50": 0.6375,
+      "p90": 1.2864,
+      "p95": 2.1401,
+      "p99": 157.8808,
+      "max": 207.0051,
+      "mean": 6.5451
+    },
+    "auth_invalid_login|operation_log": {
+      "route": "auth_invalid_login",
+      "stage": "operation_log",
+      "count": 1366,
+      "p50": 1.1444,
+      "p90": 9.1121,
+      "p95": 14.6526,
+      "p99": 121.3166,
+      "max": 211.0864,
+      "mean": 5.1202
+    },
+    "auth_invalid_login|transaction_commit": {
+      "route": "auth_invalid_login",
+      "stage": "transaction_commit",
+      "count": 1269,
+      "p50": 2.7919,
+      "p90": 16.8707,
+      "p95": 34.2211,
+      "p99": 111.1494,
+      "max": 1057.0995,
+      "mean": 10.5788
+    },
+    "auth_invalid_login|response_encode": {
+      "route": "auth_invalid_login",
+      "stage": "response_encode",
+      "count": 1269,
+      "p50": 0.0152,
+      "p90": 0.03,
+      "p95": 0.0372,
+      "p99": 0.06,
+      "max": 0.2383,
+      "mean": 0.0187
+    },
+    "auth_invalid_login|response_write": {
+      "route": "auth_invalid_login",
+      "stage": "response_write",
+      "count": 1269,
+      "p50": 0.0172,
+      "p90": 0.0329,
+      "p95": 0.0414,
+      "p99": 0.0782,
+      "max": 0.2658,
+      "mean": 0.0212
+    },
+    "auth_invalid_login|total": {
+      "route": "auth_invalid_login",
+      "stage": "total",
+      "count": 1269,
+      "p50": 6.4616,
+      "p90": 59.1283,
+      "p95": 117.0614,
+      "p99": 252.2447,
+      "max": 1147.2929,
+      "mean": 26.3537
+    },
+    "auth_invalid_login|invalid_decision": {
+      "route": "auth_invalid_login",
+      "stage": "invalid_decision",
+      "count": 1172,
+      "p50": 0.0004,
+      "p90": 0.0006,
+      "p95": 0.0008,
+      "p99": 0.0012,
+      "max": 0.0289,
+      "mean": 0.0004
+    }
+  },
+  "webhookStageMetrics": {
+    "webhook_ingestion|request_read": {
+      "route": "webhook_ingestion",
+      "stage": "request_read",
+      "count": 3662,
+      "p50": 0.0179,
+      "p90": 0.0299,
+      "p95": 0.0367,
+      "p99": 0.0514,
+      "max": 1.1823,
+      "mean": 0.0195
+    },
+    "webhook_ingestion|request_decode": {
+      "route": "webhook_ingestion",
+      "stage": "request_decode",
+      "count": 3662,
+      "p50": 0.0308,
+      "p90": 0.0567,
+      "p95": 0.0699,
+      "p99": 0.104,
+      "max": 1.2139,
+      "mean": 0.0357
+    },
+    "webhook_ingestion|signature_verify": {
+      "route": "webhook_ingestion",
+      "stage": "signature_verify",
+      "count": 3662,
+      "p50": 0.0062,
+      "p90": 0.011,
+      "p95": 0.013,
+      "p99": 0.0186,
+      "max": 0.5842,
+      "mean": 0.0075
+    },
+    "webhook_ingestion|json_decode": {
+      "route": "webhook_ingestion",
+      "stage": "json_decode",
+      "count": 2492,
+      "p50": 0.0019,
+      "p90": 0.0038,
+      "p95": 0.0048,
+      "p99": 0.0078,
+      "max": 0.1531,
+      "mean": 0.0024
+    },
+    "webhook_ingestion|idempotency_check": {
+      "route": "webhook_ingestion",
+      "stage": "idempotency_check",
+      "count": 4984,
+      "p50": 4.2907,
+      "p90": 15.4636,
+      "p95": 32.6282,
+      "p99": 45.112,
+      "max": 694.4763,
+      "mean": 8.2496
+    },
+    "webhook_ingestion|event_insert": {
+      "route": "webhook_ingestion",
+      "stage": "event_insert",
+      "count": 2492,
+      "p50": 4.4113,
+      "p90": 9.1173,
+      "p95": 15.0432,
+      "p99": 41.3082,
+      "max": 60.9164,
+      "mean": 6.295
+    },
+    "webhook_ingestion|response_encode": {
+      "route": "webhook_ingestion",
+      "stage": "response_encode",
+      "count": 2492,
+      "p50": 0.0182,
+      "p90": 0.0368,
+      "p95": 0.0449,
+      "p99": 0.0603,
+      "max": 0.4151,
+      "mean": 0.0221
+    },
+    "webhook_ingestion|response_write": {
+      "route": "webhook_ingestion",
+      "stage": "response_write",
+      "count": 2492,
+      "p50": 0.02,
+      "p90": 0.0395,
+      "p95": 0.0479,
+      "p99": 0.065,
+      "max": 0.4291,
+      "mean": 0.0242
+    },
+    "webhook_ingestion|total": {
+      "route": "webhook_ingestion",
+      "stage": "total",
+      "count": 3662,
+      "p50": 12.1002,
+      "p90": 44.4736,
+      "p95": 54.7287,
+      "p99": 70.2292,
+      "max": 716.2667,
+      "mean": 16.37
+    }
+  },
+  "baselineAuthTotal": {
+    "count": 1286,
+    "p50": 4.5164,
+    "p90": 52.4507,
+    "p95": 62.2228,
+    "p99": 189.7999,
+    "max": 247.2241,
+    "mean": 14.6289
+  },
+  "baselineWebhookTotal": {
+    "count": 3695,
+    "p50": 9.4423,
+    "p90": 13.618,
+    "p95": 15.0502,
+    "p99": 19.1449,
+    "max": 143.8094,
+    "mean": 7.9409
+  },
+  "currentAuthTotal": {
+    "count": 1269,
+    "p50": 6.4616,
+    "p90": 59.1283,
+    "p95": 117.0614,
+    "p99": 252.2447,
+    "max": 1147.2929,
+    "mean": 26.3537
+  },
+  "currentWebhookTotal": {
+    "count": 3662,
+    "p50": 12.1002,
+    "p90": 44.4736,
+    "p95": 54.7287,
+    "p99": 70.2292,
+    "max": 716.2667,
+    "mean": 16.37
+  },
+  "sqlFingerprints": {
+    "baseline": [
+      {
+        "operation": "auth.account_lookup",
+        "fingerprint": "8ddbcb00c8ce0947",
+        "queryKind": "select",
+        "tableGroup": "admin_users",
+        "calls": 1286,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 1.1148,
+        "queryExecutionP99": 1.7597,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1286,
+          "p50": 0.5774,
+          "p90": 0.9135,
+          "p95": 1.1148,
+          "p99": 1.7597,
+          "max": 5.1484,
+          "mean": 0.6367
+        }
+      },
+      {
+        "operation": "auth.operation_log_chain_lookup",
+        "fingerprint": "0bca1eba1fe58c7b",
+        "queryKind": "select",
+        "tableGroup": "operation_logs",
+        "calls": 1286,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 1.3636,
+        "queryExecutionP99": 149.9194,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1286,
+          "p50": 0.5073,
+          "p90": 0.8967,
+          "p95": 1.3636,
+          "p99": 149.9194,
+          "max": 192.2943,
+          "mean": 6.1056
+        }
+      },
+      {
+        "operation": "auth.operation_log_insert",
+        "fingerprint": "246b106e42a16d1d",
+        "queryKind": "insert",
+        "tableGroup": "operation_logs",
+        "calls": 1286,
+        "errors": 0,
+        "rowsAffected": 1286,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 0.6308,
+        "queryExecutionP99": 1.0091,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 4.529,
+        "commitP99": 21.4066,
+        "queryExecution": {
+          "count": 1286,
+          "p50": 0.3157,
+          "p90": 0.5253,
+          "p95": 0.6308,
+          "p99": 1.0091,
+          "max": 22.7411,
+          "mean": 0.3823
+        }
+      },
+      {
+        "operation": "auth.security_audit_insert",
+        "fingerprint": "73b335196acc072f",
+        "queryKind": "insert",
+        "tableGroup": "operation_logs",
+        "calls": 1286,
+        "errors": 0,
+        "rowsAffected": 1286,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 0.6308,
+        "queryExecutionP99": 1.0091,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1286,
+          "p50": 0.3157,
+          "p90": 0.5253,
+          "p95": 0.6308,
+          "p99": 1.0091,
+          "max": 22.7411,
+          "mean": 0.3823
+        }
+      },
+      {
+        "operation": "webhook.idempotency_lookup",
+        "fingerprint": "1c92cdf690f1e333",
+        "queryKind": "select",
+        "tableGroup": "webhook_events",
+        "calls": 5016,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 5.0722,
+        "queryExecutionP99": 7.0359,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 5016,
+          "p50": 1.7971,
+          "p90": 4.3612,
+          "p95": 5.0722,
+          "p99": 7.0359,
+          "max": 91.1189,
+          "mean": 2.3407
+        }
+      },
+      {
+        "operation": "webhook.event_insert",
+        "fingerprint": "fd12a4fa4ce7f46d",
+        "queryKind": "upsert",
+        "tableGroup": "webhook_events",
+        "calls": 2508,
+        "errors": 0,
+        "rowsAffected": 2508,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 4.8606,
+        "queryExecutionP99": 6.0066,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 2508,
+          "p50": 2.9883,
+          "p90": 4.478,
+          "p95": 4.8606,
+          "p99": 6.0066,
+          "max": 44.1583,
+          "mean": 3.311
+        }
+      },
+      {
+        "operation": "webhook.idempotency_complete",
+        "fingerprint": "b507fba0fb7549cb",
+        "queryKind": "update",
+        "tableGroup": "idempotency_keys",
+        "calls": 2508,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 4.6903,
+        "queryExecutionP99": 6.4833,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 2508,
+          "p50": 2.974,
+          "p90": 4.2421,
+          "p95": 4.6903,
+          "p99": 6.4833,
+          "max": 102.7731,
+          "mean": 3.4094
+        }
+      }
+    ],
+    "current": [
+      {
+        "operation": "auth.account_lookup",
+        "fingerprint": "8ddbcb00c8ce0947",
+        "queryKind": "select",
+        "tableGroup": "admin_users",
+        "calls": 1269,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 1.9457,
+        "queryExecutionP99": 40.3049,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1269,
+          "p50": 0.7353,
+          "p90": 1.3757,
+          "p95": 1.9457,
+          "p99": 40.3049,
+          "max": 207.6117,
+          "mean": 2.1082
+        }
+      },
+      {
+        "operation": "auth.operation_log_chain_lookup",
+        "fingerprint": "0bca1eba1fe58c7b",
+        "queryKind": "select",
+        "tableGroup": "operation_logs",
+        "calls": 1269,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 2.0761,
+        "queryExecutionP99": 157.8487,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1269,
+          "p50": 0.6098,
+          "p90": 1.2551,
+          "p95": 2.0761,
+          "p99": 157.8487,
+          "max": 206.9581,
+          "mean": 6.5168
+        }
+      },
+      {
+        "operation": "auth.operation_log_insert",
+        "fingerprint": "246b106e42a16d1d",
+        "queryKind": "insert",
+        "tableGroup": "operation_logs",
+        "calls": 1269,
+        "errors": 0,
+        "rowsAffected": 1269,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 11.011,
+        "queryExecutionP99": 18.0252,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 34.2179,
+        "commitP99": 111.1437,
+        "queryExecution": {
+          "count": 1269,
+          "p50": 1.0379,
+          "p90": 6.4528,
+          "p95": 11.011,
+          "p99": 18.0252,
+          "max": 28.7703,
+          "mean": 2.375
+        }
+      },
+      {
+        "operation": "auth.security_audit_insert",
+        "fingerprint": "73b335196acc072f",
+        "queryKind": "insert",
+        "tableGroup": "operation_logs",
+        "calls": 1269,
+        "errors": 0,
+        "rowsAffected": 1269,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 11.011,
+        "queryExecutionP99": 18.0252,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 1269,
+          "p50": 1.0379,
+          "p90": 6.4528,
+          "p95": 11.011,
+          "p99": 18.0252,
+          "max": 28.7703,
+          "mean": 2.375
+        }
+      },
+      {
+        "operation": "webhook.idempotency_lookup",
+        "fingerprint": "1c92cdf690f1e333",
+        "queryKind": "select",
+        "tableGroup": "webhook_events",
+        "calls": 4984,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 24.1684,
+        "queryExecutionP99": 42.247,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 4984,
+          "p50": 2.4904,
+          "p90": 10.2051,
+          "p95": 24.1684,
+          "p99": 42.247,
+          "max": 694.4702,
+          "mean": 5.7869
+        }
+      },
+      {
+        "operation": "webhook.event_insert",
+        "fingerprint": "fd12a4fa4ce7f46d",
+        "queryKind": "upsert",
+        "tableGroup": "webhook_events",
+        "calls": 2492,
+        "errors": 0,
+        "rowsAffected": 2492,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 15.0413,
+        "queryExecutionP99": 41.3021,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 2492,
+          "p50": 4.4055,
+          "p90": 9.1115,
+          "p95": 15.0413,
+          "p99": 41.3021,
+          "max": 60.9068,
+          "mean": 6.2892
+        }
+      },
+      {
+        "operation": "webhook.idempotency_complete",
+        "fingerprint": "b507fba0fb7549cb",
+        "queryKind": "update",
+        "tableGroup": "idempotency_keys",
+        "calls": 2492,
+        "errors": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP95": 11.9715,
+        "queryExecutionP99": 44.0582,
+        "transactionP95": 0,
+        "transactionP99": 0,
+        "commitP95": 0,
+        "commitP99": 0,
+        "queryExecution": {
+          "count": 2492,
+          "p50": 3.9348,
+          "p90": 7.6456,
+          "p95": 11.9715,
+          "p99": 44.0582,
+          "max": 56.0286,
+          "mean": 5.8266
+        }
+      }
+    ]
+  },
+  "passwordVerifyMetrics": {
+    "baseline": [
+      {
+        "path": "known_account_verify_success",
+        "calls": 98,
+        "configuredCost": 10,
+        "count": 98,
+        "p50": 50.4976,
+        "p90": 56.4415,
+        "p95": 57.4891,
+        "p99": 59.3369,
+        "max": 59.4686,
+        "mean": 51.8005
+      },
+      {
+        "path": "known_account_wrong_password",
+        "calls": 1,
+        "configuredCost": 10,
+        "count": 1,
+        "p50": 50.3349,
+        "p90": 50.3349,
+        "p95": 50.3349,
+        "p99": 50.3349,
+        "max": 50.3349,
+        "mean": 50.3349
+      },
+      {
+        "path": "unknown_account",
+        "calls": 1187,
+        "configuredCost": 10,
+        "count": 1187,
+        "p50": 0.0002,
+        "p90": 0.0003,
+        "p95": 0.0005,
+        "p99": 0.0007,
+        "max": 0.0011,
+        "mean": 0.0002
+      }
+    ],
+    "current": [
+      {
+        "path": "known_account_verify_success",
+        "calls": 98,
+        "configuredCost": 10,
+        "count": 98,
+        "p50": 54.2649,
+        "p90": 58.6188,
+        "p95": 60.2265,
+        "p99": 64.7192,
+        "max": 65.9235,
+        "mean": 54.445
+      },
+      {
+        "path": "known_account_wrong_password",
+        "calls": 1,
+        "configuredCost": 10,
+        "count": 1,
+        "p50": 51.5647,
+        "p90": 51.5647,
+        "p95": 51.5647,
+        "p99": 51.5647,
+        "max": 51.5647,
+        "mean": 51.5647
+      },
+      {
+        "path": "unknown_account",
+        "calls": 1170,
+        "configuredCost": 10,
+        "count": 1170,
+        "p50": 0.0002,
+        "p90": 0.0004,
+        "p95": 0.0005,
+        "p99": 0.0009,
+        "max": 0.1165,
+        "mean": 0.0003
+      }
+    ]
+  },
+  "pgWaitEvidence": {
+    "baseline": {
+      "sampleCount": 1303,
+      "waitEventCounts": {
+        "Client": 1303
+      },
+      "lockWaitCounts": {
+        "total": 0
+      },
+      "blockedBackendMax": 0,
+      "idleInTransactionMax": 2,
+      "pgStatStatementsAvailable": false,
+      "connectionPoolWaitDelta": 0
+    },
+    "current": {
+      "sampleCount": 1304,
+      "waitEventCounts": {
+        "Client": 1302,
+        "LWLock": 1,
+        "IPC": 1
+      },
+      "lockWaitCounts": {
+        "total": 0
+      },
+      "blockedBackendMax": 0,
+      "idleInTransactionMax": 1,
+      "pgStatStatementsAvailable": false,
+      "connectionPoolWaitDelta": 0
+    }
+  },
+  "pgLockEvidence": {
+    "baselineBlockedBackendMax": 0,
+    "currentBlockedBackendMax": 0,
+    "baselineLockWaitCounts": {
+      "total": 0
+    },
+    "currentLockWaitCounts": {
+      "total": 0
+    }
+  },
+  "dbPoolEvidence": {
+    "baseline": {
+      "waitCountDeltaSum": 0,
+      "connectionPoolWaitObserved": false,
+      "connectionPoolSaturated": false,
+      "connectionChurnObserved": false
+    },
+    "current": {
+      "waitCountDeltaSum": 0,
+      "connectionPoolWaitObserved": false,
+      "connectionPoolSaturated": false,
+      "connectionChurnObserved": false
+    }
+  },
+  "commitEvidence": {
+    "baselineTransactionCommitP99": 21.411,
+    "currentTransactionCommitP99": 111.1494
+  },
+  "tailCorrelation": {
+    "authTailWindow": 10,
+    "webhookTailWindow": 16,
+    "pgWaitWindow": 73,
+    "authPgWaitOverlapCount": 10,
+    "webhookPgWaitOverlapCount": 5,
+    "authPgWaitOverlapRatio": 1,
+    "webhookPgWaitOverlapRatio": 0.3125
+  },
+  "authStageCoveragePassed": true,
+  "webhookStageCoveragePassed": true,
+  "sqlFingerprintCoveragePassed": true,
+  "pgWaitEvidenceCollected": true,
+  "dbPoolEvidenceCollected": true,
+  "credentialLeakCount": 0,
+  "rawSqlParameterLeakCount": 0,
+  "highCardinalityLabelCount": 0,
+  "pathTypes": {
+    "baseline": {
+      "wrong_password": 1,
+      "known_account_wrong_password": 1,
+      "normal_insert": 2508,
+      "account_missing": 1187,
+      "unknown_account": 1187
+    },
+    "current": {
+      "wrong_password": 1,
+      "known_account_wrong_password": 1,
+      "normal_insert": 2492,
+      "account_missing": 1170,
+      "unknown_account": 1170
+    }
+  },
+  "counters": {
+    "baseline": {
+      "accountLookupCount": 1286,
+      "passwordVerifyCount": 99,
+      "securityAuditWriteCount": 1189,
+      "operationLogWriteCount": 1189,
+      "wrongPasswordQueryCount": 1,
+      "normalInsertCount": 2508,
+      "unknownAccountQueryCount": 1187
+    },
+    "current": {
+      "accountLookupCount": 1269,
+      "passwordVerifyCount": 99,
+      "securityAuditWriteCount": 1172,
+      "operationLogWriteCount": 1172,
+      "wrongPasswordQueryCount": 1,
+      "normalInsertCount": 2492,
+      "unknownAccountQueryCount": 1170
+    }
+  },
+  "webhookIngestBusinessStagesApplicable": false,
+  "webhookRuntimeMissingStages": [
+    "inventory_update",
+    "task_enqueue",
+    "transaction_begin",
+    "transaction_commit",
+    "operation_log"
+  ],
+  "primaryRootCause": "B_auth_audit_or_operation_log_db_tail",
+  "secondaryRootCauses": [
+    "auth_operation_log_and_security_audit_sql_hotspot",
+    "webhook_event_insert_idempotency_hotspot",
+    "auth_password_verify_present",
+    "auth_transaction_commit_present",
+    "db_pool_wait_not_elevated",
+    "pg_blocked_backends_not_elevated"
+  ],
+  "confidence": "high",
+  "recommendedRepairPath": "auth_operation_log_hash_chain_or_commit_path_minimal_fix",
+  "repairPath": "auth_operation_log_hash_chain_or_commit_path_minimal_fix",
+  "hotspotSnapshot": {
+    "authTotalP99": 252.2447,
+    "pwdP99": 64.7192,
+    "auditP99": 157.8808,
+    "webhookInsertP99": 45.112,
+    "commitP99": 111.1494,
+    "poolWait": false,
+    "pgBlocked": false
+  },
+  "rootCauseClassified": true,
+  "repairPathSelected": true,
+  "guardrails": {
+    "thresholdChanged": false,
+    "sloChanged": false,
+    "materialityChanged": false,
+    "vusChanged": false,
+    "stagesChanged": false,
+    "datasetChanged": false,
+    "securityStrategyWeakened": false,
+    "passwordHashCostChanged": false,
+    "webhookVerificationChanged": false,
+    "webhookIdempotencyChanged": false
+  },
+  "p7Status": {
+    "phaseP7V2Complete": false,
+    "phaseP7DevelopmentClosurePassed": false,
+    "tagDeferred": true,
+    "productionReady": false
+  },
+  "diagnosticOutputDirectory": "/tmp/trademind-p7-sql-fingerprint",
+  "jsonlCommitted": false
+}
