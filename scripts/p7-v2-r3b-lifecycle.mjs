@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJSON, root, writeJSON } from './p7-v2-lib.mjs';
 
-export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 2;
+export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 3;
 
 export const FORMAL_STATES = [
   'planned',

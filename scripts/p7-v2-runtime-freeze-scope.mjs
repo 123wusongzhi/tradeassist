@@ -4,7 +4,7 @@ import path from 'node:path';
 import { calculateLoadProfileFingerprint } from './p7-v2-load-profile-fingerprint.mjs';
 import { readJSON, resolveP7V2PortConfig, root, run } from './p7-v2-lib.mjs';
 
-export const RUNTIME_FREEZE_SCOPE_VERSION = 2;
+export const RUNTIME_FREEZE_SCOPE_VERSION = 3;
 export const CONFIG_FINGERPRINT_VERSION = 2;
 export const CANONICAL_SCHEMA_VERSION = 3;
 export const LOAD_PROFILE_FINGERPRINT_VERSION = 3;
@@ -15,11 +15,32 @@ const GENERATED_PREFIXES = ['docs/', 'artifacts/', 'logs/', 'tmp/', 'data/'];
 const IGNORED_PARTS = new Set(['.git', 'node_modules', 'dist', 'artifacts', 'docs', 'data', 'logs', 'tmp']);
 const RUNTIME_ROOTS = ['backend', 'tests/load', 'scripts', 'package.json', 'pnpm-lock.yaml', '.env.example', '.env.docker.example', 'docker-compose.yml', 'docker-compose.full.yml'];
 const FORMAL_TEMPLATE_FILES = new Set(['package.json', 'pnpm-lock.yaml', '.env.example', '.env.docker.example', 'docker-compose.yml', 'docker-compose.full.yml']);
+const IMMUTABLE_INPUT_DOCS = new Set([
+  'docs/p7-v2-r3b-run-manifest.json',
+  'docs/p7-v2-r3b-formal-binary-provenance-manifest.json',
+  'docs/p7-v2-r3b-formal-input-sequence-manifest.json',
+  'docs/p7-v2-r3b-lpc-r3-preflight-audit.json',
+  'docs/p7-v2-r3b-lpc-r3-determinism-report.json',
+  'docs/p7-v2-r3b-lpc-r3-consumer-compatibility.json',
+  'docs/p7-v2-r3b-formal-binary-provenance-final-gate.json',
+]);
+const GENERATED_EVIDENCE_PATHS = new Set([
+  'docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json',
+  'docs/P7_V2_R3B_FAST_CLOSE_R3_RUNTIME_FREEZE.md',
+  'docs/p7-v2-r3b-runtime-freeze-revalidation.json',
+  'docs/p7-v2-r3b-preflight-audit.json',
+  'docs/P7_V2_R3B_PREFLIGHT_AUDIT.md',
+  'docs/p7-v2-r3b-precommit-runtime-freeze-closeout.json',
+  'docs/P7_V2_R3B_PRECOMMIT_RUNTIME_FREEZE_CLOSEOUT.md',
+  'docs/p7-v2-r3b-clean-head-runtime-freeze-final-gate.json',
+  'docs/P7_V2_R3B_CLEAN_HEAD_RUNTIME_FREEZE_FINAL_GATE.md',
+]);
 const IMMUTABLE_DIFF_PATHS = [
   'backend',
   'tests/load',
   ':(glob)scripts/p7-v2-*.mjs',
   ':(glob)tests/gates/p7-v2/**/*.mjs',
+  ...IMMUTABLE_INPUT_DOCS,
   'package.json',
   'pnpm-lock.yaml',
   '.env.example',
@@ -64,19 +85,37 @@ export function isEvidenceToolingPath(relPath) {
   return /^scripts\/p7-v2-.*\.mjs$/.test(rel) || /^tests\/gates\/p7-v2\/.*\.mjs$/.test(rel) || FORMAL_TEMPLATE_FILES.has(rel);
 }
 
+export function isImmutableRuntimeInputPath(relPath) {
+  const rel = relPath.replaceAll('\\', '/');
+  return isRuntimeSourcePath(rel) || isEvidenceToolingPath(rel) || IMMUTABLE_INPUT_DOCS.has(rel);
+}
+
+export function isGeneratedEvidencePath(relPath) {
+  const rel = relPath.replaceAll('\\', '/');
+  return GENERATED_EVIDENCE_PATHS.has(rel) ||
+    rel.startsWith('artifacts/') ||
+    rel.startsWith('logs/') ||
+    rel.startsWith('tmp/') ||
+    rel.startsWith('data/') ||
+    (/^docs\/(baselines|currents|fingerprints|runs|regressions)\//.test(rel) && !IMMUTABLE_INPUT_DOCS.has(rel));
+}
+
 export function classifyFreezePath(relPath) {
   const rel = relPath.replaceAll('\\', '/');
+  if (isImmutableRuntimeInputPath(rel)) {
+    return { classification: 'immutable_execution_input', reason: 'formal runtime, tooling, plan, binary, or input binding is included in clean-head scope' };
+  }
+  if (isGeneratedEvidencePath(rel)) {
+    return { classification: 'generated_evidence_output', reason: 'runtime evidence and artifacts are generated outputs' };
+  }
   if (rel === 'docs/PROGRESS.md' || rel === 'PROGRESS.md') {
     return { classification: 'generated_evidence_output', reason: 'progress report is generated closure evidence' };
   }
-  if (rel === 'docs/p7-v2-r3b-run-manifest.json' || /\/registry\.json$/.test(rel) || /docs\/(baselines|currents|fingerprints)\//.test(rel)) {
+  if (/\/registry\.json$/.test(rel) || /docs\/(baselines|currents|fingerprints)\//.test(rel)) {
     return { classification: 'mutable_execution_state', reason: 'manifest and registry pointers mutate during formal execution' };
   }
   if (GENERATED_PREFIXES.some((prefix) => rel.startsWith(prefix))) {
     return { classification: 'generated_evidence_output', reason: 'runtime evidence and artifacts are generated outputs' };
-  }
-  if (isRuntimeSourcePath(rel) || isEvidenceToolingPath(rel)) {
-    return { classification: 'immutable_execution_input', reason: 'formal runtime or gate input is included in freeze scope' };
   }
   return { classification: 'generated_evidence_output', reason: 'path is outside formal runtime freeze scope' };
 }
@@ -133,18 +172,62 @@ export function buildScopedHash(fileMap, predicate) {
 
 export function immutableTrackedDiffHash() {
   const diff = run('git', ['diff', '--binary', 'HEAD', '--', ...IMMUTABLE_DIFF_PATHS], { maxBuffer: 50 * 1024 * 1024 });
+  const staged = run('git', ['diff', '--cached', '--name-only', '--', ...IMMUTABLE_DIFF_PATHS]);
+  const unstaged = run('git', ['diff', '--name-only', '--', ...IMMUTABLE_DIFF_PATHS]);
+  const untrackedAll = run('git', ['ls-files', '--others', '--exclude-standard', '--', ...IMMUTABLE_DIFF_PATHS]);
   const all = run('git', ['status', '--porcelain=v1', '--untracked-files=all']);
   const immutableStatus = run('git', ['status', '--porcelain=v1', '--untracked-files=all', '--', ...IMMUTABLE_DIFF_PATHS]);
+  const split = (text) => (text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).sort();
+  const summary = summarizeImmutableChangeSet({
+    stagedPaths: split(staged.stdout),
+    unstagedPaths: split(unstaged.stdout),
+    untrackedPaths: split(untrackedAll.stdout),
+  });
   return {
     algorithm: 'sha256',
     scopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
     scope: 'immutable_execution_inputs',
-    hash: sha256Bytes(diff.stdout || ''),
-    clean: !(diff.stdout || '').trim(),
+    hash: summary.immutableWorkingTreeClean ? null : sha256Bytes(diff.stdout || JSON.stringify(summary)),
+    clean: summary.immutableWorkingTreeClean,
+    ...summary,
     immutableScopeDirty: Boolean((immutableStatus.stdout || '').trim()),
     allRepositoryDirty: Boolean((all.stdout || '').trim()),
     commandStatus: diff.status,
     pathspecs: IMMUTABLE_DIFF_PATHS,
+  };
+}
+
+export function summarizeImmutableChangeSet({ stagedPaths = [], unstagedPaths = [], untrackedPaths = [] } = {}) {
+  const sort = (paths) => [...new Set(paths.map((entry) => String(entry).replaceAll('\\', '/')).filter(Boolean))].sort();
+  const staged = sort(stagedPaths);
+  const unstaged = sort(unstagedPaths);
+  const untracked = sort(untrackedPaths);
+  const immutableWorkingTreeClean = staged.length === 0 && unstaged.length === 0 && untracked.length === 0;
+  return {
+    immutableWorkingTreeClean,
+    immutableTrackedDiffPresent: !immutableWorkingTreeClean,
+    stagedImmutableChangeCount: staged.length,
+    unstagedImmutableChangeCount: unstaged.length,
+    untrackedImmutableChangeCount: untracked.length,
+    stagedImmutablePaths: staged,
+    unstagedImmutablePaths: unstaged,
+    untrackedImmutablePaths: untracked,
+  };
+}
+
+export function generatedEvidenceDiffAudit() {
+  const status = run('git', ['status', '--porcelain=v1', '--untracked-files=all']);
+  const rows = (status.stdout || '').split(/\r?\n/).filter(Boolean).map((row) => ({
+    status: row.slice(0, 2),
+    path: row.slice(3).replaceAll('\\', '/'),
+  }));
+  const unexpected = rows.filter((row) => !isGeneratedEvidencePath(row.path));
+  return {
+    workingTreeGloballyClean: rows.length === 0,
+    generatedEvidenceExcluded: unexpected.length === 0,
+    generatedEvidenceChangeCount: rows.length - unexpected.length,
+    unexpectedChangeCount: unexpected.length,
+    unexpectedPaths: unexpected.map((row) => row.path).sort(),
   };
 }
 

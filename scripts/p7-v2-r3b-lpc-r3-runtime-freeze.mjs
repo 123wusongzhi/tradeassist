@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculateLoadProfileFingerprint } from './p7-v2-load-profile-fingerprint.mjs';
 import { jsonHash, runtimeSourceFingerprint, trackedDiffHash } from './p7-v2-r3-lib.mjs';
-import { gitCommit, gitDirty, readJSON, root, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
+import { gitCommit, gitDirty, readJSON, root, run, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 import { updateR3BManifest } from './p7-v2-r3b-manifest.mjs';
 import {
   buildEvidenceToolingManifest,
@@ -19,7 +19,7 @@ import { FORMAL_BINARY_PROVENANCE_VERSION } from './p7-v2-formal-binary-provenan
 import { FORMAL_INPUT_SEQUENCE_BINDING_VERSION } from './p7-v2-formal-input-sequence.mjs';
 
 export const FORMAL_PHASE = 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL';
-export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 2;
+export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 3;
 export const RUNTIME_FREEZE_IDENTITY_VERSION = 2;
 export const BINARY_PROVENANCE_BINDING_VERSION = 2;
 export const INPUT_SEQUENCE_BINDING_VERSION = 1;
@@ -30,14 +30,22 @@ const hash = (value) => crypto.createHash('sha256').update(JSON.stringify(value)
 const sha256Text = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 const asSha256 = (value, fallback) => /^[a-f0-9]{64}$/.test(String(value || '')) ? String(value) : sha256Text(JSON.stringify(value ?? fallback));
 
-export function buildRuntimeContentIdentity({ fingerprints, loadProfileFingerprint, immutableTrackedDiffHash } = {}) {
+function gitTree() {
+  const res = run('git', ['rev-parse', 'HEAD^{tree}']);
+  return res.status === 0 ? String(res.stdout || '').trim() : '';
+}
+
+export function buildRuntimeContentIdentity({ fingerprints, loadProfileFingerprint, immutableTrackedDiffHash, immutableTrackedDiffPresent = false, freezeCreationGitHead = gitCommit(), freezeCreationGitTree = gitTree() } = {}) {
   return {
     runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
     runtimeFreezeScopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
     configFingerprintVersion: CONFIG_FINGERPRINT_VERSION,
     runtimeFreezeLifecycleContractVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
+    runtimeFreezeLifecycleVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
     canonicalSchemaVersion: 3,
     loadProfileFingerprintVersion: 3,
+    freezeCreationGitHead,
+    freezeCreationGitTree,
     runtimeSourceTreeHash: fingerprints.runtimeSourceTreeHash,
     configFingerprint: fingerprints.configFingerprint,
     loadProfileFingerprint,
@@ -49,6 +57,7 @@ export function buildRuntimeContentIdentity({ fingerprints, loadProfileFingerpri
     routeCredentialMatrixFingerprint: fingerprints.routeCredentialMatrixFingerprint,
     regressionPolicyFingerprint: fingerprints.regressionPolicyFingerprint,
     immutableTrackedDiffHash,
+    immutableTrackedDiffPresent,
   };
 }
 
@@ -109,7 +118,11 @@ export function validateRuntimeFreezeContract(contract, { kind, runId } = {}) {
   if ((contract.canonicalSchemaVersion ?? contract.canonicalLoadProfileVersion) !== 3 || contract.loadProfileFingerprintVersion !== 3) return { valid: false, issue: 'invalid_runtime_freeze_version' };
   if ((contract.runtimeFreezeScopeVersion ?? 1) !== RUNTIME_FREEZE_SCOPE_VERSION || (contract.configFingerprintVersion ?? 1) !== CONFIG_FINGERPRINT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_scope_version' };
   if ((contract.runtimeFreezeLifecycleContractVersion ?? 1) !== RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_lifecycle_contract_version' };
+  if ((contract.runtimeFreezeLifecycleVersion ?? contract.runtimeFreezeLifecycleContractVersion ?? 1) !== RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_lifecycle_version' };
   if ((contract.runtimeFreezeIdentityVersion ?? 1) !== RUNTIME_FREEZE_IDENTITY_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_identity_version' };
+  if (contract.createdFromCleanCommittedHead !== true || contract.cleanCommittedHeadRequired !== true) return { valid: false, issue: 'runtime_freeze_not_created_from_clean_committed_head' };
+  if (contract.immutableTrackedDiffPresent !== false || contract.immutableWorkingTreeClean !== true) return { valid: false, issue: 'runtime_freeze_immutable_worktree_dirty' };
+  if (!/^[a-f0-9]{40}$/.test(contract.freezeCreationGitHead || '') || !/^[a-f0-9]{40}$/.test(contract.freezeCreationGitTree || '')) return { valid: false, issue: 'runtime_freeze_git_identity_missing' };
   if ((contract.binaryProvenanceBindingVersion ?? BINARY_PROVENANCE_BINDING_VERSION) !== BINARY_PROVENANCE_BINDING_VERSION) return { valid: false, issue: 'invalid_binary_provenance_binding_version' };
   if ((contract.inputSequenceBindingVersion ?? INPUT_SEQUENCE_BINDING_VERSION) !== INPUT_SEQUENCE_BINDING_VERSION) return { valid: false, issue: 'invalid_input_sequence_binding_version' };
   if (!/^[a-f0-9]{64}$/.test(contract.contractId || '') || !/^[a-f0-9]{64}$/.test(contract.runtimeFreezeId || '') || !/^[a-f0-9]{64}$/.test(contract.loadProfileFingerprint || '')) return { valid: false, issue: 'invalid_runtime_freeze_fingerprint' };
@@ -140,16 +153,36 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
     demoRun2Id: manifest.demoRun2Id || '',
   };
   const issues = [];
+  const currentGitHead = gitCommit();
+  const currentGitTree = gitTree();
+  const immutableDiff = trackedDiffHash();
   if (manifest.phase !== 'P7-V2-R3B-FAST-CLOSE-R3') issues.push('invalid_recovery_plan_phase');
   if (!['planned', 'ready_for_formal_execution'].includes(manifest.status)) issues.push('manifest_not_pre_execution');
   if (manifest.executionStarted !== false) issues.push('execution_already_started');
   if (manifest.environmentStarted === true || manifest.datasetExecuted === true || manifest.k6Executed === true) issues.push('formal_execution_evidence_already_started');
   if (!manifest.runIdsUnique || new Set(Object.values(runIds)).size !== 5) issues.push('run_ids_not_unique');
   if (Object.values(runIds).some((runId) => !RECOVERY6_RUN_ID.test(runId))) issues.push('invalid_recovery6_run_id');
-  return { valid: issues.length === 0, issues, runIds, classification: issues.length ? 'runtime_freeze_creation_precondition_failed' : '' };
+  if (!/^[a-f0-9]{40}$/.test(currentGitHead)) issues.push('current_git_head_missing');
+  if (!/^[a-f0-9]{40}$/.test(currentGitTree)) issues.push('current_git_tree_missing');
+  if (manifest.planCheckpoint !== currentGitHead) issues.push('plan_checkpoint_not_current_head');
+  if (immutableDiff.immutableWorkingTreeClean !== true) issues.push('immutable_working_tree_not_clean');
+  return {
+    valid: issues.length === 0,
+    issues,
+    runIds,
+    classification: issues.length ? 'runtime_freeze_creation_precondition_failed' : '',
+    currentGitHead,
+    currentGitTree,
+    immutableDiff,
+    immutableWorkingTreeClean: immutableDiff.immutableWorkingTreeClean === true,
+    immutableTrackedDiffPresent: immutableDiff.immutableTrackedDiffPresent === true,
+    stagedImmutableChangeCount: immutableDiff.stagedImmutableChangeCount || 0,
+    unstagedImmutableChangeCount: immutableDiff.unstagedImmutableChangeCount || 0,
+    untrackedImmutableChangeCount: immutableDiff.untrackedImmutableChangeCount || 0,
+  };
 }
 
-export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}, now = new Date().toISOString(), bindRunIds = true, skipCreationPreconditions = false, planCheckpoint = gitCommit() } = {}) {
+export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}, now = new Date().toISOString(), bindRunIds = true, skipCreationPreconditions = false, planCheckpoint = gitCommit(), immutableDiffOverride = null } = {}) {
   const creation = validateRuntimeFreezeCreationPreconditions(manifest);
   const runIds = creation.runIds;
   if (!skipCreationPreconditions && !creation.valid) {
@@ -159,7 +192,7 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
   const files = source.files || [];
   const select = (prefix) => files.filter((file) => file.path.startsWith(prefix));
   const evidenceTooling = buildEvidenceToolingManifest();
-  const immutableDiff = trackedDiffHash();
+  const immutableDiff = immutableDiffOverride || creation.immutableDiff || trackedDiffHash();
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
   const binaryProvenance = manifest.binaryProvenance || readJSON('docs/p7-v2-r3b-formal-binary-provenance-manifest.json') || {};
   const inputSequence = readJSON('docs/p7-v2-r3b-formal-input-sequence-manifest.json') || {};
@@ -201,6 +234,9 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     fingerprints,
     loadProfileFingerprint: canonical.loadProfileFingerprint,
     immutableTrackedDiffHash: immutableDiff.hash,
+    immutableTrackedDiffPresent: immutableDiff.immutableTrackedDiffPresent === true,
+    freezeCreationGitHead: creation.currentGitHead || gitCommit(),
+    freezeCreationGitTree: creation.currentGitTree || gitTree(),
   });
   const planBindingPayload = buildFormalPlanIdentity(manifest, { planCheckpoint });
   const identity = buildRuntimeFreezeIdentity({ runtimeContentIdentity, planBindingPayload });
@@ -218,6 +254,7 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     plannedRunIdsAtFreeze: runIds,
     runIdBindingPolicy: 'bound_in_plan_binding_hash',
     runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    runtimeFreezeLifecycleVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
     binaryProvenanceBindingVersion: BINARY_PROVENANCE_BINDING_VERSION,
     inputSequenceBindingVersion: INPUT_SEQUENCE_BINDING_VERSION,
     formalBinaryProvenanceVersion: binaryProvenance.formalBinaryProvenanceVersion || manifest.formalBinaryProvenanceVersion || FORMAL_BINARY_PROVENANCE_VERSION,
@@ -244,14 +281,37 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     runtimeFreezeScopeVersion: RUNTIME_FREEZE_SCOPE_VERSION,
     configFingerprintVersion: CONFIG_FINGERPRINT_VERSION,
     runtimeFreezeLifecycleContractVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
+    cleanCommittedHeadRequired: true,
+    createdFromCleanCommittedHead: true,
+    createdFromUncommittedImmutableState: false,
+    freezeCreationBlocked: false,
+    freezeCreationGitHead: creation.currentGitHead || gitCommit(),
+    freezeCreationGitTree: creation.currentGitTree || gitTree(),
+    planCheckpoint,
+    planCheckpointGitTree: creation.currentGitTree || gitTree(),
+    immutableTrackedDiffHash: immutableDiff.hash,
+    immutableTrackedDiffPresent: immutableDiff.immutableTrackedDiffPresent === true,
+    immutableWorkingTreeClean: immutableDiff.immutableWorkingTreeClean === true,
+    stagedImmutableChangeCount: immutableDiff.stagedImmutableChangeCount || 0,
+    unstagedImmutableChangeCount: immutableDiff.unstagedImmutableChangeCount || 0,
+    untrackedImmutableChangeCount: immutableDiff.untrackedImmutableChangeCount || 0,
+    immutableScope: immutableDiff.pathspecs || [],
+    generatedEvidenceScope: ['docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json', 'docs/p7-v2-r3b-runtime-freeze-revalidation.json', 'docs/p7-v2-r3b-preflight-audit.json', 'artifacts/**', 'logs/**', 'tmp/**', 'data/**'],
+    ignoredLocalArtifactScope: ['artifacts/p7-v2/formal-binaries/'],
     runtimeFreezeScope: source.sourceManifest,
     evidenceToolingScope: evidenceTooling,
     formalConfig: configFingerprint.payload,
     git: {
-      commit: gitCommit(),
+      commit: creation.currentGitHead || gitCommit(),
+      tree: creation.currentGitTree || gitTree(),
       dirty: gitDirty(),
       trackedDiffHash: immutableDiff.hash,
       immutableTrackedDiffHash: immutableDiff.hash,
+      immutableTrackedDiffPresent: immutableDiff.immutableTrackedDiffPresent === true,
+      immutableWorkingTreeClean: immutableDiff.immutableWorkingTreeClean === true,
+      stagedImmutableChangeCount: immutableDiff.stagedImmutableChangeCount || 0,
+      unstagedImmutableChangeCount: immutableDiff.unstagedImmutableChangeCount || 0,
+      untrackedImmutableChangeCount: immutableDiff.untrackedImmutableChangeCount || 0,
       immutableScopeDirty: immutableDiff.immutableScopeDirty,
       allRepositoryDirty: immutableDiff.allRepositoryDirty,
       trackedDiffScope: immutableDiff.scope,
@@ -296,7 +356,7 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
   return { ...contractBase, contractId, runtimeFreezeId: contractId };
 }
 
-export function revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze = readRuntimeFreezeContract(), manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {} } = {}) {
+export function revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze = readRuntimeFreezeContract(), manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}, immutableDiffOverride = null } = {}) {
   const stored = freezeCurrentContract(runtimeFreeze) || {};
   return buildRuntimeFreezeContract({
     manifest: {
@@ -310,6 +370,7 @@ export function revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze = readRun
     bindRunIds: true,
     skipCreationPreconditions: true,
     planCheckpoint: stored.planBindingPayload?.planCheckpoint || stored.git?.commit || gitCommit(),
+    immutableDiffOverride,
   });
 }
 
@@ -379,6 +440,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     runtimeFreezeCreated: true,
     runtimeFreezeCreatedAt: report.createdAt,
     runtimeFreezeIdentityVersion: report.runtimeFreezeIdentityVersion,
+    runtimeFreezeLifecycleVersion: report.runtimeFreezeLifecycleVersion,
     runtimeContentHash: report.runtimeContentHash,
     planBindingHash: report.planBindingHash,
     planCheckpoint: report.planBindingPayload?.planCheckpoint || report.git?.commit || '',

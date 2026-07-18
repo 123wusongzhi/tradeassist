@@ -27,7 +27,16 @@ const manifest = {
   selectedHost: '127.0.0.1',
   selectedPort: 18080,
 };
-const contract = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'a'.repeat(40) });
+const cleanImmutableDiff = {
+  hash: null,
+  immutableWorkingTreeClean: true,
+  immutableTrackedDiffPresent: false,
+  stagedImmutableChangeCount: 0,
+  unstagedImmutableChangeCount: 0,
+  untrackedImmutableChangeCount: 0,
+  pathspecs: [],
+};
+const contract = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'a'.repeat(40), skipCreationPreconditions: true, immutableDiffOverride: cleanImmutableDiff });
 
 assert.match(contract.contractId, /^[a-f0-9]{64}$/);
 assert.equal(contract.runtimeFreezeIdentityVersion, RUNTIME_FREEZE_IDENTITY_VERSION);
@@ -38,7 +47,7 @@ assert.equal(validateRuntimeFreezeContract(contract, { kind: 'baseline', runId: 
 assert.equal(validateRuntimeFreezeContract(contract, { kind: 'current', runId: manifest.currentRunId }).valid, true);
 assert.equal(validateRuntimeFreezeContract(contract, { kind: 'current', runId: manifest.baselineRunId }).issue, 'runtime_freeze_run_id_mismatch');
 
-const samePlanA = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'b'.repeat(40) });
+const samePlanA = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'b'.repeat(40), skipCreationPreconditions: true, immutableDiffOverride: cleanImmutableDiff });
 const samePlanB = buildRuntimeFreezeContract({
   manifest: {
     ...manifest,
@@ -48,10 +57,12 @@ const samePlanB = buildRuntimeFreezeContract({
   },
   now: '2026-07-15T11:00:00.000Z',
   planCheckpoint: 'b'.repeat(40),
+  skipCreationPreconditions: true,
+  immutableDiffOverride: cleanImmutableDiff,
 });
 assert.equal(samePlanA.runtimeFreezeId, samePlanB.runtimeFreezeId);
 
-const differentCheckpoint = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'c'.repeat(40) });
+const differentCheckpoint = buildRuntimeFreezeContract({ manifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'c'.repeat(40), skipCreationPreconditions: true, immutableDiffOverride: cleanImmutableDiff });
 assert.notEqual(samePlanA.runtimeFreezeId, differentCheckpoint.runtimeFreezeId);
 assert.notEqual(samePlanA.planBindingHash, differentCheckpoint.planBindingHash);
 
@@ -60,6 +71,8 @@ for (const key of ['baselineRunId', 'currentRunId', 'soakRunId', 'demoRun1Id', '
     manifest: { ...manifest, [key]: `${manifest[key]}-changed` },
     now: '2026-07-15T10:00:00.000Z',
     planCheckpoint: 'b'.repeat(40),
+    skipCreationPreconditions: true,
+    immutableDiffOverride: cleanImmutableDiff,
   });
   assert.notEqual(samePlanA.runtimeFreezeId, changed.runtimeFreezeId);
   assert.notEqual(samePlanA.planBindingHash, changed.planBindingHash);
@@ -67,7 +80,7 @@ for (const key of ['baselineRunId', 'currentRunId', 'soakRunId', 'demoRun1Id', '
 
 const oldId = '169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43';
 const staleManifest = { ...manifest, runtimeFreezeId: oldId, runtimeFreezeCreated: false, status: 'planned' };
-const regenerated = buildRuntimeFreezeContract({ manifest: staleManifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'd'.repeat(40) });
+const regenerated = buildRuntimeFreezeContract({ manifest: staleManifest, now: '2026-07-15T10:00:00.000Z', planCheckpoint: 'd'.repeat(40), skipCreationPreconditions: true, immutableDiffOverride: cleanImmutableDiff });
 assert.notEqual(regenerated.runtimeFreezeId, oldId);
 
 const oldRealPlan = buildRuntimeFreezeContract({
@@ -81,6 +94,8 @@ const oldRealPlan = buildRuntimeFreezeContract({
   },
   now: '2026-07-16T06:44:35.424Z',
   planCheckpoint: 'c182977694a616ddd263c42e7089a88fb5093c9c',
+  skipCreationPreconditions: true,
+  immutableDiffOverride: cleanImmutableDiff,
 });
 const newRealPlan = buildRuntimeFreezeContract({
   manifest: {
@@ -93,6 +108,8 @@ const newRealPlan = buildRuntimeFreezeContract({
   },
   now: '2026-07-16T08:27:52.876Z',
   planCheckpoint: '963011f659204e579e53458e699d0b25cb608ee5',
+  skipCreationPreconditions: true,
+  immutableDiffOverride: cleanImmutableDiff,
 });
 assert.notEqual(oldRealPlan.planBindingHash, newRealPlan.planBindingHash);
 assert.notEqual(oldRealPlan.runtimeFreezeId, newRealPlan.runtimeFreezeId);
@@ -101,6 +118,8 @@ const changedRunIdRebuild = buildRuntimeFreezeContract({
   manifest: { ...manifest, baselineRunId: `${manifest.baselineRunId}-mutated` },
   now: '2026-07-15T10:00:00.000Z',
   planCheckpoint: samePlanA.planBindingPayload.planCheckpoint,
+  skipCreationPreconditions: true,
+  immutableDiffOverride: cleanImmutableDiff,
 });
 assert.notEqual(changedRunIdRebuild.runtimeFreezeId, samePlanA.runtimeFreezeId);
 

@@ -1,6 +1,6 @@
 {
   "phase": "P7-V2-R3B-FAST-CLOSE-R3",
-  "status": "runtime_frozen",
+  "status": "planned",
   "canonicalSchemaVersion": 3,
   "loadProfileFingerprintVersion": 3,
   "baselineRunId": "p7v2-baseline-r3b-recovery6-20260718031555",
@@ -345,13 +345,13 @@
   "authBranchMixFingerprint": "25a10b62f36e4eaccd8b71c928f87cea430d3dcc7fa68acc272feaa15a53149e",
   "branchMixFingerprint": "256da5ae1a288b702e1d526230cb025df5f93a6fc506d04d21bd9a532fb8a00f",
   "inputSequenceBound": true,
-  "runtimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
+  "runtimeFreezeId": null,
   "formal": true,
   "active": true,
   "validForExecution": true,
   "executionStarted": false,
   "formalExecutionStarted": false,
-  "runtimeFreezeCreated": true,
+  "runtimeFreezeCreated": false,
   "environmentStarted": false,
   "datasetExecuted": false,
   "baselineExecuted": false,
@@ -730,10 +730,17 @@
     "reason": "formal_pair_wiring_completed_after_plan_creation",
     "supersededAt": "2026-07-18T03:15:55.440Z"
   },
-  "updatedAt": "2026-07-18T03:16:03.314Z",
+  "updatedAt": "2026-07-18T04:06:13.268Z",
   "runtimeFreezeCreatedAt": "2026-07-18T03:16:02.569Z",
   "runtimeFreezeIdentityVersion": 2,
   "runtimeContentHash": "8ae127cc2a0a5a4b141953f7d98e2822572f9e5ecec85686b7286f89b8e9fd74",
   "planBindingHash": "0aa513bea4867740e894e47a6ba4861f72eb8efbcda3a84b7d7c48d66fe7c432",
-  "planCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b"
+  "planCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "runtimeFreezeLifecycleVersion": 3,
+  "oldRuntimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
+  "oldRuntimeFreezeSuperseded": true,
+  "runIdsConsumed": false,
+  "runIdsRetained": true,
+  "newRunIdsCreated": false,
+  "reason": "precommit_runtime_freeze_superseded_before_formal_execution"
 }

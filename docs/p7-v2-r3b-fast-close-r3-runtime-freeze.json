@@ -1,7 +1,7 @@
 {
   "current": {
     "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
-    "status": "passed",
+    "status": "superseded",
     "runtimeFrozen": true,
     "formalWiringPassed": true,
     "preFreezePassed": true,
@@ -5490,7 +5490,14 @@
       "planBindingHash": "0aa513bea4867740e894e47a6ba4861f72eb8efbcda3a84b7d7c48d66fe7c432"
     },
     "contractId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
-    "runtimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f"
+    "runtimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
+    "active": false,
+    "validForHistoricalAudit": true,
+    "validForFormalExecution": false,
+    "validForClosure": false,
+    "superseded": true,
+    "reason": "runtime_freeze_created_from_uncommitted_immutable_state",
+    "supersededAt": "2026-07-18T04:06:13.251Z"
   },
   "history": [
     {

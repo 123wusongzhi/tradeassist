@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { gitCommit, readJSON, root, writeJSON } from './p7-v2-lib.mjs';
+import { auditRunIdConsumption } from './p7-v2-r3b-precommit-runtime-freeze-closeout.mjs';
 
 const required = [
   'docs/p7-v2-r3b-lpc-r3-preflight-audit.json',
@@ -14,10 +15,24 @@ const binaryProvenance = readJSON('docs/p7-v2-r3b-formal-binary-provenance-manif
 const inputSequence = readJSON('docs/p7-v2-r3b-formal-input-sequence-manifest.json') || {};
 const currentPlan = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const runIds = {
-  baselineRunId: `p7v2-baseline-r3b-recovery6-${stamp}`, currentRunId: `p7v2-current-r3b-recovery6-${stamp}`,
-  soakRunId: `p7v2-soak-r3b-recovery6-${stamp}`, demoRun1Id: `p7v2-demo1-r3b-recovery6-${stamp}`, demoRun2Id: `p7v2-demo2-r3b-recovery6-${stamp}`,
+const existingRunIds = {
+  baselineRunId: currentPlan.baselineRunId || '',
+  currentRunId: currentPlan.currentRunId || '',
+  soakRunId: currentPlan.soakRunId || '',
+  demoRun1Id: currentPlan.demoRun1Id || '',
+  demoRun2Id: currentPlan.demoRun2Id || '',
 };
+const canRetainExistingRunIds =
+  !process.argv.includes('--force-new-run-ids') &&
+  currentPlan.runIdsConsumed === false &&
+  Object.values(existingRunIds).every((runId) => /^p7v2-(baseline|current|soak|demo[12])-r3b-recovery6-[a-z0-9_-]+$/.test(runId)) &&
+  auditRunIdConsumption(currentPlan).runIdsConsumed === false;
+const runIds = canRetainExistingRunIds
+  ? existingRunIds
+  : {
+      baselineRunId: `p7v2-baseline-r3b-recovery6-${stamp}`, currentRunId: `p7v2-current-r3b-recovery6-${stamp}`,
+      soakRunId: `p7v2-soak-r3b-recovery6-${stamp}`, demoRun1Id: `p7v2-demo1-r3b-recovery6-${stamp}`, demoRun2Id: `p7v2-demo2-r3b-recovery6-${stamp}`,
+    };
 const allRunIds = Object.values(runIds);
 if (new Set(allRunIds).size !== allRunIds.length) throw new Error('Recovery6 run IDs are not unique');
 const registries = [
@@ -56,6 +71,8 @@ const manifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3', status: 'planned', canonicalSchemaVersion: 3, loadProfileFingerprintVersion: 3,
   ...runIds, selectedHost: '127.0.0.1', selectedPort: 18080, baseUrl: 'http://127.0.0.1:18080',
   controlToolingCommit: gitCommit(),
+  planCheckpoint: gitCommit(),
+  runtimeFreezeLifecycleVersion: 3,
   baselineRuntimeCommit: binaryProvenance.baselineRuntimeCommit || '',
   currentRuntimeCommit: binaryProvenance.currentRuntimeCommit || '',
   baselineBinarySha256: binaryProvenance.baselineBinarySha256 || '',
@@ -97,7 +114,12 @@ const manifest = {
   providerMode: 'mock',
   datasetProfile: 'medium',
   expectedRows: 1900150,
-  runIdsUnique: true, previousPlan: supersededPlan, updatedAt: new Date().toISOString(),
+  runIdsUnique: true,
+  runIdsConsumed: false,
+  runIdsRetained: canRetainExistingRunIds,
+  newRunIdsCreated: !canRetainExistingRunIds,
+  previousPlan: supersededPlan,
+  updatedAt: new Date().toISOString(),
 };
 writeJSON('docs/p7-v2-r3b-run-manifest.json', manifest);
 console.log(JSON.stringify(manifest, null, 2));
