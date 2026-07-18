@@ -15,10 +15,14 @@ import {
   RUNTIME_FREEZE_SCOPE_VERSION,
   sha256Json,
 } from './p7-v2-runtime-freeze-scope.mjs';
+import { FORMAL_BINARY_PROVENANCE_VERSION } from './p7-v2-formal-binary-provenance-lib.mjs';
+import { FORMAL_INPUT_SEQUENCE_BINDING_VERSION } from './p7-v2-formal-input-sequence.mjs';
 
 export const FORMAL_PHASE = 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL';
 export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 2;
 export const RUNTIME_FREEZE_IDENTITY_VERSION = 2;
+export const BINARY_PROVENANCE_BINDING_VERSION = 2;
+export const INPUT_SEQUENCE_BINDING_VERSION = 1;
 export const RUNTIME_FREEZE_PATH = 'docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json';
 export const RUNTIME_FREEZE_MARKDOWN_PATH = 'docs/P7_V2_R3B_FAST_CLOSE_R3_RUNTIME_FREEZE.md';
 const RECOVERY6_RUN_ID = /^p7v2-(baseline|current|soak|demo[12])-r3b-recovery6-[a-z0-9_-]+$/;
@@ -63,6 +67,20 @@ export function buildFormalPlanIdentity(manifest = {}, { planCheckpoint = gitCom
     expectedRows: Number(manifest.expectedRows || 1900150),
     host: manifest.selectedHost || '127.0.0.1',
     port: Number(manifest.selectedPort || 18080),
+    controlToolingCommit: manifest.controlToolingCommit || planCheckpoint,
+    baselineRuntimeCommit: manifest.baselineRuntimeCommit || '',
+    currentRuntimeCommit: manifest.currentRuntimeCommit || '',
+    baselineBinarySha256: manifest.baselineBinarySha256 || '',
+    currentBinarySha256: manifest.currentBinarySha256 || '',
+    baselineBinaryProvenanceHash: manifest.baselineBinaryProvenanceHash || '',
+    currentBinaryProvenanceHash: manifest.currentBinaryProvenanceHash || '',
+    inputSequenceManifestHash: manifest.inputSequenceManifestHash || '',
+    requestSequenceHash: manifest.requestSequenceHash || '',
+    webhookSequenceHash: manifest.webhookSequenceHash || '',
+    authSequenceHash: manifest.authSequenceHash || '',
+    webhookBranchMixFingerprint: manifest.webhookBranchMixFingerprint || '',
+    authBranchMixFingerprint: manifest.authBranchMixFingerprint || '',
+    branchMixFingerprint: manifest.branchMixFingerprint || '',
   };
 }
 
@@ -92,8 +110,13 @@ export function validateRuntimeFreezeContract(contract, { kind, runId } = {}) {
   if ((contract.runtimeFreezeScopeVersion ?? 1) !== RUNTIME_FREEZE_SCOPE_VERSION || (contract.configFingerprintVersion ?? 1) !== CONFIG_FINGERPRINT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_scope_version' };
   if ((contract.runtimeFreezeLifecycleContractVersion ?? 1) !== RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_lifecycle_contract_version' };
   if ((contract.runtimeFreezeIdentityVersion ?? 1) !== RUNTIME_FREEZE_IDENTITY_VERSION) return { valid: false, issue: 'invalid_runtime_freeze_identity_version' };
+  if ((contract.binaryProvenanceBindingVersion ?? BINARY_PROVENANCE_BINDING_VERSION) !== BINARY_PROVENANCE_BINDING_VERSION) return { valid: false, issue: 'invalid_binary_provenance_binding_version' };
+  if ((contract.inputSequenceBindingVersion ?? INPUT_SEQUENCE_BINDING_VERSION) !== INPUT_SEQUENCE_BINDING_VERSION) return { valid: false, issue: 'invalid_input_sequence_binding_version' };
   if (!/^[a-f0-9]{64}$/.test(contract.contractId || '') || !/^[a-f0-9]{64}$/.test(contract.runtimeFreezeId || '') || !/^[a-f0-9]{64}$/.test(contract.loadProfileFingerprint || '')) return { valid: false, issue: 'invalid_runtime_freeze_fingerprint' };
   if (!/^[a-f0-9]{64}$/.test(contract.runtimeContentHash || '') || !/^[a-f0-9]{64}$/.test(contract.planBindingHash || '')) return { valid: false, issue: 'invalid_runtime_freeze_identity_hash' };
+  for (const key of ['baselineBinaryProvenanceHash', 'currentBinaryProvenanceHash', 'baselineBinarySha256', 'currentBinarySha256', 'inputSequenceManifestHash', 'branchMixFingerprint']) {
+    if (contract[key] && !/^[a-f0-9]{64}$/.test(contract[key])) return { valid: false, issue: `invalid_runtime_freeze_binding_hash:${key}` };
+  }
   if (!Array.isArray(contract.canonicalLoadProfile?.load?.stages) || contract.canonicalLoadProfile.load.stages.length === 0) return { valid: false, issue: 'invalid_runtime_freeze_stages' };
   for (const key of ['runtimeSourceTreeHash', 'evidenceToolingHash', 'loadScriptsHash', 'metricSemanticsHash', 'datasetGeneratorHash', 'configFingerprint', 'sloFingerprint', 'routeCredentialMatrixFingerprint', 'regressionPolicyFingerprint']) {
     if (!/^[a-f0-9]{64}$/.test(contract.fingerprints?.[key] || contract[key] || '')) return { valid: false, issue: `invalid_runtime_freeze_hash:${key}` };
@@ -138,6 +161,8 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
   const evidenceTooling = buildEvidenceToolingManifest();
   const immutableDiff = trackedDiffHash();
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
+  const binaryProvenance = manifest.binaryProvenance || readJSON('docs/p7-v2-r3b-formal-binary-provenance-manifest.json') || {};
+  const inputSequence = readJSON('docs/p7-v2-r3b-formal-input-sequence-manifest.json') || {};
   const loadScriptPath = 'tests/load/p7v2-baseline.js';
   const sha256File = (relativePath) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, relativePath))).digest('hex');
   const profile = {
@@ -193,6 +218,23 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     plannedRunIdsAtFreeze: runIds,
     runIdBindingPolicy: 'bound_in_plan_binding_hash',
     runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
+    binaryProvenanceBindingVersion: BINARY_PROVENANCE_BINDING_VERSION,
+    inputSequenceBindingVersion: INPUT_SEQUENCE_BINDING_VERSION,
+    formalBinaryProvenanceVersion: binaryProvenance.formalBinaryProvenanceVersion || manifest.formalBinaryProvenanceVersion || FORMAL_BINARY_PROVENANCE_VERSION,
+    formalInputSequenceBindingVersion: inputSequence.formalInputSequenceBindingVersion || manifest.formalInputSequenceBindingVersion || FORMAL_INPUT_SEQUENCE_BINDING_VERSION,
+    baselineRuntimeCommit: manifest.baselineRuntimeCommit || binaryProvenance.baselineRuntimeCommit || '',
+    currentRuntimeCommit: manifest.currentRuntimeCommit || binaryProvenance.currentRuntimeCommit || '',
+    baselineBinarySha256: manifest.baselineBinarySha256 || binaryProvenance.baselineBinarySha256 || '',
+    currentBinarySha256: manifest.currentBinarySha256 || binaryProvenance.currentBinarySha256 || '',
+    baselineBinaryProvenanceHash: manifest.baselineBinaryProvenanceHash || binaryProvenance.baselineBinaryProvenanceHash || '',
+    currentBinaryProvenanceHash: manifest.currentBinaryProvenanceHash || binaryProvenance.currentBinaryProvenanceHash || '',
+    inputSequenceManifestHash: manifest.inputSequenceManifestHash || inputSequence.inputSequenceManifestHash || '',
+    requestSequenceHash: manifest.requestSequenceHash || inputSequence.requestSequenceHash || '',
+    webhookSequenceHash: manifest.webhookSequenceHash || inputSequence.webhookSequenceHash || '',
+    authSequenceHash: manifest.authSequenceHash || inputSequence.authSequenceHash || '',
+    webhookBranchMixFingerprint: manifest.webhookBranchMixFingerprint || inputSequence.webhookBranchMixFingerprint || '',
+    authBranchMixFingerprint: manifest.authBranchMixFingerprint || inputSequence.authBranchMixFingerprint || '',
+    branchMixFingerprint: manifest.branchMixFingerprint || inputSequence.branchMixFingerprint || '',
     runtimeContentIdentity,
     planBindingPayload,
     immutablePlanBindingPayload: planBindingPayload,

@@ -25,6 +25,7 @@ import { jsonHash, runtimeSourceFingerprint, trackedDiffHash, untrackedRuntimeMa
 import { calculateLoadProfileFingerprint } from './p7-v2-load-profile-fingerprint.mjs';
 import { CORE_SCENARIOS, SCENARIO_METRICS } from './p7-v2-regression-metrics.mjs';
 import { classifyMetricEvidence, evaluateAbsoluteSlo, evaluateTargetReached } from './p7-v2-soak-semantics.mjs';
+import { buildFormalInputSequenceManifest, INPUT_SEQUENCE_MANIFEST_PATH } from './p7-v2-formal-input-sequence.mjs';
 
 const args = process.argv.slice(2);
 const kind = valueOf(args, '--kind') || 'load';
@@ -230,6 +231,7 @@ const metricSemanticsHash = jsonHash([
   ...runtimeSource.files.filter((file) => file.path.startsWith('tests/load/')),
   ...runtimeSource.files.filter((file) => file.path === 'scripts/p7-v2-regression-metrics.mjs'),
 ]);
+const inputSequenceBinding = readJSON(INPUT_SEQUENCE_MANIFEST_PATH) || buildFormalInputSequenceManifest();
 
 const routeSloEvaluations = scenarios.map((item) => evaluateAbsoluteSlo({
   sloId: `${item.scenario}:p95`,
@@ -329,6 +331,19 @@ const report = {
   loadProfile,
   canonicalLoadProfile: canonicalLoadProfile.canonicalProfile,
   environmentFingerprint: fingerprint,
+  serverBinaryPath: runtime.serverBinaryPath || '',
+  serverBinarySha256: runtime.serverBinarySha256 || '',
+  expectedBinarySha256: runtime.expectedBinarySha256 || '',
+  binarySha256Match: runtime.binarySha256Match ?? null,
+  runtimeCommit: runtime.runtimeCommit || '',
+  sourceTreeHash: runtime.sourceTreeHash || '',
+  processPid: runtime.processPid || runtime.serverPid || '',
+  processStartTime: runtime.processStartTime || '',
+  processExecutablePath: runtime.processExecutablePath || '',
+  processExecutableSha256: runtime.processExecutableSha256 || '',
+  processExecutableSha256Match: runtime.processExecutableSha256Match ?? null,
+  implicitBuildDisabled: runtime.implicitBuildDisabled === true,
+  formalBinaryProvenanceVersion: runtime.formalBinaryProvenanceVersion || null,
   datasetFingerprint: dataset.datasetFingerprint || '',
   configFingerprint: fingerprint.configFingerprint,
   loadProfileFingerprint: canonicalLoadProfile.loadProfileFingerprint,
@@ -343,6 +358,19 @@ const report = {
   sloFingerprint: jsonHash(sloText),
   routeCredentialMatrixFingerprint: jsonHash(routeMatrix),
   regressionPolicyFingerprint: jsonHash(regressionPolicy),
+  formalInputSequenceBindingVersion: inputSequenceBinding.formalInputSequenceBindingVersion,
+  loadSeed: inputSequenceBinding.loadSeed,
+  scenarioSeed: inputSequenceBinding.scenarioSeed,
+  inputSequenceManifestHash: inputSequenceBinding.inputSequenceManifestHash,
+  requestSequenceHash: inputSequenceBinding.requestSequenceHash,
+  webhookSequenceHash: inputSequenceBinding.webhookSequenceHash,
+  authSequenceHash: inputSequenceBinding.authSequenceHash,
+  webhookDuplicateSequenceHash: inputSequenceBinding.webhookDuplicateSequenceHash,
+  webhookBranchMixFingerprint: inputSequenceBinding.webhookBranchMixFingerprint,
+  authBranchMixFingerprint: inputSequenceBinding.authBranchMixFingerprint,
+  branchMixFingerprint: inputSequenceBinding.branchMixFingerprint,
+  webhookBranchMix: inputSequenceBinding.webhookBranchMix,
+  authBranchMix: inputSequenceBinding.authBranchMix,
   memoryLeakDetected: false,
   goroutineLeakDetected: false,
   connectionLeakDetected: false,

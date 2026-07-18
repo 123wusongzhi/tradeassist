@@ -7,7 +7,7 @@
   "preflightBindingVersion": 2,
   "formalRecovery6Mode": true,
   "canonicalManifestPath": "docs/p7-v2-r3b-run-manifest.json",
-  "canonicalManifestSha256": "2ab0ddd2d4f2007ed4d927c9ccb989429e3caf5a4822132a545ad86924692904",
+  "canonicalManifestSha256": "11b94133721bf2d42694843fe397cf2eb636aba46e31bd44867e169af0aaee27",
   "canonicalManifestStatus": "runtime_frozen",
   "selectedManifestPath": "docs/p7-v2-r3b-run-manifest.json",
   "selectedManifestReason": "canonical_active_recovery6_manifest",
@@ -22,32 +22,43 @@
     "docs/baselines/p7-v2-baseline-registry.json",
     "docs/p7-v2-current-load-report.json"
   ],
-  "resolvedPlanCheckpoint": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
-  "planCheckpoint": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
-  "currentGitHead": "4b8d367a17e2062a184d3425b88a2a4a56580d6a",
+  "resolvedPlanCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "planCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "currentGitHead": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
   "planCheckpointMatch": true,
-  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260716082252",
-  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260716082252",
-  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260716082252",
-  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260716082252",
-  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260716082252",
-  "resolvedRuntimeFreezeId": "db08320b4e37b1cb11f1ad3182ad7ce09730906e7aaa912230f1c7b82279116f",
+  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260718031555",
+  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260718031555",
+  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260718031555",
+  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260718031555",
+  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260718031555",
+  "resolvedRuntimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
   "runtimeFreezeIdentityVersion": 2,
+  "binaryProvenanceVersion": 2,
+  "baselineBinarySha256Match": true,
+  "currentBinarySha256Match": true,
+  "inputSequenceHashMatch": true,
+  "branchMixFingerprintBound": true,
   "runtimeFreezeCreated": true,
-  "planBindingHash": "da2323e1dccf2ecab614146c07cde5427a8701b33dceb2192aa50ccc26e721a9",
-  "runtimeContentHash": "649fea3f13a09854a75047be338bd55d933b0e1dd9dd4160f71038a7c5ac23bc",
+  "planBindingHash": "0aa513bea4867740e894e47a6ba4861f72eb8efbcda3a84b7d7c48d66fe7c432",
+  "runtimeContentHash": "8ae127cc2a0a5a4b141953f7d98e2822572f9e5ecec85686b7286f89b8e9fd74",
   "planBindingHashMatch": true,
   "runtimeContentHashMatch": true,
   "runtimeFreezeStillValid": true,
   "immutableMismatchFields": [],
   "plannedRunIdsBindingPassed": true,
-  "legacyBaselineRunIdDetected": "p7v2-baseline-r3b-recovery6-20260715165422",
+  "baselineBinaryBindingPassed": true,
+  "currentBinaryBindingPassed": true,
+  "baselineRuntimeCommitBindingPassed": true,
+  "currentRuntimeCommitBindingPassed": true,
+  "inputSequenceBindingPassed": true,
+  "branchMixBindingPassed": true,
+  "legacyBaselineRunIdDetected": "p7v2-baseline-r3b-recovery6-20260716082252",
   "legacyBaselineRunIdIgnored": true,
   "legacyBaselineCandidates": [
-    "p7v2-baseline-r3b-recovery6-20260715165422"
+    "p7v2-baseline-r3b-recovery6-20260716082252"
   ],
   "ignoredHistoricalCandidates": [
-    "p7v2-baseline-r3b-recovery6-20260715165422"
+    "p7v2-baseline-r3b-recovery6-20260716082252"
   ],
   "runIdCollisionCount": 0,
   "freshRunIdsConsumed": false,
@@ -125,6 +136,38 @@
     },
     {
       "id": "runtime_freeze_identity_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_version_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_bound",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "current_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_version_v1",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_bound",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "branch_mix_fingerprint_bound",
       "status": "passed"
     },
     {

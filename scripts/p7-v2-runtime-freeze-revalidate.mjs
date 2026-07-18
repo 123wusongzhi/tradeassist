@@ -3,6 +3,8 @@ import path from 'node:path';
 import {
   readRuntimeFreezeContract,
   revalidateRuntimeFreezeImmutableInputs,
+  BINARY_PROVENANCE_BINDING_VERSION,
+  INPUT_SEQUENCE_BINDING_VERSION,
   RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
   RUNTIME_FREEZE_PATH,
 } from './p7-v2-r3b-lpc-r3-runtime-freeze.mjs';
@@ -52,6 +54,12 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     compare('sloFingerprint', stored.sloFingerprint, rebuilt.sloFingerprint),
     compare('routeCredentialMatrixFingerprint', stored.routeCredentialMatrixFingerprint, rebuilt.routeCredentialMatrixFingerprint),
     compare('regressionPolicyFingerprint', stored.regressionPolicyFingerprint, rebuilt.regressionPolicyFingerprint),
+    compare('baselineBinaryProvenanceHash', stored.baselineBinaryProvenanceHash, rebuilt.baselineBinaryProvenanceHash),
+    compare('currentBinaryProvenanceHash', stored.currentBinaryProvenanceHash, rebuilt.currentBinaryProvenanceHash),
+    compare('baselineBinarySha256', stored.baselineBinarySha256, rebuilt.baselineBinarySha256),
+    compare('currentBinarySha256', stored.currentBinarySha256, rebuilt.currentBinarySha256),
+    compare('inputSequenceManifestHash', stored.inputSequenceManifestHash, rebuilt.inputSequenceManifestHash),
+    compare('branchMixFingerprint', stored.branchMixFingerprint, rebuilt.branchMixFingerprint),
     compare('immutableTrackedDiffHash', stored.git?.immutableTrackedDiffHash || stored.git?.trackedDiffHash, rebuilt.git?.immutableTrackedDiffHash || rebuilt.git?.trackedDiffHash),
   ];
   const versionsValid =
@@ -59,6 +67,8 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     (stored.runtimeFreezeScopeVersion ?? 1) === RUNTIME_FREEZE_SCOPE_VERSION &&
     (stored.configFingerprintVersion ?? 1) === CONFIG_FINGERPRINT_VERSION &&
     (stored.runtimeFreezeLifecycleContractVersion ?? 1) === RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION &&
+    (stored.binaryProvenanceBindingVersion ?? BINARY_PROVENANCE_BINDING_VERSION) === BINARY_PROVENANCE_BINDING_VERSION &&
+    (stored.inputSequenceBindingVersion ?? INPUT_SEQUENCE_BINDING_VERSION) === INPUT_SEQUENCE_BINDING_VERSION &&
     stored.canonicalSchemaVersion === 3 &&
     stored.loadProfileFingerprintVersion === 3;
   const runtimeFreezeStillValid = !rebuildError && versionsValid && checks.every((check) => check.match);
@@ -71,6 +81,8 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     runtimeFreezeScopeVersion: stored.runtimeFreezeScopeVersion ?? null,
     configFingerprintVersion: stored.configFingerprintVersion ?? null,
     runtimeFreezeLifecycleContractVersion: stored.runtimeFreezeLifecycleContractVersion ?? null,
+    binaryProvenanceBindingVersion: stored.binaryProvenanceBindingVersion ?? null,
+    inputSequenceBindingVersion: stored.inputSequenceBindingVersion ?? null,
     storedRuntimeFreezeId: stored.runtimeFreezeId || '',
     rebuiltRuntimeFreezeId: rebuilt.runtimeFreezeId || '',
     runtimeFreezeIdentityVersion: stored.runtimeFreezeIdentityVersion ?? null,
@@ -82,6 +94,12 @@ export function revalidateRuntimeFreeze({ writeReport = false, mode = 'revalidat
     planBindingHashMatch: Boolean(stored.planBindingHash && rebuilt.planBindingHash && stored.planBindingHash === rebuilt.planBindingHash),
     plannedManifestBindingPassed: Boolean(stored.planBindingHash && rebuilt.planBindingHash && stored.planBindingHash === rebuilt.planBindingHash),
     plannedRunIdsBindingPassed: ['baselineRunId', 'currentRunId', 'soakRunId', 'demoRun1Id', 'demoRun2Id'].every((key) => stored.planBindingPayload?.[key] && stored.planBindingPayload?.[key] === rebuilt.planBindingPayload?.[key]),
+    baselineBinaryBindingPassed: Boolean(stored.baselineBinarySha256 && rebuilt.baselineBinarySha256 && stored.baselineBinarySha256 === rebuilt.baselineBinarySha256),
+    currentBinaryBindingPassed: Boolean(stored.currentBinarySha256 && rebuilt.currentBinarySha256 && stored.currentBinarySha256 === rebuilt.currentBinarySha256),
+    baselineRuntimeCommitBindingPassed: Boolean(stored.baselineRuntimeCommit && rebuilt.baselineRuntimeCommit && stored.baselineRuntimeCommit === rebuilt.baselineRuntimeCommit),
+    currentRuntimeCommitBindingPassed: Boolean(stored.currentRuntimeCommit && rebuilt.currentRuntimeCommit && stored.currentRuntimeCommit === rebuilt.currentRuntimeCommit),
+    inputSequenceBindingPassed: Boolean(stored.inputSequenceManifestHash && rebuilt.inputSequenceManifestHash && stored.inputSequenceManifestHash === rebuilt.inputSequenceManifestHash),
+    branchMixBindingPassed: Boolean(stored.branchMixFingerprint && rebuilt.branchMixFingerprint && stored.branchMixFingerprint === rebuilt.branchMixFingerprint),
     gitCommitMatch: Boolean(stored.planBindingPayload?.planCheckpoint && stored.planBindingPayload?.planCheckpoint === rebuilt.planBindingPayload?.planCheckpoint),
     immutableMismatchFields: checks.filter((check) => !check.match).map((check) => check.key),
     storedTrackedDiffHash: stored.git?.immutableTrackedDiffHash || stored.git?.trackedDiffHash || '',
