@@ -220,7 +220,10 @@ export function generatedEvidenceDiffAudit() {
     status: row.slice(0, 2),
     path: row.slice(3).replaceAll('\\', '/'),
   }));
-  const unexpected = rows.filter((row) => !isGeneratedEvidencePath(row.path));
+  const unexpected = rows.filter((row) => {
+    const classification = classifyFreezePath(row.path).classification;
+    return classification !== 'generated_evidence_output' && classification !== 'mutable_execution_state';
+  });
   return {
     workingTreeGloballyClean: rows.length === 0,
     generatedEvidenceExcluded: unexpected.length === 0,
