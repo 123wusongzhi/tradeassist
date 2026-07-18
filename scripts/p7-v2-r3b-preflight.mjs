@@ -8,13 +8,13 @@ import { gitCommit, readJSON, root, run, runWSL, safeDbName, toWslPath } from '.
 import { revalidateRuntimeFreeze } from './p7-v2-runtime-freeze-revalidate.mjs';
 import { freezeCurrentContract } from './p7-v2-runtime-freeze-scope.mjs';
 import { PROCESS_IDENTITY_PROBE_VERSION } from './p7-v2-process-identity.mjs';
+import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
 
-export const PREFLIGHT_BINDING_VERSION = 2;
+export const PREFLIGHT_BINDING_VERSION = 3;
 export const CANONICAL_MANIFEST_PATH = 'docs/p7-v2-r3b-run-manifest.json';
 export const RUNTIME_FREEZE_PATH = 'docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json';
 
 const RECOVERY6_RUN_ID = /^p7v2-(baseline|current|soak|demo[12])-r3b-recovery6-[a-z0-9_-]+$/;
-const FRESH_BASELINE_RUN_ID = 'p7v2-baseline-r3b-recovery6-20260716082252';
 
 function gitTree() {
   const res = run('git', ['rev-parse', 'HEAD^{tree}']);
@@ -28,6 +28,8 @@ function sha256File(relativePath) {
 
 function firstClassification(failedChecks) {
   if (failedChecks.includes('canonical_manifest_missing')) return 'canonical_manifest_missing';
+  if (failedChecks.includes('formal_invocation_contract_v2')) return 'legacy_manifest_not_valid_for_binary_bound_formal_execution';
+  if (failedChecks.includes('preflight_binding_version_v3')) return 'legacy_manifest_not_valid_for_binary_bound_formal_execution';
   if (failedChecks.includes('plan_checkpoint_match')) return 'plan_checkpoint_mismatch';
   if (failedChecks.includes('runtime_freeze_id_match')) return 'runtime_freeze_id_mismatch';
   if (failedChecks.includes('runtime_freeze_created')) return 'runtime_freeze_not_created';
@@ -96,6 +98,8 @@ export function evaluateRecovery6Preflight({
   const checks = [
     ['canonical_manifest_present', manifestExists],
     ['canonical_manifest_phase', manifest?.phase === 'P7-V2-R3B-FAST-CLOSE-R3'],
+    ['formal_invocation_contract_v2', manifest?.formalInvocationContractVersion === FORMAL_INVOCATION_CONTRACT_VERSION],
+    ['preflight_binding_version_v3', manifest?.preflightBindingVersion === PREFLIGHT_BINDING_VERSION],
     ['canonical_manifest_status', ['planned', 'runtime_frozen', 'ready_for_formal_execution'].includes(manifest?.status)],
     ['canonical_manifest_active', manifest?.active === true],
     ['formal_execution_not_started', manifest?.formalExecutionStarted === false && manifest?.executionStarted === false],
@@ -148,6 +152,10 @@ export function evaluateRecovery6Preflight({
   ];
   const failedChecks = checks.filter(([, ok]) => !ok).map(([id]) => id);
   const legacyBaselineRunIdDetected = legacyBaselineCandidates.find((candidate) => candidate && candidate !== runIds.baselineRunId) || '';
+  const ignoredLegacyCandidates = legacyBaselineCandidates.map((candidate) => ({
+    candidate,
+    ignoredReason: 'historical_or_incompatible_contract',
+  }));
   const report = {
     phase: 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL',
     component: 'preflight-audit',
@@ -155,17 +163,20 @@ export function evaluateRecovery6Preflight({
     semanticGatePassed: failedChecks.length === 0,
     classification: firstClassification(failedChecks),
     preflightBindingVersion: PREFLIGHT_BINDING_VERSION,
+    formalInvocationContractVersion: manifest?.formalInvocationContractVersion ?? null,
     formalRecovery6Mode: true,
     canonicalManifestPath: CANONICAL_MANIFEST_PATH,
     canonicalManifestSha256: sha256File(CANONICAL_MANIFEST_PATH),
     canonicalManifestStatus: manifest?.status || '',
     selectedManifestPath: manifestExists ? CANONICAL_MANIFEST_PATH : '',
-    selectedManifestReason: manifestExists ? 'canonical_active_recovery6_manifest' : 'canonical_manifest_missing',
+    selectedManifestReason: manifestExists ? 'canonical_active_recovery6_binary_bound_manifest' : 'canonical_manifest_missing',
     manifestCandidates: [CANONICAL_MANIFEST_PATH],
     baselineRunIdSource: CANONICAL_MANIFEST_PATH,
     runtimeFreezeIdSource: CANONICAL_MANIFEST_PATH,
     runtimeFreezeCreatedSource: CANONICAL_MANIFEST_PATH,
     legacyFallbackUsed: false,
+    legacyCandidateCount: legacyBaselineCandidates.length,
+    ignoredLegacyCandidates,
     staleCandidatePaths: ['docs/baselines/p7-v2-baseline-registry.json', 'docs/p7-v2-current-load-report.json'],
     resolvedPlanCheckpoint: manifest?.planCheckpoint || '',
     planCheckpoint: manifest?.planCheckpoint || '',
@@ -186,6 +197,7 @@ export function evaluateRecovery6Preflight({
     freezeCreationGitHead: runtimeFreeze.freezeCreationGitHead || '',
     freezeCreationGitTree: runtimeFreeze.freezeCreationGitTree || '',
     binaryProvenanceVersion: manifest?.formalBinaryProvenanceVersion ?? null,
+    formalBinaryProvenanceVersion: manifest?.formalBinaryProvenanceVersion ?? null,
     baselineBinarySha256Match: manifest?.baselineBinarySha256 === runtimeFreeze.baselineBinarySha256,
     currentBinarySha256Match: manifest?.currentBinarySha256 === runtimeFreeze.currentBinarySha256,
     inputSequenceHashMatch: manifest?.inputSequenceManifestHash === runtimeFreeze.inputSequenceManifestHash,

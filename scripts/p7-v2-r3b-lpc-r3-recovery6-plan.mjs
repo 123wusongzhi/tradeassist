@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { gitCommit, readJSON, root, writeJSON } from './p7-v2-lib.mjs';
 import { auditRunIdConsumption } from './p7-v2-r3b-precommit-runtime-freeze-closeout.mjs';
+import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
+import { PREFLIGHT_BINDING_VERSION } from './p7-v2-r3b-preflight.mjs';
 
 const required = [
   'docs/p7-v2-r3b-lpc-r3-preflight-audit.json',
@@ -69,6 +71,8 @@ const supersededPlan = currentPlan?.baselineRunId
 writeJSON('docs/p7-v2-r3b-recovery6-superseded-plan.json', supersededPlan);
 const manifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3', status: 'planned', canonicalSchemaVersion: 3, loadProfileFingerprintVersion: 3,
+  formalInvocationContractVersion: FORMAL_INVOCATION_CONTRACT_VERSION,
+  preflightBindingVersion: PREFLIGHT_BINDING_VERSION,
   ...runIds, selectedHost: '127.0.0.1', selectedPort: 18080, baseUrl: 'http://127.0.0.1:18080',
   controlToolingCommit: gitCommit(),
   planCheckpoint: gitCommit(),

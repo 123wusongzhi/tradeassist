@@ -17,6 +17,8 @@ import {
 } from './p7-v2-runtime-freeze-scope.mjs';
 import { FORMAL_BINARY_PROVENANCE_VERSION } from './p7-v2-formal-binary-provenance-lib.mjs';
 import { FORMAL_INPUT_SEQUENCE_BINDING_VERSION } from './p7-v2-formal-input-sequence.mjs';
+import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
+import { PREFLIGHT_BINDING_VERSION } from './p7-v2-r3b-preflight.mjs';
 
 export const FORMAL_PHASE = 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL';
 export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 3;
@@ -65,6 +67,8 @@ export function buildFormalPlanIdentity(manifest = {}, { planCheckpoint = gitCom
   return {
     planType: manifest.phase || 'P7-V2-R3B-FAST-CLOSE-R3',
     planSchemaVersion: Number(manifest.canonicalSchemaVersion || 3),
+    formalInvocationContractVersion: manifest.formalInvocationContractVersion || null,
+    preflightBindingVersion: manifest.preflightBindingVersion || null,
     planCheckpoint,
     baselineRunId: manifest.baselineRunId || '',
     currentRunId: manifest.currentRunId || '',
@@ -174,6 +178,8 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
   const immutableDiff = trackedDiffHash();
   const committedManifest = readCommittedManifestAtHead();
   if (manifest.phase !== 'P7-V2-R3B-FAST-CLOSE-R3') issues.push('invalid_recovery_plan_phase');
+  if (manifest.formalInvocationContractVersion !== FORMAL_INVOCATION_CONTRACT_VERSION) issues.push('formal_invocation_contract_v2_required');
+  if (manifest.preflightBindingVersion !== PREFLIGHT_BINDING_VERSION) issues.push('preflight_binding_v3_required');
   if (!['planned', 'ready_for_formal_execution'].includes(manifest.status)) issues.push('manifest_not_pre_execution');
   if (manifest.executionStarted !== false) issues.push('execution_already_started');
   if (manifest.environmentStarted === true || manifest.datasetExecuted === true || manifest.k6Executed === true) issues.push('formal_execution_evidence_already_started');
@@ -275,6 +281,8 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     runIds: bindRunIds ? runIds : {},
     plannedRunIdsAtFreeze: runIds,
     runIdBindingPolicy: 'bound_in_plan_binding_hash',
+    formalInvocationContractVersion: manifest.formalInvocationContractVersion || FORMAL_INVOCATION_CONTRACT_VERSION,
+    preflightBindingVersion: manifest.preflightBindingVersion || PREFLIGHT_BINDING_VERSION,
     runtimeFreezeIdentityVersion: RUNTIME_FREEZE_IDENTITY_VERSION,
     runtimeFreezeLifecycleVersion: RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION,
     binaryProvenanceBindingVersion: BINARY_PROVENANCE_BINDING_VERSION,
@@ -458,6 +466,8 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   }
   writeJSON(RUNTIME_FREEZE_PATH, { current: report, history });
   updateR3BManifest({
+    formalInvocationContractVersion: report.formalInvocationContractVersion,
+    preflightBindingVersion: report.preflightBindingVersion,
     runtimeFreezeId: report.contractId,
     runtimeFreezeCreated: true,
     runtimeFreezeCreatedAt: report.createdAt,

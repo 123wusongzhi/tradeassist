@@ -17,9 +17,59 @@ import {
   writeJSON,
   writeMarkdown,
 } from './p7-v2-lib.mjs';
+import {
+  FORMAL_INVOCATION_CONTRACT_VERSION,
+  readCanonicalFormalManifest,
+  resolveFormalBinaryBinding,
+  validateEnvStartArgs,
+} from './p7-v2-formal-invocation-lib.mjs';
 
 const args = process.argv.slice(2);
-const runId = safeRunId(valueOf(args, '--run-id') || process.env.P7_V2_RUN_ID);
+const manifest = readCanonicalFormalManifest();
+const envStartArgs = validateEnvStartArgs(args, { manifest });
+if (!envStartArgs.valid) {
+  console.error(JSON.stringify({
+    phase: 'P7-V2-R3B-FORMAL-INVOCATION-CONTRACT-V2',
+    component: 'env-start-cli-guard',
+    status: 'blocked',
+    formalInvocationContractVersion: FORMAL_INVOCATION_CONTRACT_VERSION,
+    runIdArgumentPresent: envStartArgs.runIdArgumentPresent,
+    runIdArgumentValueMissing: envStartArgs.runIdArgumentValueMissing,
+    resolvedRunId: envStartArgs.resolvedRunId,
+    formal: envStartArgs.formal,
+    environmentStarted: false,
+    databaseCreated: false,
+    listenerCreated: false,
+    implicitRunIdGenerated: false,
+    childProcessStarted: false,
+    issues: envStartArgs.issues,
+  }, null, 2));
+  process.exit(1);
+}
+const formalBinary = envStartArgs.formal
+  ? resolveFormalBinaryBinding({ runId: envStartArgs.resolvedRunId, role: envStartArgs.role, manifest })
+  : { status: 'not_applicable', binding: null, issues: [] };
+if (formalBinary.status === 'failed') {
+  console.error(JSON.stringify({
+    phase: 'P7-V2-R3B-FORMAL-INVOCATION-CONTRACT-V2',
+    component: 'env-start-formal-binary-guard',
+    status: 'blocked',
+    formalInvocationContractVersion: FORMAL_INVOCATION_CONTRACT_VERSION,
+    resolvedRunId: envStartArgs.resolvedRunId,
+    role: envStartArgs.role,
+    formal: envStartArgs.formal,
+    binaryMode: 'frozen',
+    implicitBuild: false,
+    goRun: false,
+    environmentStarted: false,
+    databaseCreated: false,
+    listenerCreated: false,
+    childProcessStarted: false,
+    issues: formalBinary.issues,
+  }, null, 2));
+  process.exit(1);
+}
+const runId = envStartArgs.formal ? envStartArgs.resolvedRunId : safeRunId(envStartArgs.resolvedRunId);
 const dbName = safeDbName(runId);
 const instanceNonce = valueOf(args, '--instance-nonce') || process.env.P7V2_INSTANCE_NONCE || '';
 const issues = [...assertDbNameSafe(dbName)];
@@ -74,7 +124,11 @@ const env = performanceEnvDefaults({
 
 let server = { ok: false, pid: '', issues: [] };
 if (issues.length === 0 && !args.includes('--skip-server')) {
-  server = startP7V2Server(env, { skipStop: args.includes('--skip-stop'), runId });
+  server = startP7V2Server(env, {
+    skipStop: args.includes('--skip-stop'),
+    runId,
+    formalBinaryBinding: formalBinary.binding,
+  });
   if (!server.ok) {
     issues.push(...(server.issues || ['failed to start API server']));
   } else {
@@ -121,6 +175,9 @@ const redactedEnv = {
 const report = {
   phase: 'P7-V2-R2',
   status: issues.length === 0 && loadReady ? 'passed' : 'failed',
+  formal: envStartArgs.formal,
+  formalInvocationContractVersion: envStartArgs.formal ? FORMAL_INVOCATION_CONTRACT_VERSION : null,
+  runIdSource: envStartArgs.runIdSource,
   runId,
   dbName,
   databaseNameHash: fingerprint.databaseNameHash,
@@ -150,6 +207,9 @@ const report = {
   processExecutableSha256: server.processExecutableSha256 || '',
   processExecutableSha256Match: server.processExecutableSha256Match ?? true,
   implicitBuildDisabled: server.implicitBuildDisabled === true,
+  binaryMode: envStartArgs.formal ? 'frozen' : 'implicit_build',
+  implicitBuild: envStartArgs.formal ? false : !server.implicitBuildDisabled,
+  goRun: false,
   formalBinaryProvenanceVersion: server.formalBinaryProvenanceVersion || null,
   readiness: {
     migrationsComplete,
