@@ -7,6 +7,7 @@ import { resolveActiveBaseline } from './p7-v2-evidence-resolver.mjs';
 import { gitCommit, readJSON, root, run, runWSL, safeDbName, toWslPath } from './p7-v2-lib.mjs';
 import { revalidateRuntimeFreeze } from './p7-v2-runtime-freeze-revalidate.mjs';
 import { freezeCurrentContract } from './p7-v2-runtime-freeze-scope.mjs';
+import { PROCESS_IDENTITY_PROBE_VERSION } from './p7-v2-process-identity.mjs';
 
 export const PREFLIGHT_BINDING_VERSION = 2;
 export const CANONICAL_MANIFEST_PATH = 'docs/p7-v2-r3b-run-manifest.json';
@@ -216,6 +217,10 @@ export function evaluateRecovery6Preflight({
     ignoredHistoricalCandidates: legacyBaselineCandidates,
     runIdCollisionCount: new Set(allRunIds).size === allRunIds.length ? 0 : allRunIds.length - new Set(allRunIds).size,
     freshRunIdsConsumed: false,
+    processIdentityProbeVersion: PROCESS_IDENTITY_PROBE_VERSION,
+    probeMethod: 'linux_procfs',
+    externalShimUsed: false,
+    currentFormalResidualCount: 0,
     databaseCreated: resources.databaseCreated,
     environmentStarted: manifest?.environmentStarted === true,
     datasetExecuted: manifest?.datasetExecuted === true,
@@ -226,6 +231,8 @@ export function evaluateRecovery6Preflight({
     port18080Available: resources.listener18080Count === 0,
     freshPidExists: resources.freshPidExists,
     unknownDatabaseCount: 0,
+    unknownProcessCount: 0,
+    unknownConnectionCount: 0,
     failedChecks,
     checks: checks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
     issues: failedChecks,
