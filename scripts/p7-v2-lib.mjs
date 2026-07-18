@@ -259,8 +259,7 @@ export function startP7V2Server(env = {}, opts = {}) {
     `mkdir -p ${JSON.stringify(`${wslRoot}/artifacts/p7-v2`)}`,
     sourceProjectEnv,
     `set -a && . ${JSON.stringify(runtimeEnvPath)} && set +a`,
-      `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
-    `sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
+      `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & echo $! > ${JSON.stringify(pidFile)} && sleep 2`,
     `cat ${JSON.stringify(pidFile)}`,
   ]
     .filter(Boolean)
