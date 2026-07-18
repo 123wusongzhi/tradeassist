@@ -46,6 +46,21 @@ assert.equal(formalBaseline.status, 'passed');
 assert.equal(formalBaseline.formal, true);
 assert.equal(formalBaseline.runIdIsManifestBound, true);
 
+const baselineAfterFreeze = validateEnvStartArgs(['--formal', '--run-id', manifest.baselineRunId], {
+  manifest: { ...manifest, status: 'baseline_frozen' },
+  env: {},
+});
+assert.equal(baselineAfterFreeze.status, 'failed');
+assert.match(baselineAfterFreeze.issues.join(','), /canonical_manifest_status_not_allowed_for_formal_role/);
+
+const formalCurrentAfterBaselineFreeze = validateEnvStartArgs(['--formal', '--run-id', manifest.currentRunId], {
+  manifest: { ...manifest, status: 'baseline_frozen' },
+  env: {},
+});
+assert.equal(formalCurrentAfterBaselineFreeze.status, 'passed');
+assert.equal(formalCurrentAfterBaselineFreeze.formal, true);
+assert.equal(formalCurrentAfterBaselineFreeze.runIdIsManifestBound, true);
+
 const formalMismatch = validateEnvStartArgs(['--formal', '--run-id', 'p7v2-baseline-r3b-recovery6-other'], { manifest, env: {} });
 assert.equal(formalMismatch.status, 'failed');
 assert.match(formalMismatch.issues.join(','), /formal_run_id_must_match_canonical_manifest/);
@@ -60,7 +75,7 @@ assert.match(legacyManifest.issues.join(','), /formal_invocation_contract_v2_req
 console.log(JSON.stringify({
   phase: 'P7-V2-R3B-FORMAL-INVOCATION-CONTRACT-V2',
   status: 'passed',
-  fixtures: 8,
+  fixtures: 10,
   emptyRunIdRejected: true,
   emptyRunIdCreatesNoResources: true,
   formalRunIdRequiresFormalMode: true,

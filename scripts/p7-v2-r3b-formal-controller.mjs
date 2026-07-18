@@ -47,7 +47,7 @@ function commandForStage(stage, manifest) {
     'baseline-env-start': { role: 'baseline', command: pnpm, argv: ['p7-v2:env:start', '--', '--formal', '--run-id', baselineRunId] },
     'baseline-dataset': { role: 'baseline', command: pnpm, argv: ['p7-v2:dataset', '--', '--run-id', baselineRunId, '--execute'] },
     'baseline-load': { role: 'baseline', command: pnpm, argv: ['p7-v2:baseline', '--', '--run-id', baselineRunId] },
-    'current-load': { role: 'current', command: pnpm, argv: ['p7-v2:r3b:current', '--', '--run-id', currentRunId] },
+    'current-load': { role: 'current', command: pnpm, argv: ['p7-v2:r3b:current', '--', '--formal', '--run-id', currentRunId] },
     comparability: { role: '', command: pnpm, argv: ['p7-v2:r3b:comparability'] },
     regression: { role: '', command: pnpm, argv: ['p7-v2:r3b:regression'] },
     soak: { role: 'soak', command: pnpm, argv: ['p7-v2:r3b:soak', '--', '--run-id', soakRunId] },

@@ -16,6 +16,7 @@ if (!activeBaseline.valid) throw new Error(`active frozen baseline is invalid: $
 const baselineRunId = activeBaseline.baseline.runId;
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
 const runId = safeRunId(valueOf(args, '--run-id') || `p7v2-restart-${Date.now()}`);
+const formal = args.includes('--formal');
 const portConfig = resolveP7V2PortConfig();
 const previousDatabaseName = String(runtime.dbName || '');
 const pidFile = `${wslProjectRoot()}/artifacts/p7-v2/server.pid`;
@@ -39,8 +40,10 @@ if (previousApiPresent) {
 const portBeforeStart = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
 portReleased = (portBeforeStart.stdout || '').trim() === 'free';
 const instanceNonce = generateInstanceNonce();
+const startArgs = ['scripts/p7-v2-start-performance-env.mjs', '--run-id', runId, '--skip-stop', '--instance-nonce', instanceNonce];
+if (formal) startArgs.push('--formal');
 const start = oldProcessStopped && portReleased
-  ? spawnSync(process.execPath, ['scripts/p7-v2-start-performance-env.mjs', '--run-id', runId, '--skip-stop', '--instance-nonce', instanceNonce], { stdio: 'pipe', encoding: 'utf8' })
+  ? spawnSync(process.execPath, startArgs, { stdio: 'pipe', encoding: 'utf8' })
   : { status: 1 };
 const rebuilt = start.status === 0
   ? spawnSync(process.execPath, ['scripts/p7-v2-dataset.mjs', '--run-id', runId, '--execute'], { stdio: 'pipe', encoding: 'utf8' })
@@ -101,6 +104,7 @@ const report = {
   component: 'environment-restart',
   runId,
   status: 'failed',
+  formal,
   restartPerformed: start.status === 0,
   api,
   worker,

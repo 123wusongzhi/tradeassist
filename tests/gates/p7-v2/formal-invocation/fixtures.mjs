@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  allowedFormalManifestStatuses,
   FORMAL_INVOCATION_CONTRACT_VERSION,
   parseNamedArg,
 } from '../../../../scripts/p7-v2-formal-invocation-lib.mjs';
@@ -45,6 +46,13 @@ assert.deepEqual(baseline.evidence.argv, ['p7-v2:env:start', '--', '--formal', '
 assert.equal(baseline.evidence.shellUsed, false);
 assert.equal(baseline.evidence.childSpawnShell, false);
 
+const currentManifest = { ...manifest, status: 'baseline_frozen' };
+const current = buildFormalInvocation({ stage: 'current-load', manifest: currentManifest, dryRun: true });
+assert.equal(current.evidence.role, 'current');
+assert.deepEqual(current.evidence.argv, ['p7-v2:r3b:current', '--', '--formal', '--run-id', manifest.currentRunId]);
+assert.deepEqual(allowedFormalManifestStatuses({ stage: 'current-load', role: 'current' }), ['baseline_frozen']);
+assert.equal(current.evidence.gate.failedChecks.includes('manifest_status_allowed_for_stage'), false);
+
 const mismatch = buildFormalInvocation({
   stage: 'baseline-env-start',
   manifest,
@@ -57,7 +65,7 @@ assert.match(mismatch.evidence.issues.join(','), /provided_run_id_does_not_match
 console.log(JSON.stringify({
   phase: 'P7-V2-R3B-FORMAL-INVOCATION-CONTRACT-V2',
   status: 'passed',
-  fixtures: 6,
+  fixtures: 10,
   formalRunIdResolvedFromManifest: true,
   shellCommandSubstitutionUsed: false,
   childSpawnShell: false,

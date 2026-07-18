@@ -67,6 +67,12 @@ export function isManifestRunId(runId, manifest = readCanonicalFormalManifest())
   return manifestRunIds(manifest).includes(String(runId || '').trim());
 }
 
+export function allowedFormalManifestStatuses({ stage = '', role = '' } = {}) {
+  if (stage === 'current-load' || role === 'current') return ['baseline_frozen'];
+  if (['comparability', 'regression', 'final-gates', 'cleanup-check', 'cleanup-execute'].includes(stage)) return ['current_frozen'];
+  return ['planned', 'runtime_frozen', 'ready_for_formal_execution'];
+}
+
 export function validateEnvStartArgs(args, { env = process.env, manifest = readCanonicalFormalManifest() } = {}) {
   const runIdArg = parseNamedArg(args, '--run-id');
   const formal = args.includes('--formal');
@@ -86,7 +92,7 @@ export function validateEnvStartArgs(args, { env = process.env, manifest = readC
     if (manifest.formalInvocationContractVersion !== FORMAL_INVOCATION_CONTRACT_VERSION) issues.push('formal_invocation_contract_v2_required');
     if (manifest.preflightBindingVersion !== 3) issues.push('preflight_binding_v3_required');
     if (manifest.active !== true || manifest.validForExecution !== true) issues.push('canonical_manifest_not_active_for_formal_execution');
-    if (!['planned', 'runtime_frozen', 'ready_for_formal_execution'].includes(manifest.status)) issues.push('canonical_manifest_status_not_pre_execution');
+    if (!allowedFormalManifestStatuses({ role }).includes(manifest.status)) issues.push('canonical_manifest_status_not_allowed_for_formal_role');
   } else if (resolvedRunId && isManifestRunId(resolvedRunId, manifest)) {
     issues.push('manifest_formal_run_id_requires_formal_mode');
   }
@@ -140,10 +146,11 @@ export function validateFormalInvocationGate({ stage, role = '', manifest = read
   const revalidation = readJSON('docs/p7-v2-r3b-runtime-freeze-revalidation.json') || {};
   const resolvedRunId = runIdForRole(manifest, role);
   const binary = role ? resolveFormalBinaryBinding({ runId: resolvedRunId, role, manifest }) : { status: 'not_applicable', issues: [] };
+  const allowedStatuses = allowedFormalManifestStatuses({ stage, role });
   const checks = [
     ['formal_invocation_contract_v2', manifest.formalInvocationContractVersion === FORMAL_INVOCATION_CONTRACT_VERSION],
     ['preflight_binding_v3', manifest.preflightBindingVersion === 3],
-    ['manifest_status_pre_execution', ['planned', 'runtime_frozen', 'ready_for_formal_execution'].includes(manifest.status)],
+    ['manifest_status_allowed_for_stage', allowedStatuses.includes(manifest.status)],
     ['manifest_active', manifest.active === true && manifest.validForExecution === true],
     ['plan_checkpoint_current_head', manifest.planCheckpoint === currentGitHead],
     ['resolved_run_id_present', role ? Boolean(resolvedRunId) : true],
@@ -167,6 +174,7 @@ export function validateFormalInvocationGate({ stage, role = '', manifest = read
     currentGitHead,
     manifestPath: CANONICAL_FORMAL_MANIFEST_PATH,
     manifestSha256: manifestSha256(),
+    allowedManifestStatuses: allowedStatuses,
     runtimeFreezeId: manifest.runtimeFreezeId || '',
     planCheckpoint: manifest.planCheckpoint || '',
     preflightPassed: preflight.status === 'passed' && preflight.semanticGatePassed === true,

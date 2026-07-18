@@ -8,6 +8,7 @@ import { revalidateRuntimeFreeze } from './p7-v2-runtime-freeze-revalidate.mjs';
 import { validateFormalExecutionLifecycle } from './p7-v2-r3b-lifecycle.mjs';
 
 const args = process.argv.slice(2);
+const formal = args.includes('--formal');
 const runId = valueOf(args, '--run-id') || `p7v2-current-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 if (!/^p7v2-current-r3b-recovery6-[a-z0-9_-]+$/.test(runId)) {
   throw new Error('P7-V2-R3B-FAST-CLOSE-R3-FORMAL requires a unique Recovery6 current run ID');
@@ -19,11 +20,28 @@ const activeBaseline = resolveActiveBaseline();
 if (!activeBaseline.valid) throw new Error(`active frozen baseline is invalid: ${activeBaseline.issues.join('; ')}`);
 const baselineRunId = activeBaseline.baseline.runId;
 if (runId === baselineRunId) throw new Error('Current run ID must differ from the active baseline run ID');
-const restart = spawnSync(process.execPath, ['scripts/p7-v2-restart-environment.mjs', '--run-id', `${runId}-restart`], {
+function loadArgsWithoutControllerOnlyFlags(values) {
+  const filtered = [];
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i];
+    if (value === '--run-id') {
+      i += 1;
+      continue;
+    }
+    if (value.startsWith('--run-id=')) continue;
+    if (value === '--formal') continue;
+    filtered.push(value);
+  }
+  return filtered;
+}
+const restartRunId = formal ? runId : `${runId}-restart`;
+const restartArgs = ['scripts/p7-v2-restart-environment.mjs', '--run-id', restartRunId];
+if (formal) restartArgs.push('--formal');
+const restart = spawnSync(process.execPath, restartArgs, {
   stdio: 'inherit',
 });
 if (restart.status !== 0) process.exit(restart.status ?? 1);
-const res = spawnSync(process.execPath, ['scripts/p7-v2-load.mjs', '--kind', 'current', '--run-id', runId, ...args.filter((a) => !a.startsWith('--run-id'))], {
+const res = spawnSync(process.execPath, ['scripts/p7-v2-load.mjs', '--kind', 'current', '--run-id', runId, ...loadArgsWithoutControllerOnlyFlags(args)], {
   stdio: 'inherit',
 });
 const current = readJSON('docs/p7-v2-current-load-report.json');
