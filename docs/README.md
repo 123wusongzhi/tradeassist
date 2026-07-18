@@ -152,6 +152,10 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md](P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md) | Generated final gate for the local webhook tail repair evidence; this does not close P7-V2 without a new formal pair. |
 | [P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT.md](P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT.md) | Non-formal repeatability/order-bias audit status, Process Identity Probe V2 evidence, and required B-C-C-B diagnostic gate entry. |
 | [P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT_FINAL_GATE.md](P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT_FINAL_GATE.md) | Generated final gate for the repeatability/order-bias audit; expected to fail until B-C-C-B diagnostic evidence is present. |
+| [P7_V2_R3B_BINARY_BOUND_FAILED_FORMAL_PAIR_AUDIT_INDEX.md](P7_V2_R3B_BINARY_BOUND_FAILED_FORMAL_PAIR_AUDIT_INDEX.md) | Audit index for the failed binary-bound Formal Pair used as input to the B-C-C-B repeatability matrix. |
+| [P7_V2_R3B_BINARY_BOUND_REPEATABILITY_MATRIX.md](P7_V2_R3B_BINARY_BOUND_REPEATABILITY_MATRIX.md) | Diagnostic-only B-C-C-B repeatability matrix for frozen B/C binaries, variance analysis, root-cause classification, and repair-path selection. |
+| [P7_V2_R3B_BINARY_BOUND_REPEATABILITY_MATRIX_FINAL_GATE.md](P7_V2_R3B_BINARY_BOUND_REPEATABILITY_MATRIX_FINAL_GATE.md) | Generated final gate for the binary-bound repeatability matrix; passing does not close P7-V2 or production readiness. |
+| [P7_V2_R3B_BINARY_BOUND_DIAGNOSTIC_CLEANUP.md](P7_V2_R3B_BINARY_BOUND_DIAGNOSTIC_CLEANUP.md) | Exact diagnostic database/process/listener cleanup report after the B-C-C-B matrix. |
 
 ## Phase P3.2 Douyin Webhook Docs
 
