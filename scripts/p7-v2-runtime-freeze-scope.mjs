@@ -16,7 +16,6 @@ const IGNORED_PARTS = new Set(['.git', 'node_modules', 'dist', 'artifacts', 'doc
 const RUNTIME_ROOTS = ['backend', 'tests/load', 'scripts', 'package.json', 'pnpm-lock.yaml', '.env.example', '.env.docker.example', 'docker-compose.yml', 'docker-compose.full.yml'];
 const FORMAL_TEMPLATE_FILES = new Set(['package.json', 'pnpm-lock.yaml', '.env.example', '.env.docker.example', 'docker-compose.yml', 'docker-compose.full.yml']);
 const IMMUTABLE_INPUT_DOCS = new Set([
-  'docs/p7-v2-r3b-run-manifest.json',
   'docs/p7-v2-r3b-formal-binary-provenance-manifest.json',
   'docs/p7-v2-r3b-formal-input-sequence-manifest.json',
   'docs/p7-v2-r3b-lpc-r3-preflight-audit.json',
@@ -111,8 +110,8 @@ export function classifyFreezePath(relPath) {
   if (rel === 'docs/PROGRESS.md' || rel === 'PROGRESS.md') {
     return { classification: 'generated_evidence_output', reason: 'progress report is generated closure evidence' };
   }
-  if (/\/registry\.json$/.test(rel) || /docs\/(baselines|currents|fingerprints)\//.test(rel)) {
-    return { classification: 'mutable_execution_state', reason: 'manifest and registry pointers mutate during formal execution' };
+  if (rel === 'docs/p7-v2-r3b-run-manifest.json' || /\/registry\.json$/.test(rel) || /docs\/(baselines|currents|fingerprints)\//.test(rel)) {
+    return { classification: 'mutable_execution_state', reason: 'manifest lifecycle fields and registry pointers mutate during formal execution' };
   }
   if (GENERATED_PREFIXES.some((prefix) => rel.startsWith(prefix))) {
     return { classification: 'generated_evidence_output', reason: 'runtime evidence and artifacts are generated outputs' };

@@ -68,11 +68,12 @@ assert.equal(fixtureFreeze.cleanCommittedHeadRequired, true);
 assert.match(fixtureFreeze.freezeCreationGitHead, /^[a-f0-9]{40}$/);
 assert.match(fixtureFreeze.freezeCreationGitTree, /^[a-f0-9]{40}$/);
 
-assert.equal(isImmutableRuntimeInputPath('docs/p7-v2-r3b-run-manifest.json'), true);
+assert.equal(isImmutableRuntimeInputPath('docs/p7-v2-r3b-run-manifest.json'), false);
 assert.equal(isImmutableRuntimeInputPath('docs/p7-v2-r3b-formal-binary-provenance-manifest.json'), true);
 assert.equal(isGeneratedEvidencePath('docs/p7-v2-r3b-runtime-freeze-revalidation.json'), true);
 assert.equal(classifyFreezePath('docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json').classification, 'generated_evidence_output');
 assert.equal(classifyFreezePath('docs/p7-v2-r3b-formal-input-sequence-manifest.json').classification, 'immutable_execution_input');
+assert.equal(classifyFreezePath('docs/p7-v2-r3b-run-manifest.json').classification, 'mutable_execution_state');
 
 const source = (file) => fs.readFileSync(file, 'utf8');
 assert.match(source('scripts/p7-v2-runtime-freeze-revalidate.mjs'), /revalidationRuntimeFreezeId/);

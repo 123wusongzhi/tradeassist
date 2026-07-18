@@ -144,6 +144,22 @@ export function readRuntimeFreezeContract() {
   return freezeCurrentContract(readJSON(RUNTIME_FREEZE_PATH) || {}) || {};
 }
 
+function readCommittedManifestAtHead() {
+  const res = run('git', ['show', 'HEAD:docs/p7-v2-r3b-run-manifest.json'], { maxBuffer: 10 * 1024 * 1024 });
+  if (res.status !== 0) return null;
+  try {
+    return JSON.parse(res.stdout);
+  } catch {
+    return null;
+  }
+}
+
+function manifestPlanInputHash(manifest = {}) {
+  return sha256Json(buildFormalPlanIdentity(manifest, {
+    planCheckpoint: manifest.planCheckpoint || manifest.controlToolingCommit || '',
+  }));
+}
+
 export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {}) {
   const runIds = {
     baselineRunId: manifest.baselineRunId || '',
@@ -156,6 +172,7 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
   const currentGitHead = gitCommit();
   const currentGitTree = gitTree();
   const immutableDiff = trackedDiffHash();
+  const committedManifest = readCommittedManifestAtHead();
   if (manifest.phase !== 'P7-V2-R3B-FAST-CLOSE-R3') issues.push('invalid_recovery_plan_phase');
   if (!['planned', 'ready_for_formal_execution'].includes(manifest.status)) issues.push('manifest_not_pre_execution');
   if (manifest.executionStarted !== false) issues.push('execution_already_started');
@@ -164,7 +181,10 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
   if (Object.values(runIds).some((runId) => !RECOVERY6_RUN_ID.test(runId))) issues.push('invalid_recovery6_run_id');
   if (!/^[a-f0-9]{40}$/.test(currentGitHead)) issues.push('current_git_head_missing');
   if (!/^[a-f0-9]{40}$/.test(currentGitTree)) issues.push('current_git_tree_missing');
-  if (manifest.planCheckpoint !== currentGitHead) issues.push('plan_checkpoint_not_current_head');
+  const acceptedPlanCheckpoints = [currentGitHead, manifest.controlToolingCommit].filter((value) => /^[a-f0-9]{40}$/.test(String(value || '')));
+  if (manifest.planCheckpoint && !acceptedPlanCheckpoints.includes(manifest.planCheckpoint)) issues.push('plan_checkpoint_not_current_head');
+  if (!committedManifest) issues.push('committed_manifest_missing');
+  if (committedManifest && manifestPlanInputHash(manifest) !== manifestPlanInputHash(committedManifest)) issues.push('uncommitted_manifest_input_change');
   if (immutableDiff.immutableWorkingTreeClean !== true) issues.push('immutable_working_tree_not_clean');
   return {
     valid: issues.length === 0,
@@ -174,6 +194,8 @@ export function validateRuntimeFreezeCreationPreconditions(manifest = readJSON('
     currentGitHead,
     currentGitTree,
     immutableDiff,
+    committedManifestPlanInputHash: committedManifest ? manifestPlanInputHash(committedManifest) : '',
+    workingManifestPlanInputHash: manifestPlanInputHash(manifest),
     immutableWorkingTreeClean: immutableDiff.immutableWorkingTreeClean === true,
     immutableTrackedDiffPresent: immutableDiff.immutableTrackedDiffPresent === true,
     stagedImmutableChangeCount: immutableDiff.stagedImmutableChangeCount || 0,

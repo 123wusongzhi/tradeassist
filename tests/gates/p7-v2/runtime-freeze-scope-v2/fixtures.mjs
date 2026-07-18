@@ -68,7 +68,7 @@ assert.notEqual(configHash({ regressionPolicyFingerprint: '3'.repeat(64) }), sta
 assert.notEqual(sourceHash({ 'backend/cmd/server/main.go': 'package main\nfunc main() { println("changed") }\n' }), baseHash);
 assert.notEqual(sourceHash({ 'scripts/p7-v2-baseline.mjs': 'export const baseline = "changed";\n' }), baseHash);
 
-assert.equal(classifyFreezePath('docs/p7-v2-r3b-run-manifest.json').classification, 'immutable_execution_input');
+assert.equal(classifyFreezePath('docs/p7-v2-r3b-run-manifest.json').classification, 'mutable_execution_state');
 assert.equal(classifyFreezePath('docs/P7_V2_REPORT.md').classification, 'generated_evidence_output');
 assert.equal(classifyFreezePath('artifacts/p7-v2/baseline/raw.json').classification, 'generated_evidence_output');
 assert.equal(classifyFreezePath('backend/cmd/server/main.go').classification, 'immutable_execution_input');
