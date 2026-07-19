@@ -544,9 +544,10 @@ function createRuntimeReport({ slot, runId, pg, env, server, authProbe, routePro
 
 function deterministicWarmup({ baseUrl, runId, contract }) {
   const started = Date.now();
-  const webhook1 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: `${runId}-warmup-normal`, type: 'ping' }));
-  const webhook2 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: `${runId}-warmup-normal`, type: 'ping' }));
-  const authUnknown = probeLoginStatus(baseUrl, `missing-${runId}@example.invalid`, 'definitely-wrong-password');
+  const warmupId = `p7v2-warmup-${crypto.createHash('sha1').update(runId).digest('hex').slice(0, 16)}`;
+  const webhook1 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: warmupId, type: 'ping' }));
+  const webhook2 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: warmupId, type: 'ping' }));
+  const authUnknown = probeLoginStatus(baseUrl, `missing-${warmupId}@example.invalid`, 'definitely-wrong-password');
   const authWrong = loginPerformanceAccount(baseUrl, 'operator', { P7V2_PERF_OPERATOR_PASSWORD: 'definitely-wrong-password' });
   const authLocked = loginPerformanceAccount(baseUrl, 'disabled', {});
   const statuses = [webhook1, webhook2, authUnknown, authWrong.loginStatus, authLocked.loginStatus].map(String);
@@ -557,6 +558,8 @@ function deterministicWarmup({ baseUrl, runId, contract }) {
     warmupBranchMixFingerprint: contract.warmupManifest?.warmupBranchMixFingerprint || '',
     warmupRequestCount: 5,
     warmupBranchCountsMatch: true,
+    isolatedIdNamespace: contract.warmupManifest?.isolatedIdNamespace || 'p7v2-warmup',
+    warmupId,
     observedStatuses: {
       webhookNormalInsert: String(webhook1),
       webhookDuplicateConflict: String(webhook2),
