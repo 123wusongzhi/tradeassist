@@ -306,13 +306,13 @@ function countOtherDiagnosticRunners(stdout) {
 function collectResourceSnapshot(slot = '') {
   const port = resolveP7V2PortConfig().port;
   const listener = runWSL(`ss -ltn 'sport = :${port}' 2>/dev/null | awk 'NR>1 {c++} END {print c+0}'`, { timeout: 15000 });
-  const p7Processes = runWSL(`pgrep -af 'P7_DIAGNOSTIC_RUN_ID|P7V2_INSTANCE_NONCE|artifacts/p7-v2/formal-binaries/.*/server' 2>/dev/null || true`, { timeout: 15000 });
+  const p7Processes = runWSL(`pgrep -af '[P]7_DIAGNOSTIC_RUN_ID|[P]7V2_INSTANCE_NONCE|[a]rtifacts/p7-v2/formal-binaries/.*/server' 2>/dev/null || true`, { timeout: 15000 });
   const dbConns = runWSL(`psql -h /var/run/postgresql -U root -At -d postgres -c "select count(*) from pg_stat_activity where datname like 'trademind_p7v2_%';" 2>/dev/null || echo 0`, { timeout: 30000 });
-  const goBuild = runWSL(`pgrep -af 'go (build|test)' 2>/dev/null | wc -l`, { timeout: 10000 });
-  const pnpmInstall = runWSL(`pgrep -af 'pnpm (install|i)' 2>/dev/null | wc -l`, { timeout: 10000 });
-  const gitCompression = runWSL(`pgrep -af 'git (gc|repack|pack-objects)' 2>/dev/null | wc -l`, { timeout: 10000 });
-  const dbDump = runWSL(`pgrep -af '(pg_dump|pg_restore)' 2>/dev/null | wc -l`, { timeout: 10000 });
-  const diag = runWSL(`pgrep -af 'p7-v2-r3b-host-isolation-validation-runner' 2>/dev/null || true`, { timeout: 10000 });
+  const goBuild = runWSL(`pgrep -af '[g]o (build|test)' 2>/dev/null || true`, { timeout: 10000 });
+  const pnpmInstall = runWSL(`pgrep -af '[p]npm (install|i)' 2>/dev/null || true`, { timeout: 10000 });
+  const gitCompression = runWSL(`pgrep -af '[g]it (gc|repack|pack-objects)' 2>/dev/null || true`, { timeout: 10000 });
+  const dbDump = runWSL(`pgrep -af '([p]g_dump|[p]g_restore)' 2>/dev/null || true`, { timeout: 10000 });
+  const diag = runWSL(`pgrep -af '[p]7-v2-r3b-host-isolation-validation-runner' 2>/dev/null || true`, { timeout: 10000 });
   return {
     slot,
     timestamp: new Date().toISOString(),
