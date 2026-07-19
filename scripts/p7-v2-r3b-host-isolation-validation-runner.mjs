@@ -281,12 +281,21 @@ function countLines(stdout) {
   return String(stdout || '').split(/\r?\n/).filter((line) => line.trim()).length;
 }
 
-function countOtherDiagnosticRunners(stdout) {
+function processRows(stdout) {
   return String(stdout || '')
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .filter((line) => !line.includes("pgrep -af 'p7-v2-r3b-host-isolation-validation-runner'"))
+    .filter((line) => !line.includes('pgrep -af'));
+}
+
+function countProcessRows(stdout) {
+  return processRows(stdout).length;
+}
+
+function countOtherDiagnosticRunners(stdout) {
+  return processRows(stdout)
+    .filter((line) => !/\b(sh|bash) -c node scripts\/p7-v2-r3b-host-isolation-validation-runner\.mjs\b/.test(line))
     .filter((line) => {
       const pid = Number(line.split(/\s+/, 1)[0]);
       return pid !== process.pid;
@@ -308,7 +317,7 @@ function collectResourceSnapshot(slot = '') {
     slot,
     timestamp: new Date().toISOString(),
     listener18080Count: Number(listener.stdout || 0),
-    unknownP7ProcessCount: countLines(p7Processes.stdout),
+    unknownP7ProcessCount: countProcessRows(p7Processes.stdout),
     unknownDatabaseCount: 0,
     unknownConnectionCount: 0,
     activeP7DatabaseConnectionCount: Number(dbConns.stdout || 0),
@@ -316,10 +325,10 @@ function collectResourceSnapshot(slot = '') {
     unexpectedGoProcessCount: 0,
     unexpectedK6ProcessCount: 0,
     unexpectedNodeHarnessProcessCount: 0,
-    activeGoBuildCount: Number(goBuild.stdout || 0),
-    activePnpmInstallCount: Number(pnpmInstall.stdout || 0),
-    activeGitCompressionCount: Number(gitCompression.stdout || 0),
-    activeDatabaseDumpCount: Number(dbDump.stdout || 0),
+    activeGoBuildCount: countProcessRows(goBuild.stdout),
+    activePnpmInstallCount: countProcessRows(pnpmInstall.stdout),
+    activeGitCompressionCount: countProcessRows(gitCompression.stdout),
+    activeDatabaseDumpCount: countProcessRows(dbDump.stdout),
     activeDiagnosticRunnerCount: countOtherDiagnosticRunners(diag.stdout),
   };
 }
@@ -816,6 +825,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       message: error.message,
       measurementStarted,
       matrixStatus: error.matrixStatus || (measurementStarted ? 'invalid_incomplete' : 'blocked'),
+      precheck: error.precheck || null,
       loadReport,
       generatedAt: new Date().toISOString(),
     });

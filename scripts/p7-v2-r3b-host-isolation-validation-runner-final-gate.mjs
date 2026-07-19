@@ -61,6 +61,8 @@ export function evaluateHostIsolationValidationRunnerFinalGate() {
     'formalPairStarted: false',
     'baselineBinaryRebuilt: false',
     'currentBinaryRebuilt: false',
+    'processRows',
+    'countOtherDiagnosticRunners',
   ]);
   const missingStateNeedles = sourceContainsAll(runnerSource, [
     'resource_precheck',
