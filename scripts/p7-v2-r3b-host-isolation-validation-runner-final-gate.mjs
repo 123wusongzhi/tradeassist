@@ -69,6 +69,7 @@ export function evaluateHostIsolationValidationRunnerFinalGate() {
     "backend_type='client backend'",
     'observedStatuses',
     'p7v2-warmup-',
+    "wait_event_type,'') <> 'Client'",
   ]);
   const missingStateNeedles = sourceContainsAll(runnerSource, [
     'resource_precheck',
