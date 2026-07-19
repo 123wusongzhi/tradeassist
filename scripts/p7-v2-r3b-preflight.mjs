@@ -9,6 +9,7 @@ import { revalidateRuntimeFreeze } from './p7-v2-runtime-freeze-revalidate.mjs';
 import { freezeCurrentContract } from './p7-v2-runtime-freeze-scope.mjs';
 import { PROCESS_IDENTITY_PROBE_VERSION } from './p7-v2-process-identity.mjs';
 import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
+import { FORMAL_HOST_ISOLATION_VERSION, HOST_ISOLATION_CONTRACT_PATH, validateFormalHostIsolationContract } from './p7-v2-r3b-formal-host-isolation.mjs';
 
 export const PREFLIGHT_BINDING_VERSION = 3;
 export const CANONICAL_MANIFEST_PATH = 'docs/p7-v2-r3b-run-manifest.json';
@@ -76,6 +77,9 @@ export function evaluateRecovery6Preflight({
   checkLiveResources = true,
 } = {}) {
   const runtimeFreeze = freezeCurrentContract(runtimeFreezeDoc) || {};
+  const hostIsolation = readJSON(HOST_ISOLATION_CONTRACT_PATH) || {};
+  const hostIsolationValidation = validateFormalHostIsolationContract(hostIsolation);
+  const hostIsolationMatrixGate = readJSON('docs/p7-v2-r3b-host-isolation-validation-final-gate.json') || {};
   const manifestExists = Boolean(manifest && Object.keys(manifest).length);
   const runIds = {
     baselineRunId: manifest?.baselineRunId || '',
@@ -115,6 +119,14 @@ export function evaluateRecovery6Preflight({
     ['runtime_freeze_id_match', manifest?.runtimeFreezeId && manifest.runtimeFreezeId === runtimeFreeze.runtimeFreezeId],
     ['runtime_freeze_identity_v2', runtimeFreeze.runtimeFreezeIdentityVersion === 2],
     ['runtime_freeze_lifecycle_v3', runtimeFreeze.runtimeFreezeLifecycleVersion === 3 && runtimeFreeze.runtimeFreezeLifecycleContractVersion === 3],
+    ['formal_host_isolation_v2', manifest?.formalHostIsolationVersion === FORMAL_HOST_ISOLATION_VERSION && runtimeFreeze.formalHostIsolationVersion === FORMAL_HOST_ISOLATION_VERSION],
+    ['host_isolation_contract_valid', hostIsolationValidation.status === 'passed'],
+    ['host_isolation_contract_hash_match', manifest?.hostIsolationContractHash && manifest.hostIsolationContractHash === runtimeFreeze.hostIsolationContractHash && manifest.hostIsolationContractHash === hostIsolation.hostIsolationContractHash],
+    ['lifecycle_contract_hash_match', manifest?.lifecycleContractHash && manifest.lifecycleContractHash === runtimeFreeze.lifecycleContractHash],
+    ['warmup_manifest_hash_match', manifest?.warmupManifestHash && manifest.warmupManifestHash === runtimeFreeze.warmupManifestHash],
+    ['quiet_window_contract_hash_match', manifest?.hostQuietWindowContractHash && manifest.hostQuietWindowContractHash === runtimeFreeze.hostQuietWindowContractHash],
+    ['postgres_isolation_contract_hash_match', manifest?.postgresIsolationContractHash && manifest.postgresIsolationContractHash === runtimeFreeze.postgresIsolationContractHash],
+    ['host_isolation_validation_passed', hostIsolationMatrixGate.status === 'passed'],
     ['clean_committed_head_required', runtimeFreeze.cleanCommittedHeadRequired === true && runtimeFreeze.createdFromCleanCommittedHead === true],
     ['immutable_tracked_diff_absent', runtimeFreeze.immutableTrackedDiffPresent === false && runtimeFreeze.immutableWorkingTreeClean === true],
     ['binary_provenance_version_v2', manifest?.formalBinaryProvenanceVersion === 2 && runtimeFreeze.formalBinaryProvenanceVersion === 2],
@@ -202,6 +214,14 @@ export function evaluateRecovery6Preflight({
     currentBinarySha256Match: manifest?.currentBinarySha256 === runtimeFreeze.currentBinarySha256,
     inputSequenceHashMatch: manifest?.inputSequenceManifestHash === runtimeFreeze.inputSequenceManifestHash,
     branchMixFingerprintBound: manifest?.branchMixFingerprint === runtimeFreeze.branchMixFingerprint,
+    formalHostIsolationVersion: manifest?.formalHostIsolationVersion ?? null,
+    hostIsolationContractHash: manifest?.hostIsolationContractHash || '',
+    hostIsolationContractValid: hostIsolationValidation.status === 'passed',
+    hostIsolationValidationPassed: hostIsolationMatrixGate.status === 'passed',
+    hostIsolationBindingPassed: manifest?.hostIsolationContractHash && manifest.hostIsolationContractHash === runtimeFreeze.hostIsolationContractHash && manifest.hostIsolationContractHash === hostIsolation.hostIsolationContractHash,
+    warmupBindingPassed: manifest?.warmupManifestHash && manifest.warmupManifestHash === runtimeFreeze.warmupManifestHash,
+    quietWindowBindingPassed: manifest?.hostQuietWindowContractHash && manifest.hostQuietWindowContractHash === runtimeFreeze.hostQuietWindowContractHash,
+    postgresIsolationBindingPassed: manifest?.postgresIsolationContractHash && manifest.postgresIsolationContractHash === runtimeFreeze.postgresIsolationContractHash,
     runtimeFreezeCreated: manifest?.runtimeFreezeCreated === true,
     planBindingHash: manifest?.planBindingHash || '',
     runtimeContentHash: manifest?.runtimeContentHash || '',

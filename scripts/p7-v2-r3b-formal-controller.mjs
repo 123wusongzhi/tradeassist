@@ -11,6 +11,8 @@ import {
   validateFormalInvocationGate,
   writeFormalInvocationEvidence,
 } from './p7-v2-formal-invocation-lib.mjs';
+import { FORMAL_HOST_ISOLATION_VERSION } from './p7-v2-r3b-formal-host-isolation.mjs';
+import { readJSON } from './p7-v2-lib.mjs';
 
 const STAGES = new Set([
   'preflight',
@@ -81,6 +83,10 @@ export function buildFormalInvocation({ stage, args = [], manifest = readCanonic
   if (!STAGES.has(stage)) throw new Error(`unsupported formal controller stage: ${stage}`);
   const plan = commandForStage(stage, manifest);
   const providedRunId = validateProvidedRunId(args, plan.role ? runIdForRole(manifest, plan.role) : '');
+  const hostIsolationValidationGate = readJSON('docs/p7-v2-r3b-host-isolation-validation-final-gate.json') || {};
+  const hostIsolationIssues = [];
+  if (manifest.formalHostIsolationVersion !== FORMAL_HOST_ISOLATION_VERSION) hostIsolationIssues.push('formal_host_isolation_v2_missing_from_manifest');
+  if (hostIsolationValidationGate.status !== 'passed') hostIsolationIssues.push('host_isolation_validation_matrix_not_passed');
   const gate = validateFormalInvocationGate({
     stage,
     role: plan.role,
@@ -109,11 +115,11 @@ export function buildFormalInvocation({ stage, args = [], manifest = readCanonic
     startedAt,
     completedAt: '',
     childExitCode: null,
-    semanticGatePassed: gate.semanticGatePassed && providedRunId.valid,
+    semanticGatePassed: gate.semanticGatePassed && providedRunId.valid && hostIsolationIssues.length === 0,
     dryRun,
     gate,
     providedRunId: providedRunId.providedRunId,
-    issues: [...gate.issues, ...providedRunId.issues],
+    issues: [...gate.issues, ...providedRunId.issues, ...hostIsolationIssues],
   };
   return { plan, evidence: baseEvidence };
 }

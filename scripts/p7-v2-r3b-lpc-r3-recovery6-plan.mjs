@@ -4,6 +4,7 @@ import { gitCommit, readJSON, root, writeJSON } from './p7-v2-lib.mjs';
 import { auditRunIdConsumption } from './p7-v2-r3b-precommit-runtime-freeze-closeout.mjs';
 import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
 import { PREFLIGHT_BINDING_VERSION } from './p7-v2-r3b-preflight.mjs';
+import { buildHostIsolationPlanBinding, FORMAL_HOST_ISOLATION_VERSION, HOST_ISOLATION_CONTRACT_PATH, validateFormalHostIsolationContract } from './p7-v2-r3b-formal-host-isolation.mjs';
 
 const required = [
   'docs/p7-v2-r3b-lpc-r3-preflight-audit.json',
@@ -15,6 +16,12 @@ const required = [
 if (required.some((file) => readJSON(file)?.status !== 'passed')) throw new Error('passed Formal Wiring evidence is required before planning Recovery6');
 const binaryProvenance = readJSON('docs/p7-v2-r3b-formal-binary-provenance-manifest.json') || {};
 const inputSequence = readJSON('docs/p7-v2-r3b-formal-input-sequence-manifest.json') || {};
+const hostIsolationContract = readJSON(HOST_ISOLATION_CONTRACT_PATH) || {};
+const hostIsolationValidation = validateFormalHostIsolationContract(hostIsolationContract);
+const hostIsolationValidationGate = readJSON('docs/p7-v2-r3b-host-isolation-validation-final-gate.json') || {};
+if (hostIsolationValidation.status !== 'passed') throw new Error('passed Formal Host Isolation Contract V2 evidence is required before planning Recovery6');
+if (hostIsolationValidationGate.status !== 'passed') throw new Error('passed post-repair Host Isolation Validation Matrix is required before planning Recovery6');
+const hostIsolationBinding = buildHostIsolationPlanBinding(hostIsolationContract);
 const currentPlan = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
 const existingRunIds = {
@@ -73,6 +80,22 @@ const manifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3', status: 'planned', canonicalSchemaVersion: 3, loadProfileFingerprintVersion: 3,
   formalInvocationContractVersion: FORMAL_INVOCATION_CONTRACT_VERSION,
   preflightBindingVersion: PREFLIGHT_BINDING_VERSION,
+  formalHostIsolationVersion: FORMAL_HOST_ISOLATION_VERSION,
+  hostIsolationBinding,
+  lifecycleContractHash: hostIsolationBinding.lifecycleContractHash,
+  databasePostDatasetBarrierHash: hostIsolationBinding.databasePostDatasetBarrierHash,
+  warmupManifestHash: hostIsolationBinding.warmupManifestHash,
+  cooldownContractHash: hostIsolationBinding.cooldownContractHash,
+  hostQuietWindowContractHash: hostIsolationBinding.hostQuietWindowContractHash,
+  postgresIsolationContractHash: hostIsolationBinding.postgresIsolationContractHash,
+  evidenceWriterContractHash: hostIsolationBinding.evidenceWriterContractHash,
+  hostIsolationContractHash: hostIsolationBinding.hostIsolationContractHash,
+  lifecycleStepSequenceHash: hostIsolationBinding.lifecycleStepSequenceHash,
+  warmupSequenceHash: hostIsolationBinding.warmupSequenceHash,
+  readinessThresholdHash: hostIsolationBinding.readinessThresholdHash,
+  postgresIsolationMode: hostIsolationBinding.postgresIsolationMode,
+  comparabilityVersion: hostIsolationBinding.comparabilityVersion,
+  hostIsolationValidationPassed: true,
   ...runIds, selectedHost: '127.0.0.1', selectedPort: 18080, baseUrl: 'http://127.0.0.1:18080',
   controlToolingCommit: gitCommit(),
   planCheckpoint: gitCommit(),
