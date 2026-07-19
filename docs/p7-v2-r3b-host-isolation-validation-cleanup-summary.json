@@ -1,0 +1,49 @@
+{
+  "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-CLEANUP-SUMMARY",
+  "status": "stopped_after_failed_final_gate_with_cleanup_passed",
+  "summarizedAt": "2026-07-19T07:48:42.264Z",
+  "validationMatrixId": "p7v2-diag-host-isolation-validation-20260719061648",
+  "runOrder": "B-C-C-B",
+  "runCount": 4,
+  "matrixStatus": "completed",
+  "finalGateStatus": "failed",
+  "failedChecks": [
+    "currentSelfMaterialRegressionCount",
+    "orderPositionEffectDetected",
+    "validForFormalPlan"
+  ],
+  "validForFormalPlan": false,
+  "nextRequiredAction": "Stop. Do not create a new formal plan until host isolation validation passes.",
+  "regressionEvidence": {
+    "baselineSelfMaterialRegressionCount": 0,
+    "currentSelfMaterialRegressionCount": 2,
+    "orderPositionEffectDetected": true,
+    "laterRunDegradationDetected": true
+  },
+  "cleanupEvidence": {
+    "cleanupPreflightStatus": "passed",
+    "runtimeCleanupStatus": "passed",
+    "runtimeCleanupMode": "check",
+    "semanticGatePassed": true,
+    "currentFormalResidualCount": 0,
+    "unknownDatabaseCount": 0,
+    "unknownProcessCount": 0,
+    "unknownConnectionCount": 0,
+    "listener18080Count": 0,
+    "destructiveActionCount": 0,
+    "droppedDatabases": [],
+    "actionHistoryPreserved": true,
+    "checkDoesNotOverwriteExecute": true,
+    "hostGuardStatus": "passed",
+    "hostGuardFailed": 0
+  },
+  "forbiddenArtifactsCreated": {
+    "formalPlan": false,
+    "runtimeFreeze": false,
+    "formalPair": false,
+    "fifthRun": false,
+    "tag": false,
+    "push": false,
+    "release": false
+  }
+}

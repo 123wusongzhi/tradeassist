@@ -1,0 +1,171 @@
+{
+  "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-FINAL-GATE",
+  "status": "failed",
+  "sourceMatrix": "docs/p7-v2-r3b-host-isolation-validation-matrix.json",
+  "validationMatrixId": "p7v2-diag-host-isolation-validation-20260719061648",
+  "validationMatrixRunCount": 4,
+  "validationMatrixOrder": "B-C-C-B",
+  "formal": false,
+  "diagnosticOnly": true,
+  "hostIsolationValidationRunnerVersion": 1,
+  "formalHostIsolationVersion": 2,
+  "B1Completed": true,
+  "C1Completed": true,
+  "C2Completed": true,
+  "B2Completed": true,
+  "allRunsIndependent": true,
+  "allDatasetRows": true,
+  "datasetBarrierFailureCount": 0,
+  "warmupFailureCount": 0,
+  "cooldownFailureCount": 0,
+  "lifecycleStepSequenceHashMatch": true,
+  "warmupSequenceHashMatch": true,
+  "inputSequenceHashMatch": true,
+  "branchMixFingerprintMatch": true,
+  "readinessContractMatch": true,
+  "postgresConfigHashMatch": true,
+  "baselineSelfMaterialRegressionCount": 0,
+  "currentSelfMaterialRegressionCount": 2,
+  "orderPositionEffectDetected": true,
+  "laterRunDegradationDetected": true,
+  "hostStateMismatchCount": 0,
+  "quietWindowFailureCount": 0,
+  "businessRuntimeChanged": false,
+  "loadContractChanged": false,
+  "validForFormalPlan": false,
+  "failedChecks": [
+    "currentSelfMaterialRegressionCount",
+    "orderPositionEffectDetected",
+    "validForFormalPlan"
+  ],
+  "failed": [
+    "currentSelfMaterialRegressionCount",
+    "orderPositionEffectDetected",
+    "validForFormalPlan"
+  ],
+  "failedCount": 3,
+  "checks": [
+    {
+      "id": "validationMatrixPresent",
+      "status": "passed"
+    },
+    {
+      "id": "hostIsolationValidationRunnerVersion",
+      "status": "passed"
+    },
+    {
+      "id": "validationMatrixRunCount",
+      "status": "passed"
+    },
+    {
+      "id": "validationMatrixOrder",
+      "status": "passed"
+    },
+    {
+      "id": "allFixedSlotsCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "formal",
+      "status": "passed"
+    },
+    {
+      "id": "diagnosticOnly",
+      "status": "passed"
+    },
+    {
+      "id": "formalHostIsolationVersion",
+      "status": "passed"
+    },
+    {
+      "id": "baselineBinarySha256Match",
+      "status": "passed"
+    },
+    {
+      "id": "currentBinarySha256Match",
+      "status": "passed"
+    },
+    {
+      "id": "inputSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "branchMixFingerprintMatch",
+      "status": "passed"
+    },
+    {
+      "id": "allRunsIndependent",
+      "status": "passed"
+    },
+    {
+      "id": "allDatasetRows",
+      "status": "passed"
+    },
+    {
+      "id": "allDatasetBarriersPassed",
+      "status": "passed"
+    },
+    {
+      "id": "allWarmupsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "allCooldownsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "lifecycleStepSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "warmupSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "readinessContractMatch",
+      "status": "passed"
+    },
+    {
+      "id": "postgresConfigHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "baselineSelfMaterialRegressionCount",
+      "status": "passed"
+    },
+    {
+      "id": "currentSelfMaterialRegressionCount",
+      "status": "failed"
+    },
+    {
+      "id": "orderPositionEffectDetected",
+      "status": "failed"
+    },
+    {
+      "id": "hostStateMismatchCount",
+      "status": "passed"
+    },
+    {
+      "id": "quietWindowFailureCount",
+      "status": "passed"
+    },
+    {
+      "id": "businessRuntimeChanged",
+      "status": "passed"
+    },
+    {
+      "id": "loadContractChanged",
+      "status": "passed"
+    },
+    {
+      "id": "noFormalArtifactsCreated",
+      "status": "passed"
+    },
+    {
+      "id": "validForFormalPlan",
+      "status": "failed"
+    }
+  ],
+  "nextRequiredAction": "Stop. Do not create a new formal plan until host isolation validation passes.",
+  "generatedAt": "2026-07-19T07:45:58.721Z"
+}
