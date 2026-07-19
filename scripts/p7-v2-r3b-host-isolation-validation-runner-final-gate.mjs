@@ -67,6 +67,7 @@ export function evaluateHostIsolationValidationRunnerFinalGate() {
     '[p]g_dump',
     '/tmp/tm-p7hi/',
     "backend_type='client backend'",
+    'observedStatuses',
   ]);
   const missingStateNeedles = sourceContainsAll(runnerSource, [
     'resource_precheck',

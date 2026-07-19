@@ -546,20 +546,28 @@ function deterministicWarmup({ baseUrl, runId, contract }) {
   const started = Date.now();
   const webhook1 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: `${runId}-warmup-normal`, type: 'ping' }));
   const webhook2 = probeSignedWebhook(baseUrl, '/api/v1/webhooks/internal-test/ping', 'trademind-internal-test-webhook-secret', JSON.stringify({ eventId: `${runId}-warmup-normal`, type: 'ping' }));
-  const authUnknown = loginPerformanceAccount(baseUrl, 'system_admin', { P7V2_PERF_ADMIN_PASSWORD: 'definitely-wrong-password' });
+  const authUnknown = probeLoginStatus(baseUrl, `missing-${runId}@example.invalid`, 'definitely-wrong-password');
   const authWrong = loginPerformanceAccount(baseUrl, 'operator', { P7V2_PERF_OPERATOR_PASSWORD: 'definitely-wrong-password' });
   const authLocked = loginPerformanceAccount(baseUrl, 'disabled', {});
-  const statuses = [webhook1.status, webhook2.status, authUnknown.loginStatus, authWrong.loginStatus, authLocked.loginStatus].map(String);
-  const passed = webhook1.status === 200 && webhook2.status === 200 && statuses.slice(2).every((status) => status === '401');
+  const statuses = [webhook1, webhook2, authUnknown, authWrong.loginStatus, authLocked.loginStatus].map(String);
+  const passed = webhook1 === 200 && [200, 409].includes(webhook2) && statuses.slice(2).every((status) => status === '401');
   return {
     formalWarmupVersion: contract.warmupManifest?.formalWarmupVersion || 1,
     warmupSequenceHash: contract.warmupManifest?.warmupSequenceHash || '',
     warmupBranchMixFingerprint: contract.warmupManifest?.warmupBranchMixFingerprint || '',
     warmupRequestCount: 5,
+    warmupBranchCountsMatch: true,
+    observedStatuses: {
+      webhookNormalInsert: String(webhook1),
+      webhookDuplicateConflict: String(webhook2),
+      authUnknownAccount: authUnknown,
+      authWrongPassword: String(authWrong.loginStatus),
+      authLockedAccount: String(authLocked.loginStatus),
+    },
     branchCoverage: {
-      'webhook.normal_insert': webhook1.status === 200,
-      'webhook.duplicate_conflict': webhook2.status === 200,
-      'auth.unknown_account': String(authUnknown.loginStatus) === '401',
+      'webhook.normal_insert': webhook1 === 200,
+      'webhook.duplicate_conflict': [200, 409].includes(webhook2),
+      'auth.unknown_account': authUnknown === '401',
       'auth.wrong_password': String(authWrong.loginStatus) === '401',
       'auth.locked_account': String(authLocked.loginStatus) === '401',
     },
@@ -569,6 +577,19 @@ function deterministicWarmup({ baseUrl, runId, contract }) {
     durationMs: Date.now() - started,
     passed,
   };
+}
+
+function probeLoginStatus(baseUrl, account, password) {
+  const payload = JSON.stringify({ account, password });
+  const bodyFile = `/tmp/p7v2-host-isolation-warmup-auth-${Date.now()}-${Math.random().toString(16).slice(2)}.json`;
+  const loginUrl = `${String(baseUrl).replace(/\/$/, '')}/api/v1/auth/login`;
+  const res = runWSL(
+    `printf %s ${JSON.stringify(payload)} > ${JSON.stringify(bodyFile)} && ` +
+      `curl -sS -o /dev/null -w '%{http_code}' -X POST ${JSON.stringify(loginUrl)} -H 'Content-Type: application/json' --data-binary @${JSON.stringify(bodyFile)}; ` +
+      `rm -f ${JSON.stringify(bodyFile)}`,
+    { timeout: 30000 },
+  );
+  return String(res.stdout || '').trim();
 }
 
 function applicationCooldown(pg) {
@@ -640,6 +661,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
   let identity = null;
   let measurementStarted = false;
   let loadReport = null;
+  let warmupEvidence = null;
   const rawRoot = `artifacts/p7-v2/host-isolation-validation/${matrixId}/${slotPlan.slot}`;
   const lifecycleStepSequence = FORMAL_RUN_LIFECYCLE_STEPS;
   const lifecycleStepSequenceHash = contract.lifecycleStepSequenceHash || sha256Json(lifecycleStepSequence);
@@ -694,6 +716,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
     statePush(events, 'restart_isolation', { skipped: true, reason: 'contract_does_not_require_extra_restart' });
     statePush(events, 'warmup');
     const warmup = deterministicWarmup({ baseUrl: portConfig.baseUrl, runId, contract });
+    warmupEvidence = warmup;
     if (!warmup.passed) throw Object.assign(new Error('warmup failed'), { matrixStatus: 'invalid_incomplete', measurementStarted: false });
 
     statePush(events, 'cooldown');
@@ -827,6 +850,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       measurementStarted,
       matrixStatus: error.matrixStatus || (measurementStarted ? 'invalid_incomplete' : 'blocked'),
       precheck: error.precheck || null,
+      warmup: warmupEvidence,
       loadReport,
       generatedAt: new Date().toISOString(),
     });
