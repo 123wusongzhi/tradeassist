@@ -873,5 +873,13 @@
   "baselineRunId": "p7v2-baseline-r3b-recovery6-20260717051755",
   "runtimeFreezeId": "013bd47206add0d44d102977a5de452667ab5a6b31c233fb42fa00bb28d63620",
   "runtimeFreezeContractHash": "013bd47206add0d44d102977a5de452667ab5a6b31c233fb42fa00bb28d63620",
-  "runtimeFreezeRunId": "p7v2-current-r3b-recovery6-20260717051755"
+  "runtimeFreezeRunId": "p7v2-current-r3b-recovery6-20260717051755",
+  "immutable": true,
+  "rawArtifactPath": "artifacts/p7-v2/current/p7v2-current-r3b-recovery6-20260717051755/current.summary.json",
+  "rawArtifactSha256": "a35ac6c79eb7dce0d6a00a07e0f14ab4d410de9b3a4a42edce0cbb737fe68fad",
+  "rawArtifactSizeBytes": 15663,
+  "rawArtifactHashVerified": true,
+  "scenarioCoverage": true,
+  "frozenArtifactPath": "docs/currents/frozen/p7v2-current-r3b-recovery6-20260717051755/raw-summary.json",
+  "frozenAt": "2026-07-17T06:06:49.925Z"
 }

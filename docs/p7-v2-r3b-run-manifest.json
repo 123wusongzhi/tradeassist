@@ -1,6 +1,6 @@
 {
   "phase": "P7-V2-R3B-FAST-CLOSE-R3",
-  "status": "planned",
+  "status": "current_frozen",
   "canonicalSchemaVersion": 3,
   "loadProfileFingerprintVersion": 3,
   "baselineRunId": "p7v2-baseline-r3b-recovery6-20260717051755",
@@ -11,13 +11,13 @@
   "selectedHost": "127.0.0.1",
   "selectedPort": 18080,
   "baseUrl": "http://127.0.0.1:18080",
-  "runtimeFreezeId": null,
+  "runtimeFreezeId": "013bd47206add0d44d102977a5de452667ab5a6b31c233fb42fa00bb28d63620",
   "formal": true,
   "active": true,
   "validForExecution": true,
   "executionStarted": false,
   "formalExecutionStarted": false,
-  "runtimeFreezeCreated": false,
+  "runtimeFreezeCreated": true,
   "environmentStarted": false,
   "datasetExecuted": false,
   "baselineExecuted": false,
@@ -360,5 +360,10 @@
     "reason": "runtime_freeze_revalidation_failed",
     "supersededAt": "2026-07-17T05:17:55.542Z"
   },
-  "updatedAt": "2026-07-17T05:17:55.542Z"
+  "updatedAt": "2026-07-17T06:06:49.930Z",
+  "runtimeFreezeCreatedAt": "2026-07-17T05:18:41.270Z",
+  "runtimeFreezeIdentityVersion": 2,
+  "runtimeContentHash": "8760b315e1580665fd8de49d3d39c479c924fa5d5865fe585d4f7b8fe01a8570",
+  "planBindingHash": "a2f7a2cd401e414a4396d5037434e6a73328c10b3008ea351610078fce3d4a87",
+  "planCheckpoint": "1fc19442db44b73875eff2ad828de7ad4de43486"
 }
