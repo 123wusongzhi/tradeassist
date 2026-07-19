@@ -339,7 +339,7 @@ function collectHostCounters(slot = '', pg = null) {
   const cpu = runWSL(`awk 'NR==1 {total=0; for(i=2;i<=NF;i++) total+=$i; print $2 "|" $4 "|" $5 "|" $6 "|" total}' /proc/stat`, { timeout: 10000 });
   const disk = runWSL(`awk '{r+=$6*512; w+=$10*512} END {print r "|" w}' /proc/diskstats`, { timeout: 10000 });
   const pgQuery = pg
-    ? `PGPASSWORD= psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select (select coalesce(sum(checkpoints_timed+checkpoints_req),0) from pg_stat_bgwriter),(select coalesce(sum(buffers_checkpoint),0) from pg_stat_bgwriter),(select coalesce(sum(wal_bytes),0) from pg_stat_wal),(select count(*) from pg_stat_activity),(select count(*) from pg_stat_activity where wait_event is not null),(select count(*) from pg_stat_activity where query ilike '%autovacuum%'),0;"`
+    ? `PGPASSWORD= psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select (select coalesce(sum(checkpoints_timed+checkpoints_req),0) from pg_stat_bgwriter),(select coalesce(sum(buffers_checkpoint),0) from pg_stat_bgwriter),(select coalesce(sum(wal_bytes),0) from pg_stat_wal),(select count(*) from pg_stat_activity where backend_type='client backend'),(select count(*) from pg_stat_activity where backend_type='client backend' and wait_event is not null),(select count(*) from pg_stat_activity where query ilike '%autovacuum%'),0;"`
     : `echo '0|0|0|0|0|0|0'`;
   const pgRes = runWSL(`${pgQuery} 2>/dev/null || echo '0|0|0|0|0|0|0'`, { timeout: 30000 });
   const [load1m, load5m] = String(loadAvg.stdout || '0 0').trim().split(/\s+/).map(Number);
@@ -461,7 +461,7 @@ function runDataset({ runId, env }) {
 function datasetBarrier({ pg, dataset, contract }) {
   const rowCheck = Number(dataset.actualRows || 0) === EXPECTED.datasetRows;
   const drain = runWSL(`psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select count(*) from pg_stat_activity where datname='${pg.databaseName}' and pid <> pg_backend_pid();"`, { timeout: 30000 });
-  const waiting = runWSL(`psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select count(*) from pg_stat_activity where wait_event is not null;"`, { timeout: 30000 });
+  const waiting = runWSL(`psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select count(*) from pg_stat_activity where datname='${pg.databaseName}' and backend_type='client backend' and wait_event is not null and pid <> pg_backend_pid();"`, { timeout: 30000 });
   const schema = runWSL(`psql -h 127.0.0.1 -p ${pg.port} -U root -At -d ${pg.databaseName} -c "select table_name from information_schema.tables where table_schema='public' order by table_name;"`, { timeout: 30000 });
   const checkpoint = runWSL(`psql -h 127.0.0.1 -p ${pg.port} -U postgres -d postgres -c "CHECKPOINT;" >/dev/null && psql -h 127.0.0.1 -p ${pg.port} -U root -d ${pg.databaseName} -c "ANALYZE;" >/dev/null`, { timeout: 20 * 60 * 1000 });
   return {
@@ -573,7 +573,7 @@ function deterministicWarmup({ baseUrl, runId, contract }) {
 
 function applicationCooldown(pg) {
   const started = Date.now();
-  const waiting = runWSL(`for i in $(seq 1 120); do c=$(psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select count(*) from pg_stat_activity where wait_event is not null;" 2>/dev/null || echo 1); [ "$c" = "0" ] && { echo 0; exit 0; }; sleep 1; done; echo "$c"`, { timeout: 130000 });
+  const waiting = runWSL(`for i in $(seq 1 120); do c=$(psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select count(*) from pg_stat_activity where backend_type='client backend' and wait_event is not null and pid <> pg_backend_pid();" 2>/dev/null || echo 1); [ "$c" = "0" ] && { echo 0; exit 0; }; sleep 1; done; echo "$c"`, { timeout: 130000 });
   return {
     cooldownPassed: Number(waiting.stdout || 1) === 0,
     activeRequestCount: 0,
