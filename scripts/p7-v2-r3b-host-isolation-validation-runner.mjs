@@ -393,7 +393,8 @@ function hostDelta(before, after) {
 
 function startPostgresInstance({ matrixId, slot, orderIndex, runId }) {
   const port = 15432 + orderIndex;
-  const baseDir = `/tmp/trademind-p7-host-isolation/${matrixId}/${slot}`;
+  const matrixShortId = crypto.createHash('sha1').update(matrixId).digest('hex').slice(0, 12);
+  const baseDir = `/tmp/tm-p7hi/${matrixShortId}/${slot}`;
   const dataDir = `${baseDir}/pgdata`;
   const socketDir = `${baseDir}/socket`;
   const logFile = `${baseDir}/postgres.log`;

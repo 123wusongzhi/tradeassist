@@ -65,6 +65,7 @@ export function evaluateHostIsolationValidationRunnerFinalGate() {
     'countOtherDiagnosticRunners',
     '[g]o (build|test)',
     '[p]g_dump',
+    '/tmp/tm-p7hi/',
   ]);
   const missingStateNeedles = sourceContainsAll(runnerSource, [
     'resource_precheck',
