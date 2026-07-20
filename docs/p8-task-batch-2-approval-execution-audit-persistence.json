@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "phase": "P8",
+  "phaseStatus": "In Progress",
+  "batchId": "P8-TASK-BATCH-2",
+  "p8PlanCheckpoint": "ea356d8077722e2f94c6215fe10c7d4f6e53fde5",
+  "baseCheckpoint": "73e2ea3ec0b749d607da0e919ad71b29cef73c3d",
+  "p8TaskBatch2Checkpoint": "recorded_in_final_response_after_commit",
+  "tasks": {
+    "P8-103": {
+      "title": "Approval Record",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/operationtask/model.go",
+        "backend/internal/modules/operationtask/repository.go",
+        "backend/internal/modules/operationtask/repository_test.go"
+      ]
+    },
+    "P8-104": {
+      "title": "Execution Attempt and Error",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/operationtask/model.go",
+        "backend/internal/modules/operationtask/repository.go",
+        "backend/internal/modules/operationtask/repository_test.go"
+      ]
+    },
+    "P8-105": {
+      "title": "Task Event Audit Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/operationtask/model.go",
+        "backend/internal/modules/operationtask/repository.go",
+        "backend/internal/modules/operationtask/repository_test.go"
+      ]
+    }
+  },
+  "models": [
+    "ApprovalRecord",
+    "ExecutionAttempt",
+    "ExecutionError",
+    "OperationTaskEvent"
+  ],
+  "tables": [
+    "approval_records",
+    "execution_attempts",
+    "execution_errors",
+    "operation_task_events"
+  ],
+  "constraints": [
+    "approval_records.tenant_task_draft_version_hash_binding",
+    "approval_records.tenant_task_idempotency.partial_unique_non_empty",
+    "approval_records.immutable_update_delete_triggers",
+    "execution_attempts.tenant_task_attempt_number.unique",
+    "execution_attempts.tenant_task_idempotency.partial_unique_non_empty",
+    "execution_attempts.approval_record_id.not_null",
+    "execution_attempts.revision.compare_and_swap",
+    "execution_errors.tenant_attempt_sequence.unique",
+    "execution_errors.category.enum",
+    "execution_errors.immutable_update_delete_triggers",
+    "operation_task_events.tenant_task_sequence.unique",
+    "operation_task_events.event_type.enum",
+    "operation_task_events.actor_type.enum",
+    "operation_task_events.immutable_update_delete_triggers"
+  ],
+  "indexes": [
+    "idx_approval_records_task_created",
+    "idx_approval_records_draft_created",
+    "idx_approval_records_task_decision_created",
+    "ux_approval_records_task_idempotency",
+    "idx_execution_attempts_task_attempt",
+    "idx_execution_attempts_task_created",
+    "ux_execution_attempts_task_attempt",
+    "ux_execution_attempts_task_idempotency",
+    "idx_execution_errors_attempt_sequence",
+    "ux_execution_errors_attempt_sequence",
+    "idx_operation_task_events_task_sequence",
+    "ux_operation_task_events_task_sequence"
+  ],
+  "repositoryMethods": [
+    "ApprovalRecord.CreateDecision",
+    "ApprovalRecord.GetByID",
+    "ApprovalRecord.GetByIdempotencyKey",
+    "ApprovalRecord.GetLatestByTask",
+    "ApprovalRecord.ListByTask",
+    "ExecutionAttempt.CreateAttempt",
+    "ExecutionAttempt.GetByID",
+    "ExecutionAttempt.GetByIdempotencyKey",
+    "ExecutionAttempt.GetByAttemptNumber",
+    "ExecutionAttempt.ListByTask",
+    "ExecutionAttempt.UpdateLifecycle",
+    "ExecutionError.AppendError",
+    "ExecutionError.GetByID",
+    "ExecutionError.ListByAttempt",
+    "ExecutionError.GetLatestByAttempt",
+    "OperationTaskEvent.AppendEvent",
+    "OperationTaskEvent.GetByID",
+    "OperationTaskEvent.GetBySequence",
+    "OperationTaskEvent.ListByTask",
+    "OperationTaskEvent.GetLatestByTask"
+  ],
+  "approvalRecordModelPresent": true,
+  "executionAttemptModelPresent": true,
+  "executionErrorModelPresent": true,
+  "operationTaskEventModelPresent": true,
+  "approvalImmutable": true,
+  "executionErrorImmutable": true,
+  "taskEventImmutable": true,
+  "tenantIsolationPassed": true,
+  "approvalIdempotencyPassed": true,
+  "executionIdempotencyPassed": true,
+  "attemptNumberConcurrencyPassed": true,
+  "errorSequenceConcurrencyPassed": true,
+  "eventSequenceConcurrencyPassed": true,
+  "approvalDraftVersionBindingPresent": true,
+  "approvalDraftHashBindingPresent": true,
+  "executionApprovalReferencePresent": true,
+  "migrationTestsPassed": true,
+  "repositoryTestsPassed": true,
+  "concurrencyTestsPassed": true,
+  "racePassed": true,
+  "currentBatchRaceStatus": "passed",
+  "dataRaces": 0,
+  "testDatabaseCleanupPassed": true,
+  "stateMachineServiceImplemented": false,
+  "taskStateMachineImplemented": false,
+  "approvalServiceImplemented": false,
+  "executionOrchestratorImplemented": false,
+  "retryServiceImplemented": false,
+  "apiImplemented": false,
+  "adminUiImplemented": false,
+  "platformWriteImplemented": false,
+  "realCredentialsEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "humanConfirmationRequired": true,
+  "p7DeferredPerformancePreserved": true,
+  "p10ProductionBoundaryPreserved": true,
+  "productionReady": false,
+  "fullSecretRedactionDeferredTo": "P8-404",
+  "planDeviation": {
+    "id": "P8_BATCH_2_TEST_DATABASE_CONVENTION",
+    "description": "Batch 2 task instructions prefer real PostgreSQL integration tests; Batch 1 accepted the module convention as real GORM SQLite in-memory integration tests with no SQL mock layer.",
+    "decisionRequired": false,
+    "batchInterpretation": "Follow the committed Batch 1 operationtask repository test convention while retaining PostgreSQL hardening SQL in operationtask.Migrate."
+  }
+}
