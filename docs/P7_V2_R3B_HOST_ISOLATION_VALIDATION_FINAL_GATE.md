@@ -2,12 +2,15 @@
 
 Status: **failed**
 
-- Validation matrix ID: `p7v2-diag-host-isolation-validation-20260719061648`
-- Runner version: `1`
+- Validation matrix ID: `p7v2-diag-host-isolation-v3-validation-20260720054828`
+- Runner version: `2`
 - Run order: `B-C-C-B`
-- Run count: `4`
+- Run count: `2`
 - Baseline self material regressions: `0`
-- Current self material regressions: `2`
-- Order position effect detected: `true`
+- Current self material regressions: `0`
+- Order position effect detected: `false`
 - Host state mismatch count: `0`
-- Failed checks: currentSelfMaterialRegressionCount, orderPositionEffectDetected, validForFormalPlan
+- Predictive host stability failures: `0`
+- PostgreSQL process identity distinct: `false`
+- PostgreSQL data directory distinct: `false`
+- Failed checks: validationMatrixRunCount, allFixedSlotsCompleted, allRunsIndependent, postgresProcessIdentityDistinct, postgresDataDirectoryDistinct, postgresPortDistinct, postgresWalDirectoryDistinct, validForFormalPlan

@@ -2,18 +2,18 @@
   "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-FINAL-GATE",
   "status": "failed",
   "sourceMatrix": "docs/p7-v2-r3b-host-isolation-validation-matrix.json",
-  "validationMatrixId": "p7v2-diag-host-isolation-validation-20260719061648",
-  "validationMatrixRunCount": 4,
+  "validationMatrixId": "p7v2-diag-host-isolation-v3-validation-20260720054828",
+  "validationMatrixRunCount": 2,
   "validationMatrixOrder": "B-C-C-B",
   "formal": false,
   "diagnosticOnly": true,
-  "hostIsolationValidationRunnerVersion": 1,
-  "formalHostIsolationVersion": 2,
+  "hostIsolationValidationRunnerVersion": 2,
+  "formalHostIsolationVersion": 3,
   "B1Completed": true,
   "C1Completed": true,
-  "C2Completed": true,
-  "B2Completed": true,
-  "allRunsIndependent": true,
+  "C2Completed": false,
+  "B2Completed": false,
+  "allRunsIndependent": false,
   "allDatasetRows": true,
   "datasetBarrierFailureCount": 0,
   "warmupFailureCount": 0,
@@ -25,25 +25,41 @@
   "readinessContractMatch": true,
   "postgresConfigHashMatch": true,
   "baselineSelfMaterialRegressionCount": 0,
-  "currentSelfMaterialRegressionCount": 2,
-  "orderPositionEffectDetected": true,
-  "laterRunDegradationDetected": true,
+  "currentSelfMaterialRegressionCount": 0,
+  "orderPositionEffectDetected": false,
+  "laterRunDegradationDetected": false,
   "hostStateMismatchCount": 0,
   "quietWindowFailureCount": 0,
+  "predictiveHostStabilityFailureCount": 0,
+  "lifecycleActualCallSequenceMatch": true,
+  "postgresProcessIdentityDistinct": false,
+  "postgresDataDirectoryDistinct": false,
+  "postgresPortDistinct": false,
+  "postgresWalDirectoryDistinct": false,
   "businessRuntimeChanged": false,
   "loadContractChanged": false,
   "validForFormalPlan": false,
   "failedChecks": [
-    "currentSelfMaterialRegressionCount",
-    "orderPositionEffectDetected",
+    "validationMatrixRunCount",
+    "allFixedSlotsCompleted",
+    "allRunsIndependent",
+    "postgresProcessIdentityDistinct",
+    "postgresDataDirectoryDistinct",
+    "postgresPortDistinct",
+    "postgresWalDirectoryDistinct",
     "validForFormalPlan"
   ],
   "failed": [
-    "currentSelfMaterialRegressionCount",
-    "orderPositionEffectDetected",
+    "validationMatrixRunCount",
+    "allFixedSlotsCompleted",
+    "allRunsIndependent",
+    "postgresProcessIdentityDistinct",
+    "postgresDataDirectoryDistinct",
+    "postgresPortDistinct",
+    "postgresWalDirectoryDistinct",
     "validForFormalPlan"
   ],
-  "failedCount": 3,
+  "failedCount": 8,
   "checks": [
     {
       "id": "validationMatrixPresent",
@@ -55,7 +71,7 @@
     },
     {
       "id": "validationMatrixRunCount",
-      "status": "passed"
+      "status": "failed"
     },
     {
       "id": "validationMatrixOrder",
@@ -63,7 +79,7 @@
     },
     {
       "id": "allFixedSlotsCompleted",
-      "status": "passed"
+      "status": "failed"
     },
     {
       "id": "formal",
@@ -95,7 +111,7 @@
     },
     {
       "id": "allRunsIndependent",
-      "status": "passed"
+      "status": "failed"
     },
     {
       "id": "allDatasetRows",
@@ -114,7 +130,15 @@
       "status": "passed"
     },
     {
+      "id": "predictiveHostStabilityPassed",
+      "status": "passed"
+    },
+    {
       "id": "lifecycleStepSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "lifecycleActualCallSequenceMatch",
       "status": "passed"
     },
     {
@@ -130,16 +154,32 @@
       "status": "passed"
     },
     {
+      "id": "postgresProcessIdentityDistinct",
+      "status": "failed"
+    },
+    {
+      "id": "postgresDataDirectoryDistinct",
+      "status": "failed"
+    },
+    {
+      "id": "postgresPortDistinct",
+      "status": "failed"
+    },
+    {
+      "id": "postgresWalDirectoryDistinct",
+      "status": "failed"
+    },
+    {
       "id": "baselineSelfMaterialRegressionCount",
       "status": "passed"
     },
     {
       "id": "currentSelfMaterialRegressionCount",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "orderPositionEffectDetected",
-      "status": "failed"
+      "status": "passed"
     },
     {
       "id": "hostStateMismatchCount",
@@ -167,10 +207,5 @@
     }
   ],
   "nextRequiredAction": "Stop. Do not create a new formal plan until host isolation validation passes.",
-  "generatedAt": "2026-07-19T07:45:58.721Z",
-  "active": false,
-  "validForAudit": true,
-  "validForClosure": false,
-  "validForReuse": false,
-  "runIdsConsumed": true
+  "generatedAt": "2026-07-20T06:53:08.248Z"
 }
