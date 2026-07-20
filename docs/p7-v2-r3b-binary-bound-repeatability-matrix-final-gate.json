@@ -1,0 +1,156 @@
+{
+  "phase": "P7-V2-R3B-BINARY-BOUND-REPEATABILITY-MATRIX-FINAL-GATE",
+  "status": "passed",
+  "failedChecks": [],
+  "failed": [],
+  "failedCount": 0,
+  "sourceReport": "docs/p7-v2-r3b-binary-bound-repeatability-matrix.json",
+  "formal": false,
+  "validForClosure": false,
+  "diagnosticOnly": true,
+  "order": "B-C-C-B",
+  "runCount": 4,
+  "allRunsIndependent": true,
+  "allDatasetRows": true,
+  "inputSequenceHashMatch": true,
+  "webhookSequenceHashMatch": true,
+  "authSequenceHashMatch": true,
+  "branchMixFingerprintMatch": true,
+  "hostSnapshotsPresent": true,
+  "binaryProvenancePassed": true,
+  "processIdentityProbeVersion": 2,
+  "probeMethod": "linux_procfs",
+  "externalShimUsed": false,
+  "baselineSelfVarianceCalculated": true,
+  "currentSelfVarianceCalculated": true,
+  "crossVersionVarianceCalculated": true,
+  "rootCauseClassified": true,
+  "repairPathSelected": true,
+  "primaryRootCause": "A_formal_harness_repeatability_or_order_bias_defect",
+  "confidence": "medium",
+  "repairPath": "repair_harness_order_or_host_state_isolation_then_create_new_formal_plan_freeze_pair",
+  "formalRerunStarted": false,
+  "checks": [
+    {
+      "id": "diagnosticOnly",
+      "status": "passed"
+    },
+    {
+      "id": "formal",
+      "status": "passed"
+    },
+    {
+      "id": "status",
+      "status": "passed"
+    },
+    {
+      "id": "runCount",
+      "status": "passed"
+    },
+    {
+      "id": "order",
+      "status": "passed"
+    },
+    {
+      "id": "allRunsIndependent",
+      "status": "passed"
+    },
+    {
+      "id": "allDatasetRows",
+      "status": "passed"
+    },
+    {
+      "id": "inputSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "webhookSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "authSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "branchMixFingerprintMatch",
+      "status": "passed"
+    },
+    {
+      "id": "hostSnapshotsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "binaryProvenancePassed",
+      "status": "passed"
+    },
+    {
+      "id": "baselineBinarySha256Match",
+      "status": "passed"
+    },
+    {
+      "id": "currentBinarySha256Match",
+      "status": "passed"
+    },
+    {
+      "id": "processIdentityProbeVersion",
+      "status": "passed"
+    },
+    {
+      "id": "probeMethod",
+      "status": "passed"
+    },
+    {
+      "id": "externalShimUsed",
+      "status": "passed"
+    },
+    {
+      "id": "baselineSelfVarianceCalculated",
+      "status": "passed"
+    },
+    {
+      "id": "currentSelfVarianceCalculated",
+      "status": "passed"
+    },
+    {
+      "id": "crossVersionVarianceCalculated",
+      "status": "passed"
+    },
+    {
+      "id": "rootCauseClassified",
+      "status": "passed"
+    },
+    {
+      "id": "repairPathSelected",
+      "status": "passed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "materialityChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    }
+  ],
+  "generatedAt": "2026-07-18T08:42:55.376Z"
+}

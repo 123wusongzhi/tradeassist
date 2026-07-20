@@ -1,0 +1,109 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-INVOCATION-V2-PREFLIGHT-V3-REPAIR-FINAL-GATE",
+  "status": "passed",
+  "formalInvocationContractVersion": 2,
+  "preflightBindingVersion": 3,
+  "emptyRunIdRejected": true,
+  "emptyRunIdCreatesNoResources": true,
+  "formalRunIdResolvedFromManifest": true,
+  "shellCommandSubstitutionUsed": false,
+  "childSpawnShell": false,
+  "formalImplicitBuildDisabled": true,
+  "formalGoRunDisabled": true,
+  "frozenBinaryRequired": true,
+  "processExecutableVerificationEnabled": true,
+  "canonicalManifestSelected": true,
+  "legacyFallbackUsed": false,
+  "staleRevalidationRejected": true,
+  "runIdsConsumed": false,
+  "runIdsRetained": true,
+  "thresholdChanged": false,
+  "sloChanged": false,
+  "vusChanged": false,
+  "datasetChanged": false,
+  "failed": 0,
+  "failedChecks": [],
+  "checks": [
+    {
+      "id": "formalInvocationContractVersion",
+      "status": "passed"
+    },
+    {
+      "id": "preflightBindingVersion",
+      "status": "passed"
+    },
+    {
+      "id": "emptyRunIdRejected",
+      "status": "passed"
+    },
+    {
+      "id": "emptyRunIdCreatesNoResources",
+      "status": "passed"
+    },
+    {
+      "id": "formalRunIdResolvedFromManifest",
+      "status": "passed"
+    },
+    {
+      "id": "shellCommandSubstitutionUsed",
+      "status": "passed"
+    },
+    {
+      "id": "childSpawnShell",
+      "status": "passed"
+    },
+    {
+      "id": "formalImplicitBuildDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "formalGoRunDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "frozenBinaryRequired",
+      "status": "passed"
+    },
+    {
+      "id": "processExecutableVerificationEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalManifestSelected",
+      "status": "passed"
+    },
+    {
+      "id": "legacyFallbackUsed",
+      "status": "passed"
+    },
+    {
+      "id": "staleRevalidationRejected",
+      "status": "passed"
+    },
+    {
+      "id": "formalRunIdRequiresFormalMode",
+      "status": "passed"
+    },
+    {
+      "id": "controllerDryRunDoesNotStartChild",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    }
+  ],
+  "generatedAt": "2026-07-18T04:49:00.529Z"
+}

@@ -1,8 +1,10 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import {
   collectEnvironmentFingerprint,
   readJSON,
   root,
+  run,
   runWSL,
   safeRunId,
   shellExports,
@@ -42,10 +44,15 @@ if (execute) goArgs.push('--execute');
 goArgs.push('--batch-size', valueOf(args, '--batch-size') || '2000');
 
 const started = new Date();
-const wslBackend = `/mnt/d/project/trademind-ai/backend`;
-const cmd = `${shellExports(env)} && cd ${JSON.stringify(wslBackend)} && go ${goArgs.join(' ')}`;
-
-const res = runWSL(cmd, { timeout: 6 * 60 * 60 * 1000 });
+const backendDir = path.join(root, 'backend');
+const goBinary = process.platform === 'linux' && fs.existsSync('/usr/local/go/bin/go')
+  ? '/usr/local/go/bin/go'
+  : 'go';
+const res = process.platform === 'linux'
+  ? run(goBinary, goArgs, { cwd: backendDir, env, timeout: 6 * 60 * 60 * 1000, maxBuffer: 30 * 1024 * 1024 })
+  : runWSL(`${shellExports(env)} && cd ${JSON.stringify(`${root.replace(/\\/g, '/').replace(/^([A-Za-z]):\//, (_, d) => `/mnt/${d.toLowerCase()}/`)}/backend`)} && go ${goArgs.map((arg) => JSON.stringify(arg)).join(' ')}`, {
+      timeout: 6 * 60 * 60 * 1000,
+    });
 
 function parse(stdout) {
   const match = (stdout || '').match(/\{[\s\S]*\}/);

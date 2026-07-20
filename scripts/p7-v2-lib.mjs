@@ -158,7 +158,7 @@ export function stopP7V2Server({ expectedIdentity = null, portConfig = resolveP7
   const wslRoot = wslProjectRoot();
   const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
   const pidRead = runWSL(`cat ${JSON.stringify(pidFile)} 2>/dev/null || true`, { timeout: 10000 });
-  const pid = String(pidRead.stdout || '').trim() || String(expectedIdentity?.pid || '').trim();
+  const pid = String(expectedIdentity?.pid || '').trim() || String(pidRead.stdout || '').trim();
   if (!/^\d+$/.test(pid)) return { stopped: false, reason: 'no_valid_pid_file_or_expected_identity', targetPid: '' };
   const expectedKey = String(expectedIdentity?.identityKey || '').trim();
   const expectedHash = String(expectedIdentity?.executableSha256 || '').trim();
@@ -166,7 +166,7 @@ export function stopP7V2Server({ expectedIdentity = null, portConfig = resolveP7
     `pid=${JSON.stringify(pid)}; [ -d "/proc/$pid" ] || { echo absent; exit 0; }; ` +
       `cwd=$(readlink -f "/proc/$pid/cwd" 2>/dev/null || true); exe=$(readlink -f "/proc/$pid/exe" 2>/dev/null || true); ` +
       `hash=$(sha256sum "$exe" 2>/dev/null | awk '{print $1}'); ticks=$(awk '{print $22}' "/proc/$pid/stat" 2>/dev/null || true); ` +
-      `owner=$(sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
+      `owner=$(ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1); ` +
       `printf '%s\\n' "$pid|$ticks|$hash|$cwd|$owner"`,
     { timeout: 15000 },
   );
@@ -259,8 +259,7 @@ export function startP7V2Server(env = {}, opts = {}) {
     `mkdir -p ${JSON.stringify(`${wslRoot}/artifacts/p7-v2`)}`,
     sourceProjectEnv,
     `set -a && . ${JSON.stringify(runtimeEnvPath)} && set +a`,
-      `nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & sleep 2`,
-    `sudo -n ss -ltnp 'sport = :${portConfig.port}' 2>/dev/null | sed -n 's/.*pid=\\([0-9]\\+\\).*/\\1/p' | head -n1 > ${JSON.stringify(pidFile)}`,
+      `(nohup ${JSON.stringify(binary)} > ${JSON.stringify(logFile)} 2>&1 & echo $! > ${JSON.stringify(pidFile)}) && sleep 2`,
     `cat ${JSON.stringify(pidFile)}`,
   ]
     .filter(Boolean)

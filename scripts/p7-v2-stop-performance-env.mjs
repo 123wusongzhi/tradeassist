@@ -115,7 +115,15 @@ tr '\0' '\n' < "/proc/$pid/environ" 2>/dev/null |
   const runIdMatch = targetScope.runId ? dbMatchesRunId(dbName, targetScope.runId) : false;
   const databaseMatch = targetScope.databaseName ? dbName === targetScope.databaseName : false;
   const pidMatch = targetScope.pid ? pid === targetScope.pid : false;
-  const processLooksP7 = executable.endsWith('/artifacts/p7-v2/server') && cwd.replace(/\\/g, '/').endsWith('/trademind-ai');
+  const normalizedExecutable = executable.replace(/\\/g, '/');
+  const normalizedCwd = cwd.replace(/\\/g, '/');
+  const normalizedRoot = root.replace(/\\/g, '/');
+  const processLooksP7 =
+    normalizedCwd === normalizedRoot &&
+    (
+      normalizedExecutable === `${normalizedRoot}/artifacts/p7-v2/server` ||
+      /^.+\/artifacts\/p7-v2\/formal-binaries\/[^/]+\/[0-9a-f]{64}\/server$/.test(normalizedExecutable)
+    );
   let ownership = 'unknown_process';
   if (!pid) ownership = 'none';
   else if (processLooksP7 && (runIdMatch || databaseMatch || pidMatch)) ownership = 'old_formal_current_owned_process';

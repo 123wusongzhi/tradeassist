@@ -181,6 +181,22 @@
       "reason": "registered baseline/current evidence is retained"
     },
     {
+      "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260718001301",
+      "databaseOwner": "postgres",
+      "databaseSizeBytes": 1999397379,
+      "activeConnectionCount": 0,
+      "derivedRunId": "",
+      "manifestMatch": false,
+      "environmentEvidenceMatch": false,
+      "artifactMatch": true,
+      "diagnosticReportMatch": false,
+      "associatedRuntimeFreezeId": "",
+      "classification": "historical_formal_evidence_db",
+      "retentionDecision": "retain",
+      "cleanupEligible": false,
+      "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
+    },
+    {
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery_20260714_1719",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1903968771,
@@ -277,6 +293,22 @@
       "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
     },
     {
+      "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260718001301_restar",
+      "databaseOwner": "postgres",
+      "databaseSizeBytes": 2007018843,
+      "activeConnectionCount": 0,
+      "derivedRunId": "",
+      "manifestMatch": false,
+      "environmentEvidenceMatch": false,
+      "artifactMatch": true,
+      "diagnosticReportMatch": false,
+      "associatedRuntimeFreezeId": "",
+      "classification": "historical_formal_evidence_db",
+      "retentionDecision": "retain",
+      "cleanupEligible": false,
+      "reason": "database name matches a known historical P7-V2 formal/diagnostic evidence family"
+    },
+    {
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery_20260714_1750_restart",
       "databaseOwner": "postgres",
       "databaseSizeBytes": 1906991619,
@@ -311,18 +343,18 @@
     {
       "databaseName": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071616012",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1931210075,
+      "databaseSizeBytes": 1931051523,
       "activeConnectionCount": 0,
       "derivedRunId": "p7v2-diag-baseline-sql-fingerprint-20260716160124",
       "manifestMatch": false,
       "environmentEvidenceMatch": false,
-      "artifactMatch": true,
+      "artifactMatch": false,
       "diagnosticReportMatch": true,
       "associatedRuntimeFreezeId": "",
-      "classification": "completed_diagnostic_ephemeral",
+      "classification": "active_or_required_diagnostic_evidence",
       "retentionDecision": "retain",
       "cleanupEligible": false,
-      "reason": "diagnostic final gate and raw JSONL evidence are preserved"
+      "reason": "diagnostic evidence is still active or insufficiently checkpointed"
     },
     {
       "databaseName": "trademind_p7v2_p7v2_diag_current_sql_fingerprint_20260716145825",
@@ -423,5 +455,5 @@
   ],
   "listenerRows": [],
   "processRows": [],
-  "generatedAt": "2026-07-17T07:41:40.310Z"
+  "generatedAt": "2026-07-18T05:48:19.284Z"
 }
