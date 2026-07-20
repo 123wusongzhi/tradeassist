@@ -152,6 +152,9 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md](P7_V2_R3B_WEBHOOK_TAIL_REPAIR_FINAL_GATE.md) | Generated final gate for the local webhook tail repair evidence; this does not close P7-V2 without a new formal pair. |
 | [P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT.md](P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT.md) | Non-formal repeatability/order-bias audit status, Process Identity Probe V2 evidence, and required B-C-C-B diagnostic gate entry. |
 | [P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT_FINAL_GATE.md](P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT_FINAL_GATE.md) | Generated final gate for the repeatability/order-bias audit; expected to fail until B-C-C-B diagnostic evidence is present. |
+| [P7_V2_R3B_HOST_ISOLATION_V3_INCOMPLETE_MATRIX_CLOSEOUT.md](P7_V2_R3B_HOST_ISOLATION_V3_INCOMPLETE_MATRIX_CLOSEOUT.md) | Audit-only closeout for the consumed incomplete V3 validation matrix; C2/B2 must not be backfilled. |
+| [P7_V2_R3B_DEDICATED_BENCHMARK_HOST_PREFLIGHT.md](P7_V2_R3B_DEDICATED_BENCHMARK_HOST_PREFLIGHT.md) / [P7_V2_R3B_DEDICATED_BENCHMARK_HOST_FINAL_GATE.md](P7_V2_R3B_DEDICATED_BENCHMARK_HOST_FINAL_GATE.md) | Generated dedicated Linux benchmark-host contract attestation and host gate; required before a fresh B-C-C-B diagnostic matrix. |
+| [P7_V2_R3B_DEDICATED_BENCHMARK_HOST_VALIDATION_FINAL_GATE.md](P7_V2_R3B_DEDICATED_BENCHMARK_HOST_VALIDATION_FINAL_GATE.md) | Generated final gate for a future dedicated-host B-C-C-B validation matrix; expected to fail until all four fresh runs are present. |
 
 ## Phase P3.2 Douyin Webhook Docs
 
