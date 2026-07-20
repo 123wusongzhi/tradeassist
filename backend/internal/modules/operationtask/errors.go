@@ -13,6 +13,13 @@ const (
 	ErrCodeRevisionConflict        = "revision_conflict"
 	ErrCodeDuplicateIdempotencyKey = "duplicate_idempotency_key"
 	ErrCodeDuplicateDraftVersion   = "duplicate_draft_version"
+	ErrCodeDuplicateApprovalIdem   = "duplicate_approval_idempotency"
+	ErrCodeDuplicateExecutionIdem  = "duplicate_execution_idempotency"
+	ErrCodeDuplicateAttemptNumber  = "duplicate_attempt_number"
+	ErrCodeDuplicateErrorSequence  = "duplicate_error_sequence"
+	ErrCodeDuplicateEventSequence  = "duplicate_event_sequence"
+	ErrCodeImmutableRecord         = "immutable_record"
+	ErrCodeReferenceMismatch       = "reference_mismatch"
 )
 
 var (
@@ -23,6 +30,13 @@ var (
 	ErrRevisionConflict        = errors.New(ErrCodeRevisionConflict)
 	ErrDuplicateIdempotencyKey = errors.New(ErrCodeDuplicateIdempotencyKey)
 	ErrDuplicateDraftVersion   = errors.New(ErrCodeDuplicateDraftVersion)
+	ErrDuplicateApprovalIdem   = errors.New(ErrCodeDuplicateApprovalIdem)
+	ErrDuplicateExecutionIdem  = errors.New(ErrCodeDuplicateExecutionIdem)
+	ErrDuplicateAttemptNumber  = errors.New(ErrCodeDuplicateAttemptNumber)
+	ErrDuplicateErrorSequence  = errors.New(ErrCodeDuplicateErrorSequence)
+	ErrDuplicateEventSequence  = errors.New(ErrCodeDuplicateEventSequence)
+	ErrImmutableRecord         = errors.New(ErrCodeImmutableRecord)
+	ErrReferenceMismatch       = errors.New(ErrCodeReferenceMismatch)
 )
 
 func stableError(err error, fallback error) error {
