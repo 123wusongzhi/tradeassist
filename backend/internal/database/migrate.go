@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -184,6 +185,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.RateLimitPolicy{},
 		&performance.QuotaPolicy{},
 	); err != nil {
+		return err
+	}
+	if err := operationtask.Migrate(db); err != nil {
 		return err
 	}
 	if err := migrateDouyinPhase102Indexes(db); err != nil {
