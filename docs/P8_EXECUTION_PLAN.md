@@ -83,8 +83,8 @@ P8-105=completed
 batchEvidence=docs/P8_TASK_BATCH_2_APPROVAL_EXECUTION_AUDIT_PERSISTENCE.md
 batchEvidenceJson=docs/p8-task-batch-2-approval-execution-audit-persistence.json
 workingBranch=dev
-implementationCommitted=false
-checkpointStatus=not_created_by_owner_instruction
+implementationCommitted=true
+checkpointStatus=created
 phaseStatus=In Progress
 productionReady=false
 ```
