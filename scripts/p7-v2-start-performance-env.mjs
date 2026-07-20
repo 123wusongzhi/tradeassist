@@ -74,7 +74,7 @@ const env = performanceEnvDefaults({
 
 let server = { ok: false, pid: '', issues: [] };
 if (issues.length === 0 && !args.includes('--skip-server')) {
-  server = startP7V2Server(env, { skipStop: args.includes('--skip-stop') });
+  server = startP7V2Server(env, { skipStop: args.includes('--skip-stop'), runId });
   if (!server.ok) {
     issues.push(...(server.issues || ['failed to start API server']));
   } else {
@@ -140,6 +140,17 @@ const report = {
   instanceNonce,
   serverBinaryPath: server.binary || '',
   serverBinarySha256: server.serverBinarySha256 || '',
+  expectedBinarySha256: server.expectedBinarySha256 || server.serverBinarySha256 || '',
+  binarySha256Match: server.binarySha256Match ?? true,
+  runtimeCommit: server.runtimeCommit || '',
+  sourceTreeHash: server.sourceTreeHash || '',
+  processPid: server.pid || '',
+  processStartTime: server.processStartTime || '',
+  processExecutablePath: server.processExecutablePath || '',
+  processExecutableSha256: server.processExecutableSha256 || '',
+  processExecutableSha256Match: server.processExecutableSha256Match ?? true,
+  implicitBuildDisabled: server.implicitBuildDisabled === true,
+  formalBinaryProvenanceVersion: server.formalBinaryProvenanceVersion || null,
   readiness: {
     migrationsComplete,
     bootstrapCompleted,

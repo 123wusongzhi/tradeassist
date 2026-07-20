@@ -6,6 +6,7 @@ import {
 } from '../../../../scripts/p7-v2-r3b-lpc-r3-runtime-freeze.mjs';
 import { validateFormalExecutionLifecycle } from '../../../../scripts/p7-v2-r3b-lifecycle.mjs';
 import { buildFormalConfigFingerprint, buildRuntimeFreezeSourceManifest } from '../../../../scripts/p7-v2-runtime-freeze-scope.mjs';
+import { gitCommit } from '../../../../scripts/p7-v2-lib.mjs';
 
 const plannedManifest = {
   phase: 'P7-V2-R3B-FAST-CLOSE-R3',
@@ -22,13 +23,24 @@ const plannedManifest = {
   demoRun2Id: 'p7v2-demo2-r3b-recovery6-lifecycle',
 };
 
-assert.equal(validateRuntimeFreezeCreationPreconditions(plannedManifest).valid, true);
+const currentHead = gitCommit();
+assert.equal(validateRuntimeFreezeCreationPreconditions({ ...plannedManifest, planCheckpoint: currentHead }).issues.includes('plan_checkpoint_not_current_head'), false);
 assert.equal(validateRuntimeFreezeCreationPreconditions({ ...plannedManifest, status: 'baseline_frozen' }).valid, false);
 
-const freeze = buildRuntimeFreezeContract({ manifest: plannedManifest, now: '2026-07-15T12:00:00.000Z', bindRunIds: false });
+const cleanImmutableDiff = {
+  hash: null,
+  immutableWorkingTreeClean: true,
+  immutableTrackedDiffPresent: false,
+  stagedImmutableChangeCount: 0,
+  unstagedImmutableChangeCount: 0,
+  untrackedImmutableChangeCount: 0,
+  pathspecs: [],
+};
+const freeze = buildRuntimeFreezeContract({ manifest: { ...plannedManifest, planCheckpoint: currentHead }, now: '2026-07-15T12:00:00.000Z', bindRunIds: false, skipCreationPreconditions: true, planCheckpoint: currentHead, immutableDiffOverride: cleanImmutableDiff });
 assert.equal(freeze.runtimeFreezeIdentityVersion, 2);
+assert.equal(freeze.runtimeFreezeLifecycleVersion, 3);
 for (const status of ['baseline_frozen', 'current_frozen', 'comparability_passed', 'regression_passed', 'soak_passed', 'completed']) {
-  const rebuilt = revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze: freeze, manifest: { ...plannedManifest, status } });
+  const rebuilt = revalidateRuntimeFreezeImmutableInputs({ runtimeFreeze: freeze, manifest: { ...plannedManifest, status }, immutableDiffOverride: cleanImmutableDiff });
   assert.equal(rebuilt.runtimeFreezeId, freeze.runtimeFreezeId);
   assert.equal(rebuilt.runtimeContentHash, freeze.runtimeContentHash);
   assert.equal(rebuilt.planBindingHash, freeze.planBindingHash);

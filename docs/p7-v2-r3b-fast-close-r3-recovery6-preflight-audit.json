@@ -7,7 +7,7 @@
   "preflightBindingVersion": 2,
   "formalRecovery6Mode": true,
   "canonicalManifestPath": "docs/p7-v2-r3b-run-manifest.json",
-  "canonicalManifestSha256": "4d819c3920b4dc34b48e48fdbf490d4068b292ef3866a956bacfb1faebae629b",
+  "canonicalManifestSha256": "11b94133721bf2d42694843fe397cf2eb636aba46e31bd44867e169af0aaee27",
   "canonicalManifestStatus": "runtime_frozen",
   "selectedManifestPath": "docs/p7-v2-r3b-run-manifest.json",
   "selectedManifestReason": "canonical_active_recovery6_manifest",
@@ -22,25 +22,36 @@
     "docs/baselines/p7-v2-baseline-registry.json",
     "docs/p7-v2-current-load-report.json"
   ],
-  "resolvedPlanCheckpoint": "1fc19442db44b73875eff2ad828de7ad4de43486",
-  "planCheckpoint": "1fc19442db44b73875eff2ad828de7ad4de43486",
-  "currentGitHead": "1fc19442db44b73875eff2ad828de7ad4de43486",
+  "resolvedPlanCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "planCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "currentGitHead": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
   "planCheckpointMatch": true,
-  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260717051755",
-  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260717051755",
-  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260717051755",
-  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260717051755",
-  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260717051755",
-  "resolvedRuntimeFreezeId": "013bd47206add0d44d102977a5de452667ab5a6b31c233fb42fa00bb28d63620",
+  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260718031555",
+  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260718031555",
+  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260718031555",
+  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260718031555",
+  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260718031555",
+  "resolvedRuntimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
   "runtimeFreezeIdentityVersion": 2,
+  "binaryProvenanceVersion": 2,
+  "baselineBinarySha256Match": true,
+  "currentBinarySha256Match": true,
+  "inputSequenceHashMatch": true,
+  "branchMixFingerprintBound": true,
   "runtimeFreezeCreated": true,
-  "planBindingHash": "a2f7a2cd401e414a4396d5037434e6a73328c10b3008ea351610078fce3d4a87",
-  "runtimeContentHash": "8760b315e1580665fd8de49d3d39c479c924fa5d5865fe585d4f7b8fe01a8570",
+  "planBindingHash": "0aa513bea4867740e894e47a6ba4861f72eb8efbcda3a84b7d7c48d66fe7c432",
+  "runtimeContentHash": "8ae127cc2a0a5a4b141953f7d98e2822572f9e5ecec85686b7286f89b8e9fd74",
   "planBindingHashMatch": true,
   "runtimeContentHashMatch": true,
   "runtimeFreezeStillValid": true,
   "immutableMismatchFields": [],
   "plannedRunIdsBindingPassed": true,
+  "baselineBinaryBindingPassed": true,
+  "currentBinaryBindingPassed": true,
+  "baselineRuntimeCommitBindingPassed": true,
+  "currentRuntimeCommitBindingPassed": true,
+  "inputSequenceBindingPassed": true,
+  "branchMixBindingPassed": true,
   "legacyBaselineRunIdDetected": "p7v2-baseline-r3b-recovery6-20260716082252",
   "legacyBaselineRunIdIgnored": true,
   "legacyBaselineCandidates": [
@@ -125,6 +136,38 @@
     },
     {
       "id": "runtime_freeze_identity_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_version_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_bound",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "current_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_version_v1",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_bound",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "branch_mix_fingerprint_bound",
       "status": "passed"
     },
     {

@@ -42,7 +42,7 @@ const configHash = (patch = {}) => buildFormalConfigFingerprint({
 }).hash;
 const stableConfig = configHash();
 
-assert.equal(RUNTIME_FREEZE_SCOPE_VERSION, 2);
+assert.equal(RUNTIME_FREEZE_SCOPE_VERSION, 3);
 assert.equal(CONFIG_FINGERPRINT_VERSION, 2);
 
 assert.equal(sourceHash({ 'docs/P7_V2_REPORT.md': 'new report\n' }), baseHash);

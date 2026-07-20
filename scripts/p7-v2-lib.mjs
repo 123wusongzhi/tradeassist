@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { discoverK6 as discoverK6Impl } from './p7-v2-k6-discovery.mjs';
+import { resolveBinaryForRunId, sha256File, verifyBinaryReceipt } from './p7-v2-formal-binary-provenance-lib.mjs';
 
 export { discoverK6Impl as discoverK6 };
 
@@ -197,25 +198,58 @@ export function startP7V2Server(env = {}, opts = {}) {
   const envFile = `${wslRoot}/.env`;
   const pidFile = `${wslRoot}/artifacts/p7-v2/server.pid`;
   const logFile = `${wslRoot}/artifacts/p7-v2/server.log`;
-  const binary = `${wslRoot}/artifacts/p7-v2/server`;
   const merged = {
     ...portConfig.env,
     ...env,
   };
+  const runId = opts.runId || merged.P7_DIAGNOSTIC_RUN_ID || merged.P7_V2_RUN_ID || '';
+  const formalBinaryBinding = opts.formalBinaryBinding || (runId ? resolveBinaryForRunId(runId) : null);
+  const binary = formalBinaryBinding
+    ? `${wslRoot}/${formalBinaryBinding.binaryPath.replaceAll('\\', '/')}`
+    : `${wslRoot}/artifacts/p7-v2/server`;
   if (!opts.skipStop) stopP7V2Server();
   const portCheck = runWSL(`ss -ltn 'sport = :${portConfig.port}' 2>/dev/null | awk 'NR>1 {found=1} END {print found ? "busy" : "free"}'`, { timeout: 10000 });
   if ((portCheck.stdout || '').trim() === 'busy') {
     return { ok: false, issues: [`port ${portConfig.port} remains occupied before API start`] };
   }
-  const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
-    timeout: 10 * 60 * 1000,
-  });
-  if (build.status !== 0) {
-    return { ok: false, issues: [`server build failed: ${build.stderr.slice(0, 500)}`] };
+  let buildStartedAt = '';
+  let buildFinishedAt = '';
+  if (formalBinaryBinding) {
+    const receiptCheck = formalBinaryBinding.receiptPath
+      ? verifyBinaryReceipt(`${root}/${formalBinaryBinding.receiptPath}`, {
+          role: formalBinaryBinding.role,
+          runtimeCommit: formalBinaryBinding.runtimeCommit,
+        })
+      : { valid: true, issues: [] };
+    const absBinary = path.join(root, formalBinaryBinding.binaryPath);
+    if (!fs.existsSync(absBinary)) return { ok: false, formalExecutionStarted: false, issues: ['manifest-bound formal binary is missing'] };
+    const actualSha = sha256File(absBinary);
+    if (!receiptCheck.valid || actualSha !== formalBinaryBinding.binarySha256) {
+      return {
+        ok: false,
+        formalExecutionStarted: false,
+        issues: [
+          ...receiptCheck.issues,
+          ...(actualSha === formalBinaryBinding.binarySha256 ? [] : ['manifest-bound formal binary SHA mismatch']),
+        ],
+      };
+    }
+  } else {
+    buildStartedAt = new Date().toISOString();
+    const build = runWSL(`cd ${JSON.stringify(`${wslRoot}/backend`)} && go build -o ${JSON.stringify(binary)} ./cmd/server`, {
+      timeout: 10 * 60 * 1000,
+    });
+    buildFinishedAt = new Date().toISOString();
+    if (build.status !== 0) {
+      return { ok: false, issues: [`server build failed: ${build.stderr.slice(0, 500)}`] };
+    }
   }
   const binaryHash = runWSL(`sha256sum ${JSON.stringify(binary)} 2>/dev/null | awk '{print $1}'`, { timeout: 30000 });
   const serverBinarySha256 = (binaryHash.stdout || '').trim();
   if (!serverBinarySha256) return { ok: false, issues: ['server binary hash was not produced'] };
+  if (formalBinaryBinding && serverBinarySha256 !== formalBinaryBinding.binarySha256) {
+    return { ok: false, formalExecutionStarted: false, issues: ['manifest-bound formal binary hash did not match before start'] };
+  }
   const runtimeEnvPath = writeRuntimeEnvFile(merged);
   const sourceProjectEnv =
     merged.APP_ENV === 'performance'
@@ -247,6 +281,22 @@ export function startP7V2Server(env = {}, opts = {}) {
     );
     if ((health.stdout || '').trim() === 'ok') {
       const listenerOk = (listener.stdout || '').trim() === 'ok';
+      const processExecutable = runWSL(
+        `exe=$(readlink -f /proc/${pid}/exe 2>/dev/null || true); sha=$(sha256sum "$exe" 2>/dev/null | awk '{print $1}'); started=$(stat -c %Z /proc/${pid} 2>/dev/null || true); printf '%s|%s|%s' "$exe" "$sha" "$started"`,
+        { timeout: 10000 },
+      );
+      const [processExecutablePath, processExecutableSha256, processStartTime] = String(processExecutable.stdout || '').trim().split('|');
+      if (formalBinaryBinding && processExecutableSha256 !== formalBinaryBinding.binarySha256) {
+        return {
+          ok: false,
+          formalExecutionStarted: false,
+          pid,
+          issues: ['running process executable SHA does not match manifest-bound formal binary'],
+          processExecutablePath,
+          processExecutableSha256,
+          expectedBinarySha256: formalBinaryBinding.binarySha256,
+        };
+      }
       return {
         // Health proves the just-built localhost instance is serving; callers
         // perform the stronger PID/binary/nonce proof through process identity.
@@ -255,11 +305,21 @@ export function startP7V2Server(env = {}, opts = {}) {
         logFile,
         binary,
         serverBinarySha256,
+        expectedBinarySha256: formalBinaryBinding?.binarySha256 || serverBinarySha256,
+        binarySha256Match: formalBinaryBinding ? serverBinarySha256 === formalBinaryBinding.binarySha256 : true,
+        runtimeCommit: formalBinaryBinding?.runtimeCommit || '',
+        sourceTreeHash: formalBinaryBinding?.sourceTreeHash || '',
+        processStartTime,
+        processExecutablePath,
+        processExecutableSha256,
+        processExecutableSha256Match: formalBinaryBinding ? processExecutableSha256 === formalBinaryBinding.binarySha256 : processExecutableSha256 === serverBinarySha256,
+        implicitBuildDisabled: Boolean(formalBinaryBinding),
+        formalBinaryProvenanceVersion: formalBinaryBinding ? 2 : undefined,
         port: portConfig.port,
         baseUrl: portConfig.baseUrl,
         instanceNonce: merged.P7V2_INSTANCE_NONCE || '',
-        buildStartedAt: new Date().toISOString(),
-        buildFinishedAt: new Date().toISOString(),
+        buildStartedAt,
+        buildFinishedAt,
         listenerMismatch: !listenerOk,
         issues: [],
       };
