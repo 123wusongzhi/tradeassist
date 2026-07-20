@@ -9,6 +9,7 @@ import {
   validateBackgroundProcessGate,
   validateDatasetMeasurementSeparation,
   validateFormalHostIsolationContract,
+  validatePredictiveHostStabilityEvidence,
   validateQuietWindowEvidence,
   validateResourcePrecheck,
   validateWarmupEvidence,
@@ -67,6 +68,7 @@ const contract = buildFormalHostIsolationContract({ matrix, now: '2026-07-19T04:
 assert.equal(contract.formalHostIsolationVersion, FORMAL_HOST_ISOLATION_VERSION);
 assert.equal(validateFormalHostIsolationContract(contract).status, 'passed');
 assert.equal(buildHostIsolationPlanBinding(contract).comparabilityVersion, 5);
+assert.equal(buildHostIsolationPlanBinding(contract).predictiveHostStabilityBarrierHash, contract.predictiveHostStabilityBarrierHash);
 
 const gate = evaluateFormalHostIsolationFinalGate({
   contract,
@@ -116,6 +118,20 @@ assert.equal(validateQuietWindowEvidence({
   hostQuietWindowPassed: true,
 }, contract).status, 'passed');
 
+assert.equal(validatePredictiveHostStabilityEvidence({
+  predictiveHostStabilityBarrierVersion: 1,
+  predictiveReadinessThresholdHash: contract.predictiveHostStabilityBarrier.predictiveReadinessThresholdHash,
+  observedWindows: contract.predictiveHostStabilityBarrier.requiredObservationWindows,
+  predictiveHostStabilityPassed: false,
+  failureReason: 'checkpoint_active',
+}, contract).status, 'failed');
+assert.equal(validatePredictiveHostStabilityEvidence({
+  predictiveHostStabilityBarrierVersion: 1,
+  predictiveReadinessThresholdHash: contract.predictiveHostStabilityBarrier.predictiveReadinessThresholdHash,
+  observedWindows: contract.predictiveHostStabilityBarrier.requiredObservationWindows,
+  predictiveHostStabilityPassed: true,
+}, contract).status, 'passed');
+
 const zeroPrecheck = {
   listener18080Count: 0,
   unknownP7ProcessCount: 0,
@@ -143,7 +159,7 @@ assert.equal(validateBackgroundProcessGate({
   activeDiagnosticRunnerCount: 0,
 }).status, 'failed');
 
-assert.equal(contract.lifecycleContract.steps.length, 14);
+assert.equal(contract.lifecycleContract.steps.length, 15);
 assert.equal(contract.lifecycleSchemaVersion, LIFECYCLE_SCHEMA_VERSION);
 
-console.log(JSON.stringify({ phase: 'P7-V2-R3B-FORMAL-HOST-ISOLATION-FIXTURES', status: 'passed', fixtures: 18 }, null, 2));
+console.log(JSON.stringify({ phase: 'P7-V2-R3B-FORMAL-HOST-ISOLATION-FIXTURES', status: 'passed', fixtures: 22 }, null, 2));

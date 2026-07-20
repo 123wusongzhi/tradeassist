@@ -167,5 +167,10 @@
     }
   ],
   "nextRequiredAction": "Stop. Do not create a new formal plan until host isolation validation passes.",
-  "generatedAt": "2026-07-19T07:45:58.721Z"
+  "generatedAt": "2026-07-19T07:45:58.721Z",
+  "active": false,
+  "validForAudit": true,
+  "validForClosure": false,
+  "validForReuse": false,
+  "runIdsConsumed": true
 }

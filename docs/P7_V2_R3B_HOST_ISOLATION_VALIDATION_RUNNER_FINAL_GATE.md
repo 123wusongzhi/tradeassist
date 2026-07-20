@@ -2,8 +2,8 @@
 
 Status: **passed**
 
-- Runner version: `1`
-- Host isolation version: `2`
+- Runner version: `2`
+- Host isolation version: `3`
 - Run order: `B-C-C-B`
 - Run count: `4`
 - Forbidden override args covered: `15`

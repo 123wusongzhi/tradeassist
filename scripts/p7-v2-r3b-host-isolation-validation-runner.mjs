@@ -30,11 +30,12 @@ import {
   HOST_ISOLATION_CONTRACT_PATH,
   validateBackgroundProcessGate,
   validateFormalHostIsolationContract,
+  validatePredictiveHostStabilityEvidence,
   validateQuietWindowEvidence,
   validateResourcePrecheck,
 } from './p7-v2-r3b-formal-host-isolation.mjs';
 
-export const HOST_ISOLATION_VALIDATION_RUNNER_VERSION = 1;
+export const HOST_ISOLATION_VALIDATION_RUNNER_VERSION = 2;
 export const MATRIX_JSON_PATH = 'docs/p7-v2-r3b-host-isolation-validation-matrix.json';
 export const MATRIX_MD_PATH = 'docs/P7_V2_R3B_HOST_ISOLATION_VALIDATION_MATRIX.md';
 export const MATRIX_STATE_VALUES = [
@@ -65,6 +66,7 @@ export const ROUND_STATE_VALUES = [
   'warmup',
   'cooldown',
   'quiet_window',
+  'predictive_stability_barrier',
   'measurement',
   'application_stop',
   'connection_drain',
@@ -82,7 +84,7 @@ export const EXPECTED = Object.freeze({
   baselineBinarySha256: '4e0408ac29b777beac7598872dfd8cac6430542eae37b5ba304c3dbdf7bd79f1',
   currentBinarySha256: 'c6564cfe47a9f5cc60ce6b8c7c29accf7460e213318ba62a11c0d480f4f47766',
   datasetRows: 1900150,
-  matrixIdPrefix: 'p7v2-diag-host-isolation-validation',
+  matrixIdPrefix: 'p7v2-diag-host-isolation-v3-validation',
 });
 export const FORBIDDEN_ARGS = Object.freeze([
   '--baseline-binary',
@@ -267,6 +269,7 @@ function buildValidationContractHash({ contract, input, loadProfile, materiality
     warmupManifestHash: contract.warmupManifestHash,
     cooldownContractHash: contract.cooldownContractHash,
     quietWindowContractHash: contract.hostQuietWindowContractHash,
+    predictiveHostStabilityBarrierHash: contract.predictiveHostStabilityBarrierHash,
     postgresIsolationContractHash: contract.postgresIsolationContractHash,
     evidenceWriterContractHash: contract.evidenceWriterContractHash,
     baselineBinarySha256: baselineBinding.binarySha256,
@@ -335,16 +338,17 @@ function collectResourceSnapshot(slot = '') {
 
 function collectHostCounters(slot = '', pg = null) {
   const loadAvg = runWSL(`cat /proc/loadavg | awk '{print $1" "$2}'`, { timeout: 10000 });
-  const mem = runWSL(`awk '/MemAvailable:/ {m=$2*1024} /SwapFree:/ {sf=$2*1024} /SwapTotal:/ {st=$2*1024} END {print m "|" st-sf}' /proc/meminfo`, { timeout: 10000 });
-  const cpu = runWSL(`awk 'NR==1 {total=0; for(i=2;i<=NF;i++) total+=$i; print $2 "|" $4 "|" $5 "|" $6 "|" total}' /proc/stat`, { timeout: 10000 });
+  const mem = runWSL(`awk '/MemAvailable:/ {m=$2*1024} /SwapFree:/ {sf=$2*1024} /SwapTotal:/ {st=$2*1024} /^Dirty:/ {d=$2*1024} END {print m "|" st-sf "|" d}' /proc/meminfo`, { timeout: 10000 });
+  const cpu = runWSL(`awk 'NR==1 {user=$2; system=$4; idle=$5; iowait=$6; total=0; for(i=2;i<=NF;i++) total+=$i} /^ctxt / {ctxt=$2} /^procs_running / {rq=$2} END {print user "|" system "|" idle "|" iowait "|" total "|" ctxt "|" rq}' /proc/stat`, { timeout: 10000 });
   const disk = runWSL(`awk '{r+=$6*512; w+=$10*512} END {print r "|" w}' /proc/diskstats`, { timeout: 10000 });
+  const vm = runWSL(`awk '/^pgmajfault / {print $2}' /proc/vmstat`, { timeout: 10000 });
   const pgQuery = pg
     ? `PGPASSWORD= psql -h 127.0.0.1 -p ${pg.port} -U postgres -At -d postgres -c "select (select coalesce(sum(checkpoints_timed+checkpoints_req),0) from pg_stat_bgwriter),(select coalesce(sum(buffers_checkpoint),0) from pg_stat_bgwriter),(select coalesce(sum(wal_bytes),0) from pg_stat_wal),(select count(*) from pg_stat_activity where backend_type='client backend'),(select count(*) from pg_stat_activity where backend_type='client backend' and wait_event is not null and coalesce(wait_event_type,'') <> 'Client'),(select count(*) from pg_stat_activity where query ilike '%autovacuum%'),0;"`
     : `echo '0|0|0|0|0|0|0'`;
   const pgRes = runWSL(`${pgQuery} 2>/dev/null || echo '0|0|0|0|0|0|0'`, { timeout: 30000 });
   const [load1m, load5m] = String(loadAvg.stdout || '0 0').trim().split(/\s+/).map(Number);
-  const [availableMemoryBytes, swapUsedBytes] = String(mem.stdout || '0|0').trim().split('|').map(Number);
-  const [cpuUser, cpuSystem, cpuIdle, ioWait, cpuTotal] = String(cpu.stdout || '0|0|0|0|0').trim().split('|').map(Number);
+  const [availableMemoryBytes, swapUsedBytes, dirtyMemoryBytes] = String(mem.stdout || '0|0|0').trim().split('|').map(Number);
+  const [cpuUser, cpuSystem, cpuIdle, ioWait, cpuTotal, contextSwitches, runQueue] = String(cpu.stdout || '0|0|0|0|0|0|0').trim().split('|').map(Number);
   const [diskReadBytes, diskWriteBytes] = String(disk.stdout || '0|0').trim().split('|').map(Number);
   const [postgresCheckpointCount, postgresBuffersCheckpoint, postgresWalBytes, postgresActiveConnections, postgresWaitingConnections, postgresAutovacuumCount, postgresAnalyzeCount] =
     String(pgRes.stdout || '0|0|0|0|0|0|0').trim().split('|').map(Number);
@@ -360,6 +364,10 @@ function collectHostCounters(slot = '', pg = null) {
     cpuTotal: cpuTotal || 0,
     availableMemoryBytes: availableMemoryBytes || 0,
     swapUsedBytes: swapUsedBytes || 0,
+    dirtyMemoryBytes: dirtyMemoryBytes || 0,
+    contextSwitches: contextSwitches || 0,
+    runQueue: runQueue || 0,
+    majorPageFaults: Number(vm.stdout || 0) || 0,
     diskReadBytes: diskReadBytes || 0,
     diskWriteBytes: diskWriteBytes || 0,
     postgresCheckpointCount: postgresCheckpointCount || 0,
@@ -383,6 +391,12 @@ function hostDelta(before, after) {
     postgresAnalyzeDelta: Number(after.postgresAnalyzeCount || 0) - Number(before.postgresAnalyzeCount || 0),
     postgresActiveConnectionDelta: Number(after.postgresActiveConnections || 0) - Number(before.postgresActiveConnections || 0),
     postgresWaitingBackendDelta: Number(after.postgresWaitingConnections || 0) - Number(before.postgresWaitingConnections || 0),
+    ioWaitDelta: Number(after.ioWait || 0) - Number(before.ioWait || 0),
+    contextSwitchDelta: Number(after.contextSwitches || 0) - Number(before.contextSwitches || 0),
+    majorPageFaultDelta: Number(after.majorPageFaults || 0) - Number(before.majorPageFaults || 0),
+    dirtyMemoryBytesBefore: Number(before.dirtyMemoryBytes || 0),
+    dirtyMemoryBytesAfter: Number(after.dirtyMemoryBytes || 0),
+    runQueueAfter: Number(after.runQueue || 0),
     goGcCycleDelta: null,
     goGcPauseDelta: null,
     dbPoolWaitCountDelta: null,
@@ -411,11 +425,18 @@ function startPostgresInstance({ matrixId, slot, orderIndex, runId }) {
   if (init.status !== 0) throw new Error(`dedicated postgres start failed: ${(init.stderr || init.stdout || '').slice(0, 800)}`);
   const version = runWSL(`psql -h 127.0.0.1 -p ${port} -U postgres -At -d postgres -c "show server_version;"`, { timeout: 30000 });
   const config = runWSL(`psql -h 127.0.0.1 -p ${port} -U postgres -At -d postgres -c "select name || '=' || setting from pg_settings where name in ('fsync','synchronous_commit','max_connections','shared_buffers','wal_level','checkpoint_timeout','autovacuum') order by name;"`, { timeout: 30000 });
+  const pid = runWSL(`head -1 ${JSON.stringify(`${dataDir}/postmaster.pid`)} 2>/dev/null || echo 0`, { timeout: 10000 });
+  const systemIdentifier = runWSL(`/usr/lib/postgresql/14/bin/pg_controldata ${JSON.stringify(dataDir)} 2>/dev/null | awk -F: '/Database system identifier/ {gsub(/^ +/, "", $2); print $2}'`, { timeout: 30000 });
   return {
     port,
     dataDir,
     socketDir,
+    walDir: `${dataDir}/pg_wal`,
     logFile,
+    postgresProcessPid: String(pid.stdout || '0').trim(),
+    postgresDataDirectory: dataDir,
+    postgresWalDirectory: `${dataDir}/pg_wal`,
+    postgresClusterIdentity: crypto.createHash('sha256').update(String(systemIdentifier.stdout || '') || `${matrixId}:${slot}:${runId}`).digest('hex'),
     databaseName: safeDbName(runId),
     postgresVersion: String(version.stdout || '').trim(),
     postgresConfigHash: sha256Json(String(config.stdout || '').trim()),
@@ -425,7 +446,17 @@ function startPostgresInstance({ matrixId, slot, orderIndex, runId }) {
 function stopPostgresInstance(pg) {
   if (!pg?.dataDir) return { stopped: false, reason: 'missing_pg_data_dir' };
   const stop = runWSL(`sudo -u postgres /usr/lib/postgresql/14/bin/pg_ctl -D ${JSON.stringify(pg.dataDir)} -m fast stop >/dev/null 2>&1 || true`, { timeout: 60000 });
-  return { stopped: stop.status === 0, dataDir: pg.dataDir, port: pg.port };
+  const pidAlive = runWSL(`pid=${JSON.stringify(pg.postgresProcessPid || '')}; [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null && echo 1 || echo 0`, { timeout: 10000 });
+  const portBound = runWSL(`ss -ltn 'sport = :${pg.port}' 2>/dev/null | awk 'NR>1 {c++} END {print c+0}'`, { timeout: 10000 });
+  const socketBound = runWSL(`find ${JSON.stringify(pg.socketDir || '')} -maxdepth 1 -type s 2>/dev/null | wc -l`, { timeout: 10000 });
+  return {
+    stopped: stop.status === 0 && Number(pidAlive.stdout || 0) === 0 && Number(portBound.stdout || 0) === 0 && Number(socketBound.stdout || 0) === 0,
+    dataDir: pg.dataDir,
+    port: pg.port,
+    processExited: Number(pidAlive.stdout || 0) === 0,
+    portReleased: Number(portBound.stdout || 0) === 0,
+    socketReleased: Number(socketBound.stdout || 0) === 0,
+  };
 }
 
 function runNodeScript(script, args, opts = {}) {
@@ -641,6 +672,48 @@ function waitForHostQuietWindow({ pg, contract }) {
   };
 }
 
+function waitForPredictiveHostStabilityBarrier({ pg, contract }) {
+  const barrier = contract.predictiveHostStabilityBarrier || {};
+  const thresholds = barrier.stabilityThresholds || {};
+  const required = Number(barrier.requiredObservationWindows || 3);
+  const interval = Number(barrier.sampleIntervalMs || 1000);
+  const windows = [];
+  const started = Date.now();
+  for (let i = 0; i < required; i += 1) {
+    const before = collectHostCounters('', pg);
+    runWSL(`sleep ${Math.max(1, Math.ceil(interval / 1000))}`, { timeout: interval + 5000 });
+    const after = collectHostCounters('', pg);
+    const delta = hostDelta(before, after);
+    const checks = {
+      walDeltaTrend: Math.abs(delta.postgresWalBytesDelta || 0) <= Number(thresholds.maxWalBytesDeltaPerWindow ?? 64 * 1024 * 1024),
+      dirtyBufferTrend: Number(after.dirtyMemoryBytes || 0) <= Number(thresholds.maxDirtyMemoryBytes ?? 256 * 1024 * 1024),
+      checkpointActivity: Number(delta.postgresCheckpointDelta || 0) <= Number(thresholds.maxCheckpointDeltaPerWindow ?? 0),
+      autovacuumActivity: Number(delta.postgresAutovacuumDelta || 0) <= Number(thresholds.maxAutovacuumDeltaPerWindow ?? 0),
+      diskWriteTrend: Math.abs(delta.diskWriteDelta || 0) <= Number(thresholds.maxDiskWriteBytesDeltaPerWindow ?? 768 * 1024 * 1024),
+      ioWaitTrend: Math.abs(delta.ioWaitDelta || 0) <= Number(thresholds.maxIoWaitTicksDeltaPerWindow ?? 5000),
+      cpuRunQueue: Number(after.runQueue || 0) <= Number(thresholds.maxCpuRunQueue ?? 8),
+      waitingBackends: Number(after.postgresWaitingConnections || 0) <= Number(thresholds.maxPostgresWaitingConnections ?? 0),
+    };
+    windows.push({ before, after, delta, checks, passed: Object.values(checks).every(Boolean) });
+  }
+  const failed = windows.flatMap((window, index) =>
+    Object.entries(window.checks)
+      .filter(([, passed]) => !passed)
+      .map(([id]) => `window${index + 1}:${id}`),
+  );
+  return {
+    predictiveHostStabilityBarrierVersion: barrier.predictiveHostStabilityBarrierVersion || 1,
+    predictiveReadinessThresholdHash: barrier.predictiveReadinessThresholdHash || '',
+    observedWindows: windows.length,
+    sampleInterval: interval,
+    windows,
+    predictiveHostStabilityPassed: failed.length === 0,
+    quietWindowPredictiveReadinessPassed: failed.length === 0,
+    failureReason: failed.join(','),
+    durationMs: Date.now() - started,
+  };
+}
+
 function branchMetricsFromInput(input) {
   const metricFor = (count) => ({ count: Number(count || 0), p50: null, p95: null, p99: null, max: null });
   return {
@@ -666,6 +739,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
   let loadReport = null;
   let warmupEvidence = null;
   let cooldownEvidence = null;
+  let predictiveEvidence = null;
   const rawRoot = `artifacts/p7-v2/host-isolation-validation/${matrixId}/${slotPlan.slot}`;
   const lifecycleStepSequence = FORMAL_RUN_LIFECYCLE_STEPS;
   const lifecycleStepSequenceHash = contract.lifecycleStepSequenceHash || sha256Json(lifecycleStepSequence);
@@ -733,10 +807,19 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
     const quietValidation = validateQuietWindowEvidence(quietWindow, contract);
     if (quietValidation.status !== 'passed') throw Object.assign(new Error(`quiet window failed: ${quietValidation.issues.join(',')}`), { matrixStatus: 'invalid_incomplete', measurementStarted: false });
 
+    statePush(events, 'predictive_stability_barrier');
+    const predictiveBarrier = waitForPredictiveHostStabilityBarrier({ pg, contract });
+    predictiveEvidence = predictiveBarrier;
+    const predictiveValidation = validatePredictiveHostStabilityEvidence(predictiveBarrier, contract);
+    if (predictiveValidation.status !== 'passed') throw Object.assign(new Error(`predictive host stability barrier failed: ${predictiveValidation.issues.join(',')}`), { matrixStatus: 'invalid_incomplete', measurementStarted: false });
+
     statePush(events, 'measurement');
     measurementStarted = true;
+    const measurementStartTime = new Date().toISOString();
+    const hostBeforeMeasurement = collectHostCounters(slotPlan.slot, pg);
     const loadRes = runNodeScript('scripts/p7-v2-load.mjs', ['--kind', 'current', '--run-id', runId], { timeout: 50 * 60 * 1000 });
     loadReport = readJSON('docs/p7-v2-current-load-report.json') || {};
+    const measurementEndTime = new Date().toISOString();
     identity = captureApiProcessIdentity({ pid: runtime.serverPid, port: portConfig.port });
     const hostAfterLoad = collectHostCounters(slotPlan.slot, pg);
     if (loadRes.status !== 0 || loadReport.status !== 'passed') {
@@ -784,6 +867,8 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       warmupBranchMixFingerprint: warmup.warmupBranchMixFingerprint,
       lifecycleStepSequence,
       lifecycleStepSequenceHash,
+      lifecycleActualCallSequence: events.map((event) => event.state),
+      lifecycleActualCallSequenceHash: sha256Json(events.map((event) => event.state)),
       hostReadinessContractHash: contract.hostQuietWindowContractHash,
       hostReadinessFingerprint: sha256Json({
         readinessThresholdHash: quietWindow.readinessThresholdHash,
@@ -794,12 +879,19 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       validationContractHash,
       databaseName: pg.databaseName,
       databaseIdentity: sha256Json({ databaseName: pg.databaseName, postgresConfigHash: pg.postgresConfigHash, dataDir: pg.dataDir }),
+      postgresPort: pg.port,
+      postgresProcessPid: pg.postgresProcessPid,
+      postgresDataDirectory: pg.postgresDataDirectory,
+      postgresWalDirectory: pg.postgresWalDirectory,
+      postgresClusterIdentity: pg.postgresClusterIdentity,
       instanceNonce,
       datasetRows: Number(dataset.actualRows || 0),
       databasePostDatasetBarrierPassed: barrier.passed,
       warmupPassed: warmup.passed,
       cooldownPassed: cooldown.cooldownPassed,
       hostQuietWindowPassed: quietWindow.hostQuietWindowPassed,
+      predictiveHostStabilityPassed: predictiveBarrier.predictiveHostStabilityPassed,
+      quietWindowPredictiveReadinessPassed: predictiveBarrier.quietWindowPredictiveReadinessPassed,
       backgroundProcessGatePassed: true,
       postgresVersion: pg.postgresVersion,
       postgresConfigHash: pg.postgresConfigHash,
@@ -814,7 +906,31 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
         ...quietWindow,
         samples: quietWindow.samples.map((sample) => ({ passed: sample.passed, delta: sample.delta, after: sample.after })),
       },
+      predictiveHostStabilityBarrier: {
+        ...predictiveBarrier,
+        windows: predictiveBarrier.windows.map((window) => ({ passed: window.passed, checks: window.checks, delta: window.delta, after: window.after })),
+      },
       hostSnapshots: { before: hostBefore, afterLoad: hostAfterLoad, after: hostAfter },
+      measurementWindow: {
+        measurementStartTime,
+        measurementEndTime,
+        preMeasurementWindow: {
+          windows: predictiveBarrier.windows.map((window) => ({ passed: window.passed, checks: window.checks, delta: window.delta })),
+        },
+        entireMeasurementWindow: {
+          before: hostBeforeMeasurement,
+          after: hostAfterLoad,
+          delta: hostDelta(hostBeforeMeasurement, hostAfterLoad),
+        },
+        tailRequestWindow: {
+          approximation: 'post_load_terminal_sample',
+          after: hostAfterLoad,
+          metricMax: {
+            webhookMax: loadReport.scenarios?.find?.((item) => item.scenario === 'Webhook Ingestion')?.max ?? null,
+            authMax: loadReport.scenarios?.find?.((item) => item.scenario === 'Auth Invalid Login')?.max ?? null,
+          },
+        },
+      },
       hostStateDelta: hostDelta(hostBefore, hostAfter),
       metrics: focusedMetrics(loadReport),
       branchMetrics: branchMetricsFromInput(input),
@@ -831,6 +947,9 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       resourceCleanup,
       rawArtifactRoot: rawRoot,
     };
+    result.startTime = events[0]?.at || null;
+    result.endTime = events.at(-1)?.at || null;
+    result.totalDuration = Date.parse(result.endTime || '') - Date.parse(result.startTime || '');
     writeJSON(`${rawRoot}/lifecycle-events.json`, events);
     writeJSON(`${rawRoot}/host-snapshots.json`, result.hostSnapshots);
     writeJSON(`${rawRoot}/load-summary.json`, loadReport);
@@ -857,6 +976,7 @@ async function runRound({ slotPlan, matrixId, runId, binding, input, contract, v
       precheck: error.precheck || null,
       warmup: warmupEvidence,
       cooldown: cooldownEvidence,
+      predictiveHostStabilityBarrier: predictiveEvidence,
       loadReport,
       generatedAt: new Date().toISOString(),
     });
@@ -869,17 +989,30 @@ function analyzeMatrix({ runs, input, contract }) {
   const baselineSelfMetricVerdicts = bySlot.B1 && bySlot.B2 ? selfVerdicts(bySlot.B1, bySlot.B2) : [];
   const currentSelfMetricVerdicts = bySlot.C1 && bySlot.C2 ? selfVerdicts(bySlot.C1, bySlot.C2) : [];
   const lifecycleHashes = new Set(runs.map((run) => run.lifecycleStepSequenceHash));
+  const lifecycleActualHashes = new Set(runs.map((run) => run.lifecycleActualCallSequenceHash));
   const readinessHashes = new Set(runs.map((run) => run.hostReadinessContractHash));
   const pgHashes = new Set(runs.map((run) => run.postgresConfigHash));
+  const pgPids = new Set(runs.map((run) => String(run.postgresProcessPid || '')));
+  const pgPorts = new Set(runs.map((run) => String(run.postgresPort || '')));
+  const pgDataDirs = new Set(runs.map((run) => run.postgresDataDirectory || ''));
+  const pgWalDirs = new Set(runs.map((run) => run.postgresWalDirectory || ''));
+  const pgClusterIds = new Set(runs.map((run) => run.postgresClusterIdentity || ''));
   const warmupHashes = new Set(runs.map((run) => run.warmupSequenceHash));
   const orderPositionEffectDetected = maxAbsRelative(baselineSelfMetricVerdicts) > 0.1 && maxAbsRelative(currentSelfMetricVerdicts) > 0.1;
   const laterRunDegradationDetected = [...baselineSelfMetricVerdicts, ...currentSelfMetricVerdicts].some((item) => item.direction === 'right_slower' && item.materialRegression);
   const hostStateMismatchCount = runs.filter((run) => run.backgroundProcessGatePassed !== true || run.resourceCleanup?.listener18080Count !== 0).length;
   const quietWindowFailureCount = runs.filter((run) => run.hostQuietWindowPassed !== true).length;
+  const predictiveHostStabilityFailureCount = runs.filter((run) => run.predictiveHostStabilityPassed !== true || run.quietWindowPredictiveReadinessPassed !== true).length;
   const datasetBarrierFailureCount = runs.filter((run) => run.databasePostDatasetBarrierPassed !== true).length;
   const warmupFailureCount = runs.filter((run) => run.warmupPassed !== true).length;
   const cooldownFailureCount = runs.filter((run) => run.cooldownPassed !== true).length;
   const lifecycleMismatchCount = lifecycleHashes.size === 1 ? 0 : lifecycleHashes.size;
+  const lifecycleActualMismatchCount = lifecycleActualHashes.size === 1 ? 0 : lifecycleActualHashes.size;
+  const postgresProcessIdentityDistinct = runs.length === 4 && pgPids.size === 4 && !pgPids.has('');
+  const postgresPortDistinct = runs.length === 4 && pgPorts.size === 4 && !pgPorts.has('');
+  const postgresDataDirectoryDistinct = runs.length === 4 && pgDataDirs.size === 4 && !pgDataDirs.has('');
+  const postgresWalDirectoryDistinct = runs.length === 4 && pgWalDirs.size === 4 && !pgWalDirs.has('');
+  const postgresClusterIdentityDistinct = runs.length === 4 && pgClusterIds.size === 4 && !pgClusterIds.has('');
   const postgresConfigMismatchCount = pgHashes.size === 1 ? 0 : pgHashes.size;
   const warmupSequenceMismatchCount = warmupHashes.size === 1 && warmupHashes.has(contract.warmupManifest?.warmupSequenceHash) ? 0 : warmupHashes.size;
   const readinessContractMismatchCount = readinessHashes.size === 1 && readinessHashes.has(contract.hostQuietWindowContractHash) ? 0 : readinessHashes.size;
@@ -892,16 +1025,24 @@ function analyzeMatrix({ runs, input, contract }) {
     laterRunDegradationDetected,
     hostStateMismatchCount,
     quietWindowFailureCount,
+    predictiveHostStabilityFailureCount,
     datasetBarrierFailureCount,
     warmupFailureCount,
     cooldownFailureCount,
     lifecycleMismatchCount,
+    lifecycleActualMismatchCount,
     postgresConfigMismatchCount,
     warmupSequenceMismatchCount,
     readinessContractMismatchCount,
     lifecycleStepSequenceHashMatch: lifecycleMismatchCount === 0,
+    lifecycleActualCallSequenceMatch: lifecycleActualMismatchCount === 0,
     readinessContractMatch: readinessContractMismatchCount === 0,
     postgresConfigHashMatch: postgresConfigMismatchCount === 0,
+    postgresProcessIdentityDistinct,
+    postgresPortDistinct,
+    postgresDataDirectoryDistinct,
+    postgresWalDirectoryDistinct,
+    postgresClusterIdentityDistinct,
     warmupSequenceHashMatch: warmupSequenceMismatchCount === 0,
     inputSequenceHashMatch: runs.every((run) => run.inputSequenceManifestHash === input.inputSequenceManifestHash),
     branchMixFingerprintMatch: runs.every((run) => run.branchMixFingerprint === input.branchMixFingerprint),
@@ -925,6 +1066,9 @@ Status: **${status}**
 - Current self material regressions: \`${matrix.currentSelfMaterialRegressionCount ?? 'missing'}\`
 - Order position effect detected: \`${matrix.orderPositionEffectDetected ?? 'missing'}\`
 - Host state mismatch count: \`${matrix.hostStateMismatchCount ?? 'missing'}\`
+- Predictive host stability failures: \`${matrix.predictiveHostStabilityFailureCount ?? 'missing'}\`
+- PostgreSQL process identity distinct: \`${matrix.postgresProcessIdentityDistinct === true}\`
+- PostgreSQL data directory distinct: \`${matrix.postgresDataDirectoryDistinct === true}\`
 - Valid for formal plan: \`${matrix.validForFormalPlan === true}\`
 
 This evidence is diagnostic-only and does not create a formal plan, runtime freeze, formal pair, soak, demo, final race, tag, release, or production readiness claim.
@@ -942,11 +1086,18 @@ function buildMatrix({ matrixId, runIds, runs, input, contract, baselineBinding,
     analysis.orderPositionEffectDetected === false &&
     analysis.hostStateMismatchCount === 0 &&
     analysis.quietWindowFailureCount === 0 &&
+    analysis.predictiveHostStabilityFailureCount === 0 &&
     analysis.datasetBarrierFailureCount === 0 &&
     analysis.warmupFailureCount === 0 &&
     analysis.cooldownFailureCount === 0 &&
     analysis.lifecycleMismatchCount === 0 &&
+    analysis.lifecycleActualMismatchCount === 0 &&
     analysis.postgresConfigMismatchCount === 0 &&
+    analysis.postgresProcessIdentityDistinct === true &&
+    analysis.postgresPortDistinct === true &&
+    analysis.postgresDataDirectoryDistinct === true &&
+    analysis.postgresWalDirectoryDistinct === true &&
+    analysis.postgresClusterIdentityDistinct === true &&
     analysis.warmupSequenceMismatchCount === 0 &&
     analysis.readinessContractMismatchCount === 0;
   return {
@@ -992,7 +1143,15 @@ function buildMatrix({ matrixId, runIds, runs, input, contract, baselineBinding,
     branchMixFingerprint: input.branchMixFingerprint,
     warmupSequenceHash: contract.warmupManifest?.warmupSequenceHash || '',
     lifecycleStepSequenceHash: contract.lifecycleStepSequenceHash,
-    allRunsIndependent: runs.length === 4 && new Set(runs.map((run) => run.databaseIdentity)).size === 4 && new Set(runs.map((run) => run.instanceNonce)).size === 4,
+    allRunsIndependent:
+      runs.length === 4 &&
+      new Set(runs.map((run) => run.databaseIdentity)).size === 4 &&
+      new Set(runs.map((run) => run.instanceNonce)).size === 4 &&
+      analysis.postgresProcessIdentityDistinct === true &&
+      analysis.postgresPortDistinct === true &&
+      analysis.postgresDataDirectoryDistinct === true &&
+      analysis.postgresWalDirectoryDistinct === true &&
+      analysis.postgresClusterIdentityDistinct === true,
     allDatasetRows: runs.length === 4 && runs.every((run) => run.datasetRows === EXPECTED.datasetRows),
     datasetRowsPerRun: Object.fromEntries(runs.map((run) => [run.slot, run.datasetRows])),
     runs: Object.fromEntries(runs.map((run) => [run.slot, run])),
@@ -1034,6 +1193,7 @@ export function buildSelfTestFixtureMatrix(overrides = {}) {
     lifecycleStepSequenceHash: sha256Json(FORMAL_RUN_LIFECYCLE_STEPS),
     warmupManifest: { warmupSequenceHash: '2'.repeat(64), warmupBranchMixFingerprint: '3'.repeat(64) },
     hostQuietWindowContractHash: '4'.repeat(64),
+    predictiveHostStabilityBarrierHash: '7'.repeat(64),
   };
   const mkRun = (slot, role, orderIndex) => ({
     slot,
@@ -1053,19 +1213,40 @@ export function buildSelfTestFixtureMatrix(overrides = {}) {
     branchMixFingerprint: input.branchMixFingerprint,
     warmupSequenceHash: contract.warmupManifest?.warmupSequenceHash || '2'.repeat(64),
     lifecycleStepSequenceHash: contract.lifecycleStepSequenceHash,
+    lifecycleActualCallSequence: FORMAL_RUN_LIFECYCLE_STEPS,
+    lifecycleActualCallSequenceHash: contract.lifecycleStepSequenceHash,
     hostReadinessContractHash: contract.hostQuietWindowContractHash,
     databaseIdentity: `${slot}-db`,
+    postgresPort: 15432 + orderIndex,
+    postgresProcessPid: `${1000 + orderIndex}`,
+    postgresDataDirectory: `/tmp/tm-p7hi/self/${slot}/pgdata`,
+    postgresWalDirectory: `/tmp/tm-p7hi/self/${slot}/pgdata/pg_wal`,
+    postgresClusterIdentity: `${slot}-cluster`,
     instanceNonce: `${slot}-nonce`,
     datasetRows: EXPECTED.datasetRows,
     databasePostDatasetBarrierPassed: true,
     warmupPassed: true,
     cooldownPassed: true,
     hostQuietWindowPassed: true,
+    predictiveHostStabilityPassed: true,
+    quietWindowPredictiveReadinessPassed: true,
     backgroundProcessGatePassed: true,
     postgresConfigHash: '5'.repeat(64),
     metrics: {
       'Webhook Ingestion': { p50: 1, p90: 2, p95: 10, p99: 20, max: 25, mean: 3, stddev: 1, sampleCount: 100, errorCount: 0, timeoutCount: 0 },
       'Auth Invalid Login': { p50: 1, p90: 2, p95: 10, p99: 20, max: 25, mean: 3, stddev: 1, sampleCount: 100, errorCount: 0, timeoutCount: 0 },
+    },
+    predictiveHostStabilityBarrier: {
+      predictiveHostStabilityBarrierVersion: 1,
+      observedWindows: 3,
+      predictiveHostStabilityPassed: true,
+      quietWindowPredictiveReadinessPassed: true,
+      windows: [],
+    },
+    measurementWindow: {
+      preMeasurementWindow: { windows: [] },
+      entireMeasurementWindow: { delta: { postgresCheckpointDelta: 0, postgresWalBytesDelta: 0, diskWriteDelta: 0, ioWaitDelta: 0 } },
+      tailRequestWindow: { metricMax: { webhookMax: 1, authMax: 1 } },
     },
     resourceCleanup: { listener18080Count: 0, databaseConnectionCount: 0 },
   });
@@ -1101,14 +1282,20 @@ export function validateMatrixEvidenceSchema(matrix) {
     'branchMixFingerprint',
     'warmupSequenceHash',
     'lifecycleStepSequenceHashMatch',
+    'lifecycleActualCallSequenceMatch',
     'readinessContractMatch',
     'postgresConfigHashMatch',
+    'postgresProcessIdentityDistinct',
+    'postgresDataDirectoryDistinct',
+    'postgresPortDistinct',
+    'postgresWalDirectoryDistinct',
     'runs',
     'baselineSelfMaterialRegressionCount',
     'currentSelfMaterialRegressionCount',
     'orderPositionEffectDetected',
     'hostStateMismatchCount',
     'quietWindowFailureCount',
+    'predictiveHostStabilityFailureCount',
     'datasetBarrierFailureCount',
     'warmupFailureCount',
     'cooldownFailureCount',
@@ -1142,8 +1329,15 @@ export function runSelfTest() {
   const matrix = buildSelfTestFixtureMatrix();
   check('schemaValid', validateMatrixEvidenceSchema(matrix).status === 'passed');
   check('validForFormalPlanFromAnalysis', matrix.validForFormalPlan === true);
+  check('postgresProcessIdentityDistinct', matrix.postgresProcessIdentityDistinct === true);
+  check('postgresDataDirectoryDistinct', matrix.postgresDataDirectoryDistinct === true);
+  check('predictiveHostStabilityPassed', matrix.predictiveHostStabilityFailureCount === 0);
   const missingBarrier = buildSelfTestFixtureMatrix({ runs: Object.values(matrix.runs).map((run, index) => index === 0 ? { ...run, databasePostDatasetBarrierPassed: false } : run) });
   check('datasetBarrierMissingFailsFixture', Object.values(missingBarrier.runs).some((run) => run.databasePostDatasetBarrierPassed === false) && missingBarrier.validForFormalPlan === false);
+  const reusedPostgresPid = buildSelfTestFixtureMatrix({ runs: Object.values(matrix.runs).map((run, index) => index === 1 ? { ...run, postgresProcessPid: '1001' } : run) });
+  check('postgresPidReuseFailsFixture', reusedPostgresPid.postgresProcessIdentityDistinct === false && reusedPostgresPid.validForFormalPlan === false);
+  const missingPredictiveBarrier = buildSelfTestFixtureMatrix({ runs: Object.values(matrix.runs).map((run, index) => index === 2 ? { ...run, predictiveHostStabilityPassed: false } : run) });
+  check('predictiveBarrierFailureFailsFixture', missingPredictiveBarrier.predictiveHostStabilityFailureCount === 1 && missingPredictiveBarrier.validForFormalPlan === false);
   const after = collectResourceSnapshot('self-test');
   const noSideEffects =
     before.listener18080Count === after.listener18080Count &&

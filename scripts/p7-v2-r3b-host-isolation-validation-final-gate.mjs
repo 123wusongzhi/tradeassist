@@ -27,10 +27,16 @@ export function evaluateHostIsolationValidationFinalGate(matrix = readJSON(MATRI
     allDatasetBarriersPassed: Number(matrix.datasetBarrierFailureCount ?? -1) === 0 && Object.values(matrix.runs || {}).every((run) => run.databasePostDatasetBarrierPassed === true),
     allWarmupsPassed: Number(matrix.warmupFailureCount ?? -1) === 0 && Object.values(matrix.runs || {}).every((run) => run.warmupPassed === true),
     allCooldownsPassed: Number(matrix.cooldownFailureCount ?? -1) === 0 && Object.values(matrix.runs || {}).every((run) => run.cooldownPassed === true),
+    predictiveHostStabilityPassed: Number(matrix.predictiveHostStabilityFailureCount ?? -1) === 0 && Object.values(matrix.runs || {}).every((run) => run.predictiveHostStabilityPassed === true && run.quietWindowPredictiveReadinessPassed === true),
     lifecycleStepSequenceHashMatch: matrix.lifecycleStepSequenceHashMatch === true,
+    lifecycleActualCallSequenceMatch: matrix.lifecycleActualCallSequenceMatch === true,
     warmupSequenceHashMatch: matrix.warmupSequenceHashMatch === true,
     readinessContractMatch: matrix.readinessContractMatch === true || matrix.readinessThresholdHashMatch === true,
     postgresConfigHashMatch: matrix.postgresConfigHashMatch === true,
+    postgresProcessIdentityDistinct: matrix.postgresProcessIdentityDistinct === true,
+    postgresDataDirectoryDistinct: matrix.postgresDataDirectoryDistinct === true,
+    postgresPortDistinct: matrix.postgresPortDistinct === true,
+    postgresWalDirectoryDistinct: matrix.postgresWalDirectoryDistinct === true,
     baselineSelfMaterialRegressionCount: Number(matrix.baselineSelfMaterialRegressionCount ?? -1) === 0,
     currentSelfMaterialRegressionCount: Number(matrix.currentSelfMaterialRegressionCount ?? -1) === 0,
     orderPositionEffectDetected: matrix.orderPositionEffectDetected === false,
@@ -74,6 +80,12 @@ export function evaluateHostIsolationValidationFinalGate(matrix = readJSON(MATRI
     laterRunDegradationDetected: matrix.laterRunDegradationDetected ?? null,
     hostStateMismatchCount: matrix.hostStateMismatchCount ?? null,
     quietWindowFailureCount: matrix.quietWindowFailureCount ?? null,
+    predictiveHostStabilityFailureCount: matrix.predictiveHostStabilityFailureCount ?? null,
+    lifecycleActualCallSequenceMatch: matrix.lifecycleActualCallSequenceMatch === true,
+    postgresProcessIdentityDistinct: matrix.postgresProcessIdentityDistinct === true,
+    postgresDataDirectoryDistinct: matrix.postgresDataDirectoryDistinct === true,
+    postgresPortDistinct: matrix.postgresPortDistinct === true,
+    postgresWalDirectoryDistinct: matrix.postgresWalDirectoryDistinct === true,
     businessRuntimeChanged: matrix.businessRuntimeChanged ?? null,
     loadContractChanged: matrix.loadContractChanged ?? null,
     validForFormalPlan: matrix.validForFormalPlan ?? null,
@@ -103,6 +115,9 @@ Status: **${gate.status}**
 - Current self material regressions: \`${gate.currentSelfMaterialRegressionCount ?? 'missing'}\`
 - Order position effect detected: \`${gate.orderPositionEffectDetected ?? 'missing'}\`
 - Host state mismatch count: \`${gate.hostStateMismatchCount ?? 'missing'}\`
+- Predictive host stability failures: \`${gate.predictiveHostStabilityFailureCount ?? 'missing'}\`
+- PostgreSQL process identity distinct: \`${gate.postgresProcessIdentityDistinct}\`
+- PostgreSQL data directory distinct: \`${gate.postgresDataDirectoryDistinct}\`
 - Failed checks: ${gate.failedCount ? gate.failedChecks.join(', ') : 'none'}
 `,
   );

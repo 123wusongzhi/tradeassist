@@ -45,5 +45,10 @@
     "tag": false,
     "push": false,
     "release": false
-  }
+  },
+  "active": false,
+  "validForAudit": true,
+  "validForClosure": false,
+  "validForReuse": false,
+  "runIdsConsumed": true
 }

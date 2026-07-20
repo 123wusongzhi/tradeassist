@@ -1,8 +1,8 @@
 {
   "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-RUNNER-FINAL-GATE",
   "status": "passed",
-  "hostIsolationValidationRunnerVersion": 1,
-  "formalHostIsolationVersion": 2,
+  "hostIsolationValidationRunnerVersion": 2,
+  "formalHostIsolationVersion": 3,
   "runOrder": "B-C-C-B",
   "runCount": 4,
   "forbiddenOverrideCount": 15,
@@ -24,11 +24,11 @@
       "status": "passed"
     },
     {
-      "id": "runnerVersionOne",
+      "id": "runnerVersionTwo",
       "status": "passed"
     },
     {
-      "id": "formalHostIsolationVersionTwo",
+      "id": "formalHostIsolationVersionThree",
       "status": "passed"
     },
     {
@@ -64,6 +64,14 @@
       "status": "passed"
     },
     {
+      "id": "fixturePredictiveBarrierCovered",
+      "status": "passed"
+    },
+    {
+      "id": "fixturePostgresIdentityDistinct",
+      "status": "passed"
+    },
+    {
       "id": "fixtureBusinessRuntimeUnchanged",
       "status": "passed"
     },
@@ -95,5 +103,5 @@
   "failedChecks": [],
   "failed": [],
   "failedCount": 0,
-  "generatedAt": "2026-07-19T06:16:24.535Z"
+  "generatedAt": "2026-07-20T05:45:03.206Z"
 }

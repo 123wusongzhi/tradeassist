@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-MATRIX",
-  "status": "completed",
+  "status": "failed_validation",
   "validationMatrixStatus": "completed",
   "hostIsolationValidationRunnerVersion": 1,
   "formalHostIsolationVersion": 2,
@@ -2732,5 +2732,9 @@
   "formalPairStarted": false,
   "rawArtifactRoot": "artifacts/p7-v2/host-isolation-validation/p7v2-diag-host-isolation-validation-20260719061648",
   "failure": null,
-  "generatedAt": "2026-07-19T07:45:47.767Z"
+  "generatedAt": "2026-07-19T07:45:47.767Z",
+  "active": false,
+  "validForAudit": true,
+  "validForReuse": false,
+  "runIdsConsumed": true
 }

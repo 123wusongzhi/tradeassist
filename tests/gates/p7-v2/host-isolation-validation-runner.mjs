@@ -25,7 +25,7 @@ function throws(fn) {
 const matrix = buildSelfTestFixtureMatrix();
 const runs = Object.values(matrix.runs);
 
-assert.equal(HOST_ISOLATION_VALIDATION_RUNNER_VERSION, 1);
+assert.equal(HOST_ISOLATION_VALIDATION_RUNNER_VERSION, 2);
 assert.deepEqual(RUN_ORDER.map((entry) => entry.kind), ['B', 'C', 'C', 'B']);
 assert.deepEqual(RUN_ORDER.map((entry) => entry.slot), ['B1', 'C1', 'C2', 'B2']);
 assert.equal(assertFixedRunPlan(), true);
@@ -36,7 +36,7 @@ assert.equal(FORBIDDEN_ARGS.includes('--current-binary'), true);
 assert.equal(FORBIDDEN_ARGS.includes('--input-sequence'), true);
 assert.equal(FORBIDDEN_ARGS.includes('--target-vus'), true);
 assert.equal(FORBIDDEN_ARGS.includes('--duration'), true);
-assert.equal(matrix.hostIsolationValidationRunnerVersion, 1);
+assert.equal(matrix.hostIsolationValidationRunnerVersion, 2);
 assert.equal(matrix.runOrder, 'B-C-C-B');
 assert.equal(matrix.runCount, 4);
 assert.equal(matrix.B1Completed, true);
@@ -53,6 +53,11 @@ assert.equal(matrix.warmupSequenceHashMatch, true);
 assert.equal(matrix.lifecycleStepSequenceHashMatch, true);
 assert.equal(matrix.readinessContractMatch, true);
 assert.equal(matrix.postgresConfigHashMatch, true);
+assert.equal(matrix.lifecycleActualCallSequenceMatch, true);
+assert.equal(matrix.predictiveHostStabilityFailureCount, 0);
+assert.equal(matrix.postgresProcessIdentityDistinct, true);
+assert.equal(matrix.postgresDataDirectoryDistinct, true);
+assert.equal(matrix.postgresPortDistinct, true);
 assert.equal(matrix.allRunsIndependent, true);
 assert.equal(matrix.allDatasetRows, true);
 assert.equal(matrix.datasetBarrierFailureCount, 0);
@@ -82,13 +87,21 @@ const warmupFailed = buildSelfTestFixtureMatrix({ runs: runs.map((run, index) =>
 assert.equal(warmupFailed.warmupFailureCount, 1);
 assert.equal(warmupFailed.validForFormalPlan, false);
 
+const predictiveFailed = buildSelfTestFixtureMatrix({ runs: runs.map((run, index) => index === 2 ? { ...run, predictiveHostStabilityPassed: false } : run) });
+assert.equal(predictiveFailed.predictiveHostStabilityFailureCount, 1);
+assert.equal(predictiveFailed.validForFormalPlan, false);
+
+const pgPidReused = buildSelfTestFixtureMatrix({ runs: runs.map((run, index) => index === 1 ? { ...run, postgresProcessPid: runs[0].postgresProcessPid } : run) });
+assert.equal(pgPidReused.postgresProcessIdentityDistinct, false);
+assert.equal(pgPidReused.validForFormalPlan, false);
+
 const matrixGate = evaluateHostIsolationValidationFinalGate(matrix);
 assert.equal(matrixGate.status, 'passed');
 
 const badOrderGate = evaluateHostIsolationValidationFinalGate({ ...matrix, runOrder: 'B-C-B-C' });
 assert.equal(badOrderGate.status, 'failed');
 
-const badRunnerVersionGate = evaluateHostIsolationValidationFinalGate({ ...matrix, hostIsolationValidationRunnerVersion: 2 });
+const badRunnerVersionGate = evaluateHostIsolationValidationFinalGate({ ...matrix, hostIsolationValidationRunnerVersion: 1 });
 assert.equal(badRunnerVersionGate.status, 'failed');
 
 const runnerGate = evaluateHostIsolationValidationRunnerFinalGate();
@@ -103,5 +116,5 @@ assert.equal(selfTest.newListenerCount, 0);
 console.log(JSON.stringify({
   phase: 'P7-V2-R3B-HOST-ISOLATION-VALIDATION-RUNNER-FIXTURES',
   status: 'passed',
-  fixtures: 45,
+  fixtures: 54,
 }, null, 2));
