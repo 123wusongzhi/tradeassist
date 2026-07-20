@@ -146,36 +146,6 @@ export const DEFAULT_TODOS: DashboardTodo[] = [
     description: '含未匹配规格等需人工处理的订单问题',
     link: '/orders/exceptions',
   },
-  {
-    id: 'customer_pending',
-    key: 'customer_pending',
-    title: '客服待回复',
-    count: 0,
-    severity: 'high',
-    level: 'danger',
-    description: '买家消息等待人工处理',
-    link: '/customer/conversations?status=pending_reply',
-  },
-  {
-    id: 'failed_tasks',
-    key: 'failed_tasks',
-    title: '失败任务',
-    count: 0,
-    severity: 'high',
-    level: 'danger',
-    description: '统一失败任务中心有待处理项',
-    link: '/ops/task-center/failures',
-  },
-  {
-    id: 'config_incomplete',
-    key: 'config_incomplete',
-    title: '配置未完成',
-    count: 0,
-    severity: 'medium',
-    level: 'warning',
-    description: '系统配置存在未完成或异常项',
-    link: '/settings/config-status',
-  },
 ];
 
 export const DEFAULT_EXCEPTIONS: DashboardException[] = [

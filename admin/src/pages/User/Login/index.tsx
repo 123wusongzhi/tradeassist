@@ -18,6 +18,7 @@ import { message } from 'antd';
 import { useEffect, useState, useRef } from 'react';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
+import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { login, register, sendEmailCode } from '@/services/auth';
 import './index.less';
 
@@ -31,6 +32,17 @@ const FEATURE_TAGS = [
 ] as const;
 
 const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
+
+type ApiErrorLike = {
+  response?: { data?: { message?: string } };
+  message?: string;
+};
+
+function getAuthErrorMessage(error: unknown, fallback: string) {
+  const ax = error as ApiErrorLike;
+  const raw = ax?.response?.data?.message || ax?.message;
+  return formatUserErrorMessage(raw, fallback);
+}
 
 export default function LoginPage() {
   const { setInitialState, initialState } = useInitialStateModel();
@@ -67,8 +79,7 @@ export default function LoginPage() {
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
       message.success('登录成功');
     } catch (e: unknown) {
-      const ax = e as { response?: { data?: { message?: string } }; message?: string };
-      message.error(ax?.response?.data?.message || ax?.message || '登录失败');
+      message.error(getAuthErrorMessage(e, '登录失败'));
     } finally {
       setLoading(false);
     }
@@ -87,8 +98,7 @@ export default function LoginPage() {
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
       message.success('注册并登录成功');
     } catch (e: unknown) {
-      const ax = e as { response?: { data?: { message?: string } }; message?: string };
-      message.error(ax?.response?.data?.message || ax?.message || '注册失败');
+      message.error(getAuthErrorMessage(e, '注册失败'));
     } finally {
       setLoading(false);
     }
@@ -115,8 +125,7 @@ export default function LoginPage() {
         });
       }, 1000);
     } catch (e: unknown) {
-      const ax = e as { response?: { data?: { message?: string } }; message?: string };
-      message.error(ax?.response?.data?.message || ax?.message || '发送失败');
+      message.error(getAuthErrorMessage(e, '发送失败'));
     }
   };
 
