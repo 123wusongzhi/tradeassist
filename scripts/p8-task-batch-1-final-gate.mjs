@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 export const P8_TASK_BATCH_1_EVIDENCE_JSON = 'docs/p8-task-batch-1-domain-persistence-and-repository.json';
+export const P8_TASK_BATCH_2_EVIDENCE_JSON = 'docs/p8-task-batch-2-approval-execution-audit-persistence.json';
 export const P8_TASK_BATCH_1_GATE_JSON = 'docs/p8-task-batch-1-final-gate.json';
 export const P8_TASK_BATCH_1_GATE_MD = 'docs/P8_TASK_BATCH_1_FINAL_GATE.md';
 export const P8_TASK_BATCH_1_PLAN_CHECKPOINT = 'ea356d8077722e2f94c6215fe10c7d4f6e53fde5';
@@ -46,6 +47,15 @@ export function validateP8TaskBatch1Bundle({ evidence = {}, sources = {} } = {})
   const validationText = sources.validationText ?? text('backend/internal/modules/operationtask/validation.go');
   const testText = sources.testText ?? text('backend/internal/modules/operationtask/repository_test.go');
   const dbMigrateText = sources.dbMigrateText ?? text('backend/internal/database/migrate.go');
+  const batch2Evidence = sources.batch2Evidence ?? readJSON(P8_TASK_BATCH_2_EVIDENCE_JSON) ?? {};
+  const batch2AllowsLaterTables =
+    batch2Evidence.tasks?.['P8-103']?.status === 'completed' &&
+    batch2Evidence.tasks?.['P8-104']?.status === 'completed' &&
+    batch2Evidence.tasks?.['P8-105']?.status === 'completed' &&
+    batch2Evidence.approvalRecordModelPresent === true &&
+    batch2Evidence.executionAttemptModelPresent === true &&
+    batch2Evidence.executionErrorModelPresent === true &&
+    batch2Evidence.operationTaskEventModelPresent === true;
   const checks = [
     ['p8PlanCheckpoint', evidence.baseCheckpoint === P8_TASK_BATCH_1_PLAN_CHECKPOINT],
     ['P8-101 status', evidence.tasks?.['P8-101']?.status === 'completed'],
@@ -78,7 +88,7 @@ export function validateP8TaskBatch1Bundle({ evidence = {}, sources = {} } = {})
     ['p7DeferredPerformancePreserved', evidence.p7DeferredPerformancePreserved === true],
     ['p10ProductionBoundaryPreserved', evidence.p10ProductionBoundaryPreserved === true],
     ['productionReady', evidence.productionReady === false],
-    ['forbiddenTablesAbsent', !hasAll(modelText + migrateText, ['approval_records']) && !hasAll(modelText + migrateText, ['execution_attempts']) && !hasAll(modelText + migrateText, ['operation_task_events'])],
+    ['forbiddenTablesAbsent', batch2AllowsLaterTables || (!hasAll(modelText + migrateText, ['approval_records']) && !hasAll(modelText + migrateText, ['execution_attempts']) && !hasAll(modelText + migrateText, ['operation_task_events']))],
     ['forbiddenBusinessServicesAbsent', !repoText.includes('Approve(') && !repoText.includes('Execute(') && !repoText.includes('WriteToPlatform')],
   ];
   const failed = checks.filter(([, ok]) => !ok).map(([id]) => id);

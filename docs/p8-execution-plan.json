@@ -34,9 +34,9 @@
       "tasks": [
         { "id": "P8-101", "title": "Operation Task Model", "status": "completed", "dependencies": ["P8-004"], "acceptanceCriteria": ["Task model supports tenant, type, platform, status, payload link"], "evidenceRequirements": ["domain tests", "docs/p8-task-batch-1-domain-persistence-and-repository.json"] },
         { "id": "P8-102", "title": "Platform Draft Model", "status": "completed", "dependencies": ["P8-101"], "acceptanceCriteria": ["Draft stores version, payload hash, editable payload, platform mode"], "evidenceRequirements": ["model tests", "docs/p8-task-batch-1-domain-persistence-and-repository.json"] },
-        { "id": "P8-103", "title": "Approval Record", "dependencies": ["P8-102"], "acceptanceCriteria": ["Approval binds operator, reason, draft version, payload hash"], "evidenceRequirements": ["approval tests"] },
-        { "id": "P8-104", "title": "Execution Attempt and Error", "dependencies": ["P8-102"], "acceptanceCriteria": ["Attempts and errors store retryability and categories"], "evidenceRequirements": ["execution tests"] },
-        { "id": "P8-105", "title": "Task Event Audit Model", "dependencies": ["P8-101"], "acceptanceCriteria": ["Every state change can write an event"], "evidenceRequirements": ["audit tests"] },
+        { "id": "P8-103", "title": "Approval Record", "status": "completed", "dependencies": ["P8-102"], "acceptanceCriteria": ["Approval binds operator, reason, draft version, payload hash"], "evidenceRequirements": ["approval tests", "docs/p8-task-batch-2-approval-execution-audit-persistence.json"] },
+        { "id": "P8-104", "title": "Execution Attempt and Error", "status": "completed", "dependencies": ["P8-102"], "acceptanceCriteria": ["Attempts and errors store retryability and categories"], "evidenceRequirements": ["execution tests", "docs/p8-task-batch-2-approval-execution-audit-persistence.json"] },
+        { "id": "P8-105", "title": "Task Event Audit Model", "status": "completed", "dependencies": ["P8-101"], "acceptanceCriteria": ["Every state change can write an event"], "evidenceRequirements": ["audit tests", "docs/p8-task-batch-2-approval-execution-audit-persistence.json"] },
         { "id": "P8-106", "title": "Migrations and Repository Tests", "status": "completed", "dependencies": ["P8-101", "P8-102", "P8-103", "P8-104", "P8-105"], "acceptanceCriteria": ["Migrations and repositories pass"], "evidenceRequirements": ["go test ./...", "docs/p8-task-batch-1-domain-persistence-and-repository.json"], "planDeviation": "Batch 1 completed migrations and repository tests for P8-101 and P8-102 only; P8-103/P8-104/P8-105 remain explicitly not implemented." }
       ]
     },
@@ -115,6 +115,16 @@
       "evidence": [
         "docs/P8_TASK_BATCH_1_DOMAIN_PERSISTENCE_AND_REPOSITORY.md",
         "docs/p8-task-batch-1-domain-persistence-and-repository.json"
+      ],
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-2": {
+      "status": "completed",
+      "tasks": ["P8-103", "P8-104", "P8-105"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_2_APPROVAL_EXECUTION_AUDIT_PERSISTENCE.md",
+        "docs/p8-task-batch-2-approval-execution-audit-persistence.json"
       ],
       "phaseStatusAfterBatch": "In Progress",
       "productionReady": false
