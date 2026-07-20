@@ -145,8 +145,8 @@ func (OperationTask) TableName() string { return "operation_tasks" }
 // PlatformDraft stores one immutable-ish draft version for an operation task.
 type PlatformDraft struct {
 	model.HardDeleteBase
-	TenantID        int64          `gorm:"not null;index:idx_platform_drafts_task_version,priority:1;index:idx_platform_drafts_tenant_status_updated,priority:1;index:idx_platform_drafts_tenant_platform_status,priority:1;uniqueIndex:ux_platform_drafts_tenant_task_version,priority:1" json:"tenantId"`
-	OperationTaskID uuid.UUID      `gorm:"type:char(36);not null;index:idx_platform_drafts_task_version,priority:2;uniqueIndex:ux_platform_drafts_tenant_task_version,priority:2" json:"operationTaskId"`
+	TenantID        int64          `gorm:"not null;index:idx_platform_drafts_task_version,priority:1;index:idx_platform_drafts_tenant_status_updated,priority:1;index:idx_platform_drafts_tenant_platform_status,priority:1;uniqueIndex:ux_platform_drafts_tenant_task_version,priority:1;uniqueIndex:ux_platform_drafts_task_idempotency,priority:1" json:"tenantId"`
+	OperationTaskID uuid.UUID      `gorm:"type:char(36);not null;index:idx_platform_drafts_task_version,priority:2;uniqueIndex:ux_platform_drafts_tenant_task_version,priority:2;uniqueIndex:ux_platform_drafts_task_idempotency,priority:2" json:"operationTaskId"`
 	OperationTask   OperationTask  `gorm:"foreignKey:OperationTaskID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;" json:"-"`
 	Platform        string         `gorm:"size:64;not null;index:idx_platform_drafts_tenant_platform_status,priority:2" json:"platform"`
 	AdapterMode     string         `gorm:"size:32;not null" json:"adapterMode"`
@@ -155,6 +155,7 @@ type PlatformDraft struct {
 	PayloadHash     string         `gorm:"size:64;not null" json:"payloadHash"`
 	Status          string         `gorm:"size:32;not null;index:idx_platform_drafts_tenant_status_updated,priority:2;index:idx_platform_drafts_tenant_platform_status,priority:3" json:"status"`
 	ChangeReason    string         `gorm:"type:text" json:"changeReason,omitempty"`
+	IdempotencyKey  *string        `gorm:"size:255;uniqueIndex:ux_platform_drafts_task_idempotency,priority:3" json:"idempotencyKey,omitempty"`
 	CreatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	UpdatedBy       *uuid.UUID     `gorm:"type:char(36);index" json:"updatedBy,omitempty"`
 }
@@ -336,12 +337,14 @@ func normalizePlatformDraft(d *PlatformDraft) {
 	d.AdapterMode = strings.TrimSpace(strings.ToLower(d.AdapterMode))
 	d.PayloadHash = strings.TrimSpace(strings.ToLower(d.PayloadHash))
 	d.Status = strings.TrimSpace(strings.ToLower(d.Status))
+	d.ChangeReason = strings.TrimSpace(d.ChangeReason)
 	if d.Status == "" {
 		d.Status = PlatformDraftStatusEditable
 	}
 	if d.DraftVersion == 0 {
 		d.DraftVersion = 1
 	}
+	d.IdempotencyKey = normalizeOptionalString(d.IdempotencyKey)
 }
 
 func normalizeApprovalRecord(a *ApprovalRecord) {

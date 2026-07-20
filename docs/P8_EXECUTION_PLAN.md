@@ -96,6 +96,23 @@ planDeviation=batch_2_uses_existing_sqlite_gorm_integration_test_convention
 decisionRequired=false_for_batch_2
 ```
 
+## Batch 3 Status
+
+```text
+P8-201=completed
+P8-202=completed
+P8-203=completed
+batchEvidence=docs/P8_TASK_BATCH_3_STATE_DRAFT_APPROVAL_SERVICES.md
+batchEvidenceJson=docs/p8-task-batch-3-state-draft-approval-services.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 3 adds only state-machine, draft-version, and approval domain services. It does not start execution orchestration, retry service, API, Admin UI, platform adapters, real platform writes, automatic publish, or automatic listing.
+
 ## Required Planning Gates
 
 ```bash
