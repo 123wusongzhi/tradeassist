@@ -19,6 +19,12 @@ import { FORMAL_BINARY_PROVENANCE_VERSION } from './p7-v2-formal-binary-provenan
 import { FORMAL_INPUT_SEQUENCE_BINDING_VERSION } from './p7-v2-formal-input-sequence.mjs';
 import { FORMAL_INVOCATION_CONTRACT_VERSION } from './p7-v2-formal-invocation-lib.mjs';
 import { PREFLIGHT_BINDING_VERSION } from './p7-v2-r3b-preflight.mjs';
+import {
+  buildFormalHostIsolationContract,
+  buildHostIsolationPlanBinding,
+  FORMAL_HOST_ISOLATION_VERSION,
+  HOST_ISOLATION_CONTRACT_PATH,
+} from './p7-v2-r3b-formal-host-isolation.mjs';
 
 export const FORMAL_PHASE = 'P7-V2-R3B-FAST-CLOSE-R3-FORMAL';
 export const RUNTIME_FREEZE_LIFECYCLE_CONTRACT_VERSION = 3;
@@ -64,6 +70,9 @@ export function buildRuntimeContentIdentity({ fingerprints, loadProfileFingerpri
 }
 
 export function buildFormalPlanIdentity(manifest = {}, { planCheckpoint = gitCommit() } = {}) {
+  const hostIsolation =
+    manifest.hostIsolationBinding ||
+    buildHostIsolationPlanBinding(readJSON(HOST_ISOLATION_CONTRACT_PATH) || buildFormalHostIsolationContract());
   return {
     planType: manifest.phase || 'P7-V2-R3B-FAST-CLOSE-R3',
     planSchemaVersion: Number(manifest.canonicalSchemaVersion || 3),
@@ -94,6 +103,16 @@ export function buildFormalPlanIdentity(manifest = {}, { planCheckpoint = gitCom
     webhookBranchMixFingerprint: manifest.webhookBranchMixFingerprint || '',
     authBranchMixFingerprint: manifest.authBranchMixFingerprint || '',
     branchMixFingerprint: manifest.branchMixFingerprint || '',
+    formalHostIsolationVersion: manifest.formalHostIsolationVersion || hostIsolation.formalHostIsolationVersion || null,
+    lifecycleContractHash: manifest.lifecycleContractHash || hostIsolation.lifecycleContractHash || '',
+    databasePostDatasetBarrierHash: manifest.databasePostDatasetBarrierHash || hostIsolation.databasePostDatasetBarrierHash || '',
+    warmupManifestHash: manifest.warmupManifestHash || hostIsolation.warmupManifestHash || '',
+    cooldownContractHash: manifest.cooldownContractHash || hostIsolation.cooldownContractHash || '',
+    hostQuietWindowContractHash: manifest.hostQuietWindowContractHash || hostIsolation.hostQuietWindowContractHash || '',
+    postgresIsolationContractHash: manifest.postgresIsolationContractHash || hostIsolation.postgresIsolationContractHash || '',
+    evidenceWriterContractHash: manifest.evidenceWriterContractHash || hostIsolation.evidenceWriterContractHash || '',
+    hostIsolationContractHash: manifest.hostIsolationContractHash || hostIsolation.hostIsolationContractHash || '',
+    comparabilityVersion: manifest.comparabilityVersion || hostIsolation.comparabilityVersion || null,
   };
 }
 
@@ -129,10 +148,15 @@ export function validateRuntimeFreezeContract(contract, { kind, runId } = {}) {
   if (!/^[a-f0-9]{40}$/.test(contract.freezeCreationGitHead || '') || !/^[a-f0-9]{40}$/.test(contract.freezeCreationGitTree || '')) return { valid: false, issue: 'runtime_freeze_git_identity_missing' };
   if ((contract.binaryProvenanceBindingVersion ?? BINARY_PROVENANCE_BINDING_VERSION) !== BINARY_PROVENANCE_BINDING_VERSION) return { valid: false, issue: 'invalid_binary_provenance_binding_version' };
   if ((contract.inputSequenceBindingVersion ?? INPUT_SEQUENCE_BINDING_VERSION) !== INPUT_SEQUENCE_BINDING_VERSION) return { valid: false, issue: 'invalid_input_sequence_binding_version' };
+  if ((contract.formalHostIsolationVersion ?? 0) !== FORMAL_HOST_ISOLATION_VERSION) return { valid: false, issue: 'invalid_formal_host_isolation_version' };
+  if ((contract.comparabilityVersion ?? 0) !== 5) return { valid: false, issue: 'invalid_comparability_v5_binding' };
   if (!/^[a-f0-9]{64}$/.test(contract.contractId || '') || !/^[a-f0-9]{64}$/.test(contract.runtimeFreezeId || '') || !/^[a-f0-9]{64}$/.test(contract.loadProfileFingerprint || '')) return { valid: false, issue: 'invalid_runtime_freeze_fingerprint' };
   if (!/^[a-f0-9]{64}$/.test(contract.runtimeContentHash || '') || !/^[a-f0-9]{64}$/.test(contract.planBindingHash || '')) return { valid: false, issue: 'invalid_runtime_freeze_identity_hash' };
   for (const key of ['baselineBinaryProvenanceHash', 'currentBinaryProvenanceHash', 'baselineBinarySha256', 'currentBinarySha256', 'inputSequenceManifestHash', 'branchMixFingerprint']) {
     if (contract[key] && !/^[a-f0-9]{64}$/.test(contract[key])) return { valid: false, issue: `invalid_runtime_freeze_binding_hash:${key}` };
+  }
+  for (const key of ['lifecycleContractHash', 'databasePostDatasetBarrierHash', 'warmupManifestHash', 'cooldownContractHash', 'hostQuietWindowContractHash', 'postgresIsolationContractHash', 'evidenceWriterContractHash', 'hostIsolationContractHash']) {
+    if (!/^[a-f0-9]{64}$/.test(contract[key] || '')) return { valid: false, issue: `invalid_host_isolation_binding_hash:${key}` };
   }
   if (!Array.isArray(contract.canonicalLoadProfile?.load?.stages) || contract.canonicalLoadProfile.load.stages.length === 0) return { valid: false, issue: 'invalid_runtime_freeze_stages' };
   for (const key of ['runtimeSourceTreeHash', 'evidenceToolingHash', 'loadScriptsHash', 'metricSemanticsHash', 'datasetGeneratorHash', 'configFingerprint', 'sloFingerprint', 'routeCredentialMatrixFingerprint', 'regressionPolicyFingerprint']) {
@@ -224,6 +248,7 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
   const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
   const binaryProvenance = manifest.binaryProvenance || readJSON('docs/p7-v2-r3b-formal-binary-provenance-manifest.json') || {};
   const inputSequence = readJSON('docs/p7-v2-r3b-formal-input-sequence-manifest.json') || {};
+  const hostIsolation = manifest.hostIsolationBinding || buildHostIsolationPlanBinding(readJSON(HOST_ISOLATION_CONTRACT_PATH) || buildFormalHostIsolationContract());
   const loadScriptPath = 'tests/load/p7v2-baseline.js';
   const sha256File = (relativePath) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, relativePath))).digest('hex');
   const profile = {
@@ -289,6 +314,21 @@ export function buildRuntimeFreezeContract({ manifest = readJSON('docs/p7-v2-r3b
     inputSequenceBindingVersion: INPUT_SEQUENCE_BINDING_VERSION,
     formalBinaryProvenanceVersion: binaryProvenance.formalBinaryProvenanceVersion || manifest.formalBinaryProvenanceVersion || FORMAL_BINARY_PROVENANCE_VERSION,
     formalInputSequenceBindingVersion: inputSequence.formalInputSequenceBindingVersion || manifest.formalInputSequenceBindingVersion || FORMAL_INPUT_SEQUENCE_BINDING_VERSION,
+    formalHostIsolationVersion: hostIsolation.formalHostIsolationVersion,
+    hostIsolationBinding: hostIsolation,
+    lifecycleContractHash: hostIsolation.lifecycleContractHash,
+    databasePostDatasetBarrierHash: hostIsolation.databasePostDatasetBarrierHash,
+    warmupManifestHash: hostIsolation.warmupManifestHash,
+    cooldownContractHash: hostIsolation.cooldownContractHash,
+    hostQuietWindowContractHash: hostIsolation.hostQuietWindowContractHash,
+    postgresIsolationContractHash: hostIsolation.postgresIsolationContractHash,
+    evidenceWriterContractHash: hostIsolation.evidenceWriterContractHash,
+    hostIsolationContractHash: hostIsolation.hostIsolationContractHash,
+    lifecycleStepSequenceHash: hostIsolation.lifecycleStepSequenceHash,
+    warmupSequenceHash: hostIsolation.warmupSequenceHash,
+    readinessThresholdHash: hostIsolation.readinessThresholdHash,
+    postgresIsolationMode: hostIsolation.postgresIsolationMode,
+    comparabilityVersion: hostIsolation.comparabilityVersion,
     baselineRuntimeCommit: manifest.baselineRuntimeCommit || binaryProvenance.baselineRuntimeCommit || '',
     currentRuntimeCommit: manifest.currentRuntimeCommit || binaryProvenance.currentRuntimeCommit || '',
     baselineBinarySha256: manifest.baselineBinarySha256 || binaryProvenance.baselineBinarySha256 || '',
