@@ -55,6 +55,25 @@ P8-106 Migrations and Repository Tests
 
 The first batch must not implement real adapters, real platform writes, automatic publish, Admin approval execution, or production release behavior.
 
+## Batch 1 Status
+
+```text
+P8-101=completed
+P8-102=completed
+P8-106=completed
+batchEvidence=docs/P8_TASK_BATCH_1_DOMAIN_PERSISTENCE_AND_REPOSITORY.md
+batchEvidenceJson=docs/p8-task-batch-1-domain-persistence-and-repository.json
+phaseStatus=In Progress
+productionReady=false
+```
+
+Plan deviation recorded for Batch 1:
+
+```text
+planDeviation=P8-106 dependency list includes P8-103/P8-104/P8-105, but Batch 1 scope explicitly forbids implementing those later tasks.
+decisionRequired=false_for_batch_1
+```
+
 ## Required Planning Gates
 
 ```bash
