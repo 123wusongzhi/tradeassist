@@ -1,25 +1,26 @@
 {
-  "phase": "P7-V2-R3B-FORMAL-HARNESS-ORDER-ISOLATION-V2",
+  "phase": "P7-V2-R3B-FORMAL-HOST-ISOLATION-V3",
   "status": "passed",
-  "formalHostIsolationVersion": 2,
+  "formalHostIsolationVersion": 3,
   "lifecycleSchemaVersion": 2,
-  "lifecycleStepSequenceHash": "6bc90c4ab3fd38a932a69cf7bb1054db014baaa8e5f88735ea96fe9ac52a5ba8",
+  "lifecycleStepSequenceHash": "5801f923b53673f8d4e0ce0e4fb41d80e1b810fa9827b348325ed455df1607a8",
   "lifecycleContract": {
     "lifecycleSchemaVersion": 2,
     "steps": [
       "resource_precheck",
       "database_prepare",
       "dataset_build",
-      "database_post_dataset_barrier",
+      "dataset_barrier",
       "application_start",
-      "deterministic_warmup",
-      "application_cooldown",
-      "host_quiet_window",
-      "measurement_ready",
-      "measured_load",
+      "restart_isolation",
+      "warmup",
+      "cooldown",
+      "quiet_window",
+      "predictive_stability_barrier",
+      "measurement",
       "application_stop",
       "connection_drain",
-      "resource_snapshot",
+      "snapshot_complete",
       "completed"
     ],
     "symmetricForRoles": [
@@ -114,6 +115,42 @@
     "deterministic": true,
     "readinessThresholdHash": "a05b39c7454f7689c34b9d6dd6a03e2fd3297a5b2b85f9e67dec98ca33f8f076"
   },
+  "predictiveHostStabilityBarrier": {
+    "predictiveHostStabilityBarrierVersion": 1,
+    "sampleIntervalMs": 1000,
+    "requiredObservationWindows": 3,
+    "blocksMeasurement": true,
+    "fixedSleepSubstituteAllowed": false,
+    "requiredTrendFields": [
+      "walDeltaTrend",
+      "dirtyBufferTrend",
+      "checkpointActivity",
+      "autovacuumActivity",
+      "diskWriteTrend",
+      "ioWaitTrend",
+      "cpuRunQueue"
+    ],
+    "stabilityThresholds": {
+      "maxWalBytesDeltaPerWindow": 67108864,
+      "maxDirtyMemoryBytes": 268435456,
+      "maxDiskWriteBytesDeltaPerWindow": 805306368,
+      "maxIoWaitTicksDeltaPerWindow": 5000,
+      "maxCpuRunQueue": 8,
+      "maxPostgresWaitingConnections": 0,
+      "maxAutovacuumDeltaPerWindow": 0,
+      "maxCheckpointDeltaPerWindow": 0
+    },
+    "requiredSignals": [
+      "wal_delta_not_accelerating",
+      "dirty_memory_below_threshold",
+      "checkpoint_inactive",
+      "autovacuum_inactive",
+      "disk_write_delta_below_threshold",
+      "io_wait_delta_below_threshold",
+      "cpu_run_queue_below_threshold"
+    ],
+    "predictiveReadinessThresholdHash": "90c8b57f05d5d3d61e629e63e9b86086fc5096b2fb1e30e61f40c7ffe60d4c04"
+  },
   "postgresIsolationContract": {
     "postgresIsolationContractVersion": 2,
     "postgresIsolationMode": "dedicated_ephemeral_postgres_instance_per_run",
@@ -128,7 +165,10 @@
       "record_postgres_binary_version",
       "record_postgres_data_directory_identity",
       "record_postgres_port",
-      "record_postgres_process_pid"
+      "record_postgres_process_pid",
+      "record_postgres_wal_directory_identity",
+      "block_if_previous_postgres_pid_alive",
+      "block_if_previous_postgres_port_bound"
     ],
     "forbiddenConfigChanges": [
       "disable_autovacuum",
@@ -181,19 +221,21 @@
     "warmupManifestHash",
     "cooldownContractHash",
     "hostQuietWindowContractHash",
+    "predictiveHostStabilityBarrierHash",
     "postgresIsolationContractHash",
     "evidenceWriterContractHash"
   ],
-  "lifecycleContractHash": "4d40f99ecef527eedc9cb74392f4b2cf78fd4ebf2beb238ba0b0fd14f9559e36",
+  "lifecycleContractHash": "c931cd965899d0d9fa8a6d6cd2384968ba3fe2c0bfb7263ecc279049b95476ab",
   "databasePostDatasetBarrierHash": "838b36ec0fd4371111206cb3574bef6d4128c909fb216a0e8a0a1ff3234084e9",
   "warmupManifestHash": "3cd8745ab4821b2b62487a1ccd286e1870cba79017cc349317d258a3ea9de32f",
   "cooldownContractHash": "8cf4bc5c6a7f7760e1f43c470ff798df104a1d691ec35a8df31d56ed735440c1",
   "hostQuietWindowContractHash": "d0cb596e32be04e7641ac2918e41822b2ef2343a3e5599818a628f2352e51cb0",
-  "postgresIsolationContractHash": "7e1940c0a9fd1b7d0366a32d58f78769e5e35236f2b7de93c28e724449d1eca3",
+  "predictiveHostStabilityBarrierHash": "7f0197a15051d563cc4c1747f7ab016db80a5ec3cfc551a81d76cf6b9899f005",
+  "postgresIsolationContractHash": "c71c65c67d8844472d8dd07622a976eeaa615b2bd2b402ece3b1b2d88e0e676f",
   "evidenceWriterContractHash": "fbc36f1ddee0236dff4843d1ceb4a68ecdbe76dcf29a780820736877271ea9e4",
   "backgroundProcessGateHash": "5b08afe345c494bad8920f3bd562c69c987db880b82e9eed3bfd3b283b4e59e3",
   "resourcePrecheckHash": "9692ab02940e15385d40b243a48ff5f4b8f0ff6fa2f9bd251932f3659fb7a8a7",
-  "hostIsolationContractHash": "00b99b4cfa64b1f9806b82c8de30c40e8c70d6fb7893e641e4f13ba756e49fc3",
+  "hostIsolationContractHash": "3c903d375899070d86478d071a667e0c6ab6fc9c7e7c77134d9db4473bfc706b",
   "primaryHarnessSubRootCause": "A6_multiple_harness_isolation_factors",
   "secondaryHarnessSubRootCauses": [
     "A2_postgres_checkpoint_autovacuum_or_shared_instance_bias",
@@ -238,5 +280,5 @@
   "loadContractChanged": false,
   "formalPairStarted": false,
   "validationMatrixStarted": false,
-  "generatedAt": "2026-07-19T04:38:21.519Z"
+  "generatedAt": "2026-07-20T05:41:49.298Z"
 }

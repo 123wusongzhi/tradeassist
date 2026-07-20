@@ -1,0 +1,107 @@
+{
+  "phase": "P7-V2-R3B-HOST-ISOLATION-VALIDATION-RUNNER-FINAL-GATE",
+  "status": "passed",
+  "hostIsolationValidationRunnerVersion": 2,
+  "formalHostIsolationVersion": 3,
+  "runOrder": "B-C-C-B",
+  "runCount": 4,
+  "forbiddenOverrideCount": 15,
+  "missingIntegrationNeedles": [],
+  "missingStateNeedles": [],
+  "selfTestStatus": "passed",
+  "schemaStatus": "passed",
+  "checks": [
+    {
+      "id": "packageRunnerScriptRegistered",
+      "status": "passed"
+    },
+    {
+      "id": "packageRunnerGateScriptRegistered",
+      "status": "passed"
+    },
+    {
+      "id": "packageRunnerFixtureScriptRegistered",
+      "status": "passed"
+    },
+    {
+      "id": "runnerVersionTwo",
+      "status": "passed"
+    },
+    {
+      "id": "formalHostIsolationVersionThree",
+      "status": "passed"
+    },
+    {
+      "id": "fixedRunOrder",
+      "status": "passed"
+    },
+    {
+      "id": "fixedRunCount",
+      "status": "passed"
+    },
+    {
+      "id": "fifthRunRejected",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenOverrideCoverage",
+      "status": "passed"
+    },
+    {
+      "id": "runnerFixtureExists",
+      "status": "passed"
+    },
+    {
+      "id": "selfTestPassed",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureSchemaValid",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureValidForFormalPlanFromAnalysis",
+      "status": "passed"
+    },
+    {
+      "id": "fixturePredictiveBarrierCovered",
+      "status": "passed"
+    },
+    {
+      "id": "fixturePostgresIdentityDistinct",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureBusinessRuntimeUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureLoadContractUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureNoFormalArtifactsCreated",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureMatrixCompletedFlagsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "binaryShaPinsHardcoded",
+      "status": "passed"
+    },
+    {
+      "id": "realContractIntegrationPresent",
+      "status": "passed"
+    },
+    {
+      "id": "runnerStateMachinePresent",
+      "status": "passed"
+    }
+  ],
+  "failedChecks": [],
+  "failed": [],
+  "failedCount": 0,
+  "generatedAt": "2026-07-20T05:45:03.206Z"
+}

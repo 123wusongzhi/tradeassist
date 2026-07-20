@@ -31,6 +31,8 @@ export function evaluateFormalHostIsolationFinalGate({
     cooldownEnabled: contract.cooldownContract?.formalCooldownVersion === 1,
     hostQuietWindowEnabled: contract.hostQuietWindowContract?.hostQuietWindowVersion === 1,
     hostQuietWindowDeterministic: contract.hostQuietWindowContract?.deterministic === true,
+    predictiveHostStabilityBarrierEnabled: contract.predictiveHostStabilityBarrier?.predictiveHostStabilityBarrierVersion === 1,
+    predictiveHostStabilityBarrierBound: /^[a-f0-9]{64}$/.test(contract.predictiveHostStabilityBarrierHash || '') && /^[a-f0-9]{64}$/.test(contract.predictiveHostStabilityBarrier?.predictiveReadinessThresholdHash || ''),
     postgresIsolationContractPresent: contract.postgresIsolationContract?.postgresIsolationMode === 'dedicated_ephemeral_postgres_instance_per_run',
     backgroundProcessGateEnabled: contract.backgroundProcessGate?.measurementStartBlockedOnAnyNonzero === true,
     evidenceIoIsolationEnabled: contract.evidenceWriterContract?.evidenceWriterMode === 'async_or_outside_measurement_window',
@@ -92,6 +94,7 @@ Status: **${gate.status}**
 - Dataset/measurement separated: \`${gate.datasetMeasurementSeparated}\`
 - Warmup sequence bound: \`${gate.warmupSequenceBound}\`
 - Host quiet window enabled: \`${gate.hostQuietWindowEnabled}\`
+- Predictive host stability barrier enabled: \`${gate.predictiveHostStabilityBarrierEnabled}\`
 - PostgreSQL isolation contract present: \`${gate.postgresIsolationContractPresent}\`
 - Runtime freeze binding enabled: \`${gate.runtimeFreezeBindingEnabled}\`
 - Failed checks: ${gate.failedCount ? gate.failedChecks.join(', ') : 'none'}

@@ -2,11 +2,12 @@
 
 Status: **passed**
 
-- Formal host isolation version: `2`
+- Formal host isolation version: `3`
 - Lifecycle sequence match: `true`
 - Dataset/measurement separated: `true`
 - Warmup sequence bound: `true`
 - Host quiet window enabled: `true`
+- Predictive host stability barrier enabled: `true`
 - PostgreSQL isolation contract present: `true`
 - Runtime freeze binding enabled: `true`
 - Failed checks: none

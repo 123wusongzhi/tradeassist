@@ -1,0 +1,143 @@
+{
+  "phase": "P7-V2-R3B-HOST-ISOLATION-V3-CURRENT-SELF-VARIANCE-AUDIT",
+  "status": "passed",
+  "failedValidationMatrixId": "p7v2-diag-host-isolation-validation-20260719061648",
+  "sourceMatrix": "docs/p7-v2-r3b-host-isolation-validation-matrix.json",
+  "sourceFinalGate": "docs/p7-v2-r3b-host-isolation-validation-final-gate.json",
+  "currentSelfFailedMetricCount": 2,
+  "currentSelfFailedMetrics": [
+    {
+      "metricName": "Webhook Ingestion p99",
+      "C1Value": 55.41143832000021,
+      "C2Value": 69.6616554999998,
+      "absoluteDelta": 14.250217179999588,
+      "relativeDelta": 0.25717103926638396,
+      "relativeDeltaPercent": 25.717103926638394,
+      "materialityFloor": 3,
+      "regressionThreshold": 0.15,
+      "finalVerdict": "material_regression"
+    },
+    {
+      "metricName": "Auth Invalid Login p99",
+      "C1Value": 22.327733959999875,
+      "C2Value": 31.29924247999989,
+      "absoluteDelta": 8.971508520000015,
+      "relativeDelta": 0.40181007781947187,
+      "relativeDeltaPercent": 40.18100778194719,
+      "materialityFloor": 3,
+      "regressionThreshold": 0.15,
+      "finalVerdict": "material_regression"
+    }
+  ],
+  "C1MetricValues": {
+    "Webhook Ingestion": {
+      "sampleCount": 2517,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "p50": 12.192799,
+      "p90": 14.5147592,
+      "p95": 15.252337199999998,
+      "p99": 55.41143832000021,
+      "max": 516.816429,
+      "mean": 13.265908054032586,
+      "stddev": null
+    },
+    "Auth Invalid Login": {
+      "sampleCount": 1193,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "p50": 4.4423,
+      "p90": 5.723897399999999,
+      "p95": 6.4188098,
+      "p99": 22.327733959999875,
+      "max": 69.569907,
+      "mean": 5.025596880134111,
+      "stddev": null
+    }
+  },
+  "C2MetricValues": {
+    "Webhook Ingestion": {
+      "sampleCount": 2518,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "p50": 11.65717,
+      "p90": 13.9879335,
+      "p95": 15.355105650000004,
+      "p99": 69.6616554999998,
+      "max": 1071.270484,
+      "mean": 13.388195802223988,
+      "stddev": null
+    },
+    "Auth Invalid Login": {
+      "sampleCount": 1193,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "p50": 4.333725,
+      "p90": 5.785194199999999,
+      "p95": 6.722746799999995,
+      "p99": 31.29924247999989,
+      "max": 96.7554,
+      "mean": 5.152091761944671,
+      "stddev": null
+    }
+  },
+  "binaryBindingPassed": true,
+  "inputBindingPassed": true,
+  "branchMixBindingPassed": true,
+  "warmupSequenceBindingPassed": true,
+  "loadProfileBindingPassed": true,
+  "C1BinarySha256": "c6564cfe47a9f5cc60ce6b8c7c29accf7460e213318ba62a11c0d480f4f47766",
+  "C2BinarySha256": "c6564cfe47a9f5cc60ce6b8c7c29accf7460e213318ba62a11c0d480f4f47766",
+  "C1ProcessExecutableSha256": "c6564cfe47a9f5cc60ce6b8c7c29accf7460e213318ba62a11c0d480f4f47766",
+  "C2ProcessExecutableSha256": "c6564cfe47a9f5cc60ce6b8c7c29accf7460e213318ba62a11c0d480f4f47766",
+  "lifecycleSequenceMatch": true,
+  "lifecycleStepSequenceHash": "6bc90c4ab3fd38a932a69cf7bb1054db014baaa8e5f88735ea96fe9ac52a5ba8",
+  "lifecycleDurationOutliers": [],
+  "C1LifecycleDurations": {
+    "datasetDuration": 83405,
+    "datasetBarrierDuration": 2490,
+    "restartDuration": 0,
+    "warmupDuration": 203,
+    "cooldownDuration": 34,
+    "quietWindowDuration": 6809,
+    "measurementDuration": 1224900,
+    "connectionDrainDuration": 425
+  },
+  "C2LifecycleDurations": {
+    "datasetDuration": 81136,
+    "datasetBarrierDuration": 2313,
+    "restartDuration": 0,
+    "warmupDuration": 182,
+    "cooldownDuration": 30,
+    "quietWindowDuration": 9298,
+    "measurementDuration": 1233020,
+    "connectionDrainDuration": 429
+  },
+  "postgresIsolationMode": "dedicated_ephemeral_postgres_instance_per_run",
+  "postgresConfigHashMatch": true,
+  "postgresIdentityEvidenceComplete": false,
+  "postgresMaintenanceOverlap": {
+    "evidenceCompleteness": "quiet_window_and_whole_run_deltas_only_no_tail_timeseries",
+    "C1QuietMaxWalBytesDelta": 1203699,
+    "C2QuietMaxWalBytesDelta": 1259844,
+    "C1WholeRunCheckpointDelta": 4,
+    "C2WholeRunCheckpointDelta": 4,
+    "C1WholeRunWalBytesDelta": 347278284,
+    "C2WholeRunWalBytesDelta": 347043954
+  },
+  "quietWindowPredictiveReadinessPassed": false,
+  "warmupDataStateMatch": true,
+  "connectionDrainPassed": true,
+  "evidenceWriterContentionDetected": false,
+  "hostSchedulerContentionDetected": true,
+  "goGcOverlapDetected": false,
+  "primaryRootCause": "V3_E_quiet_window_not_predictive_of_measurement_stability",
+  "secondaryRootCauses": [
+    "V3_H_insufficient_evidence_from_completed_validation_matrix"
+  ],
+  "confidence": "medium",
+  "repairPath": "predictive_host_stability_barrier",
+  "businessRuntimeChangeRequired": false,
+  "formalPlanAllowed": false,
+  "generatedAt": "2026-07-20T05:38:40.981Z"
+}

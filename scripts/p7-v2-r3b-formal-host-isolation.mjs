@@ -3,12 +3,13 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { readJSON, runWSL, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
-export const FORMAL_HOST_ISOLATION_VERSION = 2;
+export const FORMAL_HOST_ISOLATION_VERSION = 3;
 export const LIFECYCLE_SCHEMA_VERSION = 2;
 export const DATABASE_POST_DATASET_BARRIER_VERSION = 1;
 export const FORMAL_WARMUP_VERSION = 1;
 export const FORMAL_COOLDOWN_VERSION = 1;
 export const HOST_QUIET_WINDOW_VERSION = 1;
+export const PREDICTIVE_HOST_STABILITY_BARRIER_VERSION = 1;
 export const POSTGRES_ISOLATION_CONTRACT_VERSION = 2;
 export const EVIDENCE_WRITER_CONTRACT_VERSION = 1;
 export const COMPARABILITY_BINDING_VERSION = 5;
@@ -19,16 +20,17 @@ export const FORMAL_RUN_LIFECYCLE_STEPS = [
   'resource_precheck',
   'database_prepare',
   'dataset_build',
-  'database_post_dataset_barrier',
+  'dataset_barrier',
   'application_start',
-  'deterministic_warmup',
-  'application_cooldown',
-  'host_quiet_window',
-  'measurement_ready',
-  'measured_load',
+  'restart_isolation',
+  'warmup',
+  'cooldown',
+  'quiet_window',
+  'predictive_stability_barrier',
+  'measurement',
   'application_stop',
   'connection_drain',
-  'resource_snapshot',
+  'snapshot_complete',
   'completed',
 ];
 
@@ -56,6 +58,16 @@ const REQUIRED_QUIET_WINDOW_FIELDS = [
   'postgresAnalyzeActivity',
   'goGcPauseDelta',
   'dbPoolWaitDelta',
+];
+
+const REQUIRED_PREDICTIVE_STABILITY_FIELDS = [
+  'walDeltaTrend',
+  'dirtyBufferTrend',
+  'checkpointActivity',
+  'autovacuumActivity',
+  'diskWriteTrend',
+  'ioWaitTrend',
+  'cpuRunQueue',
 ];
 
 const REQUIRED_PREFLIGHT_ZERO_FIELDS = [
@@ -232,6 +244,34 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
     deterministic: true,
   };
   hostQuietWindowContract.readinessThresholdHash = sha256Json(hostQuietWindowContract.readinessThresholds);
+  const predictiveHostStabilityBarrier = {
+    predictiveHostStabilityBarrierVersion: PREDICTIVE_HOST_STABILITY_BARRIER_VERSION,
+    sampleIntervalMs: 1000,
+    requiredObservationWindows: 3,
+    blocksMeasurement: true,
+    fixedSleepSubstituteAllowed: false,
+    requiredTrendFields: REQUIRED_PREDICTIVE_STABILITY_FIELDS,
+    stabilityThresholds: {
+      maxWalBytesDeltaPerWindow: 64 * 1024 * 1024,
+      maxDirtyMemoryBytes: 256 * 1024 * 1024,
+      maxDiskWriteBytesDeltaPerWindow: 768 * 1024 * 1024,
+      maxIoWaitTicksDeltaPerWindow: 5000,
+      maxCpuRunQueue: 8,
+      maxPostgresWaitingConnections: 0,
+      maxAutovacuumDeltaPerWindow: 0,
+      maxCheckpointDeltaPerWindow: 0,
+    },
+    requiredSignals: [
+      'wal_delta_not_accelerating',
+      'dirty_memory_below_threshold',
+      'checkpoint_inactive',
+      'autovacuum_inactive',
+      'disk_write_delta_below_threshold',
+      'io_wait_delta_below_threshold',
+      'cpu_run_queue_below_threshold',
+    ],
+  };
+  predictiveHostStabilityBarrier.predictiveReadinessThresholdHash = sha256Json(predictiveHostStabilityBarrier.stabilityThresholds);
   const postgresIsolationContract = {
     postgresIsolationContractVersion: POSTGRES_ISOLATION_CONTRACT_VERSION,
     postgresIsolationMode: 'dedicated_ephemeral_postgres_instance_per_run',
@@ -247,6 +287,9 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
       'record_postgres_data_directory_identity',
       'record_postgres_port',
       'record_postgres_process_pid',
+      'record_postgres_wal_directory_identity',
+      'block_if_previous_postgres_pid_alive',
+      'block_if_previous_postgres_port_bound',
     ],
     forbiddenConfigChanges: ['disable_autovacuum', 'disable_checkpoint', 'disable_fsync', 'disable_synchronous_commit'],
   };
@@ -270,6 +313,7 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
     warmupManifestHash: sha256Json(warmupManifest),
     cooldownContractHash: sha256Json(cooldownContract),
     hostQuietWindowContractHash: sha256Json(hostQuietWindowContract),
+    predictiveHostStabilityBarrierHash: sha256Json(predictiveHostStabilityBarrier),
     postgresIsolationContractHash: sha256Json(postgresIsolationContract),
     evidenceWriterContractHash: sha256Json(evidenceWriterContract),
     backgroundProcessGateHash: sha256Json(backgroundProcessGate),
@@ -278,7 +322,7 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
   const lifecycleStepSequenceHash = sha256Json(FORMAL_RUN_LIFECYCLE_STEPS);
   const classification = classifyHarnessSubRootCause(matrix);
   const contract = {
-    phase: 'P7-V2-R3B-FORMAL-HARNESS-ORDER-ISOLATION-V2',
+    phase: 'P7-V2-R3B-FORMAL-HOST-ISOLATION-V3',
     status: 'passed',
     formalHostIsolationVersion: FORMAL_HOST_ISOLATION_VERSION,
     lifecycleSchemaVersion: LIFECYCLE_SCHEMA_VERSION,
@@ -288,6 +332,7 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
     warmupManifest,
     cooldownContract,
     hostQuietWindowContract,
+    predictiveHostStabilityBarrier,
     postgresIsolationContract,
     evidenceWriterContract,
     backgroundProcessGate,
@@ -300,6 +345,7 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
       'warmupManifestHash',
       'cooldownContractHash',
       'hostQuietWindowContractHash',
+      'predictiveHostStabilityBarrierHash',
       'postgresIsolationContractHash',
       'evidenceWriterContractHash',
     ],
@@ -326,7 +372,7 @@ export function buildFormalHostIsolationContract({ matrix = readJSON('docs/p7-v2
 
 export function validateFormalHostIsolationContract(contract = readJSON(HOST_ISOLATION_CONTRACT_PATH) || {}) {
   const issues = [];
-  if (contract.formalHostIsolationVersion !== FORMAL_HOST_ISOLATION_VERSION) issues.push('formal_host_isolation_version_v2_required');
+  if (contract.formalHostIsolationVersion !== FORMAL_HOST_ISOLATION_VERSION) issues.push('formal_host_isolation_version_v3_required');
   if (contract.lifecycleSchemaVersion !== LIFECYCLE_SCHEMA_VERSION) issues.push('lifecycle_schema_version_v2_required');
   if (contract.lifecycleStepSequenceHash !== sha256Json(FORMAL_RUN_LIFECYCLE_STEPS)) issues.push('lifecycle_step_sequence_hash_mismatch');
   if (contract.lifecycleContract?.steps?.join('|') !== FORMAL_RUN_LIFECYCLE_STEPS.join('|')) issues.push('lifecycle_step_sequence_mismatch');
@@ -340,6 +386,12 @@ export function validateFormalHostIsolationContract(contract = readJSON(HOST_ISO
   if (!isSha256(contract.hostQuietWindowContract?.readinessThresholdHash)) issues.push('quiet_window_threshold_hash_missing');
   for (const field of REQUIRED_QUIET_WINDOW_FIELDS) {
     if (!contract.hostQuietWindowContract?.requiredSampleFields?.includes(field)) issues.push(`quiet_window_sample_field_missing:${field}`);
+  }
+  if (contract.predictiveHostStabilityBarrier?.predictiveHostStabilityBarrierVersion !== PREDICTIVE_HOST_STABILITY_BARRIER_VERSION) issues.push('predictive_host_stability_barrier_v1_required');
+  if (contract.predictiveHostStabilityBarrier?.fixedSleepSubstituteAllowed !== false) issues.push('predictive_barrier_must_not_be_fixed_sleep');
+  if (!isSha256(contract.predictiveHostStabilityBarrier?.predictiveReadinessThresholdHash)) issues.push('predictive_barrier_threshold_hash_missing');
+  for (const field of REQUIRED_PREDICTIVE_STABILITY_FIELDS) {
+    if (!contract.predictiveHostStabilityBarrier?.requiredTrendFields?.includes(field)) issues.push(`predictive_barrier_trend_field_missing:${field}`);
   }
   if (contract.postgresIsolationContract?.postgresIsolationMode !== 'dedicated_ephemeral_postgres_instance_per_run') issues.push('postgres_pg2_dedicated_instance_required');
   if (contract.comparabilityVersion !== COMPARABILITY_BINDING_VERSION) issues.push('comparability_v5_required');
@@ -374,6 +426,8 @@ export function buildHostIsolationPlanBinding(contract = readJSON(HOST_ISOLATION
     lifecycleStepSequenceHash: contract.lifecycleStepSequenceHash,
     warmupSequenceHash: contract.warmupManifest?.warmupSequenceHash || '',
     readinessThresholdHash: contract.hostQuietWindowContract?.readinessThresholdHash || '',
+    predictiveHostStabilityBarrierHash: contract.predictiveHostStabilityBarrierHash || '',
+    predictiveReadinessThresholdHash: contract.predictiveHostStabilityBarrier?.predictiveReadinessThresholdHash || '',
     postgresIsolationMode: contract.postgresIsolationContract?.postgresIsolationMode || '',
     comparabilityVersion: contract.comparabilityVersion,
   };
@@ -440,6 +494,22 @@ export function validateQuietWindowEvidence(evidence = {}, contract = readJSON(H
   };
 }
 
+export function validatePredictiveHostStabilityEvidence(evidence = {}, contract = readJSON(HOST_ISOLATION_CONTRACT_PATH) || {}) {
+  const expected = contract.predictiveHostStabilityBarrier?.predictiveReadinessThresholdHash || '';
+  const requiredWindows = Number(contract.predictiveHostStabilityBarrier?.requiredObservationWindows || 3);
+  const issues = [];
+  if (evidence.predictiveHostStabilityBarrierVersion !== PREDICTIVE_HOST_STABILITY_BARRIER_VERSION) issues.push('predictive_barrier_version_mismatch');
+  if (evidence.predictiveReadinessThresholdHash !== expected) issues.push('predictive_readiness_threshold_hash_mismatch');
+  if (Number(evidence.observedWindows || 0) < requiredWindows) issues.push('predictive_observation_windows_insufficient');
+  if (evidence.predictiveHostStabilityPassed !== true) issues.push(evidence.failureReason || 'predictive_host_stability_not_passed');
+  return {
+    status: issues.length ? 'failed' : 'passed',
+    predictiveHostStabilityPassed: issues.length === 0,
+    quietWindowPredictiveReadinessPassed: issues.length === 0,
+    issues,
+  };
+}
+
 export function validateResourcePrecheck(snapshot = {}) {
   const issues = [];
   for (const field of REQUIRED_PREFLIGHT_ZERO_FIELDS) {
@@ -483,7 +553,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   const contract = buildFormalHostIsolationContract();
   const validation = validateFormalHostIsolationContract(contract);
   const report = {
-    phase: 'P7-V2-R3B-FORMAL-HARNESS-ORDER-ISOLATION-V2',
+    phase: 'P7-V2-R3B-FORMAL-HOST-ISOLATION-V3',
     status: validation.status,
     ...buildHostIsolationPlanBinding(contract),
     primaryRootCause: 'A_formal_harness_repeatability_or_order_bias_defect',
@@ -496,6 +566,18 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     warmupPassed: true,
     cooldownPassed: true,
     hostQuietWindowPassed: true,
+    predictiveHostStabilityBarrierVersion: PREDICTIVE_HOST_STABILITY_BARRIER_VERSION,
+    predictiveHostStabilityBarrierRequired: true,
+    businessRuntimeChanged: false,
+    thresholdChanged: false,
+    sloChanged: false,
+    materialityChanged: false,
+    vusChanged: false,
+    stagesChanged: false,
+    durationChanged: false,
+    datasetChanged: false,
+    inputSequenceChanged: false,
+    loadContractChanged: false,
     formalPairStarted: false,
     validationMatrixStarted: false,
     issues: validation.issues,
@@ -506,7 +588,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     writeJSON(HOST_ISOLATION_REPORT_PATH, report);
     writeMarkdown(
       'docs/P7_V2_R3B_FORMAL_HOST_ISOLATION_REPAIR.md',
-      `# P7-V2-R3B Formal Host Isolation V2 Repair
+      `# P7-V2-R3B Formal Host Isolation V3 Repair
 
 Status: **${report.status}**
 
@@ -518,6 +600,7 @@ Status: **${report.status}**
 - Secondary harness sub-root causes: \`${report.secondaryHarnessSubRootCauses.join(', ') || 'none'}\`
 - Confidence: \`${report.confidence}\`
 - PostgreSQL isolation mode: \`${report.postgresIsolationMode}\`
+- Predictive host stability barrier: \`version ${report.predictiveHostStabilityBarrierVersion}\`
 - Formal pair started: ${report.formalPairStarted}
 - Validation matrix started: ${report.validationMatrixStarted}
 

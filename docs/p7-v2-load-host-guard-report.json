@@ -167,7 +167,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715165422",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1920254467,
+      "databaseSizeBytes": 1920413019,
       "activeConnectionCount": 0,
       "derivedRunId": "p7v2-baseline-r3b-recovery6-20260715165422",
       "manifestMatch": false,
@@ -183,7 +183,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260718001301",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1999397379,
+      "databaseSizeBytes": 1999555931,
       "activeConnectionCount": 0,
       "derivedRunId": "",
       "manifestMatch": false,
@@ -279,7 +279,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260715165422_restar",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 2019369475,
+      "databaseSizeBytes": 2019528027,
       "activeConnectionCount": 0,
       "derivedRunId": "",
       "manifestMatch": false,
@@ -327,7 +327,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071614582",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1928069635,
+      "databaseSizeBytes": 1928228187,
       "activeConnectionCount": 0,
       "derivedRunId": "",
       "manifestMatch": false,
@@ -343,7 +343,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_diag_baseline_sql_fingerprint_2026071616012",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1931051523,
+      "databaseSizeBytes": 1931210075,
       "activeConnectionCount": 0,
       "derivedRunId": "p7v2-diag-baseline-sql-fingerprint-20260716160124",
       "manifestMatch": false,
@@ -359,7 +359,7 @@
     {
       "databaseName": "trademind_p7v2_p7v2_diag_current_sql_fingerprint_20260716145825",
       "databaseOwner": "postgres",
-      "databaseSizeBytes": 1925669379,
+      "databaseSizeBytes": 1925827931,
       "activeConnectionCount": 0,
       "derivedRunId": "",
       "manifestMatch": false,
@@ -455,5 +455,5 @@
   ],
   "listenerRows": [],
   "processRows": [],
-  "generatedAt": "2026-07-18T05:48:19.284Z"
+  "generatedAt": "2026-07-19T07:48:42.264Z"
 }

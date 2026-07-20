@@ -1,0 +1,75 @@
+{
+  "phase": "P7-V2-R3B-HOST-ISOLATION-V3-FINAL-GATE",
+  "status": "passed",
+  "formalHostIsolationVersion": 3,
+  "hostIsolationValidationRunnerVersion": 2,
+  "failedMatrixEvidencePreserved": true,
+  "primaryRootCause": "V3_E_quiet_window_not_predictive_of_measurement_stability",
+  "repairPath": "predictive_host_stability_barrier",
+  "businessRuntimeChanged": false,
+  "binaryChanged": false,
+  "inputChanged": false,
+  "loadContractChanged": false,
+  "failedChecks": [],
+  "failed": [],
+  "failedCount": 0,
+  "checks": [
+    {
+      "id": "formalHostIsolationVersion",
+      "status": "passed"
+    },
+    {
+      "id": "failedMatrixEvidencePreserved",
+      "status": "passed"
+    },
+    {
+      "id": "primaryRootCausePresent",
+      "status": "passed"
+    },
+    {
+      "id": "repairMatchesRootCause",
+      "status": "passed"
+    },
+    {
+      "id": "businessRuntimeChanged",
+      "status": "passed"
+    },
+    {
+      "id": "binaryChanged",
+      "status": "passed"
+    },
+    {
+      "id": "inputChanged",
+      "status": "passed"
+    },
+    {
+      "id": "loadContractChanged",
+      "status": "passed"
+    },
+    {
+      "id": "selectedRepairImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "selectedRepairFixturesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "runnerUsesV3Contract",
+      "status": "passed"
+    },
+    {
+      "id": "validationGateUsesV3Contract",
+      "status": "passed"
+    },
+    {
+      "id": "formalPlanCreated",
+      "status": "passed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    }
+  ],
+  "generatedAt": "2026-07-20T05:41:49.332Z"
+}
