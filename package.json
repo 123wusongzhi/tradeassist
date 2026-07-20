@@ -133,6 +133,8 @@
     "test:p7-v2-conditional-development-closure": "node tests/gates/p7-v2/conditional-development-closure.mjs",
     "p7:conditional-close-gate": "node scripts/p7-conditional-development-closure-final-gate.mjs",
     "p8:entry-gate": "node scripts/p8-entry-gate.mjs",
+    "test:p8-plan": "node tests/gates/p8/plan.mjs",
+    "p8:plan-gate": "node scripts/p8-plan-final-gate.mjs",
     "test:p7-v2-comparability": "node tests/gates/p7-v2/comparability/fixtures.mjs",
     "test:p7-v2-soak-cooldown": "node tests/gates/p7-v2/soak-cooldown.mjs",
     "test:p7-v2-soak-semantics": "node tests/gates/p7-v2/soak-semantics/fixtures.mjs",

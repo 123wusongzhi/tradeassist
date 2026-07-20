@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "phase": "P8",
+  "status": "scope_discovery_resolved",
+  "executionStatus": "planned",
+  "canonicalScopeResolved": true,
+  "canonicalScopeSource": {
+    "type": "product_owner_decision",
+    "id": "P8-OWNER-SCOPE-DECISION-20260720",
+    "date": "2026-07-20",
+    "title": "P8 Operations Task Center, Draft Orchestration and Human Review Loop MVP",
+    "approved": true
+  },
+  "scopeConfidence": "high",
+  "historicalPhase8OrderSyncReused": false,
+  "historicalPhase8Reused": false,
+  "objectives": [
+    "P8-O1",
+    "P8-O2",
+    "P8-O3",
+    "P8-O4",
+    "P8-O5",
+    "P8-O6",
+    "P8-O7"
+  ],
+  "deliverables": [
+    "P8-D1",
+    "P8-D2",
+    "P8-D3",
+    "P8-D4",
+    "P8-D5",
+    "P8-D6",
+    "P8-D7",
+    "P8-D8"
+  ],
+  "acceptanceCriteriaCount": 15,
+  "taskCount": 41,
+  "p7ConditionalClosurePreserved": true,
+  "p7DeferredPerformancePreserved": true,
+  "p10ProductionBoundaryPreserved": true,
+  "realCredentialsEnabled": false,
+  "realProviderEnabled": false,
+  "realDouyinCredentialsEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "humanConfirmationRequired": true,
+  "productionReady": false,
+  "missingCanonicalSource": false,
+  "missingScopeFields": [],
+  "failedCount": 0,
+  "failed": []
+}
