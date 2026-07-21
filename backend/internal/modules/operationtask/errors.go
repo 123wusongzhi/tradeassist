@@ -28,6 +28,13 @@ const (
 	ErrCodeDuplicateEventSequence  = "duplicate_event_sequence"
 	ErrCodeImmutableRecord         = "immutable_record"
 	ErrCodeReferenceMismatch       = "reference_mismatch"
+	ErrCodeExecutionModeForbidden  = "execution_mode_forbidden"
+	ErrCodeDraftBindingConflict    = "draft_binding_conflict"
+	ErrCodeExecutionInProgress     = "execution_already_in_progress"
+	ErrCodeIdemPayloadConflict     = "idempotency_payload_conflict"
+	ErrCodeRetryLimitExceeded      = "retry_limit_exceeded"
+	ErrCodeFinalizeConflict        = "finalize_conflict"
+	ErrCodeResultUnknown           = "result_unknown"
 )
 
 var (
@@ -53,6 +60,13 @@ var (
 	ErrDuplicateEventSequence  = errors.New(ErrCodeDuplicateEventSequence)
 	ErrImmutableRecord         = errors.New(ErrCodeImmutableRecord)
 	ErrReferenceMismatch       = errors.New(ErrCodeReferenceMismatch)
+	ErrExecutionModeForbidden  = errors.New(ErrCodeExecutionModeForbidden)
+	ErrDraftBindingConflict    = errors.New(ErrCodeDraftBindingConflict)
+	ErrExecutionInProgress     = errors.New(ErrCodeExecutionInProgress)
+	ErrIdemPayloadConflict     = errors.New(ErrCodeIdemPayloadConflict)
+	ErrRetryLimitExceeded      = errors.New(ErrCodeRetryLimitExceeded)
+	ErrFinalizeConflict        = errors.New(ErrCodeFinalizeConflict)
+	ErrResultUnknown           = errors.New(ErrCodeResultUnknown)
 )
 
 func stableError(err error, fallback error) error {

@@ -113,6 +113,23 @@ productionReady=false
 
 Batch 3 adds only state-machine, draft-version, and approval domain services. It does not start execution orchestration, retry service, API, Admin UI, platform adapters, real platform writes, automatic publish, or automatic listing.
 
+## Batch 4 Status
+
+```text
+P8-204=completed
+P8-205=completed
+P8-206=completed
+batchEvidence=docs/P8_TASK_BATCH_4_EXECUTION_RETRY_IDEMPOTENCY_SERVICES.md
+batchEvidenceJson=docs/p8-task-batch-4-execution-retry-idempotency-services.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 4 adds only execution orchestration, failure classification, manual retry, and execution idempotency domain services. It does not start API, Admin UI, platform adapter productization, real platform writes, automatic publish, automatic listing, or background automatic retry.
+
 ## Required Planning Gates
 
 ```bash

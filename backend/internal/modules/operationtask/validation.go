@@ -104,6 +104,13 @@ var allowedExecutionErrorCategories = map[string]bool{
 	ExecutionErrorCategoryInternal:            true,
 }
 
+var allowedExecutionResultTypes = map[string]bool{
+	"":                true,
+	"local_draft":     true,
+	"mock_draft":      true,
+	"sandbox_fixture": true,
+}
+
 var allowedOperationTaskEventTypes = map[string]bool{
 	OperationTaskEventTypeTaskCreated:      true,
 	OperationTaskEventTypeDraftGenerated:   true,
@@ -239,6 +246,14 @@ func validateExecutionAttempt(a *ExecutionAttempt) error {
 	case !sha256LowerHex.MatchString(a.ApprovedDraftPayloadHash):
 		return ErrValidation
 	case !sha256LowerHex.MatchString(a.ExecutedDraftPayloadHash):
+		return ErrValidation
+	case !allowedExecutionResultTypes[a.ResultType]:
+		return ErrValidation
+	case len(a.SafeMetadata) > 8192:
+		return ErrValidation
+	case len(a.SafeMetadata) > 0 && !isValidJSON(a.SafeMetadata):
+		return ErrValidation
+	case len(a.SafeMetadata) > 0 && payloadHasSecret(a.SafeMetadata):
 		return ErrValidation
 	case a.Revision < 1:
 		return ErrValidation

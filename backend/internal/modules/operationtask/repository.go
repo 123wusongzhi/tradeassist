@@ -566,6 +566,22 @@ func (r *ExecutionAttemptRepository) UpdateLifecycle(ctx context.Context, tenant
 		}
 		updates["executed_draft_payload_hash"] = hash
 	}
+	if patch.ResultType != nil {
+		resultType := strings.TrimSpace(strings.ToLower(*patch.ResultType))
+		if !allowedExecutionResultTypes[resultType] {
+			return nil, ErrValidation
+		}
+		updates["result_type"] = resultType
+	}
+	if patch.ExternalReference != nil {
+		updates["external_reference"] = strings.TrimSpace(*patch.ExternalReference)
+	}
+	if patch.SafeMetadata != nil {
+		if !isValidJSON(*patch.SafeMetadata) || payloadHasSecret(*patch.SafeMetadata) {
+			return nil, ErrValidation
+		}
+		updates["safe_metadata"] = *patch.SafeMetadata
+	}
 	if patch.StartedAt != nil {
 		updates["started_at"] = patch.StartedAt.UTC()
 	}

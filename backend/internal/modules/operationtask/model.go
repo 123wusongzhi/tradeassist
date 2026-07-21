@@ -206,6 +206,9 @@ type ExecutionAttempt struct {
 	ExecutedDraftPayloadHash string         `gorm:"size:64;not null" json:"executedDraftPayloadHash"`
 	RequestID                string         `gorm:"size:128" json:"requestId,omitempty"`
 	IdempotencyKey           *string        `gorm:"size:255;uniqueIndex:ux_execution_attempts_task_idempotency,priority:3" json:"idempotencyKey,omitempty"`
+	ResultType               string         `gorm:"size:64" json:"resultType,omitempty"`
+	ExternalReference        string         `gorm:"size:255" json:"externalReference,omitempty"`
+	SafeMetadata             datatypes.JSON `gorm:"type:jsonb" json:"safeMetadata,omitempty"`
 	Revision                 int            `gorm:"not null;default:1;check:chk_execution_attempts_revision,revision >= 1" json:"revision"`
 	StartedAt                *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt               *time.Time     `json:"finishedAt,omitempty"`
@@ -288,6 +291,9 @@ type ExecutionAttemptLifecyclePatch struct {
 	Status                   *string
 	ExecutedDraftVersion     *int
 	ExecutedDraftPayloadHash *string
+	ResultType               *string
+	ExternalReference        *string
+	SafeMetadata             *datatypes.JSON
 	StartedAt                *time.Time
 	FinishedAt               *time.Time
 }
@@ -374,6 +380,11 @@ func normalizeExecutionAttempt(a *ExecutionAttempt) {
 	a.ExecutedDraftPayloadHash = strings.TrimSpace(strings.ToLower(a.ExecutedDraftPayloadHash))
 	a.RequestID = strings.TrimSpace(a.RequestID)
 	a.IdempotencyKey = normalizeOptionalString(a.IdempotencyKey)
+	a.ResultType = strings.TrimSpace(strings.ToLower(a.ResultType))
+	a.ExternalReference = strings.TrimSpace(a.ExternalReference)
+	if len(a.SafeMetadata) == 0 {
+		a.SafeMetadata = datatypes.JSON([]byte(`{}`))
+	}
 	if a.Revision == 0 {
 		a.Revision = 1
 	}

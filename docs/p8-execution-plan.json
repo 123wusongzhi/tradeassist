@@ -47,9 +47,9 @@
         { "id": "P8-201", "title": "Task State Machine", "status": "completed", "dependencies": ["P8-101"], "acceptanceCriteria": ["Allowed and forbidden transitions are tested"], "evidenceRequirements": ["state-machine tests", "docs/p8-task-batch-3-state-draft-approval-services.json"] },
         { "id": "P8-202", "title": "Draft Version Service", "status": "completed", "dependencies": ["P8-102", "P8-201"], "acceptanceCriteria": ["Draft edits update version and hash"], "evidenceRequirements": ["draft version tests", "docs/p8-task-batch-3-state-draft-approval-services.json"] },
         { "id": "P8-203", "title": "Approval Service", "status": "completed", "dependencies": ["P8-103", "P8-202"], "acceptanceCriteria": ["Approve/reject/cancel enforce roles and states"], "evidenceRequirements": ["permission tests", "docs/p8-task-batch-3-state-draft-approval-services.json"] },
-        { "id": "P8-204", "title": "Execution Orchestrator", "dependencies": ["P8-104", "P8-203"], "acceptanceCriteria": ["Only approved matching draft versions execute"], "evidenceRequirements": ["execution tests"] },
-        { "id": "P8-205", "title": "Retry and Failure Service", "dependencies": ["P8-104", "P8-204"], "acceptanceCriteria": ["Manual retry obeys category and max retry rules"], "evidenceRequirements": ["retry tests"] },
-        { "id": "P8-206", "title": "Idempotency Protection", "dependencies": ["P8-204", "P8-205"], "acceptanceCriteria": ["Duplicate requests do not duplicate effects"], "evidenceRequirements": ["idempotency tests"] }
+        { "id": "P8-204", "title": "Execution Orchestrator", "status": "completed", "dependencies": ["P8-104", "P8-203"], "acceptanceCriteria": ["Only approved matching draft versions execute"], "evidenceRequirements": ["execution tests", "docs/p8-task-batch-4-execution-retry-idempotency-services.json"] },
+        { "id": "P8-205", "title": "Retry and Failure Service", "status": "completed", "dependencies": ["P8-104", "P8-204"], "acceptanceCriteria": ["Manual retry obeys category and max retry rules"], "evidenceRequirements": ["retry tests", "docs/p8-task-batch-4-execution-retry-idempotency-services.json"] },
+        { "id": "P8-206", "title": "Idempotency Protection", "status": "completed", "dependencies": ["P8-204", "P8-205"], "acceptanceCriteria": ["Duplicate requests do not duplicate effects"], "evidenceRequirements": ["idempotency tests", "docs/p8-task-batch-4-execution-retry-idempotency-services.json"] }
       ]
     },
     {
@@ -138,6 +138,20 @@
       "evidence": [
         "docs/P8_TASK_BATCH_3_STATE_DRAFT_APPROVAL_SERVICES.md",
         "docs/p8-task-batch-3-state-draft-approval-services.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-4": {
+      "status": "completed",
+      "tasks": ["P8-204", "P8-205", "P8-206"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_4_EXECUTION_RETRY_IDEMPOTENCY_SERVICES.md",
+        "docs/p8-task-batch-4-execution-retry-idempotency-services.json"
       ],
       "workingBranch": "dev",
       "implementationCommitted": false,

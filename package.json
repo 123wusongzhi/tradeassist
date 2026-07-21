@@ -164,6 +164,8 @@
     "p8:task-batch-2-gate": "node scripts/p8-task-batch-2-final-gate.mjs",
     "test:p8-task-batch-3": "node tests/gates/p8/task-batch-3.mjs",
     "p8:task-batch-3-gate": "node scripts/p8-task-batch-3-final-gate.mjs",
+    "test:p8-task-batch-4": "node tests/gates/p8/task-batch-4.mjs",
+    "p8:task-batch-4-gate": "node scripts/p8-task-batch-4-final-gate.mjs",
     "test:p7-v2-comparability": "node tests/gates/p7-v2/comparability/fixtures.mjs",
     "test:p7-v2-soak-cooldown": "node tests/gates/p7-v2/soak-cooldown.mjs",
     "test:p7-v2-soak-semantics": "node tests/gates/p7-v2/soak-semantics/fixtures.mjs",
