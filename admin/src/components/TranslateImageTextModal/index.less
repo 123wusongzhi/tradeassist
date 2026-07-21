@@ -1,0 +1,235 @@
+.tm-translate-image-text-modal {
+  .ant-modal-body {
+    padding-bottom: 8px;
+  }
+
+  &__body {
+    display: grid;
+    gap: 16px;
+  }
+
+  &__intro,
+  &__section {
+    min-width: 0;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    background: var(--ant-color-bg-container);
+  }
+
+  &__intro {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  &__intro-icon {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(22, 119, 255, 0.08);
+    color: var(--ant-color-primary);
+    font-size: 20px;
+  }
+
+  &__intro-copy {
+    min-width: 0;
+  }
+
+  &__intro-copy .ant-typography {
+    margin-bottom: 0;
+    line-height: 22px;
+  }
+
+  &__intro-copy .ant-typography + .ant-typography {
+    margin-top: 4px;
+  }
+
+  &__section {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  &__section-head {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  &__section-head > .ant-typography {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    line-height: 22px;
+  }
+
+  &__settings-hint {
+    margin-bottom: 0;
+  }
+
+  &__image-panel {
+    display: grid;
+    gap: 8px;
+  }
+
+  &__image {
+    display: block;
+    width: 100%;
+    max-height: 260px;
+    object-fit: contain;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  &__image-fallback {
+    display: flex;
+    min-height: 160px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px dashed var(--ant-color-border);
+    border-radius: 8px;
+    background: var(--ant-color-fill-quaternary);
+    color: var(--ant-color-text-tertiary);
+    text-align: center;
+  }
+
+  &__image-fallback .anticon {
+    font-size: 22px;
+  }
+
+  &__image-url {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 12px;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  &__field-grid .ant-form-item {
+    margin-bottom: 0;
+  }
+
+  &__result-options {
+    display: grid;
+    gap: 10px;
+  }
+
+  &__option {
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  &__option .ant-form-item {
+    margin-bottom: 2px;
+  }
+
+  &__option .ant-typography {
+    display: block;
+    padding-left: 24px;
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  &__option--main {
+    border-color: var(--ant-color-warning-border);
+    background: rgba(250, 173, 20, 0.06);
+  }
+
+  &__advanced {
+    border: 1px solid var(--ant-color-border-secondary);
+    border-radius: 8px;
+    background: var(--ant-color-bg-container);
+  }
+
+  &__advanced .ant-collapse-item {
+    border-bottom: 0;
+  }
+
+  &__advanced .ant-collapse-header {
+    align-items: center !important;
+    padding: 12px 14px !important;
+  }
+
+  &__advanced .ant-collapse-content-box {
+    padding: 0 14px 14px !important;
+  }
+
+  &__advanced-label {
+    display: inline-flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__advanced-label > .ant-typography {
+    font-size: 12px;
+  }
+
+  &__advanced-hint {
+    margin-bottom: 12px;
+  }
+
+  &__submit-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--ant-color-fill-quaternary);
+  }
+
+  &__submit-note .anticon {
+    margin-top: 3px;
+    color: var(--ant-color-text-tertiary);
+  }
+}
+
+@media (max-width: 575px) {
+  .tm-translate-image-text-modal {
+    max-width: calc(100vw - 24px);
+
+    .ant-modal-content {
+      padding-inline: 16px;
+    }
+
+    &__intro {
+      grid-template-columns: 1fr;
+    }
+
+    &__section-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    &__field-grid {
+      grid-template-columns: 1fr;
+    }
+
+    &__image {
+      max-height: 220px;
+    }
+  }
+}
