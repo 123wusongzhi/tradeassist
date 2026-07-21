@@ -6,6 +6,7 @@ import {
   OperationToolbar,
   EmptyState,
   ErrorAlert,
+  MetricCard,
   SectionCard,
   StatusTag,
   TmPageContainer,
@@ -39,6 +40,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Popover,
   Radio,
   Row,
   Select,
@@ -71,6 +73,8 @@ import {
   CheckCircleOutlined,
   FileTextOutlined,
   UndoOutlined,
+  EditOutlined,
+  MoreOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
@@ -425,6 +429,22 @@ function imageTypeLabel(t: string): string {
   return t;
 }
 
+function productImageUrl(row: ProductImageRow): string {
+  return (row.publicUrl || row.originUrl || '').trim();
+}
+
+function isMainProductImage(row: ProductImageRow): boolean {
+  return row.imageType === 'main';
+}
+
+function isDetailProductImage(row: ProductImageRow): boolean {
+  return row.imageType === 'detail' || row.imageType === 'description';
+}
+
+function isSyncedProductImage(row: ProductImageRow): boolean {
+  return !!String(row.objectKey || row.storageKey || '').trim();
+}
+
 const IMAGE_META_TAG_STYLE: CSSProperties = {
   margin: 0,
   fontSize: 12,
@@ -433,8 +453,49 @@ const IMAGE_META_TAG_STYLE: CSSProperties = {
   borderRadius: 4,
 };
 
+function ProductImagePreviewCell({ row }: { row: ProductImageRow }) {
+  const [failed, setFailed] = useState(false);
+  const url = productImageUrl(row);
+
+  if (!url || failed) {
+    return (
+      <div className="product-draft-images__thumb product-draft-images__thumb--empty">
+        <PictureOutlined />
+        <Typography.Text type="secondary">{url ? '加载失败' : '无图片'}</Typography.Text>
+      </div>
+    );
+  }
+
+  return (
+    <div className="product-draft-images__thumb-wrap" onClick={(event) => event.stopPropagation()}>
+      <Image
+        src={url}
+        width={64}
+        height={64}
+        preview={{ src: url }}
+        className="product-draft-images__thumb-image"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
   const tags: ReactNode[] = [];
+  if (isMainProductImage(row)) {
+    tags.push(
+      <Tag key="main" color="blue" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        主图
+      </Tag>,
+    );
+  }
+  if (isDetailProductImage(row)) {
+    tags.push(
+      <Tag key="detail" color="cyan" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        详情图
+      </Tag>,
+    );
+  }
   if (row.isBestMain) {
     tags.push(
       <Tag key="best" color="gold" bordered={false} style={IMAGE_META_TAG_STYLE}>
@@ -471,11 +532,38 @@ function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
 
 function ProductImageTypeCell({ row }: { row: ProductImageRow }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0' }}>
-      <Typography.Text strong style={{ fontSize: 13, lineHeight: '20px' }}>
+    <div className="product-draft-images__type-cell">
+      <Typography.Text strong className="product-draft-images__type-title">
         {imageTypeLabel(String(row.imageType ?? ''))}
       </Typography.Text>
       <ProductImageMetaTags row={row} />
+    </div>
+  );
+}
+
+function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
+  const synced = isSyncedProductImage(row);
+  const source = String(row.source || '').trim();
+  const sourceLabel = source === 'ai' ? 'AI 处理图' : source === 'upload' ? '手动上传' : source === 'collect' ? '采集来源' : source || '来源未记录';
+  const storageKey = String(row.objectKey || row.storageKey || '').trim();
+
+  return (
+    <div className="product-draft-images__source-cell">
+      <Space size={[6, 4]} wrap>
+        <Tag bordered={false}>{sourceLabel}</Tag>
+        <Tag color={synced ? 'success' : 'default'} bordered={false}>
+          {synced ? '已同步' : '未同步'}
+        </Tag>
+      </Space>
+      {storageKey ? (
+        <Typography.Text type="secondary" className="product-draft-images__source-key" title={storageKey}>
+          {storageKey}
+        </Typography.Text>
+      ) : (
+        <Typography.Text type="secondary" className="product-draft-images__source-key">
+          暂无存储标识
+        </Typography.Text>
+      )}
     </div>
   );
 }
@@ -911,6 +999,8 @@ export default function ProductDraftDetailPage() {
   const [imgModalOpen, setImgModalOpen] = useState(false);
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
+  const [imageSyncingScope, setImageSyncingScope] = useState<'' | 'order' | 'all' | 'main' | 'detail'>('');
+  const [imageSyncError, setImageSyncError] = useState('');
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
   const [createImageOpen, setCreateImageOpen] = useState(false);
   const [createImagePrefill, setCreateImagePrefill] = useState<CreateImageTaskPrefill>({});
@@ -1623,6 +1713,59 @@ export default function ProductDraftDetailPage() {
     return list;
   }, [data?.images]);
 
+  const imageOverview = useMemo(() => {
+    const rows = data?.images ?? [];
+    return {
+      total: rows.length,
+      main: rows.filter(isMainProductImage).length,
+      detail: rows.filter(isDetailProductImage).length,
+      best: rows.filter((img) => !!img.isBestMain).length,
+      synced: rows.filter(isSyncedProductImage).length,
+    };
+  }, [data?.images]);
+
+  const handleReorderProductImages = useCallback(async () => {
+    setImageSyncError('');
+    setImageSyncingScope('order');
+    try {
+      const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
+      message.success('已同步');
+      await reloadDetail();
+    } catch (e: unknown) {
+      const msg = (e as Error)?.message || '排序失败';
+      setImageSyncError(msg);
+      message.error(msg);
+    } finally {
+      setImageSyncingScope('');
+    }
+  }, [id, reloadDetail, sortedImages]);
+
+  const handleSyncProductImages = useCallback(
+    async (scope: 'all' | 'main' | 'detail') => {
+      setImageSyncError('');
+      setImageSyncingScope(scope);
+      try {
+        const res = await syncProductImages(id, { scope });
+        if (scope === 'main') {
+          message.success(`已同步 ${res.synced} 张主图`);
+        } else if (scope === 'detail') {
+          message.success(`已同步 ${res.synced} 张详情图`);
+        } else {
+          message.success(`已同步 ${res.synced} 张图片到平台存储`);
+        }
+        await reloadDetail();
+      } catch (e: unknown) {
+        const msg = (e as Error)?.message || '同步失败';
+        setImageSyncError(msg);
+        message.error(msg);
+      } finally {
+        setImageSyncingScope('');
+      }
+    },
+    [id, reloadDetail],
+  );
+
   const eligibleShopsForPublish = useMemo(() => {
     return shopsList.filter((s) => {
       const m = platformsMeta.find((x) => x.platform === s.platform);
@@ -1832,22 +1975,13 @@ export default function ProductDraftDetailPage() {
     () => [
       {
         title: '预览',
-        width: 96,
-        render: (_, r) => (
-          <div style={{ padding: '4px 0' }}>
-            <Image
-              src={r.publicUrl || r.originUrl}
-              width={56}
-              height={56}
-              style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid var(--ant-color-border-secondary)' }}
-            />
-          </div>
-        ),
+        width: 92,
+        render: (_, r) => <ProductImagePreviewCell row={r} />,
       },
       {
-        title: '类型',
+        title: '类型与标记',
         dataIndex: 'imageType',
-        width: 132,
+        width: 160,
         render: (_, r) => <ProductImageTypeCell row={r} />,
       },
       {
@@ -1862,104 +1996,148 @@ export default function ProductDraftDetailPage() {
         width: 92,
       },
       {
+        title: '来源与状态',
+        dataIndex: 'source',
+        width: 180,
+        render: (_, r) => <ProductImageSourceCell row={r} />,
+      },
+      {
         title: PRODUCT_IMAGE_URL_LABEL,
+        width: 260,
         ellipsis: true,
         render: (_, r) => (
-          <Typography.Link href={r.publicUrl || r.originUrl} target="_blank" rel="noreferrer">
-            {(r.publicUrl || r.originUrl || '').slice(0, 64)}
-            {(r.publicUrl || r.originUrl || '').length > 64 ? '…' : ''}
-          </Typography.Link>
+          productImageUrl(r) ? (
+            <Typography.Link
+              className="product-draft-images__url"
+              href={productImageUrl(r)}
+              target="_blank"
+              rel="noreferrer"
+              title={productImageUrl(r)}
+            >
+              {productImageUrl(r)}
+            </Typography.Link>
+          ) : (
+            <Typography.Text type="secondary">未提供图片地址</Typography.Text>
+          )
         ),
       },
       {
         title: '操作',
-        width: 520,
-        render: (_, r) => (
-          <Space wrap size={[8, 4]} style={{ padding: '4px 0' }}>
-            <Button type="link" size="small" onClick={() => openTranslateImageText(r)}>
-              AI 翻译图片文字
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_watermark')}>
-              AI 去水印
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_logo')}>
-              AI 去 Logo
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_background')}>
-              AI 去背景
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'generate_marketing')}>
-              AI 营销图
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'score_image')}>
-              AI 评分
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={() =>
-                openCreateImageTask({
-                  taskType: 'select_best_main',
-                  imageSourceMode: 'product',
-                  sourceImageId: r.id,
-                  sourceImageUrl: (r.publicUrl || r.originUrl || '').trim(),
-                })
-              }
-            >
-              设为最佳主图
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={async () => {
-                try {
-                  await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
-                  message.success('已设为主图');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '操作失败');
-                }
-              }}
-            >
-              设为主图
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={async () => {
-                try {
-                  await updateProductImage(id, r.id, { imageType: 'detail' });
-                  message.success('已设为详情图');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '操作失败');
-                }
-              }}
-            >
-              设为详情图
-            </Button>
-            <Button type="link" size="small" onClick={() => setImgEdit(r)}>
-              编辑
-            </Button>
-            <Popconfirm
-              title="删除该关联？"
-              description="仅从商品移除关联"
-              onConfirm={async () => {
-                try {
-                  await deleteProductImage(id, r.id);
-                  message.success('已删除');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
-                }
-              }}
-            >
-              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-                删除
+        width: 248,
+        fixed: 'right',
+        render: (_, r) => {
+          const imageUrl = productImageUrl(r);
+          const moreContent = (
+            <div className="product-draft-images__action-menu" onClick={(event) => event.stopPropagation()}>
+              <Typography.Text className="product-draft-images__action-group">AI 任务</Typography.Text>
+              <Button type="text" size="small" block onClick={() => openTranslateImageText(r)}>
+                翻译图片文字
               </Button>
-            </Popconfirm>
-          </Space>
-        ),
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_watermark')}>
+                去除水印
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_logo')}>
+                去除 Logo
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_background')}>
+                移除背景
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'generate_marketing')}>
+                生成营销图
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'score_image')}>
+                图片评分
+              </Button>
+              <div className="product-draft-images__action-divider" />
+              <Typography.Text className="product-draft-images__action-group">图片标记</Typography.Text>
+              <Button
+                type="text"
+                size="small"
+                block
+                onClick={() =>
+                  openCreateImageTask({
+                    taskType: 'select_best_main',
+                    imageSourceMode: 'product',
+                    sourceImageId: r.id,
+                    sourceImageUrl: imageUrl,
+                  })
+                }
+              >
+                设为最佳主图
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                block
+                onClick={async () => {
+                  try {
+                    await updateProductImage(id, r.id, { imageType: 'detail' });
+                    message.success('已设为详情图');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '操作失败');
+                  }
+                }}
+              >
+                设为详情图
+              </Button>
+              <div className="product-draft-images__action-divider" />
+              <Popconfirm
+                title="删除该关联？"
+                description="仅从商品移除关联"
+                onConfirm={async () => {
+                  try {
+                    await deleteProductImage(id, r.id);
+                    message.success('已删除');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                }}
+              >
+                <Button type="text" size="small" block danger icon={<DeleteOutlined />}>
+                  删除图片
+                </Button>
+              </Popconfirm>
+            </div>
+          );
+
+          return (
+            <Space size={4} className="product-draft-images__actions">
+              <Button type="link" size="small" icon={<EditOutlined />} onClick={() => setImgEdit(r)}>
+                编辑
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                onClick={async () => {
+                  try {
+                    await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
+                    message.success('已设为主图');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '操作失败');
+                  }
+                }}
+              >
+                设为主图
+              </Button>
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                content={moreContent}
+                overlayClassName="product-draft-images__action-popover"
+                getPopupContainer={(triggerNode) =>
+                  (triggerNode.closest('.tm-product-draft-detail') as HTMLElement) || document.body
+                }
+              >
+                <Button type="link" size="small" icon={<MoreOutlined />}>
+                  更多
+                </Button>
+              </Popover>
+            </Space>
+          );
+        },
       },
     ],
     [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText],
@@ -2670,12 +2848,11 @@ export default function ProductDraftDetailPage() {
               key: 'images',
               label: tabLabels.images,
               children: (
-                <Card variant="borderless">
+                <Space direction="vertical" className="product-draft-images" size="middle">
                   {isPinduoduoProduct(data) ? (
                     <Alert
                       type="info"
                       showIcon
-                      style={{ marginBottom: 16 }}
                       message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
                     />
                   ) : null}
@@ -2683,155 +2860,204 @@ export default function ProductDraftDetailPage() {
                     <Alert
                       type="info"
                       showIcon
-                      style={{ marginBottom: 16 }}
                       message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
                     />
                   ) : null}
-                  <Card
-                    size="small"
-                    style={{
-                      marginBottom: 16,
-                      background: 'var(--ant-color-fill-alter)',
-                      border: '1px solid var(--ant-color-border-secondary)',
-                    }}
-                    styles={{ body: { padding: '16px 20px' } }}
+                  <SectionCard
+                    title="图片概览"
+                    description="基于当前商品详情已加载的图片数据展示，不额外请求接口。"
+                    className="product-draft-images__overview-section"
                   >
-                    <Flex vertical gap={16}>
-                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13, lineHeight: '22px' }}>
-                        在下方每张图片旁可一键发起 AI 处理；也可新建任务并选择图片。结果会自动保存到当前存储设置，可在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看进度。
-                      </Typography.Paragraph>
-                      <Flex wrap="wrap" gap={16} align="stretch">
-                        <Flex
-                          vertical
-                          gap={10}
-                          style={{
-                            flex: '1 1 240px',
-                            minWidth: 240,
-                            paddingRight: 16,
-                            borderRight: '1px solid var(--ant-color-border-secondary)',
-                          }}
-                        >
-                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
-                            <PictureOutlined style={{ marginRight: 6 }} />
-                            图片管理
-                          </Typography.Text>
+                    <div className="product-draft-images__overview-grid">
+                      <MetricCard
+                        title="图片总数"
+                        value={imageOverview.total}
+                        description={imageOverview.total > 0 ? '当前商品图片记录' : '暂无商品图片'}
+                        icon={<PictureOutlined />}
+                        intent="data"
+                      />
+                      <MetricCard
+                        title="主图状态"
+                        value={imageOverview.main > 0 ? '已设置' : '缺少'}
+                        description={imageOverview.main > 0 ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                        icon={<CheckCircleOutlined />}
+                        intent={imageOverview.main > 0 ? 'success' : 'warning'}
+                      />
+                      <MetricCard
+                        title="详情图状态"
+                        value={imageOverview.detail > 0 ? `${imageOverview.detail} 张` : '缺少'}
+                        description={imageOverview.detail > 0 ? '已识别详情图' : '可将图片设为详情图'}
+                        icon={<FileTextOutlined />}
+                        intent={imageOverview.detail > 0 ? 'success' : 'warning'}
+                      />
+                      <MetricCard
+                        title="同步状态"
+                        value={`${imageOverview.synced} / ${imageOverview.total}`}
+                        description={imageOverview.best > 0 ? `含 ${imageOverview.best} 张最佳主图标记` : '暂无最佳主图标记'}
+                        icon={<CloudUploadOutlined />}
+                        intent={imageOverview.synced === imageOverview.total && imageOverview.total > 0 ? 'success' : 'default'}
+                      />
+                    </div>
+                    {imageOverview.total > 0 && imageOverview.main === 0 ? (
+                      <Alert
+                        className="product-draft-images__inline-alert"
+                        type="warning"
+                        showIcon
+                        message="当前商品没有主图"
+                        description="可在图片列表中选择一张图片设为主图。"
+                      />
+                    ) : null}
+                    {imageOverview.total > 0 && imageOverview.detail === 0 ? (
+                      <Alert
+                        className="product-draft-images__inline-alert"
+                        type="info"
+                        showIcon
+                        message="当前商品没有详情图"
+                        description="可在图片列表中选择图片设为详情图，或继续保留现有业务分类。"
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="页面操作"
+                    description="添加、排序和同步都需要手动触发，不会在页面加载时自动写入。"
+                    className="product-draft-images__operations-section"
+                  >
+                    {imageSyncError ? (
+                      <Alert
+                        className="product-draft-images__inline-alert product-draft-images__inline-alert--top"
+                        type="error"
+                        showIcon
+                        message="图片同步失败"
+                        description={imageSyncError}
+                      />
+                    ) : null}
+                    <div className="product-draft-images__operation-grid">
+                      <div className="product-draft-images__operation-panel">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <PictureOutlined />
+                          图片管理
+                        </Typography.Text>
+                        <Space wrap size={[8, 8]}>
+                          <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                              setLastUpload(null);
+                              setImgEdit(null);
+                              setImgModalOpen(true);
+                            }}
+                          >
+                            添加图片
+                          </Button>
+                          <Tooltip title="按当前列表顺序提交全部图片 ID">
+                            <Button
+                              icon={<SyncOutlined />}
+                              loading={imageSyncingScope === 'order'}
+                              onClick={() => void handleReorderProductImages()}
+                            >
+                              同步顺序
+                            </Button>
+                          </Tooltip>
+                        </Space>
+                      </div>
+                      <div className="product-draft-images__operation-panel">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <CloudUploadOutlined />
+                          图片同步
+                        </Typography.Text>
+                        {isTaobaoTmallProduct(data) ? (
                           <Space wrap size={[8, 8]}>
                             <Button
-                              type="primary"
-                              icon={<PlusOutlined />}
-                              onClick={() => {
-                                setLastUpload(null);
-                                setImgEdit(null);
-                                setImgModalOpen(true);
-                              }}
+                              loading={imageSyncingScope === 'all'}
+                              onClick={() => void handleSyncProductImages('all')}
                             >
-                              添加图片
-                            </Button>
-                            <Tooltip title="按当前列表顺序提交全部图片 ID">
-                              <Button
-                                icon={<SyncOutlined />}
-                                onClick={async () => {
-                                  try {
-                                    const ordered = [...sortedImages].sort(
-                                      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-                                    );
-                                    await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-                                    message.success('已同步');
-                                    await reloadDetail();
-                                  } catch (e: unknown) {
-                                    message.error((e as Error)?.message || '排序失败');
-                                  }
-                                }}
-                              >
-                                同步顺序
-                              </Button>
-                            </Tooltip>
-                            {isTaobaoTmallProduct(data) ? (
-                              <>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'all' });
-                                      message.success(`已同步 ${res.synced} 张图片到平台存储`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  同步图片到平台存储
-                                </Button>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'main' });
-                                      message.success(`已同步 ${res.synced} 张主图`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  批量同步主图
-                                </Button>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'detail' });
-                                      message.success(`已同步 ${res.synced} 张详情图`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  批量同步详情图
-                                </Button>
-                              </>
-                            ) : null}
-                          </Space>
-                        </Flex>
-                        <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>
-                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
-                            <RobotOutlined style={{ marginRight: 6 }} />
-                            AI 处理
-                          </Typography.Text>
-                          <Space wrap size={[8, 8]}>
-                            <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
-                              新建图片任务
-                            </Button>
-                            <Link to="/ai/image-tasks">
-                              <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
-                            </Link>
-                            <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
-                              设为最佳主图
+                              同步图片到平台存储
                             </Button>
                             <Button
-                              type="primary"
-                              ghost
-                              icon={<ThunderboltOutlined />}
-                              onClick={() => void runSelectBestMain('auto_set')}
+                              loading={imageSyncingScope === 'main'}
+                              onClick={() => void handleSyncProductImages('main')}
                             >
-                              自动设为主图
+                              批量同步主图
+                            </Button>
+                            <Button
+                              loading={imageSyncingScope === 'detail'}
+                              onClick={() => void handleSyncProductImages('detail')}
+                            >
+                              批量同步详情图
                             </Button>
                           </Space>
-                        </Flex>
-                      </Flex>
-                    </Flex>
-                  </Card>
-                  <ProTable<ProductImageRow>
-                    rowKey="id"
-                    search={false}
-                    options={false}
-                    pagination={false}
-                    headerTitle="图片列表"
-                    toolBarRender={false}
-                    dataSource={sortedImages}
-                    columns={imageColumns}
-                    size="small"
-                  />
-                </Card>
+                        ) : (
+                          <Typography.Text type="secondary">
+                            当前来源未启用该同步入口；可继续添加、编辑和标记商品图片。
+                          </Typography.Text>
+                        )}
+                      </div>
+                      <div className="product-draft-images__operation-panel product-draft-images__operation-panel--ai">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <RobotOutlined />
+                          AI 图片任务
+                        </Typography.Text>
+                        <Space wrap size={[8, 8]}>
+                          <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                            新建图片任务
+                          </Button>
+                          <Link to="/ai/image-tasks">
+                            <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
+                          </Link>
+                          <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                            设为最佳主图
+                          </Button>
+                          <Button
+                            type="primary"
+                            ghost
+                            icon={<ThunderboltOutlined />}
+                            onClick={() => void runSelectBestMain('auto_set')}
+                          >
+                            自动设为主图
+                          </Button>
+                        </Space>
+                        <Typography.Text type="secondary" className="product-draft-images__operation-note">
+                          图片服务可用性在任务弹窗内检查；处理结果以后台任务状态为准。
+                        </Typography.Text>
+                      </div>
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard
+                    title="图片列表"
+                    description="每行操作只作用于当前图片，更多菜单中保留低频和危险操作。"
+                    className="product-draft-images__list-section"
+                  >
+                    <ProTable<ProductImageRow>
+                      rowKey="id"
+                      search={false}
+                      options={false}
+                      pagination={false}
+                      headerTitle={false}
+                      toolBarRender={false}
+                      dataSource={sortedImages}
+                      columns={imageColumns}
+                      size="small"
+                      scroll={{ x: 1120 }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无商品图片"
+                            description="可以手动添加图片，或从采集结果补充后再回到这里管理。"
+                            actionLabel="添加图片"
+                            onAction={() => {
+                              setLastUpload(null);
+                              setImgEdit(null);
+                              setImgModalOpen(true);
+                            }}
+                          />
+                        ),
+                      }}
+                    />
+                  </SectionCard>
+                </Space>
               ),
             },
             {
