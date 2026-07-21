@@ -1,5 +1,7 @@
 /// <reference types="@umijs/max/typings" />
 
+declare module '*.less';
+
 declare namespace API {
   type StorePermission = {
     storeId: string;

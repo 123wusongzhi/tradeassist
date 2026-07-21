@@ -1,10 +1,39 @@
+import {
+  DollarOutlined,
+  MoreOutlined,
+  PictureOutlined,
+  PlusOutlined,
+  RobotOutlined,
+  SafetyCertificateOutlined,
+  ShopOutlined,
+} from '@ant-design/icons';
 import { ModalForm, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
-import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { EmptyState, OperationToolbar, TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
-import { Button, Drawer, Form, Image, Select, Space, Table, Tag, Typography, message, Checkbox, Alert, Radio, Input, InputNumber, Progress } from 'antd';
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Drawer,
+  Dropdown,
+  Form,
+  Image,
+  Input,
+  InputNumber,
+  Progress,
+  Radio,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+  message,
+  type MenuProps,
+} from 'antd';
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { history, useLocation } from '@umijs/max';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -12,7 +41,6 @@ import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   PUBLISH_BATCH_LIMIT_MESSAGE,
   PUBLISH_BATCH_MAX_PRODUCTS,
-  validatePublishBatchMatrix,
 } from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { PRODUCT_SOURCE_LABEL, productSourceLabel } from '@/constants/userFriendly';
@@ -25,6 +53,7 @@ import { useUrlQueryState } from '@/hooks/useUrlState';
 import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
 import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
 import { normalizeSource, parsePositiveInt } from '@/utils/urlState';
+import './index.less';
 
 const DRAFT_QUERY_KEYS = [
   'page',
@@ -105,6 +134,7 @@ export default function ProductDraftsPage() {
   });
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [selectedRows, setSelectedRows] = useState<ProductListRow[]>([]);
   const [batchOpen, setBatchOpen] = useState(false);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchPlat, setBatchPlat] = useState<string>('tiktok');
@@ -118,6 +148,118 @@ export default function ProductDraftsPage() {
   const [bulkOp, setBulkOp] = useState<string>('title_optimize');
   const [bulkConfirmFiltered, setBulkConfirmFiltered] = useState(false);
   const [pricingBatchOpen, setPricingBatchOpen] = useState(false);
+  const [listLoadError, setListLoadError] = useState<string>();
+
+  const selectedCount = selectedRowKeys.length;
+  const selectedScopeText =
+    selectedRows.length === selectedCount
+      ? '当前选择将用于 AI、发布检查、刊登和定价操作'
+      : '当前选择已保留，刷新后仍按商品 ID 执行';
+
+  const clearSelection = () => {
+    setSelectedRowKeys([]);
+    setSelectedRows([]);
+  };
+
+  const ensureBatchSelection = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先勾选商品');
+      return false;
+    }
+    if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
+      message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+      return false;
+    }
+    return true;
+  };
+
+  const openLegacyBulkAI = () => {
+    bulkForm.resetFields();
+    bulkForm.setFieldsValue({
+      language: 'en',
+      platform: 'TikTok Shop',
+      maxLength: 120,
+      tone: 'professional',
+      applyMode: 'save_ai_field',
+      provider: 'removebg',
+    });
+    setBulkOp('title_optimize');
+    setBulkConfirmFiltered(false);
+    setBulkOpen(true);
+  };
+
+  const moreActionItems: MenuProps['items'] = [
+    {
+      key: 'pricing',
+      icon: <DollarOutlined />,
+      label: '批量设置发布价',
+    },
+    {
+      key: 'legacyBulkAi',
+      icon: <RobotOutlined />,
+      label: '历史版批量 AI',
+    },
+  ];
+
+  const onMoreActionClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'pricing') {
+      setPricingBatchOpen(true);
+      return;
+    }
+    if (key === 'legacyBulkAi') {
+      openLegacyBulkAI();
+    }
+  };
+
+  const hasActiveDraftFilters = Boolean(
+    listFilters.keyword ||
+      listFilters.status ||
+      listFilters.source ||
+      listFilters.operationStep ||
+      urlState.keyword ||
+      urlState.status ||
+      urlState.source ||
+      urlFilters.missingAiTitle ||
+      urlFilters.missingAiDescription ||
+      urlFilters.readinessBlocked ||
+      urlFilters.publishable ||
+      urlFilters.status ||
+      urlFilters.navSource,
+  );
+
+  const draftTableLocale = useMemo(() => {
+    if (listLoadError) {
+      return {
+        emptyText: (
+          <EmptyState
+            title="商品草稿加载失败"
+            description={`列表数据暂时无法获取：${listLoadError}`}
+            actionLabel="重试加载"
+            onAction={() => actionRef.current?.reload()}
+          />
+        ),
+      };
+    }
+    if (hasActiveDraftFilters) {
+      return {
+        emptyText: (
+          <EmptyState
+            title="没有匹配的商品草稿"
+            description="当前筛选条件下没有商品草稿，可以调整关键字、状态或来源后重新查询。"
+            actionLabel="重置筛选"
+            onAction={() => {
+              setTablePage(1);
+              setTablePageSize(20);
+              formRef.current?.resetFields?.();
+              clearUrlState(DRAFT_QUERY_KEYS, { replace: true });
+              actionRef.current?.reload();
+            }}
+          />
+        ),
+      };
+    }
+    return emptyLocale;
+  }, [clearUrlState, emptyLocale, hasActiveDraftFilters, listLoadError]);
 
   useEffect(() => {
     setTablePage(parsePositiveInt(urlState.page, 1));
@@ -142,13 +284,19 @@ export default function ProductDraftsPage() {
     {
       title: '商品图',
       dataIndex: 'coverUrl',
-      width: 88,
+      width: 96,
+      fixed: 'left',
       search: false,
       render: (_, row) =>
         row.coverUrl ? (
-          <Image src={row.coverUrl} width={56} height={56} style={{ objectFit: 'cover', borderRadius: 4 }} />
+          <Image
+            src={row.coverUrl}
+            width={56}
+            height={56}
+            className="product-drafts-table__image"
+          />
         ) : (
-          <Typography.Text type="secondary">—</Typography.Text>
+          <div className="product-drafts-table__image-placeholder">无图</div>
         ),
     },
     {
@@ -163,8 +311,28 @@ export default function ProductDraftsPage() {
     {
       title: '标题',
       dataIndex: 'title',
+      width: 320,
       ellipsis: true,
       search: false,
+      render: (_, row) => (
+        <div className="product-drafts-table__title-cell">
+          <Tooltip title={row.title}>
+            <Typography.Link
+              className="product-drafts-table__title"
+              href={`/product/drafts/${row.id}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {row.title || '未命名商品'}
+            </Typography.Link>
+          </Tooltip>
+          <Space size={8} wrap className="product-drafts-table__meta">
+            <Typography.Text type="secondary">ID {row.id}</Typography.Text>
+            {row.updatedAt ? (
+              <Typography.Text type="secondary">更新 {formatDateTime(row.updatedAt)}</Typography.Text>
+            ) : null}
+          </Space>
+        </div>
+      ),
     },
     {
       title: '来源',
@@ -179,7 +347,7 @@ export default function ProductDraftsPage() {
         const label = productSourceLabel(row.source);
         return (
           <Tag
-            style={{ margin: 0, whiteSpace: 'nowrap' }}
+            className="product-drafts-table__source-tag"
             title={label !== row.source ? row.source : undefined}
           >
             {label}
@@ -190,14 +358,14 @@ export default function ProductDraftsPage() {
     {
       title: '状态',
       dataIndex: 'status',
-      width: 120,
+      width: 112,
       valueType: 'select',
       valueEnum: Object.fromEntries(
         Object.entries(PRODUCT_STATUS).map(([k, v]) => [k, { text: v.text }]),
       ),
       render: (_, row) => {
         const m = PRODUCT_STATUS[row.status as keyof typeof PRODUCT_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
+        return <Tag color={m?.color}>{(m?.text ?? row.status) || '未知'}</Tag>;
       },
     },
     {
@@ -215,14 +383,14 @@ export default function ProductDraftsPage() {
         const p = row.operationProgress;
         if (!p) return <Typography.Text type="secondary">—</Typography.Text>;
         return (
-          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+          <Space direction="vertical" size={4} className="product-drafts-progress">
             <Progress percent={p.completionPercent ?? 0} size="small" showInfo={false} />
             <Space size={6} wrap>
               <Typography.Text>{p.completionPercent ?? 0}%</Typography.Text>
               <Tag color={operationStepColor(p.currentStep)}>{p.currentStepLabel || '继续完善'}</Tag>
             </Space>
             {(p.blockerCount || p.warningCount) ? (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              <Typography.Text type="secondary" className="product-drafts-progress__issues">
                 待处理 {p.blockerCount ?? 0}，建议检查 {p.warningCount ?? 0}
               </Typography.Text>
             ) : null}
@@ -233,7 +401,7 @@ export default function ProductDraftsPage() {
     {
       title: '创建时间',
       dataIndex: 'createdAt',
-      width: 172,
+      width: 168,
       search: false,
       valueType: 'dateTime',
       render: (_, row) => formatDateTime(row.createdAt),
@@ -241,9 +409,14 @@ export default function ProductDraftsPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 116,
+      width: 132,
+      fixed: 'right',
       render: (_, row) => [
-        <Typography.Link key="detail" href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}>
+        <Typography.Link
+          key="detail"
+          href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
+          onClick={(event) => event.stopPropagation()}
+        >
           {row.operationProgress?.nextActionLabel || '继续完善'}
         </Typography.Link>,
       ],
@@ -260,12 +433,7 @@ export default function ProductDraftsPage() {
   );
 
   const openBatchDrawer = async () => {
-    if (selectedRowKeys.length === 0) {
-      message.warning('请先勾选商品');
-      return;
-    }
-    if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
-      message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
+    if (!ensureBatchSelection()) {
       return;
     }
     setBatchOpen(true);
@@ -368,7 +536,22 @@ export default function ProductDraftsPage() {
   };
 
   return (
-    <TmPageContainer title={PAGE_COPY.productDrafts.title} subTitle={PAGE_COPY.productDrafts.description}>
+    <TmPageContainer
+      className="product-drafts-page"
+      title={PAGE_COPY.productDrafts.title}
+      subTitle={PAGE_COPY.productDrafts.description}
+    >
+      <OperationToolbar className="product-drafts-page__toolbar">
+        <Button icon={<PlusOutlined />} type="primary" onClick={() => setCreateOpen(true)}>
+          新建草稿
+        </Button>
+        <Dropdown
+          menu={{ items: moreActionItems, onClick: onMoreActionClick }}
+          trigger={['click']}
+        >
+          <Button icon={<MoreOutlined />}>更多</Button>
+        </Dropdown>
+      </OperationToolbar>
       <DouyinE2EPrecheckBanner blockedByCredentials compact />
       {(urlFilters.missingAiTitle ||
         urlFilters.missingAiDescription ||
@@ -379,14 +562,67 @@ export default function ProductDraftsPage() {
         <Alert
           type="info"
           showIcon
-          style={{ marginBottom: 12 }}
+          className="product-drafts-page__deep-link-alert"
           message="已从运营看板或深链带入列表筛选（只影响本页查询，不写库）。"
         />
       )}
       <KeywordSafetyHint visible={showSensitiveHint} />
+      {selectedCount > 0 ? (
+        <OperationToolbar
+          className="product-drafts-page__selection-toolbar"
+          extra={
+            <Button type="link" onClick={clearSelection}>
+              清空选择
+            </Button>
+          }
+        >
+          <div className="product-drafts-page__selection-summary">
+            <Typography.Text strong>已选择 {selectedCount} 个商品</Typography.Text>
+            <Typography.Text type="secondary">{selectedScopeText}</Typography.Text>
+          </div>
+          <Button
+            icon={<RobotOutlined />}
+            type="primary"
+            onClick={() => {
+              if (!ensureBatchSelection()) return;
+              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 优化
+          </Button>
+          <Button
+            icon={<PictureOutlined />}
+            onClick={() => {
+              if (!ensureBatchSelection()) return;
+              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量 AI 图片处理
+          </Button>
+          <Button
+            icon={<SafetyCertificateOutlined />}
+            onClick={() => void openBatchDrawer()}
+          >
+            批量发布检查
+          </Button>
+          <Button
+            icon={<ShopOutlined />}
+            onClick={() => {
+              if (!ensureBatchSelection()) return;
+              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
+            }}
+          >
+            批量创建刊登草稿
+          </Button>
+          <Button icon={<DollarOutlined />} onClick={() => setPricingBatchOpen(true)}>
+            批量设置发布价
+          </Button>
+        </OperationToolbar>
+      ) : null}
       <ProTable<ProductListRow>
+        className="product-drafts-table"
         rowKey="id"
-        locale={emptyLocale}
+        locale={draftTableLocale}
         actionRef={actionRef}
         formRef={formRef}
         params={{
@@ -406,7 +642,10 @@ export default function ProductDraftsPage() {
         rowSelection={{
           type: 'checkbox',
           selectedRowKeys,
-          onChange: (keys) => setSelectedRowKeys(keys as string[]),
+          onChange: (keys, rows) => {
+            setSelectedRowKeys(keys as string[]);
+            setSelectedRows(rows);
+          },
           getCheckboxProps: (row) => ({
             disabled: row.status === 'archived' || row.status === 'deleted',
             title:
@@ -415,13 +654,10 @@ export default function ProductDraftsPage() {
                 : undefined,
           }),
         }}
-        tableAlertRender={({ selectedRowKeys: keys }) => (
-          <Space>
-            <span>已选择 {keys.length} 个商品</span>
-          </Space>
-        )}
+        tableAlertRender={false}
         columns={columns}
         search={{ labelWidth: 'auto' }}
+        scroll={{ x: 980 }}
         pagination={{
           current: tablePage,
           pageSize: tablePageSize,
@@ -436,94 +672,7 @@ export default function ProductDraftsPage() {
           },
         }}
         options={{ reload: true, density: true, setting: true }}
-        headerTitle={false}
-        toolBarRender={() => [
-          <Button
-            key="aiTextBatch"
-            type="primary"
-            disabled={selectedRowKeys.length === 0}
-            onClick={() => {
-              if (selectedRowKeys.length === 0) {
-                message.warning('请先勾选商品');
-                return;
-              }
-              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
-                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
-                return;
-              }
-              history.push(`/product/ai-text-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 优化
-          </Button>,
-          <Button
-            key="aiImageBatch"
-            disabled={selectedRowKeys.length === 0}
-            onClick={() => {
-              if (selectedRowKeys.length === 0) {
-                message.warning('请先勾选商品');
-                return;
-              }
-              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
-                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
-                return;
-              }
-              history.push(`/product/ai-image-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量 AI 图片处理
-          </Button>,
-          <Button
-            key="bulkAi"
-            onClick={() => {
-              bulkForm.resetFields();
-              bulkForm.setFieldsValue({
-                language: 'en',
-                platform: 'TikTok Shop',
-                maxLength: 120,
-                tone: 'professional',
-                applyMode: 'save_ai_field',
-                provider: 'removebg',
-              });
-              setBulkOp('title_optimize');
-              setBulkConfirmFiltered(false);
-              setBulkOpen(true);
-            }}
-          >
-            旧版批量 AI
-          </Button>,
-          <Button
-            key="publishBatch"
-            type="primary"
-            disabled={selectedRowKeys.length === 0}
-            onClick={() => {
-              if (selectedRowKeys.length === 0) {
-                message.warning('请先勾选商品');
-                return;
-              }
-              if (selectedRowKeys.length > PUBLISH_BATCH_MAX_PRODUCTS) {
-                message.error(PUBLISH_BATCH_LIMIT_MESSAGE);
-                return;
-              }
-              history.push(`/product/publish-batch?productIds=${selectedRowKeys.join(',')}`);
-            }}
-          >
-            批量创建刊登草稿
-          </Button>,
-          <Button
-            key="readiness"
-            disabled={selectedRowKeys.length === 0}
-            onClick={() => void openBatchDrawer()}
-          >
-            批量发布检查
-          </Button>,
-          <Button key="pricing" onClick={() => setPricingBatchOpen(true)}>
-            批量设置发布价
-          </Button>,
-          <Button key="new" type="primary" onClick={() => setCreateOpen(true)}>
-            新建草稿
-          </Button>,
-        ]}
+        headerTitle="商品草稿列表"
         request={async (params) => {
           setListFilters({
             keyword: params.keyword as string | undefined,
@@ -569,30 +718,45 @@ export default function ProductDraftsPage() {
             },
             { replace: true },
           );
-          const res = await fetchProducts({
-            page: qp.page,
-            pageSize: qp.pageSize,
-            status: qp.status,
-            source: qp.source,
-            keyword: qp.keyword,
-            operationStep: qp.operationStep,
-            missingAiTitle: urlFilters.missingAiTitle || undefined,
-            missingAiDescription: urlFilters.missingAiDescription || undefined,
-            readinessBlocked: urlFilters.readinessBlocked || undefined,
-            publishable: urlFilters.publishable || undefined,
-          });
-          return {
-            data: res.list,
-            success: true,
-            total: res.pagination.total,
-          };
+          try {
+            const res = await fetchProducts({
+              page: qp.page,
+              pageSize: qp.pageSize,
+              status: qp.status,
+              source: qp.source,
+              keyword: qp.keyword,
+              operationStep: qp.operationStep,
+              missingAiTitle: urlFilters.missingAiTitle || undefined,
+              missingAiDescription: urlFilters.missingAiDescription || undefined,
+              readinessBlocked: urlFilters.readinessBlocked || undefined,
+              publishable: urlFilters.publishable || undefined,
+            });
+            setListLoadError(undefined);
+            return {
+              data: res.list,
+              success: true,
+              total: res.pagination.total,
+            };
+          } catch (e: unknown) {
+            setListLoadError((e as Error)?.message || '列表请求失败');
+            return {
+              data: [],
+              success: false,
+              total: 0,
+            };
+          }
         }}
       />
 
       <ModalForm
         title="新建商品草稿"
         open={createOpen}
-        modalProps={{ destroyOnHidden: true, onCancel: () => setCreateOpen(false) }}
+        modalProps={{
+          destroyOnHidden: true,
+          width: 640,
+          className: 'product-drafts-create-modal',
+          onCancel: () => setCreateOpen(false),
+        }}
         onFinish={async (vals) => {
           await createProduct({
             title: vals.title,
@@ -613,7 +777,8 @@ export default function ProductDraftsPage() {
 
       <Drawer
         title="批量发布检查"
-        width={720}
+        width="min(720px, calc(100vw - 32px))"
+        className="product-drafts-drawer"
         open={batchOpen}
         onClose={() => setBatchOpen(false)}
         destroyOnHidden
@@ -623,7 +788,7 @@ export default function ProductDraftsPage() {
           </Button>
         }
       >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
+        <Space direction="vertical" className="product-drafts-drawer__body" size="large">
           <Form layout="vertical">
             <Form.Item label="平台">
               <Select
@@ -649,7 +814,7 @@ export default function ProductDraftsPage() {
               />
             </Form.Item>
           </Form>
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          <Typography.Paragraph type="secondary" className="product-drafts-drawer__hint">
             已选 {selectedRowKeys.length} 个商品；单次最多 100 个。检查不修改商品数据，不调用平台 API。
           </Typography.Paragraph>
           <Table<ProductReadinessResult>
@@ -685,7 +850,8 @@ export default function ProductDraftsPage() {
 
       <Drawer
         title="旧版批量 AI（商品草稿）"
-        width={560}
+        width="min(640px, calc(100vw - 32px))"
+        className="product-drafts-drawer"
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         destroyOnHidden
@@ -702,7 +868,7 @@ export default function ProductDraftsPage() {
         <Alert
           type="info"
           showIcon
-          style={{ marginBottom: 12 }}
+          className="product-drafts-drawer__alert"
           message="旧版入口保留用于历史批次兼容。不会自动覆盖正式标题/详情，不会替换主图，不会刊登。新任务建议优先使用上方「批量 AI 优化」或「批量 AI 图片处理」。"
         />
         <Typography.Paragraph type="secondary">
@@ -737,7 +903,7 @@ export default function ProductDraftsPage() {
               </Form.Item>
               {bulkOp === 'title_optimize' && (
                 <Form.Item name="maxLength" label="最大长度">
-                  <InputNumber min={20} max={300} style={{ width: '100%' }} />
+                  <InputNumber min={20} max={300} className="product-drafts-form__full-control" />
                 </Form.Item>
               )}
               <Form.Item name="tone" label="语气 / 风格">
