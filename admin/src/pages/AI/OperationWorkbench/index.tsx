@@ -6,27 +6,30 @@ import {
   ShopOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
-import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
+import {
+  MetricCard,
+  OperationToolbar,
+  SectionCard,
+  TmPageContainer,
+  TechnicalDetails,
+  TmProTable as ProTable,
+} from '@/components/ui';
 import type { ProColumns } from '@ant-design/pro-components';
 import { history } from '@umijs/max';
 import {
+  Alert,
   Button,
-  Col,
   DatePicker,
   Drawer,
   Input,
-  Row,
   Select,
   Space,
-  Statistic,
   Tag,
   Typography,
   message,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { layoutTokens } from '@/constants/layoutTokens';
 import { PLATFORM_OPTIONS } from '@/constants/userFriendly';
 import {
   WORKBENCH_PRIORITY_OPTIONS,
@@ -53,6 +56,7 @@ import {
   looksLikeSensitiveKeyword,
   normalizeSearchKeyword,
 } from '@/utils/keywordSafety';
+import './index.less';
 
 const { RangePicker } = DatePicker;
 
@@ -76,10 +80,12 @@ const CARD_ICONS: Record<string, React.ReactNode> = {
   todayResolvedCount: <CheckCircleOutlined />,
 };
 
+type SummaryCardConfig = (typeof WORKBENCH_SUMMARY_CARDS)[number];
+
 function priorityTag(priority?: string) {
   const meta = workbenchPriorityMeta(priority);
   return (
-    <Tag color={meta.color as never} style={{ margin: 0 }}>
+    <Tag color={meta.color as never} className="tm-ai-workbench__priority-tag">
       {meta.label}
     </Tag>
   );
@@ -160,6 +166,9 @@ export default function AIOperationWorkbenchPage() {
 
   const tableRef = useRef<{ reload: () => void } | null>(null);
   const emptyLocale = useListEmptyLocale('aiOperationWorkbench');
+  const hasActiveFilters = Boolean(
+    filterType || filterPriority || filterPlatform || filterShopId || filterKeyword || dateRange?.[0] || dateRange?.[1],
+  );
 
   useEffect(() => {
     setFilterType(urlState.type);
@@ -280,6 +289,19 @@ export default function AIOperationWorkbenchPage() {
     }
   };
 
+  const handleSummaryAction = (card: SummaryCardConfig) => {
+    if ('filterType' in card && card.filterType) {
+      setFilterType(card.filterType);
+      setTablePage(1);
+      tableRef.current?.reload();
+    }
+    if (card.link) {
+      history.push(card.link);
+      return;
+    }
+    void handleRefresh();
+  };
+
   const openDrawer = async (row: WorkbenchTodoItem) => {
     openTodoDrawer(row.id);
     setDrawerOpen(true);
@@ -330,8 +352,16 @@ export default function AIOperationWorkbenchPage() {
     {
       title: '商品',
       dataIndex: 'productTitle',
+      width: 220,
       ellipsis: true,
-      render: (_, row) => row.productTitle || '—',
+      render: (_, row) =>
+        row.productTitle ? (
+          <Typography.Text ellipsis={{ tooltip: row.productTitle }} className="tm-ai-workbench__product-title">
+            {row.productTitle}
+          </Typography.Text>
+        ) : (
+          '—'
+        ),
     },
     {
       title: '平台 / 店铺',
@@ -347,9 +377,10 @@ export default function AIOperationWorkbenchPage() {
     {
       title: '问题',
       dataIndex: 'title',
+      width: 260,
       ellipsis: true,
       render: (_, row) => (
-        <Typography.Text ellipsis={{ tooltip: row.message }}>
+        <Typography.Text ellipsis={{ tooltip: row.message }} className="tm-ai-workbench__issue-title">
           {row.title}
         </Typography.Text>
       ),
@@ -370,10 +401,26 @@ export default function AIOperationWorkbenchPage() {
       valueType: 'option',
       width: 180,
       render: (_, row) => [
-        <Button key="act" type="link" size="small" onClick={() => history.push(row.actionUrl)}>
+        <Button
+          key="act"
+          type="link"
+          size="small"
+          onClick={(event) => {
+            event.stopPropagation();
+            history.push(row.actionUrl);
+          }}
+        >
           {row.actionLabel}
         </Button>,
-        <Button key="detail" type="link" size="small" onClick={() => void openDrawer(row)}>
+        <Button
+          key="detail"
+          type="link"
+          size="small"
+          onClick={(event) => {
+            event.stopPropagation();
+            void openDrawer(row);
+          }}
+        >
           详情
         </Button>,
         row.productId ? (
@@ -381,7 +428,10 @@ export default function AIOperationWorkbenchPage() {
             key="product"
             type="link"
             size="small"
-            onClick={() => history.push(`/product/drafts/${row.productId}`)}
+            onClick={(event) => {
+              event.stopPropagation();
+              history.push(`/product/drafts/${row.productId}`);
+            }}
           >
             查看商品
           </Button>
@@ -392,235 +442,267 @@ export default function AIOperationWorkbenchPage() {
 
   return (
     <TmPageContainer
+      className="tm-ai-workbench-page"
       title="AI 商品运营工作台"
       subTitle="汇总 AI 文案、AI 图片、发布检查、刊登异常与失败任务，统一处理入口"
       extra={
-        <Space wrap>
-          {lastRefreshedAt ? (
-            <Typography.Text type="secondary">最近刷新：{formatDateTime(lastRefreshedAt)}</Typography.Text>
-          ) : null}
+        <OperationToolbar
+          extra={
+            lastRefreshedAt ? (
+              <Typography.Text type="secondary">最近刷新：{formatDateTime(lastRefreshedAt)}</Typography.Text>
+            ) : null
+          }
+        >
           <Button icon={<ReloadOutlined />} loading={refreshing} onClick={() => void handleRefresh()}>
             刷新待办
           </Button>
-        </Space>
+        </OperationToolbar>
       }
     >
-      <KeywordSafetyHint visible={keywordSensitive} />
-      <Row gutter={[16, 16]} style={{ marginBottom: layoutTokens.sectionGap }}>
-        {WORKBENCH_SUMMARY_CARDS.map((card) => {
-          const count = summary ? Number(summary[card.key as keyof WorkbenchSummary] ?? 0) : 0;
-          const high =
-            'highKey' in card && card.highKey
-              ? Number(summary?.[card.highKey as keyof WorkbenchSummary] ?? 0)
-              : 0;
-          const todayNew =
-            'todayKey' in card && card.todayKey
-              ? Number(summary?.[card.todayKey as keyof WorkbenchSummary] ?? 0)
-              : 0;
-          return (
-            <Col xs={24} sm={12} lg={8} xl={24 / 5} key={card.key}>
-              <ProCard bordered loading={summaryLoading} style={{ height: '100%' }}>
-                <Space direction="vertical" size={4} style={{ width: '100%' }}>
-                  <Space>
-                    {CARD_ICONS[card.key]}
-                    <Typography.Text type="secondary">{card.title}</Typography.Text>
-                  </Space>
-                  <Statistic value={count} valueStyle={{ fontSize: 28 }} />
-                  {'highKey' in card && card.highKey ? (
-                    <Typography.Text type={high > 0 ? 'danger' : 'secondary'}>
-                      其中 {high} 个高优先级
-                      {todayNew > 0 ? ` · 今日新增 ${todayNew}` : ''}
-                    </Typography.Text>
-                  ) : (
-                    <Typography.Text type="secondary">今日处理完成项</Typography.Text>
-                  )}
-                  {card.link ? (
+      <div className="tm-ai-workbench">
+        <KeywordSafetyHint visible={keywordSensitive} />
+
+        <div className="tm-ai-workbench__metric-grid">
+          {WORKBENCH_SUMMARY_CARDS.map((card) => {
+            const count = summary ? Number(summary[card.key as keyof WorkbenchSummary] ?? 0) : 0;
+            const high =
+              'highKey' in card && card.highKey
+                ? Number(summary?.[card.highKey as keyof WorkbenchSummary] ?? 0)
+                : 0;
+            const todayNew =
+              'todayKey' in card && card.todayKey
+                ? Number(summary?.[card.todayKey as keyof WorkbenchSummary] ?? 0)
+                : 0;
+            const description =
+              'highKey' in card && card.highKey
+                ? `高优先级 ${high}${todayNew > 0 ? ` · 今日新增 ${todayNew}` : ''}`
+                : '今日处理完成项';
+            return (
+              <MetricCard
+                key={card.key}
+                loading={summaryLoading}
+                title={card.title}
+                value={
+                  <div className="tm-ai-workbench__metric-value">
+                    <span>{count}</span>
                     <Button
-                      type="primary"
                       size="small"
-                      onClick={() => {
-                        if ('filterType' in card && card.filterType) {
-                          setFilterType(card.filterType);
-                          setTablePage(1);
-                          tableRef.current?.reload();
-                        }
-                        if (card.link) history.push(card.link);
-                      }}
+                      loading={card.key === 'todayResolvedCount' ? refreshing : false}
+                      onClick={() => handleSummaryAction(card)}
                     >
                       {card.actionLabel}
                     </Button>
-                  ) : (
-                    <Button size="small" onClick={() => void handleRefresh()}>
-                      {card.actionLabel}
-                    </Button>
-                  )}
-                </Space>
-              </ProCard>
-            </Col>
-          );
-        })}
-      </Row>
+                  </div>
+                }
+                icon={CARD_ICONS[card.key]}
+                intent={high > 0 ? 'warning' : card.key === 'todayResolvedCount' ? 'success' : 'default'}
+                description={
+                  <span className={high > 0 ? 'tm-ai-workbench__high-text' : undefined}>{description}</span>
+                }
+              />
+            );
+          })}
+        </div>
 
-      <ProCard bordered title="筛选" style={{ marginBottom: layoutTokens.sectionGap }}>
-        <Row gutter={[12, 12]}>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Select
-              allowClear
-              placeholder="待办类型"
-              style={{ width: '100%' }}
-              options={WORKBENCH_TODO_TYPES.map((x) => ({ label: x.label, value: x.value }))}
-              value={filterType}
-              onChange={(v) => {
-                setFilterType(v);
-                setTablePage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Select
-              allowClear
-              placeholder="优先级"
-              style={{ width: '100%' }}
-              options={WORKBENCH_PRIORITY_OPTIONS.map((x) => ({ label: x.label, value: x.value }))}
-              value={filterPriority}
-              onChange={(v) => {
-                setFilterPriority(v);
-                setTablePage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Select
-              allowClear
-              placeholder="平台"
-              style={{ width: '100%' }}
-              options={PLATFORM_OPTIONS}
-              value={filterPlatform}
-              onChange={(v) => {
-                setFilterPlatform(v);
-                setTablePage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Select
-              allowClear
-              placeholder="店铺"
-              style={{ width: '100%' }}
-              showSearch
-              optionFilterProp="label"
-              options={shops.map((s) => ({ label: s.shopName, value: s.id }))}
-              value={filterShopId}
-              onChange={(v) => {
-                setFilterShopId(v);
-                setTablePage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={6}>
-            <Input.Search
-              allowClear
-              maxLength={KEYWORD_MAX_LENGTH}
-              value={filterKeyword}
-              placeholder="商品关键词"
-              onChange={(e) => {
-                setFilterKeyword(e.target.value);
-                setKeywordSensitive(looksLikeSensitiveKeyword(e.target.value));
-              }}
-              onClear={() => {
-                setFilterKeyword(undefined);
-                setKeywordSensitive(false);
-                setTablePage(1);
-                setUrlState({ keyword: undefined, page: undefined }, { replace: true });
-                tableRef.current?.reload();
-              }}
-              onSearch={(v) => {
-                const { value, truncated } = normalizeSearchKeyword(v);
-                if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
-                setFilterKeyword(value);
-                setKeywordSensitive(looksLikeSensitiveKeyword(value));
-                setTablePage(1);
-                tableRef.current?.reload();
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={8}>
-            <RangePicker
-              style={{ width: '100%' }}
-              value={dateRange}
-              onChange={(v) => {
-                setDateRange(v);
-                setTablePage(1);
-              }}
-            />
-          </Col>
-          <Col xs={24} sm={12} md={8} lg={4}>
-            <Button
-              onClick={() => {
-                setFilterType(undefined);
-                setFilterPriority(undefined);
-                setFilterPlatform(undefined);
-                setFilterShopId(undefined);
-                setFilterKeyword(undefined);
-                setDateRange(null);
-                setTablePage(1);
-                setTablePageSize(50);
-                closeTodoDrawer();
-                setDrawerOpen(false);
-                setDrawerItem(null);
-                clearUrlState(WORKBENCH_QUERY_KEYS, { replace: true });
-                tableRef.current?.reload();
-              }}
-            >
-              重置
-            </Button>
-          </Col>
-        </Row>
-      </ProCard>
-
-      <ProTable<WorkbenchTodoItem>
-        actionRef={tableRef as never}
-        rowKey="id"
-        search={false}
-        options={false}
-        pagination={{
-          current: tablePage,
-          pageSize: tablePageSize,
-          showSizeChanger: true,
-          pageSizeOptions: ['20', '50'],
-          onChange: (page, pageSize) => {
-            setTablePage(page);
-            setTablePageSize(pageSize);
-          },
-        }}
-        columns={columns}
-        onRow={(row) => ({
-          onClick: () => void openDrawer(row),
-          style: { cursor: 'pointer' },
-        })}
-        request={async (params) => {
-          try {
-            const res = await queryWorkbenchTodos({
-              ...queryParams,
-              page: params.current || tablePage,
-              pageSize: params.pageSize || tablePageSize,
-            });
-            return {
-              data: res.items,
-              total: res.pagination.total,
-              success: true,
-            };
-          } catch (e) {
-            message.error(e instanceof Error ? e.message : '加载待办失败');
-            return { data: [], total: 0, success: false };
+        <Alert
+          className="tm-ai-workbench__priority-alert"
+          type={Number(summary?.highPriorityCount ?? 0) > 0 ? 'warning' : 'info'}
+          showIcon
+          message={
+            summaryLoading
+              ? '正在加载高优先级概览'
+              : Number(summary?.highPriorityCount ?? 0) > 0
+              ? `当前有 ${Number(summary?.highPriorityCount ?? 0)} 个高优先级事项`
+              : '当前没有高优先级事项'
           }
-        }}
-        locale={emptyLocale}
-      />
+          description="高优先级事项来自现有待办汇总，仅作为处理顺序提示。"
+        />
+
+        <SectionCard
+          title="筛选待办"
+          description={
+            hasActiveFilters
+              ? '当前筛选已生效，列表和汇总会按条件更新。'
+              : '按业务环节、优先级、平台、店铺和时间范围定位待处理事项。'
+          }
+          headerExtra={
+            hasActiveFilters ? (
+              <Tag color="blue" className="tm-ai-workbench__active-filter-tag">
+                筛选中
+              </Tag>
+            ) : null
+          }
+          compact
+        >
+          <div className="tm-ai-workbench__filters">
+            <div className="tm-ai-workbench__filter-item">
+              <Typography.Text type="secondary">待办类型</Typography.Text>
+              <Select
+                allowClear
+                placeholder="待办类型"
+                options={WORKBENCH_TODO_TYPES.map((x) => ({ label: x.label, value: x.value }))}
+                value={filterType}
+                onChange={(v) => {
+                  setFilterType(v);
+                  setTablePage(1);
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item">
+              <Typography.Text type="secondary">优先级</Typography.Text>
+              <Select
+                allowClear
+                placeholder="优先级"
+                options={WORKBENCH_PRIORITY_OPTIONS.map((x) => ({ label: x.label, value: x.value }))}
+                value={filterPriority}
+                onChange={(v) => {
+                  setFilterPriority(v);
+                  setTablePage(1);
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item">
+              <Typography.Text type="secondary">平台</Typography.Text>
+              <Select
+                allowClear
+                placeholder="平台"
+                options={PLATFORM_OPTIONS}
+                value={filterPlatform}
+                onChange={(v) => {
+                  setFilterPlatform(v);
+                  setTablePage(1);
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item">
+              <Typography.Text type="secondary">店铺</Typography.Text>
+              <Select
+                allowClear
+                placeholder="店铺"
+                showSearch
+                optionFilterProp="label"
+                options={shops.map((s) => ({ label: s.shopName, value: s.id }))}
+                value={filterShopId}
+                onChange={(v) => {
+                  setFilterShopId(v);
+                  setTablePage(1);
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item tm-ai-workbench__filter-item--keyword">
+              <Typography.Text type="secondary">商品关键词</Typography.Text>
+              <Input.Search
+                allowClear
+                maxLength={KEYWORD_MAX_LENGTH}
+                value={filterKeyword}
+                placeholder="商品关键词"
+                onChange={(e) => {
+                  setFilterKeyword(e.target.value);
+                  setKeywordSensitive(looksLikeSensitiveKeyword(e.target.value));
+                }}
+                onClear={() => {
+                  setFilterKeyword(undefined);
+                  setKeywordSensitive(false);
+                  setTablePage(1);
+                  setUrlState({ keyword: undefined, page: undefined }, { replace: true });
+                  tableRef.current?.reload();
+                }}
+                onSearch={(v) => {
+                  const { value, truncated } = normalizeSearchKeyword(v);
+                  if (truncated) message.warning(KEYWORD_TOO_LONG_MESSAGE);
+                  setFilterKeyword(value);
+                  setKeywordSensitive(looksLikeSensitiveKeyword(value));
+                  setTablePage(1);
+                  tableRef.current?.reload();
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item tm-ai-workbench__filter-item--range">
+              <Typography.Text type="secondary">日期范围</Typography.Text>
+              <RangePicker
+                value={dateRange}
+                onChange={(v) => {
+                  setDateRange(v);
+                  setTablePage(1);
+                }}
+              />
+            </div>
+            <div className="tm-ai-workbench__filter-item tm-ai-workbench__filter-item--action">
+              <Button
+                onClick={() => {
+                  setFilterType(undefined);
+                  setFilterPriority(undefined);
+                  setFilterPlatform(undefined);
+                  setFilterShopId(undefined);
+                  setFilterKeyword(undefined);
+                  setDateRange(null);
+                  setTablePage(1);
+                  setTablePageSize(50);
+                  closeTodoDrawer();
+                  setDrawerOpen(false);
+                  setDrawerItem(null);
+                  clearUrlState(WORKBENCH_QUERY_KEYS, { replace: true });
+                  tableRef.current?.reload();
+                }}
+              >
+                重置
+              </Button>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="待办列表"
+          description="点击行查看详情，使用操作入口进入对应业务页面处理。"
+          compact
+        >
+          <ProTable<WorkbenchTodoItem>
+            actionRef={tableRef as never}
+            rowKey="id"
+            search={false}
+            options={false}
+            scroll={{ x: 1120 }}
+            pagination={{
+              current: tablePage,
+              pageSize: tablePageSize,
+              showSizeChanger: true,
+              pageSizeOptions: ['20', '50'],
+              onChange: (page, pageSize) => {
+                setTablePage(page);
+                setTablePageSize(pageSize);
+              },
+            }}
+            columns={columns}
+            onRow={(row) => ({
+              onClick: () => void openDrawer(row),
+              className: row.priority === 'P0' || row.priority === 'P1' ? 'tm-ai-workbench__row--high' : undefined,
+            })}
+            request={async (params) => {
+              try {
+                const res = await queryWorkbenchTodos({
+                  ...queryParams,
+                  page: params.current || tablePage,
+                  pageSize: params.pageSize || tablePageSize,
+                });
+                return {
+                  data: res.items,
+                  total: res.pagination.total,
+                  success: true,
+                };
+              } catch (e) {
+                message.error(e instanceof Error ? e.message : '加载待办失败');
+                return { data: [], total: 0, success: false };
+              }
+            }}
+            locale={emptyLocale}
+          />
+        </SectionCard>
+      </div>
 
       <Drawer
         title="待办详情"
-        width={480}
+        width="min(560px, calc(100vw - 32px))"
+        rootClassName="tm-ai-workbench-drawer"
         open={drawerOpen}
         onClose={() => {
           setDrawerOpen(false);
@@ -637,7 +719,7 @@ export default function AIOperationWorkbenchPage() {
         }
       >
         {drawerItem ? (
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+          <Space direction="vertical" size="middle" className="tm-ai-workbench-drawer__body">
             <div>
               <Typography.Text type="secondary">类型</Typography.Text>
               <div>{drawerItem.typeLabel}</div>
@@ -649,13 +731,15 @@ export default function AIOperationWorkbenchPage() {
             {drawerItem.productTitle ? (
               <div>
                 <Typography.Text type="secondary">商品</Typography.Text>
-                <div>{drawerItem.productTitle}</div>
+                <div className="tm-ai-workbench-drawer__text">{drawerItem.productTitle}</div>
               </div>
             ) : null}
             <div>
               <Typography.Text type="secondary">问题</Typography.Text>
-              <Typography.Paragraph>{drawerItem.title}</Typography.Paragraph>
-              <Typography.Paragraph type="secondary">{drawerItem.message}</Typography.Paragraph>
+              <Typography.Paragraph className="tm-ai-workbench-drawer__text">{drawerItem.title}</Typography.Paragraph>
+              <Typography.Paragraph type="secondary" className="tm-ai-workbench-drawer__text">
+                {drawerItem.message}
+              </Typography.Paragraph>
             </div>
             <div>
               <Typography.Text type="secondary">问题来源</Typography.Text>
@@ -663,7 +747,7 @@ export default function AIOperationWorkbenchPage() {
             </div>
             <div>
               <Typography.Text type="secondary">影响范围</Typography.Text>
-              <Typography.Paragraph>
+              <Typography.Paragraph className="tm-ai-workbench-drawer__text">
                 {drawerItem.productTitle
                   ? `关联商品：${drawerItem.productTitle}`
                   : '可能影响批量刊登或系统任务处理进度'}
@@ -671,7 +755,9 @@ export default function AIOperationWorkbenchPage() {
             </div>
             <div>
               <Typography.Text type="secondary">建议操作</Typography.Text>
-              <Typography.Paragraph>{drawerItem.actionLabel}：{drawerItem.message}</Typography.Paragraph>
+              <Typography.Paragraph className="tm-ai-workbench-drawer__text">
+                {drawerItem.actionLabel}：{drawerItem.message}
+              </Typography.Paragraph>
             </div>
             <TechnicalDetails label="技术详情">
               <Space direction="vertical" size={4}>
