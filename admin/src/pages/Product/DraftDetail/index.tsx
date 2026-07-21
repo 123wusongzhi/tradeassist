@@ -2,15 +2,27 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
-import { SectionCard, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import {
+  OperationToolbar,
+  EmptyState,
+  ErrorAlert,
+  SectionCard,
+  StatusTag,
+  TmPageContainer,
+  TechnicalDetails,
+  TaskJsonBlock,
+  TmProTable as ProTable,
+} from '@/components/ui';
 import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { layoutTokens } from '@/constants/layoutTokens';
 import MultiPlatformPublishCenter from '@/components/MultiPlatformPublishCenter';
 import {
   localizeCollectWarningCode,
   localizePublishCheckItem,
   readinessStatusLabel,
 } from '@/constants/productOperationLabels';
+import { aiPromptCodeLabel, aiTaskTypeLabel, aiTextProviderLabel } from '@/constants/aiPrompts';
 import { platformDisplayLabel } from '@/constants/platformLabels';
 import { getProductReadinessAction } from '@/constants/productReadinessActions';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
@@ -55,6 +67,10 @@ import {
   CloudUploadOutlined,
   ReloadOutlined,
   EyeOutlined,
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  FileTextOutlined,
+  UndoOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
@@ -165,6 +181,7 @@ import {
   confirmSkuUnbind,
   confirmUndoAiText,
 } from '@/constants/sensitiveActions';
+import './index.less';
 
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
@@ -354,6 +371,41 @@ const IMAGE_TYPE_OPTIONS = [
   { label: '详情图', value: 'detail' },
   { label: '规格图', value: 'sku' },
 ];
+
+function isAiTaskFailed(row?: AITaskRow | null): boolean {
+  return String(row?.status || '').toLowerCase() === 'failed';
+}
+
+function aiTaskNextStep(row?: AITaskRow | null): string {
+  const raw = String(row?.errorMessage || '').trim();
+  const text = raw.toLowerCase();
+  if (!row) return '暂无需要处理的失败任务。';
+  if (/quota|credit|balance|billing|insufficient|limit|rate/.test(text)) {
+    return '请检查 AI 设置中的模型额度、限流或计费状态，确认后重新生成。';
+  }
+  if (/timeout|network|connection|connect|econn|gateway|502|503|504/.test(text)) {
+    return '请检查 AI 服务连接状态，稍后重新生成。';
+  }
+  if (/api key|apikey|unauthorized|401|403|permission|forbidden/.test(text)) {
+    return '请检查 AI API Key、Base URL 和模型权限后重新生成。';
+  }
+  if (/parse|json|format|schema/.test(text)) {
+    return '模型返回格式不符合预期，建议重新生成；若反复出现，请检查默认 Prompt 模板。';
+  }
+  return '请根据失败原因检查 AI 设置或商品内容，确认后重新生成。';
+}
+
+function aiTaskCostText(row: AITaskRow): string {
+  const input = row.tokenInput ?? 0;
+  const output = row.tokenOutput ?? 0;
+  return `${input}/${output}`;
+}
+
+function aiTextPreview(text?: string | null, fallback = '暂无内容'): ReactNode {
+  const value = String(text || '').trim();
+  if (!value) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
+  return <Typography.Paragraph className="product-draft-ai__preview-text">{value}</Typography.Paragraph>;
+}
 
 function attrsToText(attrs?: Record<string, unknown>): string {
   if (!attrs || typeof attrs !== 'object') return '';
@@ -556,7 +608,13 @@ function OperationProgressPanel({
     return (
       <SectionCard
         title="商品运营进度"
-        headerExtra={<Button icon={<ReloadOutlined />} onClick={onReload}>重新加载</Button>}
+        description="商品内容仍可以正常编辑。"
+        className="product-draft-progress product-draft-progress--error"
+        headerExtra={
+          <Button icon={<ReloadOutlined />} onClick={onReload}>
+            重新加载
+          </Button>
+        }
       >
         <Alert
           type="warning"
@@ -570,9 +628,16 @@ function OperationProgressPanel({
 
   if (!progress) {
     return (
-      <SectionCard title="商品运营进度">
+      <SectionCard
+        title="商品运营进度"
+        description="根据商品内容、图片、价格和发布检查实时计算。"
+        className="product-draft-progress product-draft-progress--loading"
+      >
         <Spin spinning={loading}>
-          <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+          <div className="product-draft-progress__loading">
+            <Progress percent={0} showInfo={false} />
+            <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+          </div>
         </Spin>
       </SectionCard>
     );
@@ -591,37 +656,52 @@ function OperationProgressPanel({
   return (
     <SectionCard
       title="商品运营进度"
+      description="用来判断当前商品能否进入发布检查和刊登。"
+      className="product-draft-progress"
       headerExtra={
-        <Space wrap>
+        <OperationToolbar>
           <Button icon={<ReloadOutlined />} onClick={onReload} loading={loading}>
             刷新
           </Button>
           <Button type="primary" onClick={() => onAction(progress.nextActionUrl)}>
             {progress.nextActionLabel || '继续完善'}
           </Button>
-        </Space>
+        </OperationToolbar>
       }
     >
       <Spin spinning={loading}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={7}>
-            <Progress percent={progress.completionPercent ?? 0} status={progress.publishReady ? 'success' : 'active'} />
+        <div className="product-draft-progress__grid">
+          <div className="product-draft-progress__meter">
+            <div className="product-draft-progress__meter-head">
+              <Typography.Text type="secondary">运营完成度</Typography.Text>
+              <Typography.Text strong>{progress.completionPercent ?? 0}%</Typography.Text>
+            </div>
+            <Progress
+              percent={progress.completionPercent ?? 0}
+              status={progress.publishReady ? 'success' : 'active'}
+              showInfo={false}
+            />
             <Typography.Text type="secondary">完成度由商品内容、图片、价格和发布检查实时计算。</Typography.Text>
-          </Col>
-          <Col xs={24} md={17}>
-            <Descriptions size="small" column={{ xs: 1, md: 3 }} bordered>
-              <Descriptions.Item label="当前需要">
-                <Tag color={operationStepColor(progress.currentStep)}>{progress.currentStepLabel || '继续完善'}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="阻断问题">{progress.blockerCount ?? progress.blockers?.length ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="建议检查">{progress.warningCount ?? progress.warnings?.length ?? 0}</Descriptions.Item>
-            </Descriptions>
-          </Col>
-        </Row>
+          </div>
+          <div className="product-draft-progress__summary" aria-label="商品运营状态概览">
+            <div className="product-draft-progress__metric">
+              <span>当前需要</span>
+              <Tag color={operationStepColor(progress.currentStep)}>{progress.currentStepLabel || '继续完善'}</Tag>
+            </div>
+            <div className="product-draft-progress__metric">
+              <span>阻断问题</span>
+              <strong>{progress.blockerCount ?? progress.blockers?.length ?? 0}</strong>
+            </div>
+            <div className="product-draft-progress__metric">
+              <span>建议检查</span>
+              <strong>{progress.warningCount ?? progress.warnings?.length ?? 0}</strong>
+            </div>
+          </div>
+        </div>
         {issues.length ? (
-          <div style={{ marginTop: 16 }}>
+          <div className="product-draft-progress__issues">
             <Typography.Text strong>还需处理</Typography.Text>
-            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size={6}>
+            <Space direction="vertical" style={{ width: '100%' }} size={6}>
               {issues.map((x) => (
                 <Alert
                   key={`${x.code}-${x.title}`}
@@ -632,7 +712,12 @@ function OperationProgressPanel({
                     <Space direction="vertical" size={4}>
                       <Typography.Text>{x.message}</Typography.Text>
                       {x.actionUrl ? (
-                        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => onAction(x.actionUrl)}>
+                        <Button
+                          type="link"
+                          size="small"
+                          className="product-draft-progress__issue-action"
+                          onClick={() => onAction(x.actionUrl)}
+                        >
                           {x.actionLabel || '去处理'}
                         </Button>
                       ) : null}
@@ -920,6 +1005,16 @@ export default function ProductDraftDetailPage() {
     [data?.collectWarnings, data?.rawData],
   );
 
+  const collectedAttrRows = useMemo(
+    () => Object.entries(collectedAttrs).map(([key, value]) => ({ key, value })),
+    [collectedAttrs],
+  );
+
+  const hasSourceCollectQualityPanel = useMemo(
+    () => isPinduoduoProduct(data) || isTaobaoTmallProduct(data),
+    [data],
+  );
+
   const imageSyncSummary = useMemo(() => {
     const rows = data?.images ?? [];
     const external = rows.filter((img) => {
@@ -949,6 +1044,21 @@ export default function ProductDraftDetailPage() {
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
+
+  const missingBasicFields = useMemo(() => {
+    if (!data) return [];
+    return [
+      ['来源平台', data.source],
+      ['来源链接', data.sourceUrl],
+      ['原始标题', data.originalTitle],
+      ['主标题', data.title],
+      ['主描述', data.description],
+      ['币种', data.currency],
+      ['状态', data.status],
+    ]
+      .filter(([, value]) => !String(value ?? '').trim())
+      .map(([label]) => String(label));
+  }, [data]);
 
   const openCreateImageTask = useCallback(
     (prefill: CreateImageTaskPrefill) => {
@@ -1678,6 +1788,46 @@ export default function ProductDraftDetailPage() {
     void reloadDouyinSkuBindings();
   }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
 
+  const progressBlockerCount = operationProgress?.blockerCount ?? operationProgress?.blockers?.length ?? 0;
+  const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
+  const productTitle = data?.title?.trim() || '商品详情';
+  const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
+  const latestFailedAiTask = useMemo(
+    () => aiTasks.find((task) => isAiTaskFailed(task)) ?? null,
+    [aiTasks],
+  );
+  const originalTitleText = data?.title?.trim() || data?.originalTitle?.trim() || '';
+  const appliedAiTitleText = data?.aiTitle?.trim() || '';
+  const originalDescriptionText = data?.description?.trim() || '';
+  const appliedAiDescriptionText = data?.aiDescription?.trim() || '';
+
+  const renderDraftTabLabel = (
+    label: string,
+    count?: number,
+    tone: 'default' | 'warning' | 'danger' = 'default',
+  ) => (
+    <span className="product-draft-tabs__label">
+      <span>{label}</span>
+      {typeof count === 'number' && count > 0 ? (
+        <span className={`product-draft-tabs__count product-draft-tabs__count--${tone}`}>{count}</span>
+      ) : null}
+    </span>
+  );
+
+  const tabLabels: Record<string, ReactNode> = {
+    basic: renderDraftTabLabel('基础信息'),
+    ai: renderDraftTabLabel('AI', aiTasks.length),
+    images: renderDraftTabLabel('图片管理', sortedImages.length),
+    skus: renderDraftTabLabel('商品规格', data?.skus?.length ?? 0),
+    inventory: renderDraftTabLabel('库存', pubSkuRows.length),
+    readiness: renderDraftTabLabel(
+      '发布检查',
+      progressBlockerCount || progressWarningCount,
+      progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'default',
+    ),
+    publish: renderDraftTabLabel('刊登', pubRows.length),
+  };
+
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
       {
@@ -1895,11 +2045,41 @@ export default function ProductDraftDetailPage() {
 
   return (
     <TmPageContainer
-      title={data?.title || '商品详情'}
+      className="product-draft-detail-page"
+      contentMaxWidth={layoutTokens.dashboardMaxWidth}
+      title={
+        <div className="product-draft-header">
+          <Link to="/product/drafts" className="product-draft-header__back">
+            <ArrowLeftOutlined />
+            返回商品草稿
+          </Link>
+          <div className="product-draft-header__main">
+            <div className="product-draft-header__identity">
+              <Typography.Title level={3} className="product-draft-header__title" title={productTitle}>
+                {productTitle}
+              </Typography.Title>
+              {data ? <StatusTag status={data.status} /> : null}
+            </div>
+            {data ? (
+              <div className="product-draft-header__meta">
+                <Typography.Text type="secondary" copyable={{ text: id }}>
+                  ID {id}
+                </Typography.Text>
+                <span>{data.source ? `来源 ${data.source}` : '来源未记录'}</span>
+                {productUpdatedAt ? <span>更新于 {productUpdatedAt}</span> : null}
+                {progressBlockerCount > 0 ? <Tag color="red">阻断 {progressBlockerCount}</Tag> : null}
+                {progressBlockerCount === 0 && progressWarningCount > 0 ? (
+                  <Tag color="orange">建议检查 {progressWarningCount}</Tag>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      }
       loading={loading}
       extra={
         data ? (
-          <Space wrap>
+          <div className="product-draft-header__actions">
             <Button
               onClick={async () => {
                 try {
@@ -1939,20 +2119,28 @@ export default function ProductDraftDetailPage() {
                 }
               }}
             >
-              <Button danger icon={<DeleteOutlined />}>
+              <Button danger type="text" icon={<DeleteOutlined />}>
                 删除草稿
               </Button>
             </Popconfirm>
-          </Space>
+          </div>
         ) : null
       }
     >
       {loading ? (
-        <Spin />
+        <div className="product-draft-page-state">
+          <Spin />
+        </div>
       ) : err ? (
-        <Typography.Text type="danger">{err}</Typography.Text>
+        <Alert
+          type="error"
+          showIcon
+          message="商品详情加载失败"
+          description={err}
+          className="product-draft-page-state"
+        />
       ) : data ? (
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space direction="vertical" className="product-draft-detail-shell" size="middle">
           <OperationProgressPanel
             progress={operationProgress}
             loading={operationProgressLoading}
@@ -1961,6 +2149,7 @@ export default function ProductDraftDetailPage() {
             onAction={openOperationAction}
           />
           <Tabs
+          className="product-draft-tabs"
           activeKey={draftTabKey}
           onChange={(k) => {
             setDraftTabKey(k);
@@ -1974,170 +2163,490 @@ export default function ProductDraftDetailPage() {
           items={[
             {
               key: 'basic',
-              label: '基础信息',
+              label: tabLabels.basic,
               children: (
-                <Card variant="borderless">
-                  <div id="collect-review" />
-                  {(isPinduoduoProduct(data) || isTaobaoTmallProduct(data)) ? (
-                    <ProductCollectQualityAlert product={data} />
-                  ) : null}
-                  {showCustomIncompleteHint ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
-                    />
-                  ) : null}
-                  {collectQualityWarnings.length > 0 ? (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="采集质量提示"
-                      description={
-                        <ul style={{ margin: 0, paddingLeft: 20 }}>
-                          {collectQualityWarnings.map((w) => (
-                            <li key={w}>{w}</li>
-                          ))}
-                        </ul>
-                      }
-                    />
-                  ) : null}
-                  <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
-                    <Descriptions.Item label="来源">{data.source}</Descriptions.Item>
-                    <Descriptions.Item label="币种（展示）">{data.currency}</Descriptions.Item>
-                    <Descriptions.Item label="来源链接" span={2}>
-                      <Typography.Link href={data.sourceUrl || undefined} target="_blank" rel="noreferrer">
-                        {data.sourceUrl || '—'}
-                      </Typography.Link>
-                    </Descriptions.Item>
-                  </Descriptions>
+                <Space direction="vertical" className="product-draft-basic" size="middle">
+                  <SectionCard
+                    title="采集质量"
+                    description="先看采集结果是否需要人工复核，再进入字段补充。"
+                    className="product-draft-basic__section product-draft-basic__quality"
+                  >
+                    <div id="collect-review" />
+                    <Space direction="vertical" className="product-draft-basic__stack" size="middle">
+                      {hasSourceCollectQualityPanel ? (
+                        <ProductCollectQualityAlert product={data} />
+                      ) : (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="当前来源没有独立采集质量规则"
+                          description="请继续检查来源链接、标题、描述、图片和规格。发布前的阻断项会在发布检查中再次提示。"
+                        />
+                      )}
+                      {showCustomIncompleteHint ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="自定义链接采集需要人工复核"
+                          description="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
+                        />
+                      ) : null}
+                      {collectQualityWarnings.length > 0 ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="采集质量提示"
+                          description={
+                            <ul className="product-draft-basic__warning-list">
+                              {collectQualityWarnings.map((w) => (
+                                <li key={w}>{w}</li>
+                              ))}
+                            </ul>
+                          }
+                        />
+                      ) : !showCustomIncompleteHint && !hasSourceCollectQualityPanel ? (
+                        <Alert
+                          type="success"
+                          showIcon
+                          message="未返回采集质量问题"
+                          description="当前商品详情没有携带采集质量提示。仍建议在保存前检查核心字段是否完整。"
+                        />
+                      ) : null}
+                    </Space>
+                  </SectionCard>
 
-                  {Object.keys(collectedAttrs).length > 0 ? (
-                    <>
+                  <SectionCard
+                    title="商品来源与采集信息"
+                    description="这些信息用于追溯采集入口，不会随本页基础信息保存一起修改。"
+                    className="product-draft-basic__section product-draft-basic__source"
+                  >
+                    <Descriptions
+                      column={{ xs: 1, sm: 1, md: 2, xl: 3 }}
+                      size="small"
+                      className="product-draft-basic__descriptions"
+                    >
+                      <Descriptions.Item label="来源平台">
+                        {data.source ? <Tag>{platformDisplayName(data.source)}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="币种（展示）">
+                        {data.currency || <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="本地商品 ID">
+                        <Typography.Text type="secondary" copyable={{ text: data.id }}>
+                          {data.id}
+                        </Typography.Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="采集 / 创建时间">
+                        {data.createdAt ? formatDateTime(data.createdAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="最近更新时间">
+                        {data.updatedAt ? formatDateTime(data.updatedAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="当前状态">
+                        <StatusTag status={data.status} />
+                      </Descriptions.Item>
+                    </Descriptions>
+                    <div className="product-draft-basic__source-link-row">
+                      <Typography.Text type="secondary" className="product-draft-basic__source-link-label">
+                        来源链接
+                      </Typography.Text>
+                      {data.sourceUrl ? (
+                        <Typography.Link
+                          className="product-draft-basic__source-url"
+                          href={data.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={data.sourceUrl}
+                        >
+                          {data.sourceUrl}
+                        </Typography.Link>
+                      ) : (
+                        <Typography.Text type="secondary">未提供来源链接</Typography.Text>
+                      )}
+                    </div>
+                    {!data.sourceUrl ? (
+                      <Alert
+                        className="product-draft-basic__inline-alert"
+                        type="info"
+                        showIcon
+                        message="来源链接缺失"
+                        description="无法直接回到原商品页面核对信息。请优先检查标题、描述、图片和规格是否完整。"
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="商品核心信息"
+                    description="本区保存后只更新商品基础字段，不会保存 AI 结果、图片、SKU、库存或刊登配置。"
+                    className="product-draft-basic__section product-draft-basic__form-section"
+                  >
+                    {missingBasicFields.length > 0 ? (
+                      <Alert
+                        className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
+                        type="warning"
+                        showIcon
+                        message="基础信息仍有缺失"
+                        description={`建议补充：${missingBasicFields.join('、')}。`}
+                      />
+                    ) : (
+                      <Alert
+                        className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
+                        type="success"
+                        showIcon
+                        message="基础字段已具备主要内容"
+                        description="保存前仍可继续调整标题、描述、币种和状态。"
+                      />
+                    )}
+                    <ProForm
+                      key={`basic-${data.id}-${data.updatedAt}`}
+                      className="product-draft-basic__form"
+                      submitter={{
+                        searchConfig: { submitText: '保存基础信息' },
+                        submitButtonProps: { type: 'primary' },
+                        resetButtonProps: false,
+                        render: (_, dom) => (
+                          <div className="product-draft-basic__save-area">
+                            <div className="product-draft-basic__save-copy">
+                              <Typography.Text strong>保存范围</Typography.Text>
+                              <Typography.Text type="secondary">
+                                仅保存本表单中的标题、描述、币种和状态；AI、图片、SKU、库存和刊登配置需要在对应 Tab 单独处理。
+                              </Typography.Text>
+                            </div>
+                            <div className="product-draft-basic__save-actions">{dom}</div>
+                          </div>
+                        ),
+                      }}
+                      onFinish={async (vals: Record<string, unknown>) => {
+                        try {
+                          await updateProduct(id, {
+                            title: String(vals.title ?? ''),
+                            originalTitle: String(vals.originalTitle ?? ''),
+                            aiTitle: String(vals.aiTitle ?? ''),
+                            description: String(vals.description ?? ''),
+                            aiDescription: String(vals.aiDescription ?? ''),
+                            currency: String(vals.currency ?? ''),
+                            status: String(vals.status ?? ''),
+                          });
+                          message.success('已保存');
+                          await reloadDetail();
+                          return true;
+                        } catch (e: unknown) {
+                          message.error((e as Error)?.message || '保存失败');
+                          return false;
+                        }
+                      }}
+                      layout="vertical"
+                      grid
+                      initialValues={{
+                        title: data.title,
+                        originalTitle: data.originalTitle,
+                        aiTitle: data.aiTitle ?? '',
+                        description: data.description ?? '',
+                        aiDescription: data.aiDescription ?? '',
+                        currency: data.currency || 'CNY',
+                        status: data.status,
+                      }}
+                      colProps={{ xs: 24, md: 12 }}
+                    >
+                      <div id="title" className="product-draft-basic__anchor" />
+                      <ProFormText
+                        name="title"
+                        label="主标题"
+                        rules={[{ required: true, message: '必填' }]}
+                        colProps={{ xs: 24 }}
+                        extra="发布和运营默认使用的商品标题。"
+                      />
+                      <ProFormTextArea
+                        name="originalTitle"
+                        label="原始标题"
+                        fieldProps={{ rows: 2 }}
+                        extra="采集时带回的原始标题，用于对照来源内容。"
+                      />
+                      <ProFormTextArea
+                        name="aiTitle"
+                        label="AI 标题"
+                        fieldProps={{ rows: 2 }}
+                        extra="AI 生成结果应用后会写入这里；本页保存只保存当前字段值。"
+                      />
+                      <ProFormTextArea
+                        name="description"
+                        label="主描述"
+                        fieldProps={{ rows: 5 }}
+                        colProps={{ xs: 24, lg: 12 }}
+                        extra="发布前建议保留完整卖点、材质、尺寸和注意事项。"
+                      />
+                      <ProFormTextArea
+                        name="aiDescription"
+                        label="AI 描述"
+                        fieldProps={{ rows: 5 }}
+                        colProps={{ xs: 24, lg: 12 }}
+                        extra="AI 生成结果应用后会写入这里，可与主描述对照。"
+                      />
+                      <ProFormText name="currency" label="币种" extra="仅保存商品基础币种展示，不会重新计算 SKU 价格。" />
+                      <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} extra="状态值保持原有枚举，用于草稿流转。" />
+                    </ProForm>
+                  </SectionCard>
+
+                  <SectionCard
+                    title="采集扩展属性"
+                    description="从采集原始数据中提取，仅用于核对和后续平台映射参考。"
+                    className="product-draft-basic__section product-draft-basic__attributes"
+                  >
                     <div id="attributes" />
-                    <Card title="采集属性" size="small" style={{ marginBottom: 16 }}>
+                    {collectedAttrRows.length > 0 ? (
                       <Table
                         size="small"
-                        pagination={false}
+                        pagination={collectedAttrRows.length > 12 ? { pageSize: 12, size: 'small' } : false}
                         rowKey="key"
-                        dataSource={Object.entries(collectedAttrs).map(([key, value]) => ({ key, value }))}
+                        dataSource={collectedAttrRows}
+                        className="product-draft-basic__attr-table"
                         columns={[
-                          { title: '属性', dataIndex: 'key', width: 180 },
-                          { title: '值', dataIndex: 'value', ellipsis: true },
+                          {
+                            title: '属性',
+                            dataIndex: 'key',
+                            width: 220,
+                            render: (value) => (
+                              <Typography.Text strong className="product-draft-basic__attr-key" title={String(value ?? '')}>
+                                {String(value ?? '') || '—'}
+                              </Typography.Text>
+                            ),
+                          },
+                          {
+                            title: '采集值',
+                            dataIndex: 'value',
+                            render: (value) => {
+                              const text = String(value ?? '');
+                              return (
+                                <Tooltip title={text}>
+                                  <Typography.Text className="product-draft-basic__attr-value">
+                                    {text || '—'}
+                                  </Typography.Text>
+                                </Tooltip>
+                              );
+                            },
+                          },
                         ]}
                       />
-                    </Card>
-                    </>
-                  ) : null}
-
-                  <ProForm
-                    key={`basic-${data.id}-${data.updatedAt}`}
-                    submitter={{
-                      searchConfig: { submitText: '保存基础信息' },
-                      submitButtonProps: { type: 'primary' },
-                      resetButtonProps: false,
-                    }}
-                    onFinish={async (vals: Record<string, unknown>) => {
-                      try {
-                        await updateProduct(id, {
-                          title: String(vals.title ?? ''),
-                          originalTitle: String(vals.originalTitle ?? ''),
-                          aiTitle: String(vals.aiTitle ?? ''),
-                          description: String(vals.description ?? ''),
-                          aiDescription: String(vals.aiDescription ?? ''),
-                          currency: String(vals.currency ?? ''),
-                          status: String(vals.status ?? ''),
-                        });
-                        message.success('已保存');
-                        await reloadDetail();
-                        return true;
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '保存失败');
-                        return false;
-                      }
-                    }}
-                    layout="vertical"
-                    grid
-                    initialValues={{
-                      title: data.title,
-                      originalTitle: data.originalTitle,
-                      aiTitle: data.aiTitle ?? '',
-                      description: data.description ?? '',
-                      aiDescription: data.aiDescription ?? '',
-                      currency: data.currency || 'CNY',
-                      status: data.status,
-                    }}
-                    colProps={{ span: 12 }}
-                  >
-                    <div id="title" />
-                    <ProFormText name="title" label="主标题" rules={[{ required: true, message: '必填' }]} />
-                    <ProFormTextArea name="originalTitle" label="原始标题" fieldProps={{ rows: 2 }} />
-                    <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
-                    <ProFormTextArea name="description" label="主描述" fieldProps={{ rows: 5 }} />
-                    <ProFormTextArea name="aiDescription" label="AI 描述" fieldProps={{ rows: 5 }} />
-                    <ProFormText name="currency" label="币种" />
-                    <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} />
-                  </ProForm>
-                </Card>
+                    ) : (
+                      <EmptyState
+                        compact
+                        title="暂无采集扩展属性"
+                        description="当前商品详情没有返回可展示的采集属性。若发布检查提示平台属性缺失，请到发布检查或刊登配置中补齐。"
+                      />
+                    )}
+                  </SectionCard>
+                </Space>
               ),
             },
             {
               key: 'ai',
-              label: 'AI',
+              label: tabLabels.ai,
               children: (
-                <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                  <Card variant="borderless" styles={{ body: { paddingBottom: 12 } }}>
-                    <Space wrap size="middle">
-                      <Button
-                        type="primary"
-                        onClick={() => {
-                          setAiResult(null);
-                          setAiPreparedTitle('');
-                          aiForm.resetFields();
-                          aiForm.setFieldsValue({ language: 'en', platform: 'TikTok Shop', maxLength: 120 });
-                          setAiOpen(true);
-                        }}
-                      >
-                        标题优化
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={() => {
-                          setDescResult(null);
-                          setDescPreparedText('');
-                          descForm.resetFields();
-                          descForm.setFieldsValue({
-                            language: 'en',
-                            platform: 'TikTok Shop',
-                            tone: 'professional',
-                          });
-                          setDescOpen(true);
-                        }}
-                      >
-                        描述生成
-                      </Button>
-                    </Space>
-                  </Card>
+                <Space direction="vertical" className="product-draft-ai" size="middle">
+                  <SectionCard
+                    title="AI 文案工作台"
+                    description="先生成建议，再人工确认应用。生成不会保存到商品字段，应用才会写入 AI 标题或 AI 描述。"
+                    headerExtra={
+                      <>
+                        <Button
+                          type="primary"
+                          icon={<ThunderboltOutlined />}
+                          onClick={() => {
+                            setAiResult(null);
+                            setAiPreparedTitle('');
+                            aiForm.resetFields();
+                            aiForm.setFieldsValue({ language: 'en', platform: 'TikTok Shop', maxLength: 120 });
+                            setAiOpen(true);
+                          }}
+                        >
+                          生成标题建议
+                        </Button>
+                        <Button
+                          icon={<FileTextOutlined />}
+                          onClick={() => {
+                            setDescResult(null);
+                            setDescPreparedText('');
+                            descForm.resetFields();
+                            descForm.setFieldsValue({
+                              language: 'en',
+                              platform: 'TikTok Shop',
+                              tone: 'professional',
+                            });
+                            setDescOpen(true);
+                          }}
+                        >
+                          生成描述建议
+                        </Button>
+                      </>
+                    }
+                  >
+                    <div className="product-draft-ai__guide">
+                      <div className="product-draft-ai__guide-item">
+                        <RobotOutlined />
+                        <div>
+                          <Typography.Text strong>生成建议</Typography.Text>
+                          <Typography.Text type="secondary">创建 AI 结果，可能消耗模型额度。</Typography.Text>
+                        </div>
+                      </div>
+                      <div className="product-draft-ai__guide-item">
+                        <CheckCircleOutlined />
+                        <div>
+                          <Typography.Text strong>应用文案</Typography.Text>
+                          <Typography.Text type="secondary">人工确认后写入商品草稿的 AI 字段。</Typography.Text>
+                        </div>
+                      </div>
+                      <div className="product-draft-ai__guide-item">
+                        <UndoOutlined />
+                        <div>
+                          <Typography.Text strong>撤销应用</Typography.Text>
+                          <Typography.Text type="secondary">恢复最近一次应用前的 AI 字段内容。</Typography.Text>
+                        </div>
+                      </div>
+                    </div>
 
-                  <Card title="最近任务">
+                    <div className="product-draft-ai__copy-grid">
+                      <div className="product-draft-ai__copy-panel">
+                        <div className="product-draft-ai__copy-head">
+                          <div>
+                            <Typography.Text strong>标题</Typography.Text>
+                            <Typography.Paragraph type="secondary">用于刊登标题候选，不覆盖主标题。</Typography.Paragraph>
+                          </div>
+                          <Tag color={appliedAiTitleText ? 'success' : 'default'}>
+                            {appliedAiTitleText ? '已应用 AI 标题' : '未应用 AI 标题'}
+                          </Tag>
+                        </div>
+                        <div className="product-draft-ai__text-stack">
+                          <div className="product-draft-ai__text-box">
+                            <span>当前原文</span>
+                            {aiTextPreview(originalTitleText, '暂无标题')}
+                          </div>
+                          <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
+                            <span>已应用 AI 标题</span>
+                            {aiTextPreview(appliedAiTitleText, '还没有应用 AI 标题')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="product-draft-ai__copy-panel">
+                        <div className="product-draft-ai__copy-head">
+                          <div>
+                            <Typography.Text strong>描述</Typography.Text>
+                            <Typography.Paragraph type="secondary">用于刊登描述候选，不覆盖主描述。</Typography.Paragraph>
+                          </div>
+                          <Tag color={appliedAiDescriptionText ? 'success' : 'default'}>
+                            {appliedAiDescriptionText ? '已应用 AI 描述' : '未应用 AI 描述'}
+                          </Tag>
+                        </div>
+                        <div className="product-draft-ai__text-stack">
+                          <div className="product-draft-ai__text-box">
+                            <span>当前原文</span>
+                            {aiTextPreview(originalDescriptionText, '暂无描述')}
+                          </div>
+                          <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
+                            <span>已应用 AI 描述</span>
+                            {aiTextPreview(appliedAiDescriptionText, '还没有应用 AI 描述')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {latestFailedAiTask ? (
+                      <ErrorAlert
+                        className="product-draft-ai__failure"
+                        title={`最近 AI 文案任务失败：${aiTaskTypeLabel(latestFailedAiTask.taskType)}`}
+                        actionHint={
+                          <Space direction="vertical" size={2}>
+                            <Typography.Text>{latestFailedAiTask.errorMessage || '任务未返回具体失败原因。'}</Typography.Text>
+                            <Typography.Text>{aiTaskNextStep(latestFailedAiTask)}</Typography.Text>
+                          </Space>
+                        }
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="最近 AI 文案任务"
+                    description="任务状态只表示 AI 生成过程；成功生成后仍需人工应用到商品。"
+                  >
                     <ProTable<AITaskRow>
                       rowKey="id"
                       search={false}
                       options={false}
                       pagination={false}
                       dataSource={aiTasks}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无 AI 文案任务"
+                            description="可以先生成标题建议或描述建议。"
+                          />
+                        ),
+                      }}
                       columns={[
-                        { title: '类型', dataIndex: 'taskType', width: 200 },
-                        { title: '状态', dataIndex: 'status', width: 100 },
-                        { title: '模型', dataIndex: 'model', ellipsis: true },
                         {
-                          title: 'AI 消耗量',
-                          width: 100,
-                          render: (_: unknown, row: AITaskRow) => `${row.tokenInput ?? 0}/${row.tokenOutput ?? 0}`,
+                          title: '类型',
+                          dataIndex: 'taskType',
+                          width: 176,
+                          render: (_, row) => (
+                            <Tooltip title={row.taskType}>
+                              <Typography.Text>{aiTaskTypeLabel(row.taskType)}</Typography.Text>
+                            </Tooltip>
+                          ),
                         },
-                        { title: '技能模板', dataIndex: 'promptCode', width: 160, ellipsis: true },
+                        {
+                          title: '状态',
+                          dataIndex: 'status',
+                          width: 112,
+                          render: (_, row) => <StatusTag status={row.status} />,
+                        },
+                        {
+                          title: '模型',
+                          dataIndex: 'model',
+                          ellipsis: true,
+                          render: (_, row) => (
+                            <Space size={4} wrap>
+                              {row.provider ? <Tag>{aiTextProviderLabel(row.provider) || row.provider}</Tag> : null}
+                              <Typography.Text ellipsis>{row.model || '—'}</Typography.Text>
+                            </Space>
+                          ),
+                        },
+                        {
+                          title: '模型额度',
+                          width: 120,
+                          render: (_: unknown, row: AITaskRow) => (
+                            <Tooltip title="输入 / 输出 token，仅作模型额度参考">
+                              <Typography.Text>{aiTaskCostText(row)}</Typography.Text>
+                            </Tooltip>
+                          ),
+                        },
+                        {
+                          title: '失败原因和下一步',
+                          dataIndex: 'errorMessage',
+                          ellipsis: true,
+                          render: (_, row) =>
+                            isAiTaskFailed(row) ? (
+                              <Space direction="vertical" size={0}>
+                                <Typography.Text type="danger" ellipsis>
+                                  {row.errorMessage || '任务失败，未返回具体原因'}
+                                </Typography.Text>
+                                <Typography.Text type="secondary">{aiTaskNextStep(row)}</Typography.Text>
+                              </Space>
+                            ) : (
+                              <Typography.Text type="secondary">—</Typography.Text>
+                            ),
+                        },
+                        {
+                          title: '技能模板',
+                          dataIndex: 'promptCode',
+                          width: 160,
+                          ellipsis: true,
+                          render: (_, row) => (
+                            <Tooltip title={row.promptCode}>
+                              <Typography.Text>{aiPromptCodeLabel(row.promptCode)}</Typography.Text>
+                            </Tooltip>
+                          ),
+                        },
                         {
                           title: '时间',
                           dataIndex: 'createdAt',
@@ -2147,10 +2656,10 @@ export default function ProductDraftDetailPage() {
                       ]}
                       size="small"
                     />
-                  </Card>
+                  </SectionCard>
 
                   {data.rawData != null ? (
-                    <TechnicalDetails label="采集原始信息">
+                    <TechnicalDetails label="原始采集 JSON（技术参考）" className="product-draft-ai__raw">
                       <TaskJsonBlock title="原始信息" value={data.rawData} maxHeight={360} last />
                     </TechnicalDetails>
                   ) : null}
@@ -2159,7 +2668,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'images',
-              label: '图片管理',
+              label: tabLabels.images,
               children: (
                 <Card variant="borderless">
                   {isPinduoduoProduct(data) ? (
@@ -2327,7 +2836,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'skus',
-              label: '商品规格',
+              label: tabLabels.skus,
               children: (
                 <Card variant="borderless">
                   {(data.source === 'custom' || isPinduoduoProduct(data)) &&
@@ -2410,7 +2919,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'inventory',
-              label: '库存',
+              label: tabLabels.inventory,
               children: (
                 <>
                   <InventorySyncDisabledBanner />
@@ -2826,7 +3335,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'readiness',
-              label: '发布检查',
+              label: tabLabels.readiness,
               children: (
                 <Card id="publish-check" variant="borderless">
                   <Space direction="vertical" style={{ width: '100%' }} size="large">
@@ -2929,7 +3438,7 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'publish',
-              label: '刊登',
+              label: tabLabels.publish,
               children: (
                 <Spin spinning={pubCtxLoading || publishReadinessLoading}>
                   <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -3943,11 +4452,19 @@ export default function ProductDraftDetailPage() {
         onCancel={() => setAiOpen(false)}
         footer={null}
         destroyOnHidden
-        width={640}
+        width={760}
+        className="product-draft-ai-modal"
       >
+        <Alert
+          type="info"
+          showIcon
+          className="product-draft-ai-modal__notice"
+          message="生成只创建标题建议，不会保存到商品。应用后才会写入 AI 标题，可能消耗模型额度。"
+        />
         <Form
           form={aiForm}
           layout="vertical"
+          className="product-draft-ai-modal__form"
           initialValues={{ language: 'en', platform: 'TikTok Shop', maxLength: 120 }}
           onFinish={async (v) => {
             setAiBusy(true);
@@ -3969,100 +4486,125 @@ export default function ProductDraftDetailPage() {
             }
           }}
         >
-          <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="例如 en" />
-          </Form.Item>
-          <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
-            <Input placeholder="TikTok Shop" />
-          </Form.Item>
-          <Form.Item name="maxLength" label="最长字符数" rules={[{ required: true }]}>
-            <InputNumber min={20} max={500} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item>
+          <div className="product-draft-ai-modal__fields">
+            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+              <Input placeholder="例如 en" />
+            </Form.Item>
+            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+              <Input placeholder="TikTok Shop" />
+            </Form.Item>
+            <Form.Item name="maxLength" label="最长字符数" rules={[{ required: true }]}>
+              <InputNumber min={20} max={500} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+          <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={aiBusy}>
-              运行优化
+              生成标题建议
             </Button>
           </Form.Item>
         </Form>
 
         {aiResult ? (
-          <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              输出
-            </Typography.Title>
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="原始内容">{data?.title || data?.originalTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="优化标题">{aiResult.optimizedTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="关键词">
-                {(aiResult.keywords ?? []).length ? aiResult.keywords.join('、') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="说明">{aiResult.reason || '—'}</Descriptions.Item>
-              <Descriptions.Item label="任务 ID">{aiResult.taskId}</Descriptions.Item>
-            </Descriptions>
-            <Form.Item label="准备应用的内容">
+          <div className="product-draft-ai-modal__result">
+            <div className="product-draft-ai-modal__result-head">
+              <div>
+                <Typography.Text strong>标题建议结果</Typography.Text>
+                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+              </div>
+              <Tag color="processing">AI 建议未应用</Tag>
+            </div>
+            <div className="product-draft-ai-modal__compare">
+              <div className="product-draft-ai-modal__compare-box">
+                <span>原文</span>
+                {aiTextPreview(data?.title || data?.originalTitle, '暂无标题')}
+              </div>
+              <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
+                <span>AI 建议</span>
+                {aiTextPreview(aiResult.optimizedTitle, '暂无建议')}
+              </div>
+            </div>
+            {(aiResult.keywords ?? []).length || aiResult.reason ? (
+              <div className="product-draft-ai-modal__meta">
+                {(aiResult.keywords ?? []).length ? (
+                  <Space wrap size={4}>
+                    {(aiResult.keywords ?? []).map((keyword) => (
+                      <Tag key={keyword}>{keyword}</Tag>
+                    ))}
+                  </Space>
+                ) : null}
+                {aiResult.reason ? <Typography.Text type="secondary">{aiResult.reason}</Typography.Text> : null}
+              </div>
+            ) : null}
+            <Form.Item
+              label="准备应用为 AI 标题"
+              extra="应用后写入商品草稿的 AI 标题；若商品在生成后被修改，会提示内容冲突。"
+            >
               <Input.TextArea rows={3} value={aiPreparedTitle} onChange={(e) => setAiPreparedTitle(e.target.value)} />
             </Form.Item>
-            <Space wrap>
-            <Button
-              type="primary"
-              disabled={!aiPreparedTitle.trim()}
-              loading={aiBusy}
-              onClick={() => {
-                if (!aiResult?.taskId) return;
-                confirmApplyAiText('标题', async () => {
-                  setAiBusy(true);
-                  try {
-                    await applyProductAITitle(id, {
-                      aiTitle: aiPreparedTitle,
-                      taskId: aiResult.taskId,
-                      expectedUpdatedAt: data?.updatedAt,
-                    });
-                    message.success('已应用为 AI 标题');
-                    setAiOpen(false);
-                    setAiResult(null);
-                    setAiPreparedTitle('');
-                    await reloadDetail();
-                    await reloadTasks();
-                  } catch (e: unknown) {
-                    const msg = (e as Error)?.message || '';
-                    if (msg.includes('conflict')) {
-                      message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
-                      return;
+            <Space wrap className="product-draft-ai-modal__actions">
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                disabled={!aiPreparedTitle.trim()}
+                loading={aiBusy}
+                onClick={() => {
+                  if (!aiResult?.taskId) return;
+                  confirmApplyAiText('标题', async () => {
+                    setAiBusy(true);
+                    try {
+                      await applyProductAITitle(id, {
+                        aiTitle: aiPreparedTitle,
+                        taskId: aiResult.taskId,
+                        expectedUpdatedAt: data?.updatedAt,
+                      });
+                      message.success('已应用为 AI 标题');
+                      setAiOpen(false);
+                      setAiResult(null);
+                      setAiPreparedTitle('');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '';
+                      if (msg.includes('conflict')) {
+                        message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
+                        return;
+                      }
+                      message.error((e as Error)?.message || '应用失败');
+                    } finally {
+                      setAiBusy(false);
                     }
-                    message.error((e as Error)?.message || '应用失败');
-                  } finally {
-                    setAiBusy(false);
-                  }
-                });
-              }}
-            >
-              应用为 AI 标题
-            </Button>
-            <Button
-              loading={aiBusy}
-              onClick={() => {
-                confirmUndoAiText('标题', async () => {
-                  setAiBusy(true);
-                  try {
-                    await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
-                    message.success('已撤销最近一次 AI 标题应用');
-                    await reloadDetail();
-                    await reloadTasks();
-                  } catch (e: unknown) {
-                    const msg = (e as Error)?.message || '撤销失败';
-                    if (msg.includes('conflict')) {
-                      message.warning('AI 标题已经被再次修改，不能静默撤销。');
-                    } else {
-                      message.error(msg);
+                  });
+                }}
+              >
+                应用为 AI 标题
+              </Button>
+              <Button
+                icon={<UndoOutlined />}
+                loading={aiBusy}
+                onClick={() => {
+                  confirmUndoAiText('标题', async () => {
+                    setAiBusy(true);
+                    try {
+                      await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
+                      message.success('已撤销最近一次 AI 标题应用');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '撤销失败';
+                      if (msg.includes('conflict')) {
+                        message.warning('AI 标题已经被再次修改，不能静默撤销。');
+                      } else {
+                        message.error(msg);
+                      }
+                    } finally {
+                      setAiBusy(false);
                     }
-                  } finally {
-                    setAiBusy(false);
-                  }
-                });
-              }}
-            >
-              撤销最近一次应用
-            </Button>
+                  });
+                }}
+              >
+                撤销最近一次应用
+              </Button>
+              <Typography.Text type="secondary">任务 ID：{aiResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
@@ -4074,11 +4616,19 @@ export default function ProductDraftDetailPage() {
         onCancel={() => setDescOpen(false)}
         footer={null}
         destroyOnHidden
-        width={720}
+        width={820}
+        className="product-draft-ai-modal"
       >
+        <Alert
+          type="info"
+          showIcon
+          className="product-draft-ai-modal__notice"
+          message="生成只创建描述建议，不会保存到商品。应用后才会写入 AI 描述，可能消耗模型额度。"
+        />
         <Form
           form={descForm}
           layout="vertical"
+          className="product-draft-ai-modal__form"
           initialValues={{ language: 'en', platform: 'TikTok Shop', tone: 'professional' }}
           onFinish={async (v) => {
             setDescBusy(true);
@@ -4100,109 +4650,147 @@ export default function ProductDraftDetailPage() {
             }
           }}
         >
-          <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="例如 en" />
-          </Form.Item>
-          <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
-            <Input placeholder="TikTok Shop" />
-          </Form.Item>
-          <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
-            <Input placeholder="例如 professional" />
-          </Form.Item>
-          <Form.Item>
+          <div className="product-draft-ai-modal__fields">
+            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+              <Input placeholder="例如 en" />
+            </Form.Item>
+            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+              <Input placeholder="TikTok Shop" />
+            </Form.Item>
+            <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
+              <Input placeholder="例如 professional" />
+            </Form.Item>
+          </div>
+          <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={descBusy}>
-              生成描述
+              生成描述建议
             </Button>
           </Form.Item>
         </Form>
 
         {descResult ? (
-          <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              输出
-            </Typography.Title>
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="描述">{descResult.description || '—'}</Descriptions.Item>
-              <Descriptions.Item label="原始内容">{data?.description || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Highlights">
-                {(descResult.highlights ?? []).length ? descResult.highlights.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Specifications">
-                {(descResult.specifications ?? []).length ? descResult.specifications.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Package includes">
-                {(descResult.packageIncludes ?? []).length ? descResult.packageIncludes.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Notes">{descResult.notes || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Reason">{descResult.reason || '—'}</Descriptions.Item>
-              <Descriptions.Item label="任务 ID">{descResult.taskId}</Descriptions.Item>
-            </Descriptions>
-            <Form.Item label="准备应用的内容">
+          <div className="product-draft-ai-modal__result">
+            <div className="product-draft-ai-modal__result-head">
+              <div>
+                <Typography.Text strong>描述建议结果</Typography.Text>
+                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+              </div>
+              <Tag color="processing">AI 建议未应用</Tag>
+            </div>
+            <div className="product-draft-ai-modal__compare product-draft-ai-modal__compare--description">
+              <div className="product-draft-ai-modal__compare-box">
+                <span>原文</span>
+                {aiTextPreview(data?.description, '暂无描述')}
+              </div>
+              <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
+                <span>AI 建议</span>
+                {aiTextPreview(descResult.description, '暂无建议')}
+              </div>
+            </div>
+            <div className="product-draft-ai-modal__meta product-draft-ai-modal__meta--grid">
+              {(descResult.highlights ?? []).length ? (
+                <div>
+                  <span>Highlights</span>
+                  <Typography.Paragraph>{descResult.highlights.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {(descResult.specifications ?? []).length ? (
+                <div>
+                  <span>Specifications</span>
+                  <Typography.Paragraph>{descResult.specifications.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {(descResult.packageIncludes ?? []).length ? (
+                <div>
+                  <span>Package includes</span>
+                  <Typography.Paragraph>{descResult.packageIncludes.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {descResult.notes ? (
+                <div>
+                  <span>Notes</span>
+                  <Typography.Paragraph>{descResult.notes}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {descResult.reason ? (
+                <div>
+                  <span>Reason</span>
+                  <Typography.Paragraph>{descResult.reason}</Typography.Paragraph>
+                </div>
+              ) : null}
+            </div>
+            <Form.Item
+              label="准备应用为 AI 描述"
+              extra="应用后写入商品草稿的 AI 描述；若商品在生成后被修改，会提示内容冲突。"
+            >
               <Input.TextArea rows={6} value={descPreparedText} onChange={(e) => setDescPreparedText(e.target.value)} />
             </Form.Item>
-            <Space wrap>
-            <Button
-              type="primary"
-              disabled={!descResult.taskId || !descPreparedText.trim()}
-              loading={descBusy}
-              onClick={() => {
-                if (!descResult?.taskId) return;
-                const text = descPreparedText.trim();
-                if (!text) return;
-                confirmApplyAiText('描述', async () => {
-                  setDescBusy(true);
-                  try {
-                    await applyAiDescription(id, {
-                      aiDescription: text,
-                      taskId: descResult.taskId,
-                      expectedUpdatedAt: data?.updatedAt,
-                    });
-                    message.success('已应用为 AI 描述');
-                    setDescOpen(false);
-                    setDescResult(null);
-                    setDescPreparedText('');
-                    await reloadDetail();
-                    await reloadTasks();
-                  } catch (e: unknown) {
-                    const msg = (e as Error)?.message || '';
-                    if (msg.includes('conflict')) {
-                      message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
-                      return;
+            <Space wrap className="product-draft-ai-modal__actions">
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                disabled={!descResult.taskId || !descPreparedText.trim()}
+                loading={descBusy}
+                onClick={() => {
+                  if (!descResult?.taskId) return;
+                  const text = descPreparedText.trim();
+                  if (!text) return;
+                  confirmApplyAiText('描述', async () => {
+                    setDescBusy(true);
+                    try {
+                      await applyAiDescription(id, {
+                        aiDescription: text,
+                        taskId: descResult.taskId,
+                        expectedUpdatedAt: data?.updatedAt,
+                      });
+                      message.success('已应用为 AI 描述');
+                      setDescOpen(false);
+                      setDescResult(null);
+                      setDescPreparedText('');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '';
+                      if (msg.includes('conflict')) {
+                        message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
+                        return;
+                      }
+                      message.error((e as Error)?.message || '应用失败');
+                    } finally {
+                      setDescBusy(false);
                     }
-                    message.error((e as Error)?.message || '应用失败');
-                  } finally {
-                    setDescBusy(false);
-                  }
-                });
-              }}
-            >
-              应用为 AI 描述
-            </Button>
-            <Button
-              loading={descBusy}
-              onClick={() => {
-                confirmUndoAiText('描述', async () => {
-                  setDescBusy(true);
-                  try {
-                    await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
-                    message.success('已撤销最近一次 AI 描述应用');
-                    await reloadDetail();
-                    await reloadTasks();
-                  } catch (e: unknown) {
-                    const msg = (e as Error)?.message || '撤销失败';
-                    if (msg.includes('conflict')) {
-                      message.warning('AI 描述已经被再次修改，不能静默撤销。');
-                    } else {
-                      message.error(msg);
+                  });
+                }}
+              >
+                应用为 AI 描述
+              </Button>
+              <Button
+                icon={<UndoOutlined />}
+                loading={descBusy}
+                onClick={() => {
+                  confirmUndoAiText('描述', async () => {
+                    setDescBusy(true);
+                    try {
+                      await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
+                      message.success('已撤销最近一次 AI 描述应用');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '撤销失败';
+                      if (msg.includes('conflict')) {
+                        message.warning('AI 描述已经被再次修改，不能静默撤销。');
+                      } else {
+                        message.error(msg);
+                      }
+                    } finally {
+                      setDescBusy(false);
                     }
-                  } finally {
-                    setDescBusy(false);
-                  }
-                });
-              }}
-            >
-              撤销最近一次应用
-            </Button>
+                  });
+                }}
+              >
+                撤销最近一次应用
+              </Button>
+              <Typography.Text type="secondary">任务 ID：{descResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
