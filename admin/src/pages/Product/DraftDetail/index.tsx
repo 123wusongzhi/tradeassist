@@ -2045,7 +2045,7 @@ export default function ProductDraftDetailPage() {
 
   return (
     <TmPageContainer
-      className="product-draft-detail-page"
+      className="tm-product-draft-detail product-draft-detail-page"
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       title={
         <div className="product-draft-header">
@@ -4454,12 +4454,13 @@ export default function ProductDraftDetailPage() {
         destroyOnHidden
         width={760}
         className="product-draft-ai-modal"
+        rootClassName="tm-product-draft-detail"
       >
         <Alert
           type="info"
           showIcon
           className="product-draft-ai-modal__notice"
-          message="生成只创建标题建议，不会保存到商品。应用后才会写入 AI 标题，可能消耗模型额度。"
+          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
         />
         <Form
           form={aiForm}
@@ -4618,12 +4619,13 @@ export default function ProductDraftDetailPage() {
         destroyOnHidden
         width={820}
         className="product-draft-ai-modal"
+        rootClassName="tm-product-draft-detail"
       >
         <Alert
           type="info"
           showIcon
           className="product-draft-ai-modal__notice"
-          message="生成只创建描述建议，不会保存到商品。应用后才会写入 AI 描述，可能消耗模型额度。"
+          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
         />
         <Form
           form={descForm}
