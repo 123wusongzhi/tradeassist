@@ -9,6 +9,7 @@ export type EmptyStateProps = {
   actionPath?: string;
   onAction?: () => void;
   className?: string;
+  compact?: boolean;
 };
 
 /** 带下一步引导的空状态 */
@@ -19,6 +20,7 @@ export default function EmptyState({
   actionPath,
   onAction,
   className,
+  compact,
 }: EmptyStateProps) {
   const handleAction = () => {
     if (onAction) {
@@ -29,7 +31,7 @@ export default function EmptyState({
   };
 
   return (
-    <div className={['tm-empty-state', className].filter(Boolean).join(' ')}>
+    <div className={['tm-empty-state', compact ? 'tm-empty-state--compact' : '', className].filter(Boolean).join(' ')}>
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={

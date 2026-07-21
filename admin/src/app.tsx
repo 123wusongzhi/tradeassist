@@ -7,6 +7,7 @@ import type { RequestConfig, RunTimeLayoutConfig } from '@/typings/umi-runtime';
 import AppMessageBridge from '@/components/AppMessageBridge';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { themeTokens, tmSemanticTokens } from '@/constants/layoutTokens';
 import { postJSON } from '@/services/request';
 import { filterMenuByPermission } from '@/utils/menuAccess';
 import { useInitialStateModel } from '@/hooks/useInitialStateModel';
@@ -84,7 +85,7 @@ export const request: RequestConfig = {
   },
 };
 
-const TM_AVATAR_GRADIENT_BG = 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)';
+const TM_AVATAR_GRADIENT_BG = `linear-gradient(135deg, ${themeTokens.colorPrimary} 0%, ${tmSemanticTokens.dataAccent} 100%)`;
 
 const TM_AVATAR_STYLE: CSSProperties = { background: TM_AVATAR_GRADIENT_BG };
 
@@ -281,13 +282,13 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
             fontWeight: 600,
             fontSize: 16,
             letterSpacing: '-0.02em',
-            color: '#0f172a',
+            color: themeTokens.colorText,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
         >
-          贸灵 <span style={{ fontWeight: 500, color: '#64748b' }}>TradeMind</span>
+          贸灵 <span style={{ fontWeight: 500, color: themeTokens.colorTextSecondary }}>TradeMind</span>
         </span>
       </div>
     );
@@ -305,9 +306,10 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
     : false,
   token: {
     headerHeight: 56,
-    colorBgLayout: '#f4f6f9',
-    colorTextMenuSelected: '#2563eb',
+    colorBgLayout: themeTokens.colorBgLayout,
+    colorTextMenuSelected: themeTokens.colorPrimary,
     colorBgMenuItemSelected: 'rgba(37, 99, 235, 0.09)',
+    siderWidth: 224,
   },
   menu: { locale: false },
   menuDataRender: (menuData: MenuDataItem[]) =>

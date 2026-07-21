@@ -8,6 +8,7 @@ export type SectionCardProps = ProCardProps & {
   description?: ReactNode;
   headerExtra?: ReactNode;
   variant?: 'borderless' | 'outlined' | 'filled';
+  compact?: boolean;
 };
 
 /**
@@ -20,6 +21,7 @@ export default function SectionCard({
   children,
   className,
   variant = 'outlined',
+  compact,
   bordered,
   ...rest
 }: SectionCardProps) {
@@ -28,7 +30,14 @@ export default function SectionCard({
     <ProCard
       {...rest}
       bordered={showBorder}
-      className={['tm-section-card', className].filter(Boolean).join(' ')}
+      className={[
+        'tm-section-card',
+        `tm-section-card--${variant}`,
+        compact ? 'tm-section-card--compact' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       title={
         title ? (
           <div className="tm-section-card__head">

@@ -16,7 +16,7 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
@@ -274,29 +274,6 @@ function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
   return [s, e];
 }
 
-function KpiCard(props: {
-  title: string;
-  value: number;
-  tone?: string;
-  onClick?: () => void;
-}) {
-  return (
-    <ProCard
-      variant="outlined"
-      hoverable={!!props.onClick}
-      bodyStyle={{ padding: '14px 16px', cursor: props.onClick ? 'pointer' : 'default' }}
-      onClick={props.onClick}
-    >
-      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-        {props.title}
-      </Typography.Text>
-      <div style={{ fontSize: 28, fontWeight: 600, color: props.tone ?? '#111827', lineHeight: 1.2, marginTop: 4 }}>
-        {props.value ?? 0}
-      </div>
-    </ProCard>
-  );
-}
-
 function TodoCardItem({ item }: { item: DashboardTodo }) {
   const actionLabel = TODO_ACTION_LABEL[item.key] ?? '去处理';
   const hasCount = (item.count ?? 0) > 0;
@@ -497,7 +474,7 @@ function buildKpiCards(summary: DashboardSummary): {
   title: string;
   value: number;
   link: string;
-  tone?: string;
+  intent?: MetricCardIntent;
   emptyHint?: string;
 }[] {
   return [
@@ -505,7 +482,7 @@ function buildKpiCards(summary: DashboardSummary): {
       title: '今日采集任务',
       value: summary.collectFailedCount ?? 0,
       link: '/collect/tasks',
-      tone: '#2563eb',
+      intent: 'data',
       emptyHint: '暂无采集任务',
     },
     {
@@ -518,28 +495,28 @@ function buildKpiCards(summary: DashboardSummary): {
       title: 'AI 待复核',
       value: (summary.aiPendingProducts ?? 0) + (summary.aiReplySuggestionPendingCount ?? 0),
       link: '/ai/operation-workbench',
-      tone: '#7c3aed',
+      intent: 'ai',
       emptyHint: '暂无待复核项',
     },
     {
       title: '发布检查问题',
       value: summary.readinessBlocked ?? summary.readinessBlockedProducts ?? 0,
       link: '/product/drafts?readiness=blocked',
-      tone: '#ea580c',
+      intent: 'warning',
       emptyHint: '发布检查均通过',
     },
     {
       title: '刊登任务异常',
       value: summary.publishFailedTasks ?? 0,
       link: '/product/publish-tasks?status=failed',
-      tone: '#dc2626',
+      intent: 'danger',
       emptyHint: '暂无刊登异常',
     },
     {
       title: '订单异常',
       value: summary.orderExceptions ?? summary.orderExceptionTotal ?? 0,
       link: '/orders/exceptions',
-      tone: '#dc2626',
+      intent: 'danger',
       emptyHint: '暂无订单异常',
     },
     {
@@ -548,28 +525,28 @@ function buildKpiCards(summary: DashboardSummary): {
         (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
         (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
-      tone: '#dc2626',
+      intent: 'danger',
       emptyHint: '库存状态正常',
     },
     {
       title: '客服待回复',
       value: summary.customerPendingReplyCount ?? summary.customerPendingConversations ?? 0,
       link: '/customer/conversations?status=pending_reply',
-      tone: '#0891b2',
+      intent: 'data',
       emptyHint: '暂无待回复会话',
     },
     {
       title: '失败任务',
       value: summary.failedTaskTotal ?? summary.failedTasks ?? 0,
       link: '/ops/task-center/failures',
-      tone: '#b91c1c',
+      intent: 'danger',
       emptyHint: '暂无失败任务',
     },
     {
       title: '配置风险',
       value: summary.configRiskCount ?? 0,
       link: '/settings/config-status',
-      tone: '#b45309',
+      intent: 'warning',
       emptyHint: '核心配置已完成',
     },
   ];
@@ -864,7 +841,7 @@ export default function ProductOperationsDashboardPage() {
       subTitle={PAGE_COPY.dashboard.description}
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       extra={
-        <Space>
+        <OperationToolbar>
           <Button
             type={autoRefresh ? 'primary' : 'default'}
             ghost={autoRefresh}
@@ -876,7 +853,7 @@ export default function ProductOperationsDashboardPage() {
           <Button icon={<ReloadOutlined />} onClick={doRefresh} loading={loading}>
             重新加载
           </Button>
-        </Space>
+        </OperationToolbar>
       }
     >
       {/* 筛选 */}
@@ -957,22 +934,23 @@ export default function ProductOperationsDashboardPage() {
                 </Typography.Title>
               </Col>
               <Col>
-                <Space wrap>
+                <OperationToolbar>
                   {welcomeActions.map((a) => (
                     <Button key={a.link} icon={a.icon} onClick={() => history.push(appendSourceToUrl(a.link))}>
                       {a.label}
                     </Button>
                   ))}
-                </Space>
+                </OperationToolbar>
               </Col>
             </Row>
             <Row gutter={[12, 12]}>
               {kpiCards.map((card) => (
                 <Col xs={12} sm={8} md={6} lg={4} xl={4} key={card.title}>
-                  <KpiCard
+                  <MetricCard
                     title={card.title}
                     value={card.value}
-                    tone={card.tone}
+                    description={card.value > 0 ? undefined : card.emptyHint}
+                    intent={card.intent}
                     onClick={() => history.push(appendSourceToUrl(card.link))}
                   />
                 </Col>

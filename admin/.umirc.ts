@@ -1,4 +1,5 @@
 import { defineConfig } from '@umijs/max';
+import { elevationTokens, layoutTokens, themeTokens } from './src/constants/layoutTokens';
 import routes from './config/routes';
 
 export default defineConfig({
@@ -10,26 +11,47 @@ export default defineConfig({
       theme: {
         cssVar: true,
         token: {
-          colorPrimary: '#2563eb',
-          colorInfo: '#0891b2',
-          borderRadius: 8,
-          fontFamily:
-            "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+          colorPrimary: themeTokens.colorPrimary,
+          colorSuccess: themeTokens.colorSuccess,
+          colorWarning: themeTokens.colorWarning,
+          colorError: themeTokens.colorError,
+          colorInfo: themeTokens.colorInfo,
+          colorText: themeTokens.colorText,
+          colorTextSecondary: themeTokens.colorTextSecondary,
+          colorBorderSecondary: themeTokens.colorBorderSecondary,
+          colorBgLayout: themeTokens.colorBgLayout,
+          colorBgContainer: themeTokens.colorBgContainer,
+          borderRadius: layoutTokens.borderRadius,
+          borderRadiusLG: layoutTokens.borderRadiusLg,
+          controlHeight: layoutTokens.controlHeight,
+          boxShadowTertiary: elevationTokens.cardShadow,
+          fontFamily: themeTokens.fontFamily,
         },
         components: {
           Layout: {
-            bodyBg: '#f4f6f9',
-            headerBg: '#ffffff',
-            footerBg: '#f4f6f9',
-            siderBg: '#ffffff',
+            bodyBg: themeTokens.colorBgLayout,
+            headerBg: themeTokens.colorBgContainer,
+            footerBg: themeTokens.colorBgLayout,
+            siderBg: themeTokens.colorBgContainer,
           },
           Menu: {
-            itemBorderRadius: 8,
+            itemBorderRadius: layoutTokens.borderRadius,
+            itemHeight: 40,
+            itemMarginBlock: 4,
+            itemMarginInline: 8,
             iconSize: 16,
             collapsedIconSize: 16,
           },
           Card: {
-            headerFontSize: 15,
+            headerFontSize: layoutTokens.pageDescSize + 1,
+            borderRadiusLG: layoutTokens.borderRadius,
+          },
+          Button: {
+            borderRadius: layoutTokens.borderRadius,
+          },
+          Table: {
+            headerBg: '#f8fafc',
+            cellFontSize: 14,
           },
         },
       },
