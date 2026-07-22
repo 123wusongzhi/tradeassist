@@ -650,6 +650,15 @@ function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
 }
 
 const PRODUCT_DRAFT_TABS = new Set(['basic', 'ai', 'images', 'skus', 'inventory', 'readiness', 'publish']);
+const PRODUCT_DRAFT_TAB_LABELS: Record<string, string> = {
+  basic: '基础信息',
+  ai: 'AI',
+  images: '图片管理',
+  skus: '商品规格',
+  inventory: '库存',
+  readiness: '发布检查',
+  publish: '刊登',
+};
 
 function tabFromOperationUrl(raw?: string): string | null {
   if (!raw) return null;
@@ -740,12 +749,22 @@ function OperationProgressPanel({
       severity: 'warning' as const,
     })),
   ].slice(0, 5);
+  const blockerCount = progress.blockerCount ?? progress.blockers?.length ?? 0;
+  const warningCount = progress.warningCount ?? progress.warnings?.length ?? 0;
+  const priorityTone = blockerCount > 0 ? 'danger' : warningCount > 0 ? 'warning' : progress.publishReady ? 'ready' : 'default';
 
   return (
     <SectionCard
-      title="商品运营进度"
+      title={
+        <div className="product-draft-progress__title">
+          <span>商品运营进度</span>
+          <Tag color={blockerCount > 0 ? 'red' : warningCount > 0 ? 'orange' : progress.publishReady ? 'green' : 'blue'}>
+            {blockerCount > 0 ? '存在阻断' : warningCount > 0 ? '建议检查' : progress.publishReady ? '可进入刊登' : '继续完善'}
+          </Tag>
+        </div>
+      }
       description="用来判断当前商品能否进入发布检查和刊登。"
-      className="product-draft-progress"
+      className={`product-draft-progress product-draft-progress--${priorityTone}`}
       headerExtra={
         <OperationToolbar>
           <Button icon={<ReloadOutlined />} onClick={onReload} loading={loading}>
@@ -758,6 +777,15 @@ function OperationProgressPanel({
       }
     >
       <Spin spinning={loading}>
+        <div className="product-draft-progress__priority">
+          <div>
+            <Typography.Text type="secondary">下一步</Typography.Text>
+            <Typography.Text strong>{progress.nextActionLabel || progress.currentStepLabel || '继续完善'}</Typography.Text>
+          </div>
+          <Button type="link" className="product-draft-progress__priority-action" onClick={() => onAction(progress.nextActionUrl)}>
+            进入处理位置
+          </Button>
+        </div>
         <div className="product-draft-progress__grid">
           <div className="product-draft-progress__meter">
             <div className="product-draft-progress__meter-head">
@@ -778,11 +806,11 @@ function OperationProgressPanel({
             </div>
             <div className="product-draft-progress__metric">
               <span>阻断问题</span>
-              <strong>{progress.blockerCount ?? progress.blockers?.length ?? 0}</strong>
+              <strong>{blockerCount}</strong>
             </div>
             <div className="product-draft-progress__metric">
               <span>建议检查</span>
-              <strong>{progress.warningCount ?? progress.warnings?.length ?? 0}</strong>
+              <strong>{warningCount}</strong>
             </div>
           </div>
         </div>
@@ -1946,29 +1974,41 @@ export default function ProductDraftDetailPage() {
 
   const renderDraftTabLabel = (
     label: string,
-    count?: number,
-    tone: 'default' | 'warning' | 'danger' = 'default',
-  ) => (
-    <span className="product-draft-tabs__label">
-      <span>{label}</span>
-      {typeof count === 'number' && count > 0 ? (
-        <span className={`product-draft-tabs__count product-draft-tabs__count--${tone}`}>{count}</span>
-      ) : null}
-    </span>
-  );
+    options: {
+      count?: number;
+      tone?: 'default' | 'warning' | 'danger';
+      icon?: ReactNode;
+      hint?: string;
+    } = {},
+  ) => {
+    const { count, tone = 'default', icon, hint } = options;
+    return (
+      <span className="product-draft-tabs__label">
+        {icon ? <span className="product-draft-tabs__icon">{icon}</span> : null}
+        <span className="product-draft-tabs__text">
+          <span>{label}</span>
+          {hint ? <span>{hint}</span> : null}
+        </span>
+        {typeof count === 'number' && count > 0 ? (
+          <span className={`product-draft-tabs__count product-draft-tabs__count--${tone}`}>{count}</span>
+        ) : null}
+      </span>
+    );
+  };
 
   const tabLabels: Record<string, ReactNode> = {
-    basic: renderDraftTabLabel('基础信息'),
-    ai: renderDraftTabLabel('AI', aiTasks.length),
-    images: renderDraftTabLabel('图片管理', sortedImages.length),
-    skus: renderDraftTabLabel('商品规格', data?.skus?.length ?? 0),
-    inventory: renderDraftTabLabel('库存', pubSkuRows.length),
-    readiness: renderDraftTabLabel(
-      '发布检查',
-      progressBlockerCount || progressWarningCount,
-      progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'default',
-    ),
-    publish: renderDraftTabLabel('刊登', pubRows.length),
+    basic: renderDraftTabLabel('基础信息', { icon: <FileTextOutlined />, hint: '内容' }),
+    ai: renderDraftTabLabel('AI', { count: aiTasks.length, icon: <RobotOutlined />, hint: '文案' }),
+    images: renderDraftTabLabel('图片管理', { count: sortedImages.length, icon: <PictureOutlined />, hint: '素材' }),
+    skus: renderDraftTabLabel('商品规格', { count: data?.skus?.length ?? 0, icon: <UnorderedListOutlined />, hint: '价格' }),
+    inventory: renderDraftTabLabel('库存', { count: pubSkuRows.length, icon: <CloudUploadOutlined />, hint: '同步' }),
+    readiness: renderDraftTabLabel('发布检查', {
+      count: progressBlockerCount || progressWarningCount,
+      tone: progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'default',
+      icon: <CheckCircleOutlined />,
+      hint: '问题',
+    }),
+    publish: renderDraftTabLabel('刊登', { count: pubRows.length, icon: <SyncOutlined />, hint: '平台' }),
   };
 
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
@@ -2227,10 +2267,13 @@ export default function ProductDraftDetailPage() {
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       title={
         <div className="product-draft-header">
-          <Link to="/product/drafts" className="product-draft-header__back">
-            <ArrowLeftOutlined />
-            返回商品草稿
-          </Link>
+          <div className="product-draft-header__locator">
+            <Link to="/product/drafts" className="product-draft-header__back">
+              <ArrowLeftOutlined />
+              返回商品草稿
+            </Link>
+            <span className="product-draft-header__eyebrow">商品运营详情</span>
+          </div>
           <div className="product-draft-header__main">
             <div className="product-draft-header__identity">
               <Typography.Title level={3} className="product-draft-header__title" title={productTitle}>
@@ -2239,16 +2282,39 @@ export default function ProductDraftDetailPage() {
               {data ? <StatusTag status={data.status} /> : null}
             </div>
             {data ? (
-              <div className="product-draft-header__meta">
-                <Typography.Text type="secondary" copyable={{ text: id }}>
-                  ID {id}
-                </Typography.Text>
-                <span>{data.source ? `来源 ${data.source}` : '来源未记录'}</span>
-                {productUpdatedAt ? <span>更新于 {productUpdatedAt}</span> : null}
-                {progressBlockerCount > 0 ? <Tag color="red">阻断 {progressBlockerCount}</Tag> : null}
-                {progressBlockerCount === 0 && progressWarningCount > 0 ? (
-                  <Tag color="orange">建议检查 {progressWarningCount}</Tag>
-                ) : null}
+              <div className="product-draft-header__meta" aria-label="商品摘要信息">
+                <div className="product-draft-header__meta-item">
+                  <span>来源平台</span>
+                  <strong>{data.source ? platformDisplayName(data.source) : '未记录'}</strong>
+                </div>
+                <div className="product-draft-header__meta-item product-draft-header__meta-item--source">
+                  <span>来源商品</span>
+                  {data.sourceUrl ? (
+                    <Typography.Link href={data.sourceUrl} target="_blank" rel="noreferrer" title={data.sourceUrl}>
+                      打开原商品
+                    </Typography.Link>
+                  ) : (
+                    <strong>未提供</strong>
+                  )}
+                </div>
+                <div className="product-draft-header__meta-item">
+                  <span>更新时间</span>
+                  <strong>{productUpdatedAt || '未记录'}</strong>
+                </div>
+                <div className="product-draft-header__meta-item product-draft-header__meta-item--id">
+                  <span>草稿 ID</span>
+                  <Typography.Text copyable={{ text: id }}>{id}</Typography.Text>
+                </div>
+                <div className={`product-draft-header__meta-item product-draft-header__meta-item--severity product-draft-header__meta-item--${progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'ready'}`}>
+                  <span>发布检查</span>
+                  <strong>
+                    {progressBlockerCount > 0
+                      ? `阻断 ${progressBlockerCount}`
+                      : progressWarningCount > 0
+                        ? `建议检查 ${progressWarningCount}`
+                        : '暂无阻断'}
+                  </strong>
+                </div>
               </div>
             ) : null}
           </div>
@@ -2258,49 +2324,55 @@ export default function ProductDraftDetailPage() {
       extra={
         data ? (
           <div className="product-draft-header__actions">
-            <Button
-              onClick={async () => {
-                try {
-                  await updateProduct(id, { status: 'ready' });
-                  message.success('已设为「可用」');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
-              }}
-            >
-              标记为可用
-            </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  await updateProduct(id, { status: 'archived' });
-                  message.success('已归档');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
-              }}
-            >
-              归档
-            </Button>
-            <Popconfirm
-              title="确定删除草稿？"
-              description="软删除，列表不可见"
-              onConfirm={async () => {
-                try {
-                  await deleteProduct(id);
-                  message.success('已删除');
-                  window.location.href = '/product/drafts';
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
-                }
-              }}
-            >
-              <Button danger type="text" icon={<DeleteOutlined />}>
-                删除草稿
+            <div className="product-draft-header__action-group">
+              <span>状态操作</span>
+              <Button
+                onClick={async () => {
+                  try {
+                    await updateProduct(id, { status: 'ready' });
+                    message.success('已设为「可用」');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                }}
+              >
+                标记为可用
               </Button>
-            </Popconfirm>
+              <Button
+                onClick={async () => {
+                  try {
+                    await updateProduct(id, { status: 'archived' });
+                    message.success('已归档');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                }}
+              >
+                归档
+              </Button>
+            </div>
+            <div className="product-draft-header__action-group product-draft-header__action-group--danger">
+              <span>危险操作</span>
+              <Popconfirm
+                title="确定删除草稿？"
+                description="软删除，列表不可见"
+                onConfirm={async () => {
+                  try {
+                    await deleteProduct(id);
+                    message.success('已删除');
+                    window.location.href = '/product/drafts';
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                }}
+              >
+                <Button danger type="text" icon={<DeleteOutlined />}>
+                  删除草稿
+                </Button>
+              </Popconfirm>
+            </div>
           </div>
         ) : null
       }
@@ -2326,19 +2398,31 @@ export default function ProductDraftDetailPage() {
             onReload={() => void reloadOperationProgress()}
             onAction={openOperationAction}
           />
-          <Tabs
-          className="product-draft-tabs"
-          activeKey={draftTabKey}
-          onChange={(k) => {
-            setDraftTabKey(k);
-            setPendingSection('');
-            const q = new URLSearchParams(window.location.search);
-            q.set('tab', k);
-            q.delete('section');
-            window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
-            if (k === 'inventory') void reloadPublicationSkus();
-          }}
-          items={[
+          <div className="product-draft-tabs-frame">
+            <div className="product-draft-tabs-frame__head">
+              <div>
+                <Typography.Text type="secondary">当前模块</Typography.Text>
+                <Typography.Text strong>{PRODUCT_DRAFT_TAB_LABELS[draftTabKey] || PRODUCT_DRAFT_TAB_LABELS.basic}</Typography.Text>
+              </div>
+              <div className="product-draft-tabs-frame__status" aria-label="当前商品发布检查摘要">
+                {progressBlockerCount > 0 ? <Tag color="red">阻断 {progressBlockerCount}</Tag> : null}
+                {progressWarningCount > 0 ? <Tag color="orange">建议检查 {progressWarningCount}</Tag> : null}
+                {progressBlockerCount === 0 && progressWarningCount === 0 ? <Tag color="green">暂无阻断</Tag> : null}
+              </div>
+            </div>
+            <Tabs
+              className="product-draft-tabs"
+              activeKey={draftTabKey}
+              onChange={(k) => {
+                setDraftTabKey(k);
+                setPendingSection('');
+                const q = new URLSearchParams(window.location.search);
+                q.set('tab', k);
+                q.delete('section');
+                window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+                if (k === 'inventory') void reloadPublicationSkus();
+              }}
+              items={[
             {
               key: 'basic',
               label: tabLabels.basic,
@@ -4554,8 +4638,9 @@ export default function ProductDraftDetailPage() {
                 </Spin>
               ),
             },
-          ]}
-          />
+              ]}
+            />
+          </div>
         </Space>
       ) : null}
 
