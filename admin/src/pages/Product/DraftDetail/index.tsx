@@ -938,10 +938,10 @@ function douyinBindStatusTag(status?: string) {
 function douyinBindStatusHint(status?: string): string {
   const st = String(status || '').toLowerCase();
   if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
-  if (st === 'unmatched') return '未匹配到抖店规格，请手动绑定后再同步库存。';
-  if (st === 'ambiguous') return '找到多个可能的抖店规格，请人工确认。';
-  if (st === 'failed') return '校准失败，请稍后重试或手动绑定。';
-  return '尚未校准，请先执行校准或手动绑定。';
+  if (st === 'unmatched') return '未匹配到抖店规格，请到刊登 Tab 管理绑定后再同步库存。';
+  if (st === 'ambiguous') return '找到多个可能的抖店规格，请到刊登 Tab 确认绑定。';
+  if (st === 'failed') return '校准失败，请到刊登 Tab 重新校准或管理绑定。';
+  return '尚未校准，请先到刊登 Tab 执行校准或管理绑定。';
 }
 
 function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
@@ -1752,6 +1752,8 @@ export default function ProductDraftDetailPage() {
           document.getElementById('publish-check') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
         'publish-config':
           document.getElementById('publish-config') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
+        'douyin-sku-bindings':
+          document.getElementById('douyin-sku-bindings') || document.querySelector('.product-draft-douyin-bind__card'),
       } as Record<string, Element | null | undefined>)[target] ||
       null;
     if (!el) return false;
@@ -4084,10 +4086,11 @@ export default function ProductDraftDetailPage() {
                             const suggested =
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
                             const st = String(r.bindStatus || '').toLowerCase();
+                            const shouldManageBinding = isDouyin && (blocked || !hasBinding);
                             const disableReason = isDouyin && st === 'ambiguous'
-                              ? '找到多个可能的抖店规格，请人工确认绑定后再同步库存。'
+                              ? '找到多个可能的抖店规格，请到刊登 Tab 确认绑定后再同步库存。'
                               : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
-                                ? '该规格还没有绑定抖店规格，请先完成绑定后再同步库存。'
+                                ? '该规格还没有绑定抖店规格，请到刊登 Tab 管理绑定后再同步库存。'
                                 : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
@@ -4105,11 +4108,24 @@ export default function ProductDraftDetailPage() {
                                 同步库存
                               </Button>
                             );
-                            return canSync ? btn : (
+                            const syncAction = canSync ? btn : (
                               <Tooltip title={disableReason}>
                                 <span>{btn}</span>
                               </Tooltip>
                             );
+                            return shouldManageBinding ? (
+                              <Space direction="vertical" size={2}>
+                                {syncAction}
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  className="product-draft-inventory-sync__action"
+                                  onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}
+                                >
+                                  管理绑定
+                                </Button>
+                              </Space>
+                            ) : syncAction;
                           },
                         },
                       ]}
@@ -4795,6 +4811,7 @@ export default function ProductDraftDetailPage() {
                         )}
                       </Card>
                       <Card
+                        id="douyin-sku-bindings"
                         size="small"
                         title="抖店规格绑定"
                         variant="borderless"
