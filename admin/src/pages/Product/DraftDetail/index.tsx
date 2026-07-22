@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, Key, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -609,6 +609,7 @@ function draftStockStatusTag(raw?: string) {
 /** When stock_status 尚未落库，用阈值在前端推导展示（与后端 CalculateSKUStockStatus 一致）。 */
 function effectiveStockStatus(r: ProductSKURow): string {
   if (r.stockStatus) return r.stockStatus;
+  if (typeof r.stock !== 'number') return '';
   const stock = typeof r.stock === 'number' ? r.stock : 0;
   const warn = typeof r.warningStock === 'number' ? r.warningStock : 5;
   const safe = typeof r.safetyStock === 'number' ? r.safetyStock : 0;
@@ -1049,6 +1050,7 @@ export default function ProductDraftDetailPage() {
   const [operationProgressError, setOperationProgressError] = useState('');
   const [pendingSection, setPendingSection] = useState<string>('');
   const [skuRows, setSkuRows] = useState<SKUEditable[]>([]);
+  const [skuEditableKeys, setSkuEditableKeys] = useState<Key[]>([]);
   const [imgModalOpen, setImgModalOpen] = useState(false);
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
@@ -1268,12 +1270,13 @@ export default function ProductDraftDetailPage() {
     if (!id) return;
     const d = await fetchProductDetail(id);
     setData(d);
-    setSkuRows(
-      (d.skus ?? []).map((s) => ({
-        ...s,
-        attrsText: attrsToText(s.attrs),
-      })),
-    );
+        setSkuRows(
+          (d.skus ?? []).map((s) => ({
+            ...s,
+            attrsText: attrsToText(s.attrs),
+          })),
+        );
+        setSkuEditableKeys([]);
     await reloadOperationProgress();
   }, [id, reloadOperationProgress]);
 
@@ -1570,6 +1573,21 @@ export default function ProductDraftDetailPage() {
     if (!pf) return pubSkuRows;
     return pubSkuRows.filter((r) => (r.platform || '').toLowerCase() === pf);
   }, [pubSkuRows, pubSkuBulkPlatformFilter]);
+
+  const localInventoryRows = useMemo(
+    () => (data?.skus ?? []).filter((s) => !String(s.id).startsWith('new_')),
+    [data?.skus],
+  );
+
+  const localInventorySummary = useMemo(() => {
+    const rows = localInventoryRows;
+    return {
+      total: rows.length,
+      warningSet: rows.filter((s) => typeof s.warningStock === 'number' || typeof s.safetyStock === 'number').length,
+      low: rows.filter((s) => ['low_stock', 'below_safety_stock', 'out_of_stock'].includes(effectiveStockStatus(s))).length,
+      missingStock: rows.filter((s) => typeof s.stock !== 'number').length,
+    };
+  }, [localInventoryRows]);
 
   const buildSkuStockPayload = useCallback(() => {
     const base: { productId: string; includeNormal: boolean; productSkuIds?: string[] } = {
@@ -2290,26 +2308,41 @@ export default function ProductDraftDetailPage() {
         fixed: 'right' as const,
         className: 'product-draft-skus__action-col',
         render: (_: unknown, record: SKUEditable) => (
-          <Popconfirm
-            title="删除该商品规格？"
-            onConfirm={async () => {
-              if (!record?.id?.startsWith('new_')) {
-                try {
-                  await deleteProductSku(id, record.id);
-                  message.success('已删除');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
+          <Space size={4} className="product-draft-skus__row-actions">
+            {!record?.id?.startsWith('new_') ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                className="product-draft-skus__edit-action"
+                onClick={() => {
+                  setSkuEditableKeys((keys) => Array.from(new Set([...keys, record.id])));
+                }}
+              >
+                编辑
+              </Button>
+            ) : null}
+            <Popconfirm
+              title="删除该商品规格？"
+              onConfirm={async () => {
+                if (!record?.id?.startsWith('new_')) {
+                  try {
+                    await deleteProductSku(id, record.id);
+                    message.success('已删除');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                } else {
+                  setSkuRows((rows) => rows.filter((r) => r.id !== record.id));
                 }
-              } else {
-                setSkuRows((rows) => rows.filter((r) => r.id !== record.id));
-              }
-            }}
-          >
-            <Button type="link" danger size="small" className="product-draft-skus__danger-action">
-              删除
-            </Button>
-          </Popconfirm>
+              }}
+            >
+              <Button type="link" danger size="small" className="product-draft-skus__danger-action">
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
         ),
       },
     ],
@@ -3445,6 +3478,8 @@ export default function ProductDraftDetailPage() {
                       }}
                       editable={{
                         type: 'multiple',
+                        editableKeys: skuEditableKeys,
+                        onChange: setSkuEditableKeys,
                         onSave: async (_key, row) => {
                           const attrsStr = row.attrsText?.trim() ?? '';
                           let attrs: string | Record<string, unknown> | undefined = attrsStr;
@@ -3484,38 +3519,64 @@ export default function ProductDraftDetailPage() {
               key: 'inventory',
               label: tabLabels.inventory,
               children: (
-                <>
-                  <InventorySyncDisabledBanner />
-                  <Card variant="borderless">
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 24 }}
-                    message="库存说明"
-                    description={
-                      <>
-                        <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          在此调整本地规格库存与预警线；已刊登到各平台的规格可在下方同步到店铺。
-                          仅当平台已开放「库存同步」且映射完整时可发起同步（抖店、TikTok、Shopee、Lazada、Amazon 已支持）。
-                        </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 0 }}>
-                          相关入口：
-                          <Link to="/inventory/alerts">库存预警</Link>
-                          {' · '}
-                          <Link to="/inventory/sync-tasks">同步任务</Link>
-                          {' · '}
-                          <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
-                          {' · '}
-                          <Link to="/inventory/effects">订单扣减</Link>
-                        </Typography.Paragraph>
-                      </>
+                <Space direction="vertical" className="product-draft-inventory" size="middle">
+                  <div className="product-draft-inventory__banner">
+                    <InventorySyncDisabledBanner />
+                  </div>
+                  <SectionCard
+                    title="库存状态说明"
+                    description="本页只处理本地 SKU 库存、预警线和库存同步任务；平台规格映射仍按原区域展示。"
+                    className="product-draft-inventory__overview"
+                    headerExtra={
+                      readonly ? <Tag color="warning">只读模式</Tag> : <Tag color="blue">本地库存</Tag>
                     }
-                  />
+                  >
+                    {readonly ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="product-draft-inventory__alert"
+                        message="当前账号处于只读模式"
+                        description="本轮不改变现有库存按钮的可用条件；如后端拒绝写操作，会按原提示展示失败原因。"
+                      />
+                    ) : null}
+                    <div className="product-draft-inventory__summary" aria-label="当前商品库存摘要">
+                      <div className="product-draft-inventory__summary-item">
+                        <span>本地 SKU</span>
+                        <strong>{localInventorySummary.total}</strong>
+                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item">
+                        <span>已设置预警线</span>
+                        <strong>{localInventorySummary.warningSet}</strong>
+                        <Typography.Text type="secondary">预警线或安全线已填写</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item product-draft-inventory__summary-item--warning">
+                        <span>需关注</span>
+                        <strong>{localInventorySummary.low}</strong>
+                        <Typography.Text type="secondary">低库存、低于安全线或售罄</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item">
+                        <span>库存未记录</span>
+                        <strong>{localInventorySummary.missingStock}</strong>
+                        <Typography.Text type="secondary">不按 0 展示</Typography.Text>
+                      </div>
+                    </div>
+                    <div className="product-draft-inventory__links" aria-label="库存相关入口">
+                      <Link to="/inventory/alerts">库存预警</Link>
+                      <Link to="/inventory/sync-tasks">同步任务</Link>
+                      <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
+                      <Link to="/inventory/effects">订单扣减</Link>
+                    </div>
+                  </SectionCard>
 
-                  <Space align="center" style={{ marginBottom: 12 }} wrap>
-                    <Typography.Title level={5} style={{ margin: 0 }}>
-                      本地规格
-                    </Typography.Title>
+                  <SectionCard
+                    title="本地 SKU 库存"
+                    description="库存调整会写入本地规格库存；预警线只影响预警规则，不修改实际库存。"
+                    className="product-draft-stock__section"
+                    headerExtra={
+                      <Space wrap className="product-draft-stock__section-actions">
+                        <Typography.Text type="secondary">已选 {skuBatchSelKeys.length} 个 SKU</Typography.Text>
                     <Button
                       size="small"
                       onClick={() => {
@@ -3526,37 +3587,96 @@ export default function ProductDraftDetailPage() {
                     >
                       批量设置预警线
                     </Button>
-                  </Space>
+                      </Space>
+                    }
+                  >
+                  {localInventoryRows.length === 0 ? (
+                    <EmptyState
+                      compact
+                      title="还没有本地 SKU"
+                      description="请先在「商品规格」中新增 SKU，保存后才能调整库存和预警线。"
+                      className="product-draft-stock__empty"
+                    />
+                  ) : null}
                   <Table<ProductSKURow>
                     loading={loading}
                     size="small"
+                    className="product-draft-stock__table"
                     pagination={false}
                     rowKey="id"
-                    dataSource={(data.skus ?? []).filter((s) => !String(s.id).startsWith('new_'))}
+                    dataSource={localInventoryRows}
+                    scroll={{ x: 1080 }}
                     rowSelection={{
                       selectedRowKeys: skuBatchSelKeys,
                       onChange: (keys) => setSkuBatchSelKeys(keys.map(String)),
                     }}
                     columns={[
-                      { title: '编码', dataIndex: 'skuCode', width: 120, ellipsis: true },
-                      { title: '名称', dataIndex: 'skuName', ellipsis: true },
+                      {
+                        title: '编码',
+                        dataIndex: 'skuCode',
+                        width: 168,
+                        ellipsis: true,
+                        render: (v: string | undefined, r) => (
+                          <Tooltip title={v || r.id}>
+                            <Typography.Text className="product-draft-stock__code">{v || r.id}</Typography.Text>
+                          </Tooltip>
+                        ),
+                      },
+                      {
+                        title: '规格',
+                        dataIndex: 'skuName',
+                        width: 240,
+                        render: (_v, r) => (
+                          <Space direction="vertical" size={2} className="product-draft-stock__sku">
+                            <Typography.Text strong className="product-draft-stock__sku-name">
+                              {r.skuName || '未填写规格名称'}
+                            </Typography.Text>
+                            {r.attrs ? (
+                              <Typography.Text type="secondary" className="product-draft-stock__attrs">
+                                {attrsToText(r.attrs)}
+                              </Typography.Text>
+                            ) : null}
+                          </Space>
+                        ),
+                      },
                       {
                         title: '库存',
                         dataIndex: 'stock',
-                        width: 72,
-                        render: (_v, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                        width: 96,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.stock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.stock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未记录</Typography.Text>
+                          ),
                       },
                       {
                         title: '预警',
                         dataIndex: 'warningStock',
-                        width: 64,
-                        render: (_v, r) => (typeof r.warningStock === 'number' ? r.warningStock : '—'),
+                        width: 88,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.warningStock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.warningStock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未设置</Typography.Text>
+                          ),
                       },
                       {
                         title: '安全',
                         dataIndex: 'safetyStock',
-                        width: 64,
-                        render: (_v, r) => (typeof r.safetyStock === 'number' ? r.safetyStock : '—'),
+                        width: 88,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.safetyStock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.safetyStock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未设置</Typography.Text>
+                          ),
                       },
                       {
                         title: '状态',
@@ -3567,13 +3687,15 @@ export default function ProductDraftDetailPage() {
                       {
                         title: '操作',
                         key: 'op',
-                        width: 280,
+                        width: 236,
+                        fixed: 'right' as const,
+                        className: 'product-draft-stock__action-col',
                         render: (_x, r) => (
-                          <Space wrap size="small">
+                          <Space wrap size={4} className="product-draft-stock__row-actions">
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action product-draft-stock__action--primary"
                               onClick={() => {
                                 setAdjustTarget(r);
                                 adjustForm.setFieldsValue({
@@ -3589,7 +3711,7 @@ export default function ProductDraftDetailPage() {
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action"
                               onClick={() => {
                                 setStockSettingsTarget(r);
                                 stockSettingsForm.setFieldsValue({
@@ -3604,7 +3726,7 @@ export default function ProductDraftDetailPage() {
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action product-draft-stock__action--muted"
                               onClick={async () => {
                                 setLogsSku(r);
                                 setLogsOpen(true);
@@ -3626,10 +3748,14 @@ export default function ProductDraftDetailPage() {
                       },
                     ]}
                   />
+                  </SectionCard>
 
                   <Modal
                     title="批量设置预警线（本商品）"
                     open={skuBatchStockOpen}
+                    width={640}
+                    rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+                    className="product-draft-inventory__modal"
                     onCancel={() => {
                       setSkuBatchStockOpen(false);
                       setSkuBatchMatched(null);
@@ -3683,7 +3809,7 @@ export default function ProductDraftDetailPage() {
                         });
                     }}
                   >
-                    <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+                    <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
                       匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个规格` : '—'}
                     </Typography.Paragraph>
                     <Form form={skuBatchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
@@ -3710,14 +3836,16 @@ export default function ProductDraftDetailPage() {
                     </Form>
                   </Modal>
 
-                  <Typography.Title level={5} style={{ marginTop: 24 }}>
-                    已刊登规格映射
-                  </Typography.Title>
-                  <Space wrap style={{ marginBottom: 12 }}>
+                  <SectionCard
+                    title="库存同步任务"
+                    description="这里保留已刊登规格映射，只调整库存同步入口和任务状态说明；创建任务不代表平台库存已经同步完成。"
+                    className="product-draft-inventory-sync__section"
+                  >
+                  <Space wrap className="product-draft-inventory-sync__toolbar">
                     <Select
                       allowClear
                       placeholder="按平台筛选（批量同步）"
-                      style={{ minWidth: 200 }}
+                      className="product-draft-inventory-sync__platform-filter"
                       value={pubSkuBulkPlatformFilter || undefined}
                       onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
                       options={[
@@ -3729,7 +3857,6 @@ export default function ProductDraftDetailPage() {
                       ]}
                     />
                     <Button
-                      type="primary"
                       disabled={pubSkuSelectedKeys.length === 0}
                       onClick={() => {
                         confirmInventorySync(
@@ -3759,16 +3886,18 @@ export default function ProductDraftDetailPage() {
                     >
                       批量同步到平台
                     </Button>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    <Typography.Text type="secondary" className="product-draft-inventory-sync__hint">
                       勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。
                     </Typography.Text>
                   </Space>
                   <Spin spinning={pubSkuLoading}>
                     <Table<PublicationSkuListingRow>
                       size="small"
+                      className="product-draft-inventory-sync__table"
                       rowKey="publicationSkuId"
                       pagination={false}
                       dataSource={filteredPubSkuRowsForBulk}
+                      scroll={{ x: 1180 }}
                       rowSelection={{
                         selectedRowKeys: pubSkuSelectedKeys,
                         onChange: (keys) => setPubSkuSelectedKeys(keys.map(String)),
@@ -3782,24 +3911,34 @@ export default function ProductDraftDetailPage() {
                       columns={[
                         {
                           title: '店铺',
+                          width: 140,
                           ellipsis: true,
                           render: (_, r) => r.shopName || '—',
                         },
                         { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
                           title: '本地商品规格',
+                          width: 168,
                           ellipsis: true,
-                          render: (_, r) => r.skuCode || r.productSkuId || '—',
+                          render: (_, r) => (
+                            <Tooltip title={r.skuCode || r.productSkuId || '—'}>
+                              <Typography.Text className="product-draft-inventory-sync__sku-code">
+                                {r.skuCode || r.productSkuId || '—'}
+                              </Typography.Text>
+                            </Tooltip>
+                          ),
                         },
                         {
                           title: '外部商品 ID',
                           dataIndex: 'externalProductId',
+                          width: 160,
                           ellipsis: true,
                           render: (t: string | undefined) => t || '—',
                         },
                         {
                           title: '平台规格编码',
                           dataIndex: 'externalSkuId',
+                          width: 160,
                           ellipsis: true,
                           render: (t: string | undefined) => t || '—',
                         },
@@ -3871,7 +4010,7 @@ export default function ProductDraftDetailPage() {
                                 type="link"
                                 size="small"
                                 disabled={!canSync}
-                                style={{ padding: 0 }}
+                                className="product-draft-inventory-sync__action"
                                 onClick={() => {
                                   if (!canSync) return;
                                   setSyncRow(r);
@@ -3892,8 +4031,8 @@ export default function ProductDraftDetailPage() {
                       ]}
                     />
                   </Spin>
-                </Card>
-                </>
+                  </SectionCard>
+                </Space>
               ),
             },
             {
@@ -5365,7 +5504,9 @@ export default function ProductDraftDetailPage() {
       <Drawer
         title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
         open={logsOpen}
-        width={560}
+        width={720}
+        rootClassName="tm-product-draft-detail product-draft-inventory__drawer-root"
+        className="product-draft-inventory__drawer"
         destroyOnHidden
         onClose={() => {
           setLogsOpen(false);
@@ -5378,6 +5519,8 @@ export default function ProductDraftDetailPage() {
             rowKey="id"
             size="small"
             pagination={false}
+            className="product-draft-inventory__logs-table"
+            scroll={{ x: 720 }}
             dataSource={logsRows}
             columns={[
               {
@@ -5387,11 +5530,11 @@ export default function ProductDraftDetailPage() {
                 render: (v: string) => formatDateTime(v),
               },
               { title: '类型', dataIndex: 'changeType', width: 136 },
-              { title: '前', width: 56, dataIndex: 'beforeStock' },
-              { title: '后', width: 56, dataIndex: 'afterStock' },
-              { title: 'Δ', width: 56, dataIndex: 'delta' },
-              { title: '原因', ellipsis: true, dataIndex: 'reason' },
-              { title: '备注', ellipsis: true, dataIndex: 'remark' },
+              { title: '前', width: 64, dataIndex: 'beforeStock', align: 'right' as const },
+              { title: '后', width: 64, dataIndex: 'afterStock', align: 'right' as const },
+              { title: 'Δ', width: 64, dataIndex: 'delta', align: 'right' as const },
+              { title: '原因', width: 160, dataIndex: 'reason', className: 'product-draft-inventory__logs-text' },
+              { title: '备注', width: 200, dataIndex: 'remark', className: 'product-draft-inventory__logs-text' },
             ]}
           />
         </Spin>
@@ -5401,6 +5544,9 @@ export default function ProductDraftDetailPage() {
         title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
         open={adjustOpen && !!adjustTarget}
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="保存"
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
@@ -5440,6 +5586,13 @@ export default function ProductDraftDetailPage() {
           });
         }}
       >
+        <Alert
+          type="warning"
+          showIcon
+          className="product-draft-inventory__modal-alert"
+          message="库存调整会覆盖当前本地库存值"
+          description="提交后写入本地 SKU 库存，当前表单不会自动同步到平台。"
+        />
         <Form form={adjustForm} layout="vertical">
           <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
@@ -5457,6 +5610,9 @@ export default function ProductDraftDetailPage() {
         title="同步刊登规格库存"
         open={syncOpen && !!syncRow}
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="提交任务"
         confirmLoading={syncSubmitting}
         onCancel={() => {
@@ -5495,7 +5651,7 @@ export default function ProductDraftDetailPage() {
           });
         }}
       >
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+        <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
           平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
         <InventorySyncPlatformHint platform={syncRow?.platform} />
@@ -5514,6 +5670,9 @@ export default function ProductDraftDetailPage() {
         title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
         open={stockSettingsOpen && !!stockSettingsTarget}
         destroyOnHidden
+        width={520}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="保存"
         confirmLoading={stockSettingsSubmitting}
         onCancel={() => {
@@ -5546,6 +5705,9 @@ export default function ProductDraftDetailPage() {
           }
         }}
       >
+        <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
+          预警线只用于识别低库存，不会调整实际库存，也不会同步到平台。
+        </Typography.Paragraph>
         <Form form={stockSettingsForm} layout="vertical">
           <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />

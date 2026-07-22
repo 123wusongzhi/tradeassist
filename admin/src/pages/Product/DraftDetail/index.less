@@ -1238,8 +1238,194 @@
   gap: 4px;
 }
 
+.product-draft-skus__row-actions {
+  max-width: 100%;
+}
+
+.product-draft-skus__edit-action,
 .product-draft-skus__danger-action {
   padding-inline: 0;
+}
+
+.product-draft-inventory {
+  width: 100%;
+  min-width: 0;
+}
+
+.product-draft-inventory__banner {
+  min-width: 0;
+}
+
+.product-draft-inventory__overview,
+.product-draft-stock__section,
+.product-draft-inventory-sync__section {
+  overflow: hidden;
+}
+
+.product-draft-inventory__alert {
+  margin-bottom: 12px;
+}
+
+.product-draft-inventory__summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.product-draft-inventory__summary-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-inventory__summary-item--warning {
+  border-color: var(--ant-color-warning-border);
+  background: var(--ant-color-warning-bg);
+}
+
+.product-draft-inventory__summary-item > span {
+  color: var(--ant-color-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.product-draft-inventory__summary-item > strong {
+  color: var(--ant-color-text);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 26px;
+}
+
+.product-draft-inventory__summary-item .ant-typography {
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.product-draft-inventory__links {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+.product-draft-stock__section-actions,
+.product-draft-inventory-sync__toolbar {
+  align-items: center;
+}
+
+.product-draft-stock__empty {
+  margin-bottom: 12px;
+  border: 1px dashed var(--ant-color-border);
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-stock__table,
+.product-draft-inventory-sync__table,
+.product-draft-inventory__logs-table {
+  min-width: 0;
+}
+
+.product-draft-stock__table .ant-table,
+.product-draft-inventory-sync__table .ant-table,
+.product-draft-inventory__logs-table .ant-table {
+  min-width: 0;
+}
+
+.product-draft-stock__table .ant-table-cell,
+.product-draft-inventory-sync__table .ant-table-cell,
+.product-draft-inventory__logs-table .ant-table-cell {
+  vertical-align: top;
+}
+
+.product-draft-stock__code,
+.product-draft-inventory-sync__sku-code {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  white-space: nowrap;
+}
+
+.product-draft-stock__sku {
+  width: 100%;
+  min-width: 0;
+}
+
+.product-draft-stock__sku-name,
+.product-draft-stock__attrs,
+.product-draft-inventory__logs-text {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.product-draft-stock__attrs {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.product-draft-stock__number-col,
+.product-draft-stock__number {
+  font-variant-numeric: tabular-nums;
+}
+
+.product-draft-stock__action-col {
+  background: var(--ant-color-bg-container);
+}
+
+.product-draft-stock__row-actions {
+  max-width: 100%;
+}
+
+.product-draft-stock__action,
+.product-draft-inventory-sync__action {
+  padding-inline: 0;
+}
+
+.product-draft-stock__action--primary {
+  font-weight: 600;
+}
+
+.product-draft-stock__action--muted {
+  color: var(--ant-color-text-secondary);
+}
+
+.product-draft-inventory-sync__platform-filter {
+  min-width: 200px;
+}
+
+.product-draft-inventory-sync__hint {
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.product-draft-inventory__modal-note {
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.product-draft-inventory__modal-alert {
+  margin-bottom: 12px;
+}
+
+.product-draft-inventory__logs-table {
+  overflow: hidden;
 }
 
 @media (max-width: 1024px) {
@@ -1296,6 +1482,10 @@
   .product-draft-skus__summary {
     grid-template-columns: 1fr;
   }
+
+  .product-draft-inventory__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
@@ -1325,6 +1515,16 @@
 
   .product-draft-tabs-frame__status {
     justify-content: flex-start;
+  }
+
+  .product-draft-stock__section-actions,
+  .product-draft-inventory-sync__toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .product-draft-inventory-sync__platform-filter {
+    width: 100%;
   }
 
   .product-draft-progress__priority {
