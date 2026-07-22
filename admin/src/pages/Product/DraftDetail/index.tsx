@@ -953,6 +953,23 @@ function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
   return st === 'ambiguous' || st === 'unmatched' || st === 'failed';
 }
 
+function platformSkuValue(value?: string | null, fallback = '—'): ReactNode {
+  const text = String(value || fallback).trim() || fallback;
+  return (
+    <Tooltip title={text}>
+      <Typography.Text className="product-draft-platform-sku__id">{text}</Typography.Text>
+    </Tooltip>
+  );
+}
+
+function platformSkuCandidateStatusTag(row: DouyinPlatformSkuCandidate, currentPublicationSkuId?: string) {
+  if (row.boundToPublicationSkuId && row.boundToPublicationSkuId !== currentPublicationSkuId) {
+    return <Tag color="orange">已绑定其他本地规格</Tag>;
+  }
+  if (row.boundToPublicationSkuId) return <Tag color="blue">已绑定本地规格</Tag>;
+  return <Tag>未绑定</Tag>;
+}
+
 function douyinImageStatusTag(img: DouyinDraftImage) {
   const st = img.uploadStatus || (img.platformImageId ? 'uploaded' : img.needSync ? 'pending' : 'pending');
   if (st === 'uploaded') return <Tag color="green">已上传抖店</Tag>;
@@ -1573,6 +1590,23 @@ export default function ProductDraftDetailPage() {
     if (!pf) return pubSkuRows;
     return pubSkuRows.filter((r) => (r.platform || '').toLowerCase() === pf);
   }, [pubSkuRows, pubSkuBulkPlatformFilter]);
+
+  const platformSkuMappingSummary = useMemo(() => {
+    const rows = filteredPubSkuRowsForBulk;
+    const platforms = Array.from(new Set(rows.map((r) => platformDisplayName(r.platform)).filter(Boolean)));
+    const shops = Array.from(new Set(rows.map((r) => r.shopName || r.shopId).filter(Boolean)));
+    const withProduct = rows.filter((r) => String(r.externalProductId ?? '').trim()).length;
+    const withSku = rows.filter((r) => String(r.externalSkuId ?? '').trim()).length;
+    const blocked = rows.filter((r) => douyinSkuSyncBlocked(r) || !inventorySyncRunnable(r.inventorySyncCapability)).length;
+    return {
+      total: rows.length,
+      platforms,
+      shops,
+      withProduct,
+      withSku,
+      blocked,
+    };
+  }, [filteredPubSkuRowsForBulk]);
 
   const localInventoryRows = useMemo(
     () => (data?.skus ?? []).filter((s) => !String(s.id).startsWith('new_')),
@@ -3838,9 +3872,45 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title="库存同步任务"
-                    description="这里保留已刊登规格映射，只调整库存同步入口和任务状态说明；创建任务不代表平台库存已经同步完成。"
+                    description="已刊登规格映射只用于识别要同步的本地 SKU 与平台 SKU；创建任务不代表平台库存已经同步完成。"
                     className="product-draft-inventory-sync__section"
                   >
+                  <div className="product-draft-platform-sku__brief" aria-label="平台 SKU 映射上下文">
+                    <div className="product-draft-platform-sku__brief-main">
+                      <Typography.Text strong>映射范围</Typography.Text>
+                      <Typography.Paragraph type="secondary">
+                        当前表格来自已刊登规格列表，按平台和店铺保留独立映射。缺少平台商品 ID、平台规格编码，或抖店规格处于待确认/未匹配状态时，不能创建该行的库存同步任务。
+                      </Typography.Paragraph>
+                    </div>
+                    <div className="product-draft-platform-sku__metrics">
+                      <div className="product-draft-platform-sku__metric">
+                        <span>已刊登规格</span>
+                        <strong>{platformSkuMappingSummary.total}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric">
+                        <span>平台商品 ID</span>
+                        <strong>{platformSkuMappingSummary.withProduct}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric">
+                        <span>平台 SKU</span>
+                        <strong>{platformSkuMappingSummary.withSku}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric product-draft-platform-sku__metric--muted">
+                        <span>不可同步</span>
+                        <strong>{platformSkuMappingSummary.blocked}</strong>
+                      </div>
+                    </div>
+                    <div className="product-draft-platform-sku__scope">
+                      <Typography.Text type="secondary">
+                        平台：{platformSkuMappingSummary.platforms.slice(0, 3).join(' / ') || '—'}
+                        {platformSkuMappingSummary.platforms.length > 3 ? ` 等 ${platformSkuMappingSummary.platforms.length} 个` : ''}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        店铺：{platformSkuMappingSummary.shops.slice(0, 2).join(' / ') || '—'}
+                        {platformSkuMappingSummary.shops.length > 2 ? ` 等 ${platformSkuMappingSummary.shops.length} 个` : ''}
+                      </Typography.Text>
+                    </div>
+                  </div>
                   <Space wrap className="product-draft-inventory-sync__toolbar">
                     <Select
                       allowClear
@@ -3908,47 +3978,61 @@ export default function ProductDraftDetailPage() {
                           return { disabled: missing || douyinSkuSyncBlocked(r) || !ok };
                         },
                       }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无已刊登规格"
+                            description="创建平台商品草稿或完成刊登后，这里会显示可用于库存同步的 SKU 映射。"
+                          />
+                        ),
+                      }}
                       columns={[
                         {
                           title: '店铺',
-                          width: 140,
-                          ellipsis: true,
-                          render: (_, r) => r.shopName || '—',
+                          width: 152,
+                          render: (_, r) => platformSkuValue(r.shopName || r.shopId),
                         },
                         { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
                           title: '本地商品规格',
-                          width: 168,
-                          ellipsis: true,
+                          width: 190,
                           render: (_, r) => (
-                            <Tooltip title={r.skuCode || r.productSkuId || '—'}>
-                              <Typography.Text className="product-draft-inventory-sync__sku-code">
-                                {r.skuCode || r.productSkuId || '—'}
+                            <Space direction="vertical" size={2} className="product-draft-platform-sku__local">
+                              <Typography.Text strong className="product-draft-platform-sku__name">
+                                {r.skuCode || '未填写规格编码'}
                               </Typography.Text>
-                            </Tooltip>
+                              <span className="product-draft-platform-sku__sub-id">
+                                {platformSkuValue(r.productSkuId)}
+                              </span>
+                            </Space>
                           ),
                         },
                         {
                           title: '外部商品 ID',
                           dataIndex: 'externalProductId',
                           width: 160,
-                          ellipsis: true,
-                          render: (t: string | undefined) => t || '—',
+                          render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
                           title: '平台规格编码',
                           dataIndex: 'externalSkuId',
                           width: 160,
-                          ellipsis: true,
-                          render: (t: string | undefined) => t || '—',
+                          render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
                           title: '规格绑定',
-                          width: 108,
-                          render: (_x, r) =>
-                            (r.platform || '').toLowerCase() === 'douyin_shop'
-                              ? douyinBindStatusTag(r.bindStatus || (r.externalSkuId ? 'bound' : 'unmatched'))
-                              : '—',
+                          width: 128,
+                          render: (_x, r) => {
+                            if ((r.platform || '').toLowerCase() !== 'douyin_shop') return '—';
+                            const status = r.bindStatus || (r.externalSkuId ? 'bound' : 'unmatched');
+                            return (
+                              <Space direction="vertical" size={2} className="product-draft-platform-sku__status">
+                                {douyinBindStatusTag(status)}
+                                <Typography.Text type="secondary">{douyinBindStatusHint(status)}</Typography.Text>
+                              </Space>
+                            );
+                          },
                         },
                         {
                           title: '平台库存快照',
@@ -4715,8 +4799,9 @@ export default function ProductDraftDetailPage() {
                         title="抖店规格绑定"
                         variant="borderless"
                         loading={douyinSkuBindingLoading}
+                        className="product-draft-douyin-bind__card"
                         extra={
-                          <Space>
+                          <Space wrap className="product-draft-douyin-bind__actions">
                             <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
                               查看平台规格候选
                             </Button>
@@ -4736,42 +4821,96 @@ export default function ProductDraftDetailPage() {
                         }
                       >
                         {!douyinPublication?.id ? (
-                          <Typography.Text type="secondary">
-                            创建抖店商品草稿后，可在此根据抖店商品详情校准 platformSkuId，并对 ambiguous / unmatched 规格手动绑定。
-                          </Typography.Text>
+                          <EmptyState
+                            compact
+                            title="暂无抖店刊登记录"
+                            description="创建抖店商品草稿后，可根据抖店商品详情校准平台规格编号，并对未匹配或待确认的本地规格建立映射。"
+                          />
                         ) : (
                           <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                            <div className="product-draft-douyin-bind__brief">
+                              <div className="product-draft-douyin-bind__brief-text">
+                                <Typography.Text strong>抖店规格映射</Typography.Text>
+                                <Typography.Paragraph type="secondary">
+                                  候选规格来自当前抖店商品详情。手动绑定只建立本地规格与已有抖店规格的映射，不创建新的平台 SKU，也不会自动同步库存。
+                                </Typography.Paragraph>
+                              </div>
+                              <div className="product-draft-douyin-bind__context">
+                                <span>平台：抖店</span>
+                                <span>店铺：{douyinPublication.shopName || douyinPublication.shopId || '—'}</span>
+                                <span>刊登记录：{platformSkuValue(douyinPublication.id)}</span>
+                                <span>抖店商品：{platformSkuValue(douyinPublication.externalProductId)}</span>
+                              </div>
+                            </div>
                             {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
                               <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
                             ) : douyinSkuBinding?.inventorySyncReady ? (
-                              <Alert type="success" showIcon message="全部规格已绑定抖店规格，可同步库存。" />
+                              <Alert type="info" showIcon message="全部规格已有抖店规格映射，可用于创建库存同步任务。" />
                             ) : null}
-                            <Descriptions bordered size="small" column={2}>
-                              <Descriptions.Item label="抖店商品 ID">
-                                {douyinPublication.externalProductId || '—'}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="最近校准时间">
-                                {douyinSkuBinding?.skuBindingSyncedAt
-                                  ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
-                                  : douyinPublication.skuBindingSyncedAt
-                                    ? formatDateTime(douyinPublication.skuBindingSyncedAt)
-                                    : '—'}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="已绑定">{douyinSkuBinding?.bound ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="未绑定">{douyinSkuBinding?.unmatched ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="待确认">{douyinSkuBinding?.ambiguous ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="失败">{douyinSkuBinding?.failed ?? '—'}</Descriptions.Item>
-                            </Descriptions>
+                            <div className="product-draft-douyin-bind__status-grid" aria-label="抖店规格绑定状态摘要">
+                              <div>
+                                <span>已绑定</span>
+                                <strong>{douyinSkuBinding?.bound ?? '—'}</strong>
+                              </div>
+                              <div>
+                                <span>未绑定</span>
+                                <strong>{douyinSkuBinding?.unmatched ?? '—'}</strong>
+                              </div>
+                              <div>
+                                <span>待确认</span>
+                                <strong>{douyinSkuBinding?.ambiguous ?? '—'}</strong>
+                              </div>
+                              <div>
+                                <span>失败</span>
+                                <strong>{douyinSkuBinding?.failed ?? '—'}</strong>
+                              </div>
+                              <div>
+                                <span>候选规格</span>
+                                <strong>{douyinSkuBinding?.platformSkus?.length ?? '—'}</strong>
+                              </div>
+                              <div>
+                                <span>最近校准</span>
+                                <strong>
+                                  {douyinSkuBinding?.skuBindingSyncedAt
+                                    ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
+                                    : douyinPublication.skuBindingSyncedAt
+                                      ? formatDateTime(douyinPublication.skuBindingSyncedAt)
+                                      : '—'}
+                                </strong>
+                              </div>
+                            </div>
                             {(douyinSkuBinding?.rows?.length ?? 0) > 0 ? (
                               <Table<DouyinSkuBindingRow>
                                 size="small"
+                                className="product-draft-douyin-bind__table"
                                 rowKey="publicationSkuId"
                                 pagination={false}
                                 scroll={{ x: 1200 }}
                                 dataSource={douyinSkuBinding?.rows ?? []}
                                 columns={[
-                                  { title: '本地规格', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
-                                  { title: '本地规格', dataIndex: 'specName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  {
+                                    title: '本地规格编码',
+                                    dataIndex: 'skuCode',
+                                    width: 150,
+                                    render: (v, r) => (
+                                      <Space direction="vertical" size={2} className="product-draft-douyin-bind__sku-cell">
+                                        <Typography.Text strong className="product-draft-douyin-bind__text">
+                                          {v || '未填写规格编码'}
+                                        </Typography.Text>
+                                        <span className="product-draft-douyin-bind__id">{platformSkuValue(r.productSkuId)}</span>
+                                      </Space>
+                                    ),
+                                  },
+                                  {
+                                    title: '本地规格名称',
+                                    dataIndex: 'specName',
+                                    width: 180,
+                                    render: (v) => (
+                                      <Typography.Text className="product-draft-douyin-bind__text">
+                                        {v || '—'}
+                                      </Typography.Text>
+                                    ),
+                                  },
                                   {
                                     title: '本地价格',
                                     width: 96,
@@ -4782,8 +4921,13 @@ export default function ProductDraftDetailPage() {
                                     width: 88,
                                     render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
                                   },
-                                  { title: '平台规格编号', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
-                                  { title: '抖店规格名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
+                                  { title: '平台规格编号', dataIndex: 'externalSkuId', width: 170, render: (v) => platformSkuValue(v) },
+                                  {
+                                    title: '抖店规格名称',
+                                    dataIndex: 'platformSkuName',
+                                    width: 180,
+                                    render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text>,
+                                  },
                                   { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
                                   { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
                                   {
@@ -4795,8 +4939,12 @@ export default function ProductDraftDetailPage() {
                                   {
                                     title: '说明',
                                     dataIndex: 'bindMessage',
-                                    ellipsis: true,
-                                    render: (v, r) => v || douyinBindStatusHint(r.bindStatus),
+                                    width: 220,
+                                    render: (v, r) => (
+                                      <Typography.Text className="product-draft-douyin-bind__text">
+                                        {v || douyinBindStatusHint(r.bindStatus)}
+                                      </Typography.Text>
+                                    ),
                                   },
                                   {
                                     title: '操作',
@@ -4807,7 +4955,7 @@ export default function ProductDraftDetailPage() {
                                         <Button
                                           type="link"
                                           size="small"
-                                          style={{ padding: 0 }}
+                                          className="product-draft-douyin-bind__action"
                                           onClick={() => {
                                             setDouyinSkuBindTarget(r);
                                             douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined });
@@ -4820,7 +4968,7 @@ export default function ProductDraftDetailPage() {
                                           <Button
                                             type="link"
                                             size="small"
-                                            style={{ padding: 0 }}
+                                            className="product-draft-douyin-bind__action"
                                             danger
                                             onClick={() =>
                                               confirmSkuUnbind(() =>
@@ -4843,7 +4991,11 @@ export default function ProductDraftDetailPage() {
                                 ]}
                               />
                             ) : (
-                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
+                              <EmptyState
+                                compact
+                                title="暂无规格绑定结果"
+                                description="点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。"
+                              />
                             )}
                           </Space>
                         )}
@@ -5722,6 +5874,9 @@ export default function ProductDraftDetailPage() {
         title={douyinSkuBindTarget ? `手动绑定抖店规格 · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店规格'}
         open={douyinSkuBindOpen && !!douyinSkuBindTarget}
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-douyin-bind__modal-root"
+        className="product-draft-douyin-bind__modal"
         okText="确认绑定"
         confirmLoading={douyinSkuBindSubmitting}
         onCancel={() => {
@@ -5765,15 +5920,31 @@ export default function ProductDraftDetailPage() {
           });
         }}
       >
-        <Typography.Paragraph type="secondary">
-          本地规格：{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}
-        </Typography.Paragraph>
+        <div className="product-draft-douyin-bind__modal-brief">
+          <Typography.Text strong>建立映射</Typography.Text>
+          <Typography.Paragraph type="secondary">
+            选择一个已有抖店规格，与当前本地规格建立映射。该操作不会创建平台 SKU，也不会自动触发库存同步。
+          </Typography.Paragraph>
+          <div className="product-draft-douyin-bind__modal-pair">
+            <div>
+              <span>本地规格</span>
+              <strong>{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}</strong>
+              <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.productSkuId)}</span>
+            </div>
+            <div>
+              <span>当前平台规格</span>
+              <strong>{douyinSkuBindTarget?.platformSkuName || '—'}</strong>
+              <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.externalSkuId)}</span>
+            </div>
+          </div>
+        </div>
         <Form form={douyinSkuBindForm} layout="vertical">
           <Form.Item name="platformSkuId" label="抖店规格" rules={[{ required: true, message: '请选择抖店规格' }]}>
             <Select
               showSearch
               placeholder="从平台候选中选择"
               optionFilterProp="label"
+              className="product-draft-douyin-bind__select"
               options={(douyinSkuBinding?.platformSkus ?? []).map((c: DouyinPlatformSkuCandidate) => ({
                 value: c.platformSkuId,
                 label: `${c.platformSkuId} · ${c.specName || '—'}${c.boundToPublicationSkuId ? '（已绑定其他规格）' : ''}`,
@@ -5789,32 +5960,53 @@ export default function ProductDraftDetailPage() {
             <Input placeholder="可选，便于识别" />
           </Form.Item>
         </Form>
+        <TechnicalDetails label="映射标识">
+          <Descriptions size="small" column={1}>
+            <Descriptions.Item label="刊登规格">{platformSkuValue(douyinSkuBindTarget?.publicationSkuId)}</Descriptions.Item>
+            <Descriptions.Item label="抖店商品">{platformSkuValue(douyinPublication?.externalProductId)}</Descriptions.Item>
+          </Descriptions>
+        </TechnicalDetails>
       </Modal>
 
       <Drawer
         title="抖店平台规格候选"
         open={douyinSkuCandidatesOpen}
-        width={640}
+        width="min(720px, calc(100vw - 16px))"
+        rootClassName="tm-product-draft-detail product-draft-douyin-bind__drawer-root"
+        className="product-draft-douyin-bind__drawer"
         onClose={() => setDouyinSkuCandidatesOpen(false)}
       >
+        <Typography.Paragraph type="secondary" className="product-draft-douyin-bind__drawer-note">
+          候选来自当前抖店商品详情，仅用于选择已有平台规格。候选列表不会自动绑定，也不会改变本地库存。
+        </Typography.Paragraph>
         {(douyinSkuBinding?.platformSkus?.length ?? 0) === 0 ? (
-          <Typography.Text type="secondary">暂无候选，请先执行「重新校准」从抖店拉取商品详情。</Typography.Text>
+          <EmptyState
+            compact
+            title="暂无平台规格候选"
+            description="请先执行「重新校准」从抖店拉取商品详情；查询失败不会显示为空候选。"
+          />
         ) : (
           <Table<DouyinPlatformSkuCandidate>
             size="small"
+            className="product-draft-douyin-bind__candidate-table"
             rowKey="platformSkuId"
             pagination={false}
+            scroll={{ x: 680 }}
             dataSource={douyinSkuBinding?.platformSkus ?? []}
             columns={[
-              { title: '平台规格编号', dataIndex: 'platformSkuId', ellipsis: true },
-              { title: '规格名称', dataIndex: 'specName', ellipsis: true, render: (v) => v || '—' },
+              { title: '平台规格编号', dataIndex: 'platformSkuId', width: 180, render: (v) => platformSkuValue(v) },
+              {
+                title: '规格名称',
+                dataIndex: 'specName',
+                width: 220,
+                render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text>,
+              },
               { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
               { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
               {
                 title: '绑定状态',
-                width: 120,
-                render: (_, r) =>
-                  r.boundToPublicationSkuId ? <Tag color="blue">已绑定本地规格</Tag> : <Tag>未绑定</Tag>,
+                width: 156,
+                render: (_, r) => platformSkuCandidateStatusTag(r, douyinSkuBindTarget?.publicationSkuId),
               },
             ]}
           />
