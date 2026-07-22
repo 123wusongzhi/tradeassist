@@ -75,6 +75,7 @@ import {
   UndoOutlined,
   EditOutlined,
   MoreOutlined,
+  TranslationOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
@@ -1741,6 +1742,11 @@ export default function ProductDraftDetailPage() {
     return list;
   }, [data?.images]);
 
+  const aiImageSource = useMemo(
+    () => sortedImages.find((image) => (image.publicUrl || image.originUrl || '').trim()),
+    [sortedImages],
+  );
+
   const imageOverview = useMemo(() => {
     const rows = data?.images ?? [];
     return {
@@ -2479,9 +2485,23 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title="商品来源与采集信息"
-                    description="这些信息用于追溯采集入口，不会随本页基础信息保存一起修改。"
+                    description="这些信息用于追溯采集入口；来源链接和采集原始数据不在本页编辑。"
                     className="product-draft-basic__section product-draft-basic__source"
                   >
+                    <div className="product-draft-basic__source-title-block">
+                      <Typography.Text type="secondary" className="product-draft-basic__source-title-label">
+                        来源商品标题
+                      </Typography.Text>
+                      {data.originalTitle ? (
+                        <Tooltip title={data.originalTitle}>
+                          <Typography.Text strong className="product-draft-basic__source-title">
+                            {data.originalTitle}
+                          </Typography.Text>
+                        </Tooltip>
+                      ) : (
+                        <Typography.Text type="secondary">未记录</Typography.Text>
+                      )}
+                    </div>
                     <Descriptions
                       column={{ xs: 1, sm: 1, md: 2, xl: 3 }}
                       size="small"
@@ -2539,7 +2559,7 @@ export default function ProductDraftDetailPage() {
 
                   <SectionCard
                     title="商品核心信息"
-                    description="本区保存后只更新商品基础字段，不会保存 AI 结果、图片、SKU、库存或刊登配置。"
+                    description="保存会提交本表单当前字段；图片、SKU、库存和刊登配置仍在对应 Tab 处理。"
                     className="product-draft-basic__section product-draft-basic__form-section"
                   >
                     {missingBasicFields.length > 0 ? (
@@ -2571,7 +2591,7 @@ export default function ProductDraftDetailPage() {
                             <div className="product-draft-basic__save-copy">
                               <Typography.Text strong>保存范围</Typography.Text>
                               <Typography.Text type="secondary">
-                                仅保存本表单中的标题、描述、币种和状态；AI、图片、SKU、库存和刊登配置需要在对应 Tab 单独处理。
+                                提交标题、原始标题、AI 标题、描述、AI 描述、币种和状态；不会自动执行发布检查、刊登或图片 / SKU / 库存操作。
                               </Typography.Text>
                             </div>
                             <div className="product-draft-basic__save-actions">{dom}</div>
@@ -2611,6 +2631,7 @@ export default function ProductDraftDetailPage() {
                       colProps={{ xs: 24, md: 12 }}
                     >
                       <div id="title" className="product-draft-basic__anchor" />
+                      <div className="product-draft-basic__form-group-title">商品识别信息</div>
                       <ProFormText
                         name="title"
                         label="主标题"
@@ -2630,6 +2651,8 @@ export default function ProductDraftDetailPage() {
                         fieldProps={{ rows: 2 }}
                         extra="AI 生成结果应用后会写入这里；本页保存只保存当前字段值。"
                       />
+                      <div id="description" className="product-draft-basic__anchor" />
+                      <div className="product-draft-basic__form-group-title">标题与描述</div>
                       <ProFormTextArea
                         name="description"
                         label="主描述"
@@ -2644,6 +2667,7 @@ export default function ProductDraftDetailPage() {
                         colProps={{ xs: 24, lg: 12 }}
                         extra="AI 生成结果应用后会写入这里，可与主描述对照。"
                       />
+                      <div className="product-draft-basic__form-group-title">流转属性</div>
                       <ProFormText name="currency" label="币种" extra="仅保存商品基础币种展示，不会重新计算 SKU 价格。" />
                       <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} extra="状态值保持原有枚举，用于草稿流转。" />
                     </ProForm>
@@ -2708,10 +2732,10 @@ export default function ProductDraftDetailPage() {
                   <SectionCard
                     title="AI 文案工作台"
                     description="先生成建议，再人工确认应用。生成不会保存到商品字段，应用才会写入 AI 标题或 AI 描述。"
+                    className="product-draft-ai__workbench"
                     headerExtra={
-                      <>
+                      <Space wrap className="product-draft-ai__actions">
                         <Button
-                          type="primary"
                           icon={<ThunderboltOutlined />}
                           onClick={() => {
                             setAiResult(null);
@@ -2739,9 +2763,34 @@ export default function ProductDraftDetailPage() {
                         >
                           生成描述建议
                         </Button>
-                      </>
+                      </Space>
                     }
                   >
+                    <div className="product-draft-ai__status-strip" aria-label="AI 文案状态">
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">当前草稿</Typography.Text>
+                        <Typography.Text strong>{originalTitleText || originalDescriptionText ? '已有人工内容' : '待补充内容'}</Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">AI 字段</Typography.Text>
+                        <Typography.Text strong>
+                          {appliedAiTitleText || appliedAiDescriptionText ? '已有已应用内容' : '暂无已应用内容'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">最近任务</Typography.Text>
+                        <Typography.Text strong>
+                          {aiTasks.length ? `${aiTasks.length} 条记录` : '暂无记录'}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                    <Alert
+                      className="product-draft-ai__action-note"
+                      type="info"
+                      showIcon
+                      message="生成只是创建候选文案"
+                      description="应用或撤销才会写入商品草稿；如果商品内容在生成后变化，系统会按现有冲突保护阻止静默覆盖。"
+                    />
                     <div className="product-draft-ai__guide">
                       <div className="product-draft-ai__guide-item">
                         <RobotOutlined />
@@ -2829,6 +2878,7 @@ export default function ProductDraftDetailPage() {
                   <SectionCard
                     title="最近 AI 文案任务"
                     description="任务状态只表示 AI 生成过程；成功生成后仍需人工应用到商品。"
+                    className="product-draft-ai__task-section"
                   >
                     <ProTable<AITaskRow>
                       rowKey="id"
@@ -2889,7 +2939,7 @@ export default function ProductDraftDetailPage() {
                           render: (_, row) =>
                             isAiTaskFailed(row) ? (
                               <Space direction="vertical" size={0}>
-                                <Typography.Text type="danger" ellipsis>
+                                <Typography.Text type="danger" className="product-draft-ai__task-error">
                                   {row.errorMessage || '任务失败，未返回具体原因'}
                                 </Typography.Text>
                                 <Typography.Text type="secondary">{aiTaskNextStep(row)}</Typography.Text>
@@ -2917,6 +2967,108 @@ export default function ProductDraftDetailPage() {
                         },
                       ]}
                       size="small"
+                    />
+                  </SectionCard>
+
+                  <SectionCard
+                    title="AI 图片任务"
+                    description="面向商品图片的后台处理入口；创建任务不会直接覆盖原图，结果去向在弹窗或任务内确认。"
+                    className="product-draft-ai__image-workbench"
+                    headerExtra={
+                      <Link to={`/ai/image-tasks?productId=${encodeURIComponent(id)}`}>
+                        <Button icon={<UnorderedListOutlined />}>查看图片任务</Button>
+                      </Link>
+                    }
+                  >
+                    <div className="product-draft-ai__image-status" aria-label="AI 图片任务状态">
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">当前图片</Typography.Text>
+                        <Typography.Text strong>{imageOverview.total ? `${imageOverview.total} 张` : '暂无图片'}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {imageOverview.main ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">可翻译源图</Typography.Text>
+                        <Typography.Text strong>{aiImageSource ? '已找到' : '缺少可用图片'}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {aiImageSource ? '默认使用当前排序第一张有地址的图片' : '请先在图片管理中添加图片'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">结果去向</Typography.Text>
+                        <Typography.Text strong>后台任务处理</Typography.Text>
+                        <Typography.Text type="secondary">自动保存、设主图或设详情图需显式选择。</Typography.Text>
+                      </div>
+                    </div>
+
+                    <div className="product-draft-ai__image-grid">
+                      <div className="product-draft-ai__image-card product-draft-ai__image-card--primary">
+                        <div className="product-draft-ai__image-card-head">
+                          <RobotOutlined />
+                          <div>
+                            <Typography.Text strong>AI 图片生成与处理</Typography.Text>
+                            <Typography.Paragraph type="secondary">
+                              新建去水印、去背景、营销图、主图优选等图片任务，处理过程在后台执行。
+                            </Typography.Paragraph>
+                          </div>
+                        </div>
+                        <Space wrap size={[8, 8]}>
+                          <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                            新建图片任务
+                          </Button>
+                          <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                            推荐最佳主图
+                          </Button>
+                          <Button
+                            type="primary"
+                            ghost
+                            icon={<ThunderboltOutlined />}
+                            onClick={() => void runSelectBestMain('auto_set')}
+                          >
+                            自动设为主图
+                          </Button>
+                        </Space>
+                      </div>
+
+                      <div className="product-draft-ai__image-card">
+                        <div className="product-draft-ai__image-card-head">
+                          <TranslationOutlined />
+                          <div>
+                            <Typography.Text strong>图片文字翻译</Typography.Text>
+                            <Typography.Paragraph type="secondary">
+                              选择当前商品图片创建翻译任务，原图不覆盖；译后图片可保存为商品图片或详情图。
+                            </Typography.Paragraph>
+                          </div>
+                        </div>
+                        <Space direction="vertical" size={8} className="product-draft-ai__image-action-stack">
+                          <Space wrap size={[8, 8]}>
+                            <Button
+                              icon={<TranslationOutlined />}
+                              disabled={!aiImageSource}
+                              onClick={() => {
+                                if (aiImageSource) openTranslateImageText(aiImageSource);
+                              }}
+                            >
+                              翻译当前第一张可用图片
+                            </Button>
+                            <Button icon={<PictureOutlined />} onClick={() => openDraftLocation('images')}>
+                              前往图片管理
+                            </Button>
+                          </Space>
+                          <Typography.Text type="secondary" className="product-draft-ai__image-note">
+                            需要指定其他源图时，可在图片管理列表中对单张图片发起翻译。
+                          </Typography.Text>
+                        </Space>
+                      </div>
+                    </div>
+
+                    <Alert
+                      className="product-draft-ai__image-note-alert"
+                      type="info"
+                      showIcon
+                      message="图片任务是异步处理"
+                      description="任务提交后不会立即替换页面图片；结果、失败原因和后续保存动作以 AI 图片任务列表和弹窗内配置为准。"
                     />
                   </SectionCard>
 
