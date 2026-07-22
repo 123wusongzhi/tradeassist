@@ -366,6 +366,30 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
 }
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
+function skuTextCell(value?: string | null, fallback = '—'): ReactNode {
+  const text = String(value ?? '').trim();
+  if (!text) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
+  return (
+    <Tooltip title={text}>
+      <Typography.Text className="product-draft-skus__text-cell">{text}</Typography.Text>
+    </Tooltip>
+  );
+}
+
+function skuPriceCell(value?: number | null): ReactNode {
+  return typeof value === 'number' ? value.toFixed(2) : <Typography.Text type="secondary">—</Typography.Text>;
+}
+
+function skuAttrsCell(value?: string | null): ReactNode {
+  const text = String(value ?? '').trim();
+  if (!text) return <Typography.Text type="secondary">未填写</Typography.Text>;
+  return (
+    <Tooltip title={text}>
+      <Typography.Paragraph className="product-draft-skus__attrs-cell">{text}</Typography.Paragraph>
+    </Tooltip>
+  );
+}
+
 const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
   label: v.text,
   value,
@@ -1969,6 +1993,7 @@ export default function ProductDraftDetailPage() {
   const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
   const productTitle = data?.title?.trim() || '商品详情';
   const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
+  const currentSkuCount = skuRows.length;
   const latestFailedAiTask = useMemo(
     () => aiTasks.find((task) => isAiTaskFailed(task)) ?? null,
     [aiTasks],
@@ -2189,49 +2214,81 @@ export default function ProductDraftDetailPage() {
     [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText],
   );
 
-  const skuColumns = useMemo(
+  const skuColumns = useMemo<ProColumns<SKUEditable>[]>(
     () => [
-      { title: '编码', dataIndex: 'skuCode', width: 140, ellipsis: true, formItemProps: { rules: [] } },
-      { title: '名称', dataIndex: 'skuName', width: 180, ellipsis: true, formItemProps: { rules: [{ required: true }] } },
+      {
+        title: '编码',
+        dataIndex: 'skuCode',
+        width: 160,
+        ellipsis: true,
+        className: 'product-draft-skus__code-col',
+        formItemProps: { rules: [] },
+        render: (_, record) => skuTextCell(record.skuCode, '未填写'),
+      },
+      {
+        title: '名称',
+        dataIndex: 'skuName',
+        width: 200,
+        ellipsis: true,
+        className: 'product-draft-skus__name-col',
+        formItemProps: { rules: [{ required: true }] },
+        render: (_, record) => skuTextCell(record.skuName, '未填写'),
+      },
       {
         title: '成本价',
         dataIndex: 'costPrice',
-        width: 100,
+        width: 112,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0, precision: 2 },
+        fieldProps: { min: 0, precision: 2, className: 'product-draft-skus__number-input' },
         readonly: true,
+        render: (_, record) => skuPriceCell(record.costPrice),
       },
       {
         title: '销售价',
         dataIndex: 'price',
-        width: 100,
+        width: 112,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0, precision: 2 },
+        fieldProps: { min: 0, precision: 2, className: 'product-draft-skus__number-input' },
+        render: (_, record) => skuPriceCell(record.price),
       },
       {
         title: '库存',
         dataIndex: 'stock',
-        width: 92,
+        width: 96,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0 },
+        fieldProps: { min: 0, className: 'product-draft-skus__number-input' },
+        render: (_, record) => (typeof record.stock === 'number' ? record.stock : <Typography.Text type="secondary">—</Typography.Text>),
       },
       {
         title: '图片 URL',
         dataIndex: 'imageUrl',
-        width: 160,
+        width: 190,
         ellipsis: true,
+        className: 'product-draft-skus__url-col',
+        render: (_, record) => skuTextCell(record.imageUrl, '未填写'),
       },
       {
         title: '规格属性（高级）',
         dataIndex: 'attrsText',
         valueType: 'textarea' as const,
+        width: 260,
         ellipsis: true,
-        fieldProps: { rows: 2 },
+        className: 'product-draft-skus__attrs-col',
+        fieldProps: { rows: 2, className: 'product-draft-skus__attrs-input' },
+        render: (_, record) => skuAttrsCell(record.attrsText),
       },
       {
         title: '操作',
         valueType: 'option' as const,
-        width: 140,
+        width: 132,
+        fixed: 'right' as const,
+        className: 'product-draft-skus__action-col',
         render: (_: unknown, record: SKUEditable) => (
           <Popconfirm
             title="删除该商品规格？"
@@ -2249,7 +2306,7 @@ export default function ProductDraftDetailPage() {
               }
             }}
           >
-            <Button type="link" danger size="small">
+            <Button type="link" danger size="small" className="product-draft-skus__danger-action">
               删除
             </Button>
           </Popconfirm>
@@ -3300,83 +3357,127 @@ export default function ProductDraftDetailPage() {
               key: 'skus',
               label: tabLabels.skus,
               children: (
-                <Card variant="borderless">
-                  {(data.source === 'custom' || isPinduoduoProduct(data)) &&
-                  (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 12 }}
-                      message={
-                        isPinduoduoProduct(data)
-                          ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
-                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
-                      }
-                    />
-                  ) : null}
-                  <Space style={{ marginBottom: 12 }}>
-                    <Button type="primary" onClick={() => setPricingOpen(true)}>
-                      应用定价规则
-                    </Button>
-                    <Typography.Text type="secondary">
-                      按成本价/当前价加价并更新本地销售价，不会自动刊登
-                    </Typography.Text>
-                  </Space>
-                  <EditableProTable<SKUEditable>
-                    rowKey="id"
-                    headerTitle={false}
-                    search={false}
-                    options={false}
-                    pagination={false}
-                    value={skuRows}
-                    onChange={(value) => setSkuRows([...value])}
-                    recordCreatorProps={{
-                      record: (): SKUEditable => ({
-                        id: `new_${Date.now()}`,
-                        productId: id,
-                        skuCode: '',
-                        skuName: '新规格',
-                        attrsText: '{}',
-                      }),
-                      style: {
-                        marginBottom: 16,
-                      },
-                      creatorButtonText: '新增规格',
-                    }}
-                    editable={{
-                      type: 'multiple',
-                      onSave: async (_key, row) => {
-                        const attrsStr = row.attrsText?.trim() ?? '';
-                        let attrs: string | Record<string, unknown> | undefined = attrsStr;
-                        if (!attrsStr) attrs = '{}';
-                        if (String(row.id).startsWith('new_')) {
-                          await createProductSku(id, {
-                            skuCode: row.skuCode ?? '',
-                            skuName: row.skuName,
-                            attrs,
-                            price: row.price,
-                            stock: row.stock,
-                            imageUrl: row.imageUrl,
-                          });
-                          message.success('商品规格已创建');
-                        } else {
-                          await updateProductSku(id, row.id, {
-                            skuCode: row.skuCode,
-                            skuName: row.skuName,
-                            attrs,
-                            price: row.price,
-                            stock: row.stock,
-                            imageUrl: row.imageUrl,
-                          });
-                          message.success('商品规格已更新');
+                <Space direction="vertical" className="product-draft-skus" size="middle">
+                  <SectionCard
+                    title="规格与价格"
+                    description="维护当前商品的 SKU 编码、规格名称、价格和本地库存；定价只更新本地销售价，不会自动刊登。"
+                    className="product-draft-skus__section"
+                    headerExtra={<Tag color="blue">当前商品 {currentSkuCount} 个 SKU</Tag>}
+                  >
+                    <div id="pricing" />
+                    {(data.source === 'custom' || isPinduoduoProduct(data)) &&
+                    (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        className="product-draft-skus__alert"
+                        message={
+                          isPinduoduoProduct(data)
+                            ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
+                            : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
                         }
-                        await reloadDetail();
-                      },
-                    }}
-                    columns={skuColumns}
-                    scroll={{ x: 1100 }}
-                  />
-                </Card>
+                      />
+                    ) : null}
+                    {readonly ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="product-draft-skus__alert"
+                        message="当前账号处于只读模式"
+                        description="本区仅强化只读提示，不改变现有新增、编辑、保存、删除或定价按钮的可用规则。"
+                      />
+                    ) : null}
+                    <div className="product-draft-skus__summary" aria-label="当前商品规格摘要">
+                      <div className="product-draft-skus__summary-item">
+                        <span>SKU 数量</span>
+                        <strong>{currentSkuCount}</strong>
+                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                      </div>
+                      <div className="product-draft-skus__summary-item">
+                        <span>编辑方式</span>
+                        <strong>行内编辑</strong>
+                        <Typography.Text type="secondary">新增行保存后写入接口</Typography.Text>
+                      </div>
+                      <div className="product-draft-skus__summary-item">
+                        <span>定价范围</span>
+                        <strong>本商品 SKU</strong>
+                        <Typography.Text type="secondary">试算确认后更新销售价</Typography.Text>
+                      </div>
+                    </div>
+                    <OperationToolbar
+                      className="product-draft-skus__toolbar"
+                      extra={<Typography.Text type="secondary">新增 SKU 使用表格内真实入口；保存和删除仍按行处理。</Typography.Text>}
+                    >
+                      <Button icon={<ThunderboltOutlined />} onClick={() => setPricingOpen(true)}>
+                        应用定价规则
+                      </Button>
+                    </OperationToolbar>
+                    {currentSkuCount === 0 ? (
+                      <EmptyState
+                        compact
+                        title="还没有商品规格"
+                        description="使用下方「新增 SKU」添加一行规格，保存后才会创建本地 SKU。"
+                        className="product-draft-skus__empty"
+                      />
+                    ) : null}
+                    <div id="local-skus" className="product-draft-skus__table-anchor" />
+                    <EditableProTable<SKUEditable>
+                      rowKey="id"
+                      className="product-draft-skus__table"
+                      headerTitle={false}
+                      search={false}
+                      options={false}
+                      pagination={false}
+                      value={skuRows}
+                      onChange={(value) => setSkuRows([...value])}
+                      recordCreatorProps={{
+                        record: (): SKUEditable => ({
+                          id: `new_${Date.now()}`,
+                          productId: id,
+                          skuCode: '',
+                          skuName: '新规格',
+                          attrsText: '{}',
+                        }),
+                        style: {
+                          marginBottom: 12,
+                        },
+                        creatorButtonText: '新增 SKU',
+                      }}
+                      editable={{
+                        type: 'multiple',
+                        onSave: async (_key, row) => {
+                          const attrsStr = row.attrsText?.trim() ?? '';
+                          let attrs: string | Record<string, unknown> | undefined = attrsStr;
+                          if (!attrsStr) attrs = '{}';
+                          if (String(row.id).startsWith('new_')) {
+                            await createProductSku(id, {
+                              skuCode: row.skuCode ?? '',
+                              skuName: row.skuName,
+                              attrs,
+                              price: row.price,
+                              stock: row.stock,
+                              imageUrl: row.imageUrl,
+                            });
+                            message.success('商品规格已创建');
+                          } else {
+                            await updateProductSku(id, row.id, {
+                              skuCode: row.skuCode,
+                              skuName: row.skuName,
+                              attrs,
+                              price: row.price,
+                              stock: row.stock,
+                              imageUrl: row.imageUrl,
+                            });
+                            message.success('商品规格已更新');
+                          }
+                          await reloadDetail();
+                        },
+                      }}
+                      columns={skuColumns}
+                      scroll={{ x: 1260 }}
+                    />
+                  </SectionCard>
+                </Space>
               ),
             },
             {
