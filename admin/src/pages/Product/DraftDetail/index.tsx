@@ -4556,7 +4556,7 @@ export default function ProductDraftDetailPage() {
                             type="info"
                             showIcon
                             message="当前账号为只读模式"
-                            description="可查看配置、任务和刊登记录；已有写操作仍沿用原权限判断，本轮不新增前端拦截。"
+                            description="可查看配置、任务和刊登记录；请勿触发草稿创建、配置保存、图片上传、SKU 绑定或传统提交刊登等写操作。"
                           />
                         ) : null}
                         <div className="product-draft-publish__condition-grid">
@@ -4652,6 +4652,20 @@ export default function ProductDraftDetailPage() {
                       </div>
                     </SectionCard>
                     <SectionCard title="多平台刊登中心" description="创建多平台刊登草稿，不等同于已经正式提交到平台。" className="product-draft-publish__multi-platform">
+                      <div className="product-draft-publish__multi-platform-brief">
+                        <div>
+                          <Typography.Text strong>当前商品</Typography.Text>
+                          <Typography.Paragraph type="secondary">{productTitle}</Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>创建后的下一步</Typography.Text>
+                          <Typography.Paragraph type="secondary">创建结果会刷新刊登上下文、抖店任务和平台 SKU 映射；请继续查看任务或进入对应平台配置。</Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>只读状态</Typography.Text>
+                          <Typography.Paragraph type="secondary">{readonly ? '当前账号只应查看状态，不应触发检查或创建草稿。' : '需要手动选择平台和店铺，本页不会自动选择或自动提交。'}</Typography.Paragraph>
+                        </div>
+                      </div>
                       <MultiPlatformPublishCenter
                         productId={id}
                         onDraftsCreated={async () => {
@@ -5417,9 +5431,26 @@ export default function ProductDraftDetailPage() {
                       <Alert
                         type="warning"
                         showIcon
+                        className="product-draft-publish__legacy-warning"
                         message="传统提交刊登是兼容入口"
-                        description="此入口会在发布检查通过后提交刊登任务，可能触发真实平台写操作；创建草稿类操作请优先使用多平台中心或抖店专项流程。"
+                        description="此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登任务，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续任务和刊登记录为准。"
                       />
+                      {eligibleShopsForPublish.length === 0 && !pubCtxError ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="暂无可提交刊登的店铺"
+                          description="只有已授权且 product_publish 能力为可用或 beta 的店铺会出现在传统提交入口。"
+                        />
+                      ) : null}
+                      {publishReadinessLoading ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="正在执行 publish 模式发布检查"
+                          description="检查完成前不会提交刊登任务。"
+                        />
+                      ) : null}
                       {publishReadiness ? (
                         <Alert
                           type={
@@ -5464,10 +5495,17 @@ export default function ProductDraftDetailPage() {
                           }
                         />
                       ) : null}
+                      <div className="product-draft-publish__legacy-panel">
+                        <div className="product-draft-publish__legacy-copy">
+                          <Typography.Text strong>传统提交刊登</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            选择店铺后会展示 publish readiness；点击提交后先确认，再重新检查并调用传统刊登提交接口。失败不会清空已有任务和刊登记录。
+                          </Typography.Paragraph>
+                        </div>
                       <Form
                         form={publishForm}
                         layout="vertical"
-                        style={{ maxWidth: 560 }}
+                        className="product-draft-publish__legacy-form"
                         onFinish={async (vals: { shopId?: string }) => {
                           const shopId = String(vals.shopId ?? '').trim();
                           if (!shopId) {
@@ -5481,6 +5519,25 @@ export default function ProductDraftDetailPage() {
                           }
                           setPublishSubmitting(true);
                           try {
+                            await new Promise<void>((resolve, reject) => {
+                              Modal.confirm({
+                                title: '确认提交刊登？',
+                                width: 640,
+                                okText: '确认提交刊登',
+                                cancelText: '取消',
+                                okButtonProps: { danger: true },
+                                content: (
+                                  <Space direction="vertical" size={8}>
+                                    <Typography.Text>该操作会执行 publish 模式发布检查，检查通过后提交刊登任务。</Typography.Text>
+                                    <Typography.Text type="secondary">
+                                      这不是本地保存，也不是只创建草稿；可能触发真实平台写操作，平台最终结果请以任务和刊登记录为准。
+                                    </Typography.Text>
+                                  </Space>
+                                ),
+                                onOk: () => resolve(),
+                                onCancel: () => reject(new Error('cancelled')),
+                              });
+                            });
                             const r = await getProductReadiness(id, {
                               platform: shop.platform,
                               shopId,
@@ -5570,9 +5627,16 @@ export default function ProductDraftDetailPage() {
                           </Space>
                         </Form.Item>
                       </Form>
-                      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
-                        本商品刊登记录
-                      </Typography.Title>
+                      </div>
+                      <div className="product-draft-publish__records-head">
+                        <div>
+                          <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
+                            本商品刊登记录
+                          </Typography.Title>
+                          <Typography.Text type="secondary">记录展示草稿、任务或平台返回状态；草稿成功不等于正式上线，正式提交后也以后续状态为准。</Typography.Text>
+                        </div>
+                        <Button size="small" onClick={() => void reloadPublishContext()}>刷新记录</Button>
+                      </div>
                       {pubCtxError ? (
                         <Alert
                           type="error"
@@ -5594,7 +5658,7 @@ export default function ProductDraftDetailPage() {
                           columns={[
                             { title: '店铺', width: 220, render: (_, r) => <Typography.Text className="product-draft-publish__long-text">{r.shopName || r.shopId}</Typography.Text> },
                             { title: '平台', dataIndex: 'platform', width: 140, render: (v) => platformDisplayLabel(String(v ?? '')) },
-                            { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => commonStatusLabel(String(v ?? '')) },
+                            { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => tagFromPublishStatus(String(v ?? '')) },
                             { title: '外部商品 ID', dataIndex: 'externalProductId', width: 180, render: (v) => <Typography.Text className="product-draft-publish__long-text">{v || '—'}</Typography.Text> },
                             {
                               title: '外链',
