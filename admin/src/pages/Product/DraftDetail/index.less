@@ -1747,6 +1747,199 @@
   min-width: 0;
 }
 
+.product-draft-douyin-flow {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 10px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-douyin-flow__title-block {
+  min-width: 0;
+  margin-bottom: 16px;
+}
+
+.product-draft-douyin-flow__title-block .ant-typography {
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.product-draft-douyin-flow__status-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.product-draft-douyin-flow__status-item,
+.product-draft-douyin-flow__context-panel,
+.product-draft-douyin-flow__panel {
+  min-width: 0;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+}
+
+.product-draft-douyin-flow__status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.product-draft-douyin-flow__status-item--error {
+  border-color: var(--ant-color-error-border);
+  background: var(--ant-color-error-bg);
+}
+
+.product-draft-douyin-flow__status-item--warning {
+  border-color: var(--ant-color-warning-border);
+  background: var(--ant-color-warning-bg);
+}
+
+.product-draft-douyin-flow__status-item--success {
+  border-color: var(--ant-color-success-border);
+}
+
+.product-draft-douyin-flow__status-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.product-draft-douyin-flow__status-head > span,
+.product-draft-douyin-flow__long-text,
+.product-draft-douyin-flow__attr-label,
+.product-draft-douyin-draft__table .ant-typography {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.product-draft-douyin-flow__context-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px;
+}
+
+.product-draft-douyin-flow__context-panel .ant-typography {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.product-draft-douyin-flow__context-descriptions {
+  min-width: 0;
+}
+
+.product-draft-douyin-flow__panel {
+  padding: 14px;
+}
+
+.product-draft-douyin-flow__panel + .product-draft-douyin-flow__panel {
+  margin-top: 0;
+}
+
+.product-draft-douyin-flow__panel-head {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.product-draft-douyin-flow__panel-head > div,
+.product-draft-douyin-flow__create-copy {
+  min-width: 0;
+}
+
+.product-draft-douyin-flow__panel-head .ant-typography,
+.product-draft-douyin-flow__create-copy .ant-typography {
+  margin-bottom: 0;
+  overflow-wrap: anywhere;
+}
+
+.product-draft-douyin-flow__panel-actions {
+  min-width: 0;
+  justify-content: flex-end;
+}
+
+.product-draft-douyin-flow__form,
+.product-draft-douyin-draft__form {
+  min-width: 0;
+}
+
+.product-draft-douyin-flow__form-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.product-draft-douyin-flow__attr-summary,
+.product-draft-douyin-flow__image-summary {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.product-draft-douyin-flow__attr-summary > span,
+.product-draft-douyin-flow__image-summary > span {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--ant-color-fill-tertiary);
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.product-draft-douyin-flow__attr-grid {
+  min-width: 0;
+}
+
+.product-draft-douyin-flow__submit-row {
+  margin-bottom: 0;
+}
+
+.product-draft-douyin-flow__image-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.product-draft-douyin-flow__image-card {
+  width: auto;
+  padding: 10px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-douyin-flow__panel--create {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-color: var(--ant-color-primary-border);
+  background: var(--ant-color-primary-bg);
+}
+
+.product-draft-douyin-draft__descriptions,
+.product-draft-douyin-draft__table {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .product-draft-readiness {
   overflow: hidden;
 }
@@ -1975,8 +2168,13 @@
   }
 
   .product-draft-publish__flow,
-  .product-draft-publish__condition-grid {
+  .product-draft-publish__condition-grid,
+  .product-draft-douyin-flow__status-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .product-draft-douyin-flow__context-panel {
+    grid-template-columns: 1fr;
   }
 
   .product-draft-publish__path-grid {
@@ -2072,19 +2270,30 @@
   }
 
   .product-draft-publish__flow,
-  .product-draft-publish__condition-grid {
+  .product-draft-publish__condition-grid,
+  .product-draft-douyin-flow__status-grid,
+  .product-draft-douyin-flow__form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-draft-douyin-flow__panel-head,
+  .product-draft-douyin-flow__panel--create {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .product-draft-publish__config-actions,
   .product-draft-publish__action-row,
+  .product-draft-douyin-flow__panel-actions,
   .product-draft-publish__config-actions .ant-btn,
-  .product-draft-publish__action-row .ant-btn {
+  .product-draft-publish__action-row .ant-btn,
+  .product-draft-douyin-flow__panel-actions .ant-btn {
     width: 100%;
   }
 
   .product-draft-publish__config-actions .ant-btn,
-  .product-draft-publish__action-row .ant-btn {
+  .product-draft-publish__action-row .ant-btn,
+  .product-draft-douyin-flow__panel-actions .ant-btn {
     justify-content: center;
   }
 
@@ -2266,6 +2475,18 @@
 
   .product-draft-publish__image-card {
     width: 100%;
+  }
+
+  .product-draft-douyin-flow {
+    padding: 12px;
+  }
+
+  .product-draft-douyin-flow__panel {
+    padding: 12px;
+  }
+
+  .product-draft-douyin-flow__image-grid {
+    grid-template-columns: 1fr;
   }
 
   .product-draft-publish .tm-section-card__head {
