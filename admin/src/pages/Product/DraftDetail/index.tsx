@@ -1082,6 +1082,7 @@ export default function ProductDraftDetailPage() {
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
+  const [pubCtxError, setPubCtxError] = useState('');
   const [platformsMeta, setPlatformsMeta] = useState<PlatformProviderMeta[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
   const [publishForm] = Form.useForm();
@@ -1098,8 +1099,10 @@ export default function ProductDraftDetailPage() {
   const [douyinDraftCreating, setDouyinDraftCreating] = useState(false);
   const [douyinPublishTasks, setDouyinPublishTasks] = useState<ProductPublishTaskDTO[]>([]);
   const [douyinPublishTasksLoading, setDouyinPublishTasksLoading] = useState(false);
+  const [douyinPublishTasksError, setDouyinPublishTasksError] = useState('');
   const [douyinSkuBinding, setDouyinSkuBinding] = useState<DouyinSkuBindingSummary | null>(null);
   const [douyinSkuBindingLoading, setDouyinSkuBindingLoading] = useState(false);
+  const [douyinSkuBindingError, setDouyinSkuBindingError] = useState('');
   const [douyinSkuBindingSyncing, setDouyinSkuBindingSyncing] = useState(false);
   const [douyinSkuBindOpen, setDouyinSkuBindOpen] = useState(false);
   const [douyinSkuBindTarget, setDouyinSkuBindTarget] = useState<DouyinSkuBindingRow | null>(null);
@@ -1311,6 +1314,7 @@ export default function ProductDraftDetailPage() {
   const reloadPublishContext = useCallback(async () => {
     if (!id) return;
     setPubCtxLoading(true);
+    setPubCtxError('');
     try {
       const [pubs, prov, shops, douyinCfg, douyinCats] = await Promise.all([
         listProductPublications(id),
@@ -1359,8 +1363,9 @@ export default function ProductDraftDetailPage() {
           setDouyinAttrs(ar?.list ?? []);
         }
       }
-    } catch {
+    } catch (e: unknown) {
       setPubRows([]);
+      setPubCtxError((e as Error)?.message || '刊登上下文加载失败');
     } finally {
       setPubCtxLoading(false);
     }
@@ -1895,11 +1900,13 @@ export default function ProductDraftDetailPage() {
   const reloadDouyinPublishTasks = useCallback(async () => {
     if (!id) return;
     setDouyinPublishTasksLoading(true);
+    setDouyinPublishTasksError('');
     try {
       const res = await listDouyinPublishTasks(id, { page: 1, pageSize: 10 });
       setDouyinPublishTasks(res.list ?? []);
-    } catch {
+    } catch (e: unknown) {
       setDouyinPublishTasks([]);
+      setDouyinPublishTasksError((e as Error)?.message || '抖店刊登任务加载失败');
     } finally {
       setDouyinPublishTasksLoading(false);
     }
@@ -1917,14 +1924,17 @@ export default function ProductDraftDetailPage() {
   const reloadDouyinSkuBindings = useCallback(async () => {
     if (!douyinPublication?.id) {
       setDouyinSkuBinding(null);
+      setDouyinSkuBindingError('');
       return;
     }
     setDouyinSkuBindingLoading(true);
+    setDouyinSkuBindingError('');
     try {
       const res = await getDouyinSkuBindings(douyinPublication.id);
       setDouyinSkuBinding(res);
-    } catch {
+    } catch (e: unknown) {
       setDouyinSkuBinding(null);
+      setDouyinSkuBindingError((e as Error)?.message || '抖店规格绑定加载失败');
     } finally {
       setDouyinSkuBindingLoading(false);
     }
@@ -2063,6 +2073,22 @@ export default function ProductDraftDetailPage() {
   const productTitle = data?.title?.trim() || '商品详情';
   const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
   const currentSkuCount = skuRows.length;
+  const platformPublishAvailableCount = platformsMeta.filter((x) => {
+    const status = x.capabilityStatus?.product_publish;
+    return status === 'available' || status === 'beta';
+  }).length;
+  const publishReadinessErrors = publishReadiness?.checks.filter((c) => (c.level || '').toLowerCase() === 'error') ?? [];
+  const publishReadinessWarnings = publishReadiness?.checks.filter((c) => (c.level || '').toLowerCase() === 'warning') ?? [];
+  const douyinRequiredAttrs = douyinAttrs.filter((x) => x.required);
+  const douyinMissingRequiredAttrs = douyinRequiredAttrs.filter((x) => {
+    const value = douyinConfig.platformAttributes?.[x.attrId] ?? douyinConfig.platformAttributes?.[x.name];
+    return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+  });
+  const douyinMainImages = douyinMapping?.mainImages ?? [];
+  const douyinUploadedMainImages = douyinMainImages.filter((img) => img.uploadStatus === 'uploaded').length;
+  const douyinMappingErrorCount = douyinMapping?.errors?.length ?? 0;
+  const douyinMappingWarningCount = douyinMapping?.warnings?.length ?? 0;
+  const failedDouyinTasks = douyinPublishTasks.filter((task) => task.status === 'failed');
   const latestFailedAiTask = useMemo(
     () => aiTasks.find((task) => isAiTaskFailed(task)) ?? null,
     [aiTasks],
@@ -4402,16 +4428,160 @@ export default function ProductDraftDetailPage() {
               label: tabLabels.publish,
               children: (
                 <Spin spinning={pubCtxLoading || publishReadinessLoading}>
-                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                    <MultiPlatformPublishCenter
-                      productId={id}
-                      onDraftsCreated={async () => {
-                        await reloadPublishContext();
-                        await reloadDouyinPublishTasks();
-                        await reloadPublicationSkus();
-                      }}
-                    />
-                    <Card variant="borderless">
+                  <Space direction="vertical" className="product-draft-publish" size="middle">
+                    <SectionCard
+                      title="刊登流程说明"
+                      description="先确认商品内容、图片、规格、类目和平台能力，再选择合适的刊登入口。"
+                      className="product-draft-publish__intro"
+                    >
+                      <div className="product-draft-publish__flow">
+                        <div>
+                          <Typography.Text strong>创建刊登草稿</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            多平台中心和抖店专项流程会先创建可继续编辑或确认的草稿，不代表商品已经正式提交到平台。
+                          </Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>提交刊登</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台刊登任务。
+                          </Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>发布检查</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            检查通过只说明当前资料满足规则，仍需要选择路径并手动触发草稿创建或刊登提交。
+                          </Typography.Paragraph>
+                        </div>
+                      </div>
+                    </SectionCard>
+                    <SectionCard
+                      title="当前刊登条件摘要"
+                      description="仅展示当前页面已经加载到的店铺、平台、图片、规格、抖店配置和发布检查状态。"
+                      className="product-draft-publish__summary-card"
+                      headerExtra={<Button onClick={() => void reloadPublishContext()}>刷新快照</Button>}
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                        {pubCtxError ? (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="刊登上下文加载失败"
+                            description={pubCtxError}
+                            action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                          />
+                        ) : null}
+                        {readonly ? (
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="当前账号为只读模式"
+                            description="可查看配置、任务和刊登记录；已有写操作仍沿用原权限判断，本轮不新增前端拦截。"
+                          />
+                        ) : null}
+                        <div className="product-draft-publish__condition-grid">
+                          <div className="product-draft-publish__condition">
+                            <span>店铺上下文</span>
+                            <strong>{shopsList.length ? `${shopsList.length} 个已授权店铺` : '无已授权店铺'}</strong>
+                            <Typography.Text type="secondary">
+                              {eligibleShopsForPublish.length ? `${eligibleShopsForPublish.length} 个店铺支持传统刊登或 beta` : pubCtxError ? '店铺数据加载失败' : '传统刊登暂无可用店铺'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>平台能力</span>
+                            <strong>{platformPublishAvailableCount ? `${platformPublishAvailableCount} 个平台可刊登` : '未发现可用能力'}</strong>
+                            <Typography.Text type="secondary">
+                              {platformsMeta.length ? '来自平台接入服务的商品刊登能力' : pubCtxError ? '平台能力加载失败' : '暂无平台能力数据'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>发布检查</span>
+                            <strong>{publishReadiness ? readinessStatusTag(publishReadiness) : '未选择传统刊登店铺'}</strong>
+                            <Typography.Text type="secondary">
+                              {publishReadiness ? `错误 ${publishReadiness.errorCount} · 警告 ${publishReadiness.warningCount}` : '选择店铺后会加载 publish 模式检查'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>图片准备</span>
+                            <strong>{imageSyncSummary.synced} / {imageSyncSummary.total} 已同步</strong>
+                            <Typography.Text type="secondary">外链 {imageSyncSummary.external} · 主图 {imageSyncSummary.externalMain} · 详情图 {imageSyncSummary.externalDetail}</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>本地规格与库存</span>
+                            <strong>{data.skus?.length ?? 0} 个规格</strong>
+                            <Typography.Text type="secondary">刊登前需要确认规格编码、价格和库存。</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>平台 SKU 映射</span>
+                            <strong>{pubSkuRows.length ? `${pubSkuRows.length} 条映射记录` : '暂无映射记录'}</strong>
+                            <Typography.Text type="secondary">抖店已绑定 {douyinSkuBinding?.bound ?? '—'} · 未绑定 {douyinSkuBinding?.unmatched ?? '—'}</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>抖店类目与属性</span>
+                            <strong>{douyinConfig.categoryId ? '已选择类目' : '未选择类目'}</strong>
+                            <Typography.Text type="secondary">必填属性 {douyinRequiredAttrs.length} 项 · 未填写 {douyinMissingRequiredAttrs.length} 项</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>抖店草稿映射</span>
+                            <strong>{douyinMapping ? '已有草稿映射' : '未生成草稿映射'}</strong>
+                            <Typography.Text type="secondary">错误 {douyinMappingErrorCount} · 警告 {douyinMappingWarningCount} · 已上传主图 {douyinUploadedMainImages}/{douyinMainImages.length}</Typography.Text>
+                          </div>
+                        </div>
+                      </Space>
+                    </SectionCard>
+                    <SectionCard
+                      title="阻断项和待完善项"
+                      description="阻断项需要先处理；待确认项不会被本页自动修复。"
+                      className="product-draft-publish__issues-card"
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
+                        {!pubCtxError && shopsList.length === 0 ? <Alert type="warning" showIcon message="暂无已授权店铺" description="请先完成店铺授权后再选择刊登路径。" /> : null}
+                        {!pubCtxError && shopsList.length > 0 && eligibleShopsForPublish.length === 0 ? <Alert type="warning" showIcon message="暂无支持传统刊登的店铺" description="平台接入服务未返回可用或测试中的商品刊登能力。" /> : null}
+                        {publishReadinessErrors.length ? <Alert type="error" showIcon message="发布检查存在阻断" description={readinessCheckList(publishReadinessErrors, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>去发布检查</Button>} /> : null}
+                        {publishReadinessWarnings.length ? <Alert type="warning" showIcon message="发布检查有待确认项" description={readinessCheckList(publishReadinessWarnings, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>查看明细</Button>} /> : null}
+                        {imageSyncSummary.external > 0 ? <Alert type="warning" showIcon message="仍有图片未同步到平台存储" description="抖店创建商品草稿前还需要把需要使用的图片上传到抖店。" action={<Button size="small" onClick={() => openDraftLocation('images', 'image-list')}>去图片管理</Button>} /> : null}
+                        {currentSkuCount === 0 ? <Alert type="warning" showIcon message="暂无本地 SKU" description="刊登和库存同步都依赖本地规格、价格和库存数据。" action={<Button size="small" onClick={() => openDraftLocation('skus', 'local-skus')}>去 SKU</Button>} /> : null}
+                        {!douyinConfig.categoryId ? <Alert type="warning" showIcon message="抖店未选择类目" description="抖店专项流程需要先选择叶子类目。" /> : null}
+                        {douyinMissingRequiredAttrs.length ? <Alert type="warning" showIcon message="抖店必填属性未完整填写" description={`仍有 ${douyinMissingRequiredAttrs.length} 项必填属性未填写。`} /> : null}
+                        {douyinMapping && douyinMappingErrorCount > 0 ? <Alert type="error" showIcon message="抖店草稿映射存在错误" description={douyinIssueList(douyinMapping.errors)} /> : null}
+                        {douyinMapping && douyinMainImages.length > 0 && douyinUploadedMainImages === 0 ? <Alert type="warning" showIcon message="抖店主图尚未上传成功" description="至少需要一张主图上传到抖店后，才能创建抖店商品草稿。" /> : null}
+                        {!pubCtxError && shopsList.length > 0 && !publishReadinessErrors.length && !publishReadinessWarnings.length && !imageSyncSummary.external && currentSkuCount > 0 ? <Alert type="success" showIcon message="当前摘要未发现通用阻断" description="仍需根据所选路径完成对应平台配置、草稿创建或提交刊登确认。" /> : null}
+                      </Space>
+                    </SectionCard>
+                    <SectionCard
+                      title="刊登路径选择"
+                      description="三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。"
+                      className="product-draft-publish__paths"
+                    >
+                      <div className="product-draft-publish__path-grid">
+                        <div className="product-draft-publish__path product-draft-publish__path--primary">
+                          <Typography.Text strong>多平台刊登中心</Typography.Text>
+                          <Tag color="blue">主推路径</Tag>
+                          <Typography.Text type="secondary">通过中心化流程创建多平台刊登草稿，创建后刷新刊登上下文、抖店任务和平台 SKU 映射。</Typography.Text>
+                        </div>
+                        <div className="product-draft-publish__path">
+                          <Typography.Text strong>抖店专项流程</Typography.Text>
+                          <Tag>草稿和配置</Tag>
+                          <Typography.Text type="secondary">处理抖店店铺、类目、属性、图片上传、草稿映射和抖店商品草稿创建；创建后仍需到抖店后台确认上架。</Typography.Text>
+                        </div>
+                        <div className="product-draft-publish__path product-draft-publish__path--compat">
+                          <Typography.Text strong>传统提交刊登</Typography.Text>
+                          <Tag color="orange">兼容入口</Tag>
+                          <Typography.Text type="secondary">执行 publish 模式发布检查后提交刊登任务，是可能触发真实平台写操作的入口。</Typography.Text>
+                        </div>
+                      </div>
+                    </SectionCard>
+                    <SectionCard title="多平台刊登中心" description="创建多平台刊登草稿，不等同于已经正式提交到平台。" className="product-draft-publish__multi-platform">
+                      <MultiPlatformPublishCenter
+                        productId={id}
+                        onDraftsCreated={async () => {
+                          await reloadPublishContext();
+                          await reloadDouyinPublishTasks();
+                          await reloadPublicationSkus();
+                        }}
+                      />
+                    </SectionCard>
+                    <Card variant="borderless" className="product-draft-publish__legacy-stack">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Alert
                         type="info"
@@ -4485,8 +4655,6 @@ export default function ProductDraftDetailPage() {
                           同步详情图到平台存储
                         </Button>
                         <Button
-                          type="primary"
-                          ghost
                           onClick={async () => {
                             try {
                               const res = await syncProductImages(id, { scope: 'all' });
@@ -4497,7 +4665,7 @@ export default function ProductDraftDetailPage() {
                             }
                           }}
                         >
-                          一键同步全部图片
+                          同步全部图片
                         </Button>
                         <Button onClick={() => setPricingOpen(true)}>应用定价规则</Button>
                       </Space>
@@ -4688,7 +4856,7 @@ export default function ProductDraftDetailPage() {
                             ) : null}
                             <Form.Item>
                               <Space wrap>
-                                <Button type="primary" htmlType="submit" loading={douyinSaving}>
+                                <Button htmlType="submit" loading={douyinSaving}>
                                   保存抖店配置
                                 </Button>
                                 <Button
@@ -4713,7 +4881,7 @@ export default function ProductDraftDetailPage() {
                             message="系统会根据商品标题、AI 文案、图片、规格、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
                           />
                           <Space wrap>
-                            <Button type="primary" loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
+                            <Button loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
                               生成抖店刊登草稿
                             </Button>
                             <Button disabled={!douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
@@ -4739,7 +4907,6 @@ export default function ProductDraftDetailPage() {
                               重新上传全部图片
                             </Button>
                             <Button
-                              type="primary"
                               disabled={douyinCreateDraftDisabled}
                               loading={douyinDraftCreating}
                               onClick={() => void handleCreateDouyinDraft()}
@@ -4918,13 +5085,22 @@ export default function ProductDraftDetailPage() {
                         </Space>
                       </Card>
                       <Card size="small" title="抖店刊登任务" variant="borderless" loading={douyinPublishTasksLoading}>
-                        {douyinPublishTasks.length === 0 ? (
-                          <Typography.Text type="secondary">暂无抖店刊登任务</Typography.Text>
+                        {douyinPublishTasksError ? (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="抖店刊登任务加载失败"
+                            description={douyinPublishTasksError}
+                            action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>重新加载</Button>}
+                          />
+                        ) : douyinPublishTasks.length === 0 ? (
+                          <EmptyState compact title="暂无抖店刊登任务" description="创建抖店商品草稿后会在这里显示任务处理状态。" />
                         ) : (
                           <Table
                             size="small"
                             rowKey="id"
                             pagination={false}
+                            scroll={{ x: 900 }}
                             dataSource={douyinPublishTasks}
                             columns={[
                               { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
@@ -4972,7 +5148,7 @@ export default function ProductDraftDetailPage() {
                       <Card
                         id="douyin-sku-bindings"
                         size="small"
-                        title="抖店规格绑定"
+                        title="抖店规格绑定和 SKU 映射状态"
                         variant="borderless"
                         loading={douyinSkuBindingLoading}
                         className="product-draft-douyin-bind__card"
@@ -4985,7 +5161,6 @@ export default function ProductDraftDetailPage() {
                               刷新绑定状态
                             </Button>
                             <Button
-                              type="primary"
                               size="small"
                               loading={douyinSkuBindingSyncing}
                               disabled={!douyinPublication?.id}
@@ -4996,7 +5171,15 @@ export default function ProductDraftDetailPage() {
                           </Space>
                         }
                       >
-                        {!douyinPublication?.id ? (
+                        {douyinSkuBindingError ? (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="抖店规格绑定加载失败"
+                            description={douyinSkuBindingError}
+                            action={<Button size="small" onClick={() => void reloadDouyinSkuBindings()}>重新加载</Button>}
+                          />
+                        ) : !douyinPublication?.id ? (
                           <EmptyState
                             compact
                             title="暂无抖店刊登记录"
@@ -5176,6 +5359,12 @@ export default function ProductDraftDetailPage() {
                           </Space>
                         )}
                       </Card>
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message="传统提交刊登是兼容入口"
+                        description="此入口会在发布检查通过后提交刊登任务，可能触发真实平台写操作；创建草稿类操作请优先使用多平台中心或抖店专项流程。"
+                      />
                       {publishReadiness ? (
                         <Alert
                           type={
@@ -5315,6 +5504,7 @@ export default function ProductDraftDetailPage() {
                           <Space wrap>
                             <Button
                               type="primary"
+                              danger
                               htmlType="submit"
                               loading={publishSubmitting}
                               disabled={!!publishReadiness && !publishReadiness.canPublish}
@@ -5328,30 +5518,44 @@ export default function ProductDraftDetailPage() {
                       <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
                         本商品刊登记录
                       </Typography.Title>
-                      <Table<ProductPublicationRow>
-                        size="small"
-                        rowKey="id"
-                        loading={pubCtxLoading}
-                        dataSource={pubRows}
-                        pagination={false}
-                        columns={[
-                          { title: '店铺', render: (_, r) => r.shopName || r.shopId },
-                          { title: '平台', dataIndex: 'platform', width: 120, render: (v) => platformDisplayLabel(String(v ?? '')) },
-                          { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => commonStatusLabel(String(v ?? '')) },
-                          { title: '外部商品 ID', dataIndex: 'externalProductId', ellipsis: true },
-                          {
-                            title: '外链',
-                            render: (_, r) =>
-                              r.externalUrl ? (
-                                <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
-                                  打开
-                                </Typography.Link>
-                              ) : (
-                                '—'
-                              ),
-                          },
-                        ]}
-                      />
+                      {pubCtxError ? (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="刊登记录加载失败"
+                          description={pubCtxError}
+                          action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                        />
+                      ) : pubRows.length === 0 ? (
+                        <EmptyState compact title="暂无刊登记录" description="创建草稿或提交刊登任务后，刊登记录会在这里展示。" />
+                      ) : (
+                        <Table<ProductPublicationRow>
+                          size="small"
+                          rowKey="id"
+                          loading={pubCtxLoading}
+                          dataSource={pubRows}
+                          pagination={false}
+                          scroll={{ x: 760 }}
+                          columns={[
+                            { title: '店铺', width: 220, render: (_, r) => <Typography.Text className="product-draft-publish__long-text">{r.shopName || r.shopId}</Typography.Text> },
+                            { title: '平台', dataIndex: 'platform', width: 140, render: (v) => platformDisplayLabel(String(v ?? '')) },
+                            { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => commonStatusLabel(String(v ?? '')) },
+                            { title: '外部商品 ID', dataIndex: 'externalProductId', width: 180, render: (v) => <Typography.Text className="product-draft-publish__long-text">{v || '—'}</Typography.Text> },
+                            {
+                              title: '外链',
+                              width: 120,
+                              render: (_, r) =>
+                                r.externalUrl ? (
+                                  <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
+                                    打开
+                                  </Typography.Link>
+                                ) : (
+                                  '—'
+                                ),
+                            },
+                          ]}
+                        />
+                      )}
                     </Space>
                   </Card>
                   </Space>
