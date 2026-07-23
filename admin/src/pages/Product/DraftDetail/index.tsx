@@ -1122,6 +1122,7 @@ export default function ProductDraftDetailPage() {
   const [readinessShopId, setReadinessShopId] = useState<string>('');
   const [readinessResult, setReadinessResult] = useState<ProductReadinessResult | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
   const [publishReadiness, setPublishReadiness] = useState<ProductReadinessResult | null>(null);
   const [publishReadinessLoading, setPublishReadinessLoading] = useState(false);
 
@@ -1992,6 +1993,7 @@ export default function ProductDraftDetailPage() {
   const runReadinessForTab = useCallback(async () => {
     if (!id) return;
     setReadinessLoading(true);
+    setReadinessError('');
     try {
       const r = await getProductReadiness(id, {
         platform: readinessPlat,
@@ -2000,8 +2002,10 @@ export default function ProductDraftDetailPage() {
       });
       setReadinessResult(r);
     } catch (e: unknown) {
+      const msg = (e as Error)?.message || '检查失败';
       setReadinessResult(null);
-      message.error((e as Error)?.message || '检查失败');
+      setReadinessError(msg);
+      message.error(msg);
     } finally {
       setReadinessLoading(false);
     }
@@ -2045,6 +2049,17 @@ export default function ProductDraftDetailPage() {
 
   const progressBlockerCount = operationProgress?.blockerCount ?? operationProgress?.blockers?.length ?? 0;
   const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
+  const readinessChecks = readinessResult?.checks ?? [];
+  const readinessErrorItems = readinessChecks.filter((c) => (c.level || '').toLowerCase() === 'error');
+  const readinessWarningItems = readinessChecks.filter((c) => (c.level || '').toLowerCase() === 'warning');
+  const readinessSuggestionItems = readinessChecks.filter((c) => {
+    const level = (c.level || '').toLowerCase();
+    return level !== 'error' && level !== 'warning';
+  });
+  const readinessGroups = Array.from(new Set(readinessChecks.map((c) => c.group || 'other')));
+  const readinessDefaultActiveKeys = readinessGroups.filter((g) =>
+    readinessChecks.some((c) => (c.group || 'other') === g && (c.level || '').toLowerCase() === 'error'),
+  );
   const productTitle = data?.title?.trim() || '商品详情';
   const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
   const currentSkuCount = skuRows.length;
@@ -4139,103 +4154,247 @@ export default function ProductDraftDetailPage() {
               key: 'readiness',
               label: tabLabels.readiness,
               children: (
-                <Card id="publish-check" variant="borderless">
-                  <Space direction="vertical" style={{ width: '100%' }} size="large">
-                    <Space wrap align="center">
-                      <Typography.Text strong>目标平台</Typography.Text>
-                      <Select
-                        style={{ minWidth: 160 }}
-                        value={readinessPlat}
-                        onChange={(v) => setReadinessPlat(v)}
-                        options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
-                          label: platformDisplayLabel(p),
-                          value: p,
-                        }))}
-                      />
-                      <Typography.Text strong>店铺</Typography.Text>
-                      <Select
-                        style={{ minWidth: 240 }}
-                        placeholder="选择已授权店铺"
-                        allowClear
-                        showSearch
-                        optionFilterProp="label"
-                        value={readinessShopId || undefined}
-                        onChange={(v) => setReadinessShopId(v ? String(v) : '')}
-                        options={shopsForReadinessPlat.map((s) => ({
-                          label: `${s.shopName} (${platformDisplayLabel(s.platform)})`,
-                          value: s.id,
-                        }))}
-                      />
-                      <Button type="primary" loading={readinessLoading} onClick={() => void runReadinessForTab()}>
+                <SectionCard
+                  title="发布检查"
+                  description="检查当前草稿在所选平台下的完整性。检查通过不代表已经刊登，重新检查也不会自动修复商品字段。"
+                  id="publish-check"
+                  className="product-draft-readiness publish-check"
+                  headerExtra={
+                    <OperationToolbar>
+                      <Button type="primary" icon={<ReloadOutlined />} loading={readinessLoading} onClick={() => void runReadinessForTab()}>
                         重新检查
                       </Button>
-                    </Space>
-                    {readinessResult ? (
-                      <>
-                        <Descriptions bordered size="small" column={2}>
-                          <Descriptions.Item label="总状态">{readinessStatusTag(readinessResult)}</Descriptions.Item>
-                          <Descriptions.Item label="分数">{readinessResult.score}</Descriptions.Item>
-                          <Descriptions.Item label="错误数">{readinessResult.errorCount}</Descriptions.Item>
-                          <Descriptions.Item label="警告数">{readinessResult.warningCount}</Descriptions.Item>
-                        </Descriptions>
-                        <Collapse
-                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'collect', 'platform']}
-                          items={['product', 'sku', 'image', 'inventory', 'collect', 'platform'].map((g) => ({
-                            key: g,
-                            label: READINESS_GROUP_LABEL[g] || g,
-                            children: (
-                              <Table
-                                size="small"
-                                pagination={false}
-                                rowKey={(_, i) => `${g}-${i}`}
-                                dataSource={readinessResult.checks.filter((c) => c.group === g)}
-                                columns={[
-                                  {
-                                    title: '级别',
-                                    width: 88,
-                                    render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
-                                  },
-                                  { title: '说明', dataIndex: 'message', ellipsis: true },
-                                  {
-                                    title: '建议 / 操作',
-                                    width: 220,
-                                    render: (_: unknown, row: ReadinessCheckItem) => {
-                                      const fx = getProductReadinessAction(row.code);
-                                      return (
-                                        <Space direction="vertical" size={4}>
-                                          <Typography.Text type="secondary">{row.suggestion}</Typography.Text>
-                                          {fx ? (
-                                            fx.tab ? (
-                                              <Button
-                                                type="link"
-                                                size="small"
-                                                style={{ padding: 0 }}
-                                                onClick={() => openDraftLocation(fx.tab!, fx.section)}
-                                              >
-                                                {fx.label}
-                                              </Button>
-                                            ) : (
-                                              <Link to={fx.href!}>{fx.label}</Link>
-                                            )
-                                          ) : null}
-                                        </Space>
-                                      );
-                                    },
-                                  },
-                                ]}
-                              />
-                            ),
+                    </OperationToolbar>
+                  }
+                >
+                  <Space direction="vertical" className="product-draft-readiness__stack" size="large">
+                    <div className="product-draft-readiness__control-strip" aria-label="发布检查范围">
+                      <div className="product-draft-readiness__mode-copy">
+                        <Typography.Text strong>草稿完整性检查</Typography.Text>
+                        <Typography.Text type="secondary">
+                          当前页面固定使用 draft 模式；未选店铺时只校验商品、规格、图片等草稿内容，选定店铺后会把平台和店铺条件一并纳入检查。
+                        </Typography.Text>
+                      </div>
+                      <Space wrap align="center" className="product-draft-readiness__controls">
+                        <Typography.Text strong>目标平台</Typography.Text>
+                        <Select
+                          className="product-draft-readiness__platform-select"
+                          value={readinessPlat}
+                          onChange={(v) => setReadinessPlat(v)}
+                          options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
+                            label: platformDisplayLabel(p),
+                            value: p,
                           }))}
                         />
-                        <TechnicalDetails label="检查项技术详情">
-                          <TaskJsonBlock title="完整检查结果" value={readinessResult.checks} last />
+                        <Typography.Text strong>店铺</Typography.Text>
+                        <Select
+                          className="product-draft-readiness__shop-select"
+                          placeholder="选择已授权店铺"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          value={readinessShopId || undefined}
+                          onChange={(v) => setReadinessShopId(v ? String(v) : '')}
+                          options={shopsForReadinessPlat.map((s) => ({
+                            label: `${s.shopName} (${platformDisplayLabel(s.platform)})`,
+                            value: s.id,
+                          }))}
+                        />
+                      </Space>
+                    </div>
+                    {readinessLoading && !readinessResult ? (
+                      <div className="product-draft-readiness__loading">
+                        <Spin />
+                        <Typography.Text type="secondary">正在请求发布检查结果。</Typography.Text>
+                      </div>
+                    ) : readinessResult ? (
+                      <>
+                        <div className="product-draft-readiness__summary" aria-label="发布检查摘要">
+                          <MetricCard
+                            title="总状态"
+                            value={readinessStatusTag(readinessResult)}
+                            description={`平台 ${platformDisplayLabel(readinessResult.platform || readinessPlat)} · ${readinessResult.shopId || readinessShopId ? '包含店铺条件' : '未选择店铺'}`}
+                            intent={readinessResult.errorCount > 0 ? 'danger' : readinessResult.warningCount > 0 ? 'warning' : 'success'}
+                          />
+                          <MetricCard
+                            title="阻断项"
+                            value={readinessResult.errorCount}
+                            description={readinessResult.errorCount > 0 ? '需要先处理后再进入下一步。' : '当前检查范围内没有阻断项。'}
+                            intent={readinessResult.errorCount > 0 ? 'danger' : 'default'}
+                          />
+                          <MetricCard
+                            title="警告项"
+                            value={readinessResult.warningCount}
+                            description={readinessResult.warningCount > 0 ? '建议发布前人工确认。' : '当前检查范围内没有警告项。'}
+                            intent={readinessResult.warningCount > 0 ? 'warning' : 'default'}
+                          />
+                          <MetricCard
+                            title="下一步"
+                            value={readinessResult.canPublish ? '可继续' : '需处理'}
+                            description="来自检查接口返回的 canPublish，不代表已刊登。"
+                            intent={readinessResult.canPublish ? 'success' : 'default'}
+                          />
+                        </div>
+                        {readinessResult.errorCount === 0 && readinessResult.warningCount === 0 && readinessChecks.length === 0 ? (
+                          <Alert
+                            type="success"
+                            showIcon
+                            message="当前检查范围内没有发现问题"
+                            description="这只表示草稿检查未返回阻断或警告，不会自动创建刊登草稿，也不代表商品已经发布。"
+                          />
+                        ) : null}
+                        {readinessChecks.length === 0 && (readinessResult.errorCount > 0 || readinessResult.warningCount > 0) ? (
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="检查返回了汇总状态，但没有返回检查项列表"
+                            description="请根据总状态处理，或点击重新检查再次获取明细。"
+                          />
+                        ) : null}
+                        {readinessErrorItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--danger">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>阻断项</Typography.Text>
+                              <Tag color="red">{readinessErrorItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessErrorItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessWarningItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--warning">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>警告项</Typography.Text>
+                              <Tag color="orange">{readinessWarningItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessWarningItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessSuggestionItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--muted">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>建议项</Typography.Text>
+                              <Tag>{readinessSuggestionItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessSuggestionItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessGroups.length > 0 ? (
+                          <Collapse
+                            className="product-draft-readiness__groups"
+                            defaultActiveKey={readinessDefaultActiveKeys.length > 0 ? readinessDefaultActiveKeys : readinessGroups.slice(0, 1)}
+                            items={readinessGroups.map((g) => {
+                              const rows = readinessChecks.filter((c) => (c.group || 'other') === g);
+                              const groupErrors = rows.filter((c) => (c.level || '').toLowerCase() === 'error').length;
+                              const groupWarnings = rows.filter((c) => (c.level || '').toLowerCase() === 'warning').length;
+                              return {
+                                key: g,
+                                label: (
+                                  <div className="product-draft-readiness__group-label">
+                                    <Typography.Text strong>{READINESS_GROUP_LABEL[g] || g}</Typography.Text>
+                                    <Space size={4} wrap>
+                                      {groupErrors > 0 ? <Tag color="red">阻断 {groupErrors}</Tag> : null}
+                                      {groupWarnings > 0 ? <Tag color="orange">警告 {groupWarnings}</Tag> : null}
+                                      {groupErrors === 0 && groupWarnings === 0 ? <Tag>检查项 {rows.length}</Tag> : null}
+                                    </Space>
+                                  </div>
+                                ),
+                                children: rows.length > 0 ? (
+                                  <Table
+                                    className="product-draft-readiness__table"
+                                    size="small"
+                                    pagination={false}
+                                    rowKey={(row) => `${g}-${row.code}-${row.relatedResourceType || ''}-${row.relatedResourceId || ''}-${row.message}`}
+                                    dataSource={rows}
+                                    columns={[
+                                      {
+                                        title: '级别',
+                                        width: 96,
+                                        render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
+                                      },
+                                      {
+                                        title: '检查项',
+                                        render: (_: unknown, row: ReadinessCheckItem) => {
+                                          const loc = localizePublishCheckItem(row);
+                                          return (
+                                            <Space direction="vertical" size={2} className="product-draft-readiness__check-copy">
+                                              <Typography.Text strong>{loc.title}</Typography.Text>
+                                              <Typography.Text type="secondary">{loc.message}</Typography.Text>
+                                              {row.code ? <Typography.Text type="secondary">编号：{row.code}</Typography.Text> : null}
+                                            </Space>
+                                          );
+                                        },
+                                      },
+                                      {
+                                        title: '建议 / 操作',
+                                        width: 260,
+                                        render: (_: unknown, row: ReadinessCheckItem) => {
+                                          const fx = getProductReadinessAction(row.code);
+                                          return (
+                                            <Space direction="vertical" size={4} className="product-draft-readiness__action-cell">
+                                              {row.suggestion ? <Typography.Text type="secondary">{row.suggestion}</Typography.Text> : null}
+                                              {fx ? (
+                                                fx.tab ? (
+                                                  <Button
+                                                    type="link"
+                                                    size="small"
+                                                    className="product-draft-readiness__action"
+                                                    onClick={() => openDraftLocation(fx.tab!, fx.section)}
+                                                  >
+                                                    {fx.label}
+                                                    {fx.section ? ` · ${PRODUCT_DRAFT_TAB_LABELS[fx.tab!] || fx.tab}` : ''}
+                                                  </Button>
+                                                ) : (
+                                                  <Link className="product-draft-readiness__action" to={fx.href!}>{fx.label}</Link>
+                                                )
+                                              ) : (
+                                                <Typography.Text type="secondary">查看检查项说明后手动处理</Typography.Text>
+                                              )}
+                                              {row.technicalDetails ? (
+                                                <TechnicalDetails label="技术信息">
+                                                  <TaskJsonBlock title="检查项技术信息" value={row.technicalDetails} last />
+                                                </TechnicalDetails>
+                                              ) : null}
+                                            </Space>
+                                          );
+                                        },
+                                      },
+                                    ]}
+                                  />
+                                ) : (
+                                  <EmptyState compact title="当前分组没有检查项" description="保留分组顺序，等待检查接口返回明细。" />
+                                ),
+                              };
+                            })}
+                          />
+                        ) : null}
+                        <TechnicalDetails label="完整检查结果">
+                          <TaskJsonBlock title="检查结果" value={readinessResult} last />
                         </TechnicalDetails>
                       </>
+                    ) : readinessError ? (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message="发布检查请求失败"
+                        description={
+                          <Space direction="vertical" size={8} className="product-draft-readiness__error-copy">
+                            <Typography.Text>{readinessError}</Typography.Text>
+                            <Typography.Text type="secondary">请保留当前商品内容，稍后点击「重新检查」重试。</Typography.Text>
+                            <TechnicalDetails label="检查失败技术信息">
+                              <TaskJsonBlock title="错误信息" value={{ message: readinessError }} last />
+                            </TechnicalDetails>
+                          </Space>
+                        }
+                      />
                     ) : (
-                      <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片（不校验店铺与平台配置）。</Typography.Text>
+                      <EmptyState
+                        compact
+                        title="尚未执行发布检查"
+                        description="选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片，不校验店铺与平台配置。"
+                      />
                     )}
                   </Space>
-                </Card>
+                </SectionCard>
               ),
             },
             {

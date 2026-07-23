@@ -1636,6 +1636,153 @@
   overflow: hidden;
 }
 
+.product-draft-readiness {
+  overflow: hidden;
+}
+
+.product-draft-readiness__stack {
+  width: 100%;
+  min-width: 0;
+}
+
+.product-draft-readiness__control-strip {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(260px, 1fr) minmax(360px, auto);
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-readiness__mode-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-draft-readiness__mode-copy .ant-typography,
+.product-draft-readiness__check-copy .ant-typography,
+.product-draft-readiness__action-cell .ant-typography {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.product-draft-readiness__controls {
+  justify-content: flex-end;
+}
+
+.product-draft-readiness__platform-select {
+  min-width: 160px;
+}
+
+.product-draft-readiness__shop-select {
+  min-width: 240px;
+}
+
+.product-draft-readiness__loading {
+  display: flex;
+  min-height: 140px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+}
+
+.product-draft-readiness__summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.product-draft-readiness__issue-band {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-bg-container);
+}
+
+.product-draft-readiness__issue-band--danger {
+  border-color: var(--ant-color-error-border);
+}
+
+.product-draft-readiness__issue-band--warning {
+  border-color: var(--ant-color-warning-border);
+}
+
+.product-draft-readiness__issue-band--muted {
+  background: var(--ant-color-fill-quaternary);
+}
+
+.product-draft-readiness__issue-band-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.product-draft-readiness__groups {
+  min-width: 0;
+}
+
+.product-draft-readiness__group-label {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.product-draft-readiness__table {
+  min-width: 0;
+}
+
+.product-draft-readiness__table .ant-table-cell {
+  vertical-align: top;
+}
+
+.product-draft-readiness__check-copy,
+.product-draft-readiness__action-cell {
+  width: 100%;
+  min-width: 0;
+}
+
+.product-draft-readiness__error-copy {
+  width: 100%;
+  min-width: 0;
+}
+
+.product-draft-readiness__error-copy .ant-typography {
+  overflow-wrap: anywhere;
+}
+
+.product-draft-readiness__action {
+  height: auto;
+  padding-inline: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.product-draft-readiness .tm-task-json-block,
+.product-draft-readiness pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1024px) {
   &.product-draft-detail-page {
     .ant-page-header-heading {
@@ -1702,6 +1849,18 @@
 
   .product-draft-douyin-bind__status-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .product-draft-readiness__control-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .product-draft-readiness__controls {
+    justify-content: flex-start;
+  }
+
+  .product-draft-readiness__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1773,6 +1932,23 @@
 
   .product-draft-progress__metric:last-child {
     border-bottom: 0;
+  }
+
+  .product-draft-readiness__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .product-draft-readiness__controls,
+  .product-draft-readiness__controls .ant-space-item,
+  .product-draft-readiness__platform-select,
+  .product-draft-readiness__shop-select,
+  .product-draft-readiness .tm-section-card__head-extra,
+  .product-draft-readiness .tm-section-card__head-extra .ant-btn {
+    width: 100%;
+  }
+
+  .product-draft-readiness .tm-section-card__head-extra .ant-btn {
+    justify-content: center;
   }
 
   .product-draft-basic__save-area {
