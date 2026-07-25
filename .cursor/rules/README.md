@@ -30,7 +30,7 @@
 | --- | --- | --- |
 | `02-backend-go-gin.mdc` | `backend/**/*.go` | Go / Gin / GORM 后端编码规则 |
 | `03-frontend-react-antd-pro.mdc` | `admin/src/**/*.{ts,tsx}` | React / TypeScript / Ant Design Pro 前端规则 |
-| `04-ui-style.mdc` | `admin/src/**/*.{ts,tsx,less,css,scss}` | 后台 UI 风格、布局、状态、空态和交互规范 |
+| `04-ui-style.mdc` | `admin/src/**/*.{ts,tsx,less,css,scss}` | Admin UI 规范入口；强制读取 `.agents/skills/frontend-design/SKILL.md` |
 | `05-ai-provider.mdc` | AI / Image 相关后端与前端设置页面 | AI Provider、Prompt、AI 任务、图片 AI、客服 AI |
 | `06-storage-provider.mdc` | Storage 后端与存储设置页面 | Storage Provider、本地存储、云存储扩展 |
 | `07-collector-node-playwright.mdc` | `collector/**/*.{ts,tsx,js,json}` | Node / Playwright 采集服务规则 |

@@ -208,10 +208,11 @@ AI 不应把“成长”理解成在本地偷偷保存私有记忆；TradeMind �
 
 ## Admin 文案与 UI 规范
 
-管理端改动（页面、组件、样式）时，除 `docs/module-map.md` 外还应遵守以下约定：
+管理端改动（页面、组件、样式）时，除 `docs/module-map.md` 外必须先读取 `.agents/skills/frontend-design/SKILL.md`；该 skill 是 Admin UI 设计规范、共享组件规范、布局规范、响应式验收和 AI 实施流程的唯一完整来源。下表只列常用辅助资源，不替代主规范。
 
 | 资源 | 用途 |
 | --- | --- |
+| `.agents/skills/frontend-design/SKILL.md` | Admin UI 主规范、五档视口、`browser_route`、根节点横向溢出、readonly、rowKey、Header / Content 基线、API / payload 保护 |
 | `docs/ui-copywriting.md` | 用户可见文案术语表、禁止项、`pnpm check:ui-copy` |
 | `admin/src/constants/copywriting.ts` | 页面标题、说明、商品/平台/任务/库存统一术语 |
 | `admin/src/constants/layoutTokens.ts` | 页面内边距、卡片间距、表单栅格间距 |
@@ -231,12 +232,7 @@ AI 不应把“成长”理解成在本地偷偷保存私有记忆；TradeMind �
 
 ### 布局原则（摘要）
 
-- 页面容器：`padding-inline 24px`，`max-width 1440px`（看板 1680px）。
-- 间距仅用：4 / 8 / 12 / 16 / 20 / 24 / 32 / 40。
-- 配置表单桌面端两列，`<1100px` 单列；开关字段独立一行（名称 + 开关 + 说明）。
-- 标题与说明分行；表格文本左对齐，金额/数量右对齐。
-
-改动 Admin 页面时：先查是否已有 `PAGE_COPY` / 公共组件可复用，避免每页手写样式与重复术语。**页面容器统一使用 `TmPageContainer`**（勿直接使用 `PageContainer`），看板类页面可设置 `contentMaxWidth={layoutTokens.dashboardMaxWidth}`。
+布局、横向基线、页面容器、五档视口、Modal / Drawer / Popconfirm 和写请求副作用验收以 `.agents/skills/frontend-design/SKILL.md` 为准。改动 Admin 页面时：先查是否已有 `PAGE_COPY` / 公共组件可复用，避免每页手写样式与重复术语；页面容器优先使用 `TmPageContainer`，看板类页面可按主规范使用 `layoutTokens.dashboardMaxWidth`。
 
 ### 已落地的典型模式
 

@@ -20,6 +20,7 @@
 | [README.md](README.md) | 项目首页、能力概览、启动方式 |
 | [docs/README.md](docs/README.md) | 文档中心 |
 | [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀机制 |
+| [.agents/skills/frontend-design/SKILL.md](.agents/skills/frontend-design/SKILL.md) | Admin UI 设计规范、共享组件规范、响应式验收和 AI 实施流程的唯一完整来源 |
 | [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
 | [docs/module-map.md](docs/module-map.md) | 模块关联索引，说明改动一个模块时必须检查哪些关联文件 |
 | [docs/task-checklist.md](docs/task-checklist.md) | 任务完成前按类型自查的检查清单 |
@@ -42,6 +43,11 @@
 
 ## 开发规则
 
+- 任何涉及 Admin 前端页面、组件、样式、布局、响应式、交互、状态展示、文案或可访问性的任务，均自动视为 UI 任务，必须读取并遵循 `.agents/skills/frontend-design/SKILL.md`；无需用户显式指定“使用 frontend-design skill”或“按照 UI 规范”。
+- 新增页面、修改页面、UI Bug 修复、视觉问题、响应式、组件交互、状态展示和混合任务中的 UI 部分都适用；用户只说“修复 Bug”“调整一下”“改个按钮”“改个表格”“修复显示”或“优化页面”时也不得跳过。
+- Admin UI 任务未完成五档视口、状态、根节点横向溢出和必要写请求拦截验收时，不得声明可签收；小范围 UI 问题可以缩小验收页面范围，但不能省略相关共享组件影响面、响应式、overflow、业务行为保护和静态检查。
+- Admin UI 任务默认不得修改 API URL、HTTP method、payload、权限、readonly、状态机或业务协议；混合任务必须拆分 UI 和业务部分，确需修改业务行为必须先说明影响并获得确认。
+- 未经用户明确要求，不得 commit 或 push。
 - 不直接在 `main` 上开发。
 - 日常功能从 `dev` 创建 `feat/*` 或 `fix/*` 分支。
 - 功能完成后 PR 到 `dev`，稳定后再从 `dev` PR 到 `main`。
