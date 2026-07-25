@@ -1,0 +1,102 @@
+name: Admin E2E
+
+on:
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run full Admin E2E suite
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 19 * * *'
+  push:
+    branches:
+      - dev
+    paths:
+      - 'admin/**'
+      - 'package.json'
+      - 'admin/package.json'
+      - 'pnpm-lock.yaml'
+      - 'playwright.config.*'
+      - '.agents/skills/admin-e2e-testing/**'
+      - '.cursor/rules/admin-e2e-testing.mdc'
+      - '.github/workflows/admin-e2e.yml'
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+      - dev
+    paths:
+      - 'admin/**'
+      - 'package.json'
+      - 'admin/package.json'
+      - 'pnpm-lock.yaml'
+      - 'playwright.config.*'
+      - '.agents/skills/admin-e2e-testing/**'
+      - '.cursor/rules/admin-e2e-testing.mdc'
+      - '.github/workflows/admin-e2e.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  admin-e2e:
+    name: Admin E2E
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @trademind/admin exec playwright install --with-deps chromium
+
+      - name: Check user-visible copy
+        run: pnpm check:ui-copy --strict
+
+      - name: Build admin
+        run: pnpm build:admin
+
+      - name: Run Admin P0 E2E
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.full != true)
+        run: pnpm test:e2e:smoke && pnpm test:e2e:product-draft && pnpm test:e2e:publish-safety && pnpm test:e2e:contracts
+
+      - name: Run full Admin E2E
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full == true)
+        run: pnpm test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-e2e-playwright-report
+          path: playwright-report/admin-e2e
+          if-no-files-found: ignore
+
+      - name: Upload Playwright test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-e2e-test-results
+          path: test-results
+          if-no-files-found: ignore

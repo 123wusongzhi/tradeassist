@@ -501,6 +501,8 @@ git status --short --branch
 
 ### Step 7：浏览器验收
 
+Admin UI 实施后的自动化验收要求由 `.agents/skills/admin-e2e-testing/SKILL.md` 统一定义；本 Skill 只保留 UI 验收入口，不复制完整 E2E 规范。
+
 Admin 页面修改原则上必须使用 Playwright MCP 验收。Admin 服务由用户启动时，不得自行启动、不得停止、不得杀进程；服务不可用时停止并报告。
 
 必须：

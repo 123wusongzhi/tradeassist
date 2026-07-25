@@ -1,0 +1,28 @@
+export const imageProviderCapabilities = [
+  {
+    provider: 'mock-image-provider',
+    displayName: 'E2E 图片 Provider',
+    status: 'available',
+    difficulty: 'easy',
+    regionFriendly: 'both',
+    requiresApiKey: false,
+    requiresSelfHosted: false,
+    supportedTasks: ['background_remove', 'image_translate'],
+    recommendedFor: ['e2e'],
+    docsUrl: 'https://example.test/docs/image-provider',
+    description: 'E2E mock provider',
+  },
+  {
+    provider: 'mock-beta-provider',
+    displayName: 'E2E Beta Provider',
+    status: 'beta',
+    difficulty: 'medium',
+    regionFriendly: 'global',
+    requiresApiKey: true,
+    requiresSelfHosted: false,
+    supportedTasks: ['image_enhance'],
+    recommendedFor: ['long-text-regression'],
+    docsUrl: 'https://example.test/docs/beta-provider',
+    description: 'E2E beta provider',
+  },
+];
