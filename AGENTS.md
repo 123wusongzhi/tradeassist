@@ -21,6 +21,7 @@
 | [docs/README.md](docs/README.md) | 文档中心 |
 | [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀机制 |
 | [.agents/skills/code-quality/SKILL.md](.agents/skills/code-quality/SKILL.md) | 全项目代码质量自动适用、轻量检查、深度审查、Baseline/Ratchet 和 CI 门禁的唯一完整主规范 |
+| [.agents/skills/modular-architecture/SKILL.md](.agents/skills/modular-architecture/SKILL.md) | 模块化架构、模块边界、循环依赖、Architecture Baseline/Ratchet、受影响架构检查和 CI 门禁的唯一完整主规范 |
 | [.agents/skills/frontend-design/SKILL.md](.agents/skills/frontend-design/SKILL.md) | Admin UI 设计规范、共享组件规范、响应式验收和 AI 实施流程的唯一完整来源 |
 | [.agents/skills/project-testing/SKILL.md](.agents/skills/project-testing/SKILL.md) | 全项目自动化测试总控规范，覆盖前端、Node、后端、API 契约、数据库、Redis、队列和 CI |
 | [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
@@ -46,6 +47,9 @@
 ## 开发规则
 
 - 任何代码新增、修改、重构或 Bug 修复，均自动视为代码质量任务，必须读取并遵循 `.agents/skills/code-quality/SKILL.md`；用户无需显式要求代码质量检查。
+- 新模块、跨模块修改、shared/common、新平台 adapter、worker/queue/scheduler、migration/repository、公共 API/type、大型页面或 service 拆分、循环依赖、越层依赖和大型重构，必须自动读取并遵循 `.agents/skills/modular-architecture/SKILL.md`；用户无需显式要求模块化审查。
+- 普通小修改不强制大规模架构设计；新增架构违规不得扩大 baseline，历史问题按 Architecture Baseline/Ratchet 管理，未运行必要架构检查不得声明完成。
+- 不得以架构优化为名修改 API、payload、权限、状态机或业务语义；不得未经确认进行大规模文件迁移；未经用户要求不得 commit 或 push。
 - 所有代码修改自动执行轻量代码质量检查；认证、权限、库存、发布、第三方平台、数据库事务、Redis、队列、worker、并发、文件上传、Token、API envelope、shared type、migration、跨模块重构等高风险修改自动执行深度审查。
 - 新代码不得增加 baseline 外的新 TypeScript、Go、lint 或安全问题；Bug 修复优先补回归测试；未运行必要检查不得声明完成，无法运行必须说明阻塞原因。
 - 不得用 skip、ignore、宽泛 allowlist 或自动扩大 baseline 掩盖失败；未经用户要求不得 commit 或 push。

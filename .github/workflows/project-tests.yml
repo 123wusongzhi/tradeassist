@@ -22,6 +22,77 @@ on:
     - cron: "17 19 * * *"
 
 jobs:
+  architecture:
+    name: architecture boundaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve architecture diff base
+        id: architecture-base
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "base=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Architecture tests
+        run: pnpm architecture:test
+
+      - name: Architecture boundary ratchet
+        run: pnpm architecture:check
+
+      - name: Affected architecture checks
+        env:
+          ARCHITECTURE_BASE_SHA: ${{ steps.architecture-base.outputs.base }}
+          ARCHITECTURE_HEAD_SHA: ${{ steps.architecture-base.outputs.head }}
+        run: pnpm architecture:ci
+
+      - name: Architecture summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Architecture Gate"
+            echo "- Diff base: ${{ steps.architecture-base.outputs.base }}"
+            echo "- Diff head: ${{ steps.architecture-base.outputs.head }}"
+            echo "- Baseline update: disabled in CI"
+            echo "- Checks: module boundaries, TypeScript cycles, Go layer boundaries, cross-app dependencies"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   code-quality:
     name: code quality
     runs-on: ubuntu-latest

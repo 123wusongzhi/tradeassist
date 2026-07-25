@@ -12,6 +12,7 @@ const commands = new Map([
   ['collector', ['pnpm', ['test:collector']]],
   ['backend', ['pnpm', ['test:backend']]],
   ['contracts', ['pnpm', ['test:contracts']]],
+  ['architecture', ['pnpm', ['architecture:test']]],
   ['e2e-smoke', ['pnpm', ['test:e2e:smoke']]],
 ]);
 
@@ -29,6 +30,9 @@ function classify(path) {
     selected.add('collector');
     selected.add('backend');
     selected.add('contracts');
+  }
+  if (path.startsWith('scripts/architecture/') || path.startsWith('tests/architecture/') || path === 'vitest.architecture.config.ts' || path === '.agents/skills/modular-architecture/SKILL.md') {
+    selected.add('architecture');
   }
   return selected;
 }

@@ -19,6 +19,7 @@ alwaysApply: false
 - 后端修改同时读取 `.agents/skills/backend-testing/SKILL.md`。
 - API、DTO、envelope、contract 或 Admin mock 修改同时读取 `.agents/skills/api-contract-testing/SKILL.md`。
 - 前端单元、service、hook、组件或 TS 工具修改同时读取 `.agents/skills/frontend-unit-testing/SKILL.md`。
+- 新模块、跨模块依赖、shared/common、adapter、worker、repository、migration、公共 API/type 或大型重构同时读取 `.agents/skills/modular-architecture/SKILL.md`。
 
 ## 检查级别
 

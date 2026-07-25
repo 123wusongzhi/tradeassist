@@ -8,6 +8,8 @@ license: Complete terms in LICENSE.txt
 
 本文件是 TradeMind Admin UI 设计与实施规范的唯一完整来源。任何 AI 工具（Cursor、Claude Code、Codex、Copilot、Continue、Windsurf、Trae 或其他 Agent）处理 Admin 前端任务时，必须以本规范为准；其他入口只应引用本文件，不应复制另一套完整 UI 规范。Admin UI 实施除 UI 和 E2E 验收外，还必须遵循 `.agents/skills/code-quality/SKILL.md`。
 
+大型页面拆分、共享 UI 边界、跨页面模块设计、公共 type/service 和 DraftDetail 演进遵循 `.agents/skills/modular-architecture/SKILL.md`；本规范只定义 UI 视觉、布局、响应式和交互验收。
+
 ## 1. 自动适用规则
 
 本规范不仅适用于用户明确要求“UI 设计”“UI 优化”“响应式验收”或“使用 frontend-design skill”的任务。任何涉及 Admin 前端的页面、组件、样式、布局、响应式、交互、状态展示、文案、可访问性或视觉 Bug，均自动适用本规范，任务发起者无需重复指定。

@@ -15,6 +15,7 @@ description: TradeMind 全项目代码质量自动适用、轻量检查、深度
 - 前端单元：`.agents/skills/frontend-unit-testing/SKILL.md`
 - 后端测试：`.agents/skills/backend-testing/SKILL.md`
 - API 契约：`.agents/skills/api-contract-testing/SKILL.md`
+- 模块化架构：`.agents/skills/modular-architecture/SKILL.md`
 
 ## 1. 自动适用范围
 
@@ -209,7 +210,9 @@ Admin UI 变更必须同时遵循 `.agents/skills/frontend-design/SKILL.md`。co
 
 code-quality 负责发现模块化风险：文件职责过多，页面/API/状态机混在同一文件，handler 承载领域逻辑，repository 决定业务规则，UI 直接依赖低层 API 实现，跨层循环依赖，多处重复 DTO/平台判断/状态映射，公共模块反向依赖业务模块。
 
-不要仅按行数强制拆分。只有新增业务领域、新增平台适配器、跨三个以上模块、大型组件持续膨胀、循环依赖、共享层职责不清或新增 worker/queue/scheduler 体系时，才建议后续触发模块化专项任务。小修复不得被迫大规模模块化。
+当变更涉及新模块、跨模块依赖、shared/common、adapter、worker、repository、migration、公共 API/type 或大型重构时，必须读取 `.agents/skills/modular-architecture/SKILL.md`。模块边界、循环依赖、跨应用依赖和 Architecture Baseline/Ratchet 的完整规则由 modular-architecture 统一定义。
+
+不要仅按行数强制拆分。只有新增业务领域、新增平台适配器、跨三个以上模块、大型组件持续膨胀、循环依赖、共享层职责不清或新增 worker/queue/scheduler 体系时，才建议触发模块化专项审查。小修复不得被迫大规模模块化。
 
 ## 27. 禁止项
 

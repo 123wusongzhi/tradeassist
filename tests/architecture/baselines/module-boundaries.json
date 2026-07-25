@@ -1,0 +1,143 @@
+{
+  "version": 1,
+  "violations": [
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-constants",
+      "targetModule": "admin-services",
+      "importPath": "@/services/dashboard",
+      "fingerprint": "forbidden-dependency|admin-constants|admin-services|admin/src/constants/dashboardDefaults.ts|@/services/dashboard",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-constants",
+      "targetModule": "admin-services",
+      "importPath": "@/services/dashboard",
+      "fingerprint": "forbidden-dependency|admin-constants|admin-services|admin/src/constants/dashboardRecent.ts|@/services/dashboard",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "high",
+      "sourceModule": "admin-constants",
+      "targetModule": "admin-services",
+      "importPath": "@/services/imageTasks",
+      "fingerprint": "forbidden-dependency|admin-constants|admin-services|admin/src/constants/dashboardRecent.ts|@/services/imageTasks",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-constants",
+      "targetModule": "admin-services",
+      "importPath": "@/services/shops",
+      "fingerprint": "forbidden-dependency|admin-constants|admin-services|admin/src/constants/platformAppConfig.ts|@/services/shops",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-constants",
+      "targetModule": "admin-services",
+      "importPath": "@/services/shops",
+      "fingerprint": "forbidden-dependency|admin-constants|admin-services|admin/src/constants/platformPublishConfig.ts|@/services/shops",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/collectProviders",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/collectProviderStatus.ts|@/services/collectProviders",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/collectProviders",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/collectSettingsProvider.ts|@/services/collectProviders",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/products",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/pinduoduoCollectAlerts.ts|@/services/products",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/shops",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/platformAppConfig.ts|@/services/shops",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/productPublish",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/publishConfigMerge.ts|@/services/productPublish",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/settings",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/settingsForm.ts|@/services/settings",
+      "count": 1
+    },
+    {
+      "ruleId": "forbidden-dependency",
+      "severity": "medium",
+      "sourceModule": "admin-utils",
+      "targetModule": "admin-services",
+      "importPath": "@/services/products",
+      "fingerprint": "forbidden-dependency|admin-utils|admin-services|admin/src/utils/taobaoTmallCollectAlerts.ts|@/services/products",
+      "count": 1
+    },
+    {
+      "ruleId": "go-provider-depends-on-module",
+      "severity": "high",
+      "sourceModule": "backend-providers",
+      "targetModule": "backend-modules",
+      "importPath": "github.com/trademind-ai/trademind/backend/internal/modules/settings",
+      "fingerprint": "go-provider-depends-on-module|backend-providers|backend-modules|backend/internal/providers/image|github.com/trademind-ai/trademind/backend/internal/modules/settings",
+      "count": 1
+    },
+    {
+      "ruleId": "go-shared-reverse-dependency",
+      "severity": "high",
+      "sourceModule": "backend-pkg",
+      "targetModule": "backend-modules",
+      "importPath": "github.com/trademind-ai/trademind/backend/internal/modules/admin",
+      "fingerprint": "go-shared-reverse-dependency|backend-pkg|backend-modules|backend/internal/pkg/adminperm|github.com/trademind-ai/trademind/backend/internal/modules/admin",
+      "count": 1
+    },
+    {
+      "ruleId": "go-shared-reverse-dependency",
+      "severity": "high",
+      "sourceModule": "backend-pkg",
+      "targetModule": "backend-providers",
+      "importPath": "github.com/trademind-ai/trademind/backend/internal/providers/storage",
+      "fingerprint": "go-shared-reverse-dependency|backend-pkg|backend-providers|backend/internal/pkg/storagepublic|github.com/trademind-ai/trademind/backend/internal/providers/storage",
+      "count": 1
+    }
+  ],
+  "notes": [
+    "Updated explicitly by pnpm architecture:baseline -- --update. Review the diff before committing."
+  ]
+}

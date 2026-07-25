@@ -18,6 +18,9 @@ description: TradeMind 全项目自动化测试分层、测试选择、CI 门禁
 - 前端单元/组件：`.agents/skills/frontend-unit-testing/SKILL.md`
 - Go 后端/Redis/数据库：`.agents/skills/backend-testing/SKILL.md`
 - API 契约：`.agents/skills/api-contract-testing/SKILL.md`
+- 模块化架构：`.agents/skills/modular-architecture/SKILL.md`
+
+架构边界、循环依赖测试和 Architecture Baseline/Ratchet 由 modular-architecture Skill 统一定义，测试总控只负责按影响范围编排。
 
 ## 2. 仓库测试分层
 

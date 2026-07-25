@@ -25,6 +25,7 @@ const checks = new Map([
   ['e2e-smoke', { command: ['pnpm', ['test:e2e:smoke']], reason: 'Admin 页面/样式/路由/交互变更需要轻量浏览器 smoke' }],
   ['db', { command: ['pnpm', ['test:db']], reason: 'migration/repository/database 变更需要测试数据库集成' }],
   ['redis', { command: ['pnpm', ['test:redis']], reason: 'Redis/queue/worker 变更需要 Redis 集成' }],
+  ['architecture', { command: ['pnpm', ['architecture:affected', '--skip-quality']], reason: '新模块、跨模块、shared/common、adapter、worker、repository、migration 或架构配置变更需要模块边界检查' }],
 ]);
 
 function add(selected, name, reason) {
@@ -59,6 +60,15 @@ function isTs(file) {
   return /\.(ts|tsx)$/.test(file);
 }
 
+function moduleKey(file) {
+  const parts = file.split('/');
+  if (file.startsWith('admin/src/')) return parts.slice(0, 3).join('/');
+  if (file.startsWith('collector/src/')) return parts.slice(0, 3).join('/');
+  if (file.startsWith('backend/internal/modules/')) return parts.slice(0, 4).join('/');
+  if (file.startsWith('backend/internal/providers/')) return parts.slice(0, 4).join('/');
+  return null;
+}
+
 function classify(file, selected) {
   add(selected, 'sensitive');
 
@@ -86,10 +96,12 @@ function classify(file, selected) {
   if (file.startsWith('backend/internal/database/') || file.startsWith('backend/migrations/') || file.toLowerCase().includes('migration') || file.toLowerCase().includes('repository')) {
     add(selected, 'db');
     add(selected, 'contracts');
+    add(selected, 'architecture');
   }
   if (file.toLowerCase().includes('redis') || file.toLowerCase().includes('queue') || file.toLowerCase().includes('worker') || file.toLowerCase().includes('scheduler')) {
     add(selected, 'redis');
     add(selected, 'backend');
+    add(selected, 'architecture');
   }
   if (file.startsWith('tests/contracts/') || file.includes('/router.go') || file.includes('/handler.go') || file.includes('/dto.go') || file.includes('/services/') || file.includes('api-contract') || file.includes('envelope')) {
     add(selected, 'contracts');
@@ -107,6 +119,12 @@ function classify(file, selected) {
     add(selected, 'sensitive');
     add(selected, 'affected-tests');
   }
+  if (file.startsWith('scripts/architecture/') || file.startsWith('tests/architecture/') || file === 'vitest.architecture.config.ts' || file === '.agents/skills/modular-architecture/SKILL.md') {
+    add(selected, 'architecture');
+  }
+  if (file.includes('/shared/') || file.includes('/common/') || file.includes('/types/') || file.includes('/constants/') || file.includes('/providers/') || file.toLowerCase().includes('adapter') || file.toLowerCase().includes('dto') || file.toLowerCase().includes('enum')) {
+    add(selected, 'architecture');
+  }
   if (isTs(file) && file.startsWith('scripts/')) add(selected, 'contracts');
 }
 
@@ -120,7 +138,9 @@ async function runCheck(name) {
 
 const files = await changedFiles();
 const selected = new Map();
+const changedModules = new Set(files.map(moduleKey).filter(Boolean));
 for (const file of files) classify(file, selected);
+if (changedModules.size >= 3) add(selected, 'architecture', '跨三个以上业务模块变更需要模块边界检查');
 
 if (!files.length) {
   add(selected, 'sensitive', '无本地变更时仍执行敏感 diff 空扫描');
@@ -143,7 +163,7 @@ for (const [name, reasons] of selected) {
   console.log(`- ${name}: ${[...reasons].join('; ')}`);
 }
 
-const order = ['sensitive', 'admin', 'collector', 'backend', 'contracts', 'ui-copy', 'db', 'redis', 'e2e-smoke', 'affected-tests'];
+const order = ['sensitive', 'architecture', 'admin', 'collector', 'backend', 'contracts', 'ui-copy', 'db', 'redis', 'e2e-smoke', 'affected-tests'];
 const failures = [];
 for (const name of order.filter((item) => selected.has(item))) {
   try {

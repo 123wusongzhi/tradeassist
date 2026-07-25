@@ -9,6 +9,8 @@ description: TradeMind Go/Gin/GORM 后端单元、HTTP、PostgreSQL、Redis、�
 
 涉及 `backend/**`、Go handler/service/model/repository/provider、数据库、Redis、队列、worker、scheduler、auth、权限、状态机或后端 CI 时自动适用。后端生产代码和测试代码质量由 `.agents/skills/code-quality/SKILL.md` 约束。
 
+handler/service/repository/adapter/worker 的测试应验证模块边界、事务归属、幂等和越层调用风险；详细边界、循环依赖和 Architecture Baseline/Ratchet 由 `.agents/skills/modular-architecture/SKILL.md` 定义。
+
 ## 技术栈
 
 - 语言：Go 1.25 module `github.com/trademind-ai/trademind/backend`。
