@@ -34,7 +34,7 @@ export default defineConfig({
   ],
   webServer: {
     command: isCI
-      ? 'pnpm --filter @trademind/admin exec max preview --host 127.0.0.1 --port 8001'
+      ? 'pnpm build:admin && pnpm --filter @trademind/admin exec max preview --host 127.0.0.1 --port 8001'
       : 'pnpm dev:admin -- --host 127.0.0.1 --port 8001',
     url: 'http://127.0.0.1:8001',
     reuseExistingServer: !isCI,
