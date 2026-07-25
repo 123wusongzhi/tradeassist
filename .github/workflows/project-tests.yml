@@ -22,6 +22,92 @@ on:
     - cron: "17 19 * * *"
 
 jobs:
+  code-quality:
+    name: code quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve quality diff base
+        id: quality-base
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "base=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Diff hygiene
+        run: git diff --check ${{ steps.quality-base.outputs.base }} ${{ steps.quality-base.outputs.head }}
+
+      - name: Changed-file sensitive check
+        env:
+          QUALITY_BASE_SHA: ${{ steps.quality-base.outputs.base }}
+          QUALITY_HEAD_SHA: ${{ steps.quality-base.outputs.head }}
+        run: pnpm quality:sensitive
+
+      - name: Admin TypeScript baseline ratchet
+        run: pnpm quality:baseline:admin-ts
+
+      - name: Collector quality
+        run: pnpm quality:collector
+
+      - name: Go formatting and vet
+        run: node scripts/quality/check-go.mjs --fmt --vet
+
+      - name: API contracts
+        run: pnpm quality:contracts
+
+      - name: Affected quality checks
+        env:
+          QUALITY_BASE_SHA: ${{ steps.quality-base.outputs.base }}
+          QUALITY_HEAD_SHA: ${{ steps.quality-base.outputs.head }}
+        run: pnpm quality:ci
+
+      - name: Code quality summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Code Quality"
+            echo "- Diff base: ${{ steps.quality-base.outputs.base }}"
+            echo "- Diff head: ${{ steps.quality-base.outputs.head }}"
+            echo "- Baseline update: disabled in CI"
+            echo "- Sensitive scan: changed lines only, high-confidence patterns"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   node-unit-and-contracts:
     name: node unit and API contracts
     runs-on: ubuntu-latest

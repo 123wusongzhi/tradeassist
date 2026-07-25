@@ -20,6 +20,7 @@
 | [README.md](README.md) | 项目首页、能力概览、启动方式 |
 | [docs/README.md](docs/README.md) | 文档中心 |
 | [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀机制 |
+| [.agents/skills/code-quality/SKILL.md](.agents/skills/code-quality/SKILL.md) | 全项目代码质量自动适用、轻量检查、深度审查、Baseline/Ratchet 和 CI 门禁的唯一完整主规范 |
 | [.agents/skills/frontend-design/SKILL.md](.agents/skills/frontend-design/SKILL.md) | Admin UI 设计规范、共享组件规范、响应式验收和 AI 实施流程的唯一完整来源 |
 | [.agents/skills/project-testing/SKILL.md](.agents/skills/project-testing/SKILL.md) | 全项目自动化测试总控规范，覆盖前端、Node、后端、API 契约、数据库、Redis、队列和 CI |
 | [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
@@ -44,8 +45,12 @@
 
 ## 开发规则
 
+- 任何代码新增、修改、重构或 Bug 修复，均自动视为代码质量任务，必须读取并遵循 `.agents/skills/code-quality/SKILL.md`；用户无需显式要求代码质量检查。
+- 所有代码修改自动执行轻量代码质量检查；认证、权限、库存、发布、第三方平台、数据库事务、Redis、队列、worker、并发、文件上传、Token、API envelope、shared type、migration、跨模块重构等高风险修改自动执行深度审查。
+- 新代码不得增加 baseline 外的新 TypeScript、Go、lint 或安全问题；Bug 修复优先补回归测试；未运行必要检查不得声明完成，无法运行必须说明阻塞原因。
+- 不得用 skip、ignore、宽泛 allowlist 或自动扩大 baseline 掩盖失败；未经用户要求不得 commit 或 push。
 - 任何新功能、Bug 修复、前端、后端、API、DTO、数据库、Redis、队列、路由、业务状态机、依赖、构建或 CI 变更，均自动视为全项目测试任务，必须读取并遵循 `.agents/skills/project-testing/SKILL.md`；无需用户显式指定。
-- 根据变更范围继续读取 `.agents/skills/frontend-unit-testing/SKILL.md`、`.agents/skills/backend-testing/SKILL.md`、`.agents/skills/api-contract-testing/SKILL.md` 与既有专项 Skill。
+- 根据变更范围继续读取 `.agents/skills/frontend-design/SKILL.md`、`.agents/skills/frontend-unit-testing/SKILL.md`、`.agents/skills/admin-e2e-testing/SKILL.md`、`.agents/skills/backend-testing/SKILL.md`、`.agents/skills/api-contract-testing/SKILL.md` 与既有专项 Skill。
 - 任何涉及 Admin 前端页面、组件、样式、布局、响应式、交互、路由、状态展示、文案、可访问性或写操作的任务，均自动视为 Admin UI / 测试任务，必须读取并遵循 `.agents/skills/frontend-design/SKILL.md` 与 `.agents/skills/admin-e2e-testing/SKILL.md`；无需用户显式指定。
 - UI 开发规范和自动化测试规范同时适用；新增页面、修改页面、UI Bug 修复、视觉问题、响应式、组件交互、路由、状态展示、写操作和混合任务中的 UI 部分都适用。
 - Admin UI 任务未完成五档视口、状态、根节点横向溢出、必要写请求拦截和相关 E2E 测试时，不得声明可签收；测试阻塞时必须说明原因和首个根因。

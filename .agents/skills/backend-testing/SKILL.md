@@ -7,7 +7,7 @@ description: TradeMind Go/Gin/GORM 后端单元、HTTP、PostgreSQL、Redis、�
 
 ## 自动适用
 
-涉及 `backend/**`、Go handler/service/model/repository/provider、数据库、Redis、队列、worker、scheduler、auth、权限、状态机或后端 CI 时自动适用。
+涉及 `backend/**`、Go handler/service/model/repository/provider、数据库、Redis、队列、worker、scheduler、auth、权限、状态机或后端 CI 时自动适用。后端生产代码和测试代码质量由 `.agents/skills/code-quality/SKILL.md` 约束。
 
 ## 技术栈
 

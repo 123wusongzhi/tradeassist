@@ -205,7 +205,16 @@
     "test:db": "cd backend && go test ./internal/testing/integration",
     "test:redis": "cd backend && go test ./internal/testing/redis",
     "test:contracts": "vitest run --config vitest.contracts.config.ts",
-    "test:affected": "node scripts/testing/test-affected.mjs"
+    "test:affected": "node scripts/testing/test-affected.mjs",
+    "quality:affected": "node scripts/quality/check-affected.mjs",
+    "quality:ci": "node scripts/quality/check-affected.mjs",
+    "quality:all": "node scripts/quality/check-affected.mjs --all",
+    "quality:admin": "node scripts/quality/check-typescript-baseline.mjs && pnpm test:frontend",
+    "quality:collector": "pnpm build:collector && pnpm test:collector",
+    "quality:backend": "node scripts/quality/check-go.mjs",
+    "quality:contracts": "pnpm test:contracts",
+    "quality:sensitive": "node scripts/quality/check-sensitive-diff.mjs",
+    "quality:baseline:admin-ts": "node scripts/quality/check-typescript-baseline.mjs"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",

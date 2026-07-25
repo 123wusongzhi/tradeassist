@@ -5,7 +5,7 @@ description: TradeMind 全项目自动化测试分层、测试选择、CI 门禁
 
 # TradeMind 全项目自动化测试总控规范
 
-本 Skill 是全项目测试策略和自动测试选择的唯一总控来源。Admin E2E、前端单元、后端、API 契约等专项 Skill 保持独立，本文件只负责引用和编排。
+本 Skill 是全项目测试策略和自动测试选择的唯一总控来源。Admin E2E、前端单元、后端、API 契约等专项 Skill 保持独立，本文件只负责引用和编排。测试实现本身和生产代码质量检查由 `.agents/skills/code-quality/SKILL.md` 统一定义。
 
 ## 1. 自动适用规则
 
