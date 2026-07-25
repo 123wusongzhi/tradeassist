@@ -844,9 +844,9 @@ function OperationProgressPanel({
           <div className="product-draft-progress__issues">
             <Typography.Text strong>还需处理</Typography.Text>
             <Space direction="vertical" style={{ width: '100%' }} size={6}>
-              {issues.map((x) => (
+              {issues.map((x, index) => (
                 <Alert
-                  key={`${x.code}-${x.title}`}
+                  key={`${x.code}-${x.title}-${x.severity}-${index}`}
                   type={x.severity === 'failed' ? 'error' : 'warning'}
                   showIcon
                   message={x.title}
@@ -1318,7 +1318,7 @@ export default function ProductDraftDetailPage() {
   }, [id]);
 
   const reloadPublishContext = useCallback(async () => {
-    if (!id) return;
+    if (!id) return [];
     setPubCtxLoading(true);
     setPubCtxError('');
     try {
@@ -1329,7 +1329,8 @@ export default function ProductDraftDetailPage() {
         getProductPlatformPublishConfig(id, 'douyin_shop').catch(() => undefined),
         queryDouyinCategories({ onlyLeaf: true }).catch(() => undefined),
       ]);
-      setPubRows(Array.isArray(pubs.list) ? pubs.list : []);
+      const rows = Array.isArray(pubs.list) ? pubs.list : [];
+      setPubRows(rows);
       setPlatformsMeta(Array.isArray(prov.list) ? prov.list : []);
       setShopsList(Array.isArray(shops.list) ? shops.list : []);
       if (douyinCats?.flat) setDouyinCategoryFlat(douyinCats.flat);
@@ -1343,35 +1344,22 @@ export default function ProductDraftDetailPage() {
           categoryPath: douyinCfg.categoryPath,
           platformAttributes: attrs,
         });
-        douyinForm.setFieldsValue({
-          shopId: douyinCfg.shopId,
-          categoryId: douyinCfg.categoryId,
-          platformAttributes: attrs,
-        });
         if (douyinCfg.mapping) {
           setDouyinMapping(douyinCfg.mapping);
-          douyinMappingForm.setFieldsValue({
-            title: douyinCfg.mapping.title,
-            description: douyinCfg.mapping.description,
-          });
         } else {
           const mapped = await getDouyinDraftMapping(id).catch(() => undefined);
           setDouyinMapping(mapped ?? null);
-          if (mapped) {
-            douyinMappingForm.setFieldsValue({
-              title: mapped.title,
-              description: mapped.description,
-            });
-          }
         }
         if (douyinCfg.categoryId) {
           const ar = await queryDouyinCategoryAttributes(douyinCfg.categoryId).catch(() => undefined);
           setDouyinAttrs(ar?.list ?? []);
         }
       }
+      return rows;
     } catch (e: unknown) {
       setPubRows([]);
       setPubCtxError((e as Error)?.message || '刊登上下文加载失败');
+      return [];
     } finally {
       setPubCtxLoading(false);
     }
@@ -1934,8 +1922,8 @@ export default function ProductDraftDetailPage() {
     [pubRows],
   );
 
-  const reloadDouyinSkuBindings = useCallback(async () => {
-    if (!douyinPublication?.id) {
+  const reloadDouyinSkuBindingsForPublication = useCallback(async (publicationId?: string) => {
+    if (!publicationId) {
       setDouyinSkuBinding(null);
       setDouyinSkuBindingError('');
       return;
@@ -1943,7 +1931,7 @@ export default function ProductDraftDetailPage() {
     setDouyinSkuBindingLoading(true);
     setDouyinSkuBindingError('');
     try {
-      const res = await getDouyinSkuBindings(douyinPublication.id);
+      const res = await getDouyinSkuBindings(publicationId);
       setDouyinSkuBinding(res);
     } catch (e: unknown) {
       setDouyinSkuBinding(null);
@@ -1951,7 +1939,11 @@ export default function ProductDraftDetailPage() {
     } finally {
       setDouyinSkuBindingLoading(false);
     }
-  }, [douyinPublication?.id]);
+  }, []);
+
+  const reloadDouyinSkuBindings = useCallback(async () => {
+    await reloadDouyinSkuBindingsForPublication(douyinPublication?.id);
+  }, [douyinPublication?.id, reloadDouyinSkuBindingsForPublication]);
 
   const handleSyncDouyinSkuBindings = useCallback(async () => {
     if (!douyinPublication?.id) {
@@ -2065,6 +2057,21 @@ export default function ProductDraftDetailPage() {
     },
     [id, eligibleShopsForPublish],
   );
+
+  useEffect(() => {
+    if (draftTabKey !== 'publish') return;
+    douyinForm.setFieldsValue({
+      shopId: douyinConfig.shopId,
+      categoryId: douyinConfig.categoryId,
+      platformAttributes: douyinConfig.platformAttributes ?? {},
+    });
+    if (douyinMapping) {
+      douyinMappingForm.setFieldsValue({
+        title: douyinMapping.title,
+        description: douyinMapping.description,
+      });
+    }
+  }, [douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
 
   useEffect(() => {
     if (draftTabKey !== 'publish' || !id) return;
@@ -2713,8 +2720,8 @@ export default function ProductDraftDetailPage() {
                           message="采集质量提示"
                           description={
                             <ul className="product-draft-basic__warning-list">
-                              {collectQualityWarnings.map((w) => (
-                                <li key={w}>{w}</li>
+                              {collectQualityWarnings.map((w, index) => (
+                                <li key={`${w}-${index}`}>{w}</li>
                               ))}
                             </ul>
                           }
@@ -3910,6 +3917,7 @@ export default function ProductDraftDetailPage() {
                   <Modal
                     title="批量设置预警线（本商品）"
                     open={skuBatchStockOpen}
+                    forceRender
                     width={640}
                     rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
                     className="product-draft-inventory__modal"
@@ -4087,7 +4095,7 @@ export default function ProductDraftDetailPage() {
                     <Table<PublicationSkuListingRow>
                       size="small"
                       className="product-draft-inventory-sync__table"
-                      rowKey="publicationSkuId"
+                      rowKey={(r) => r.publicationSkuId || `${r.publicationId || 'publication'}-${r.productSkuId || 'sku'}-${r.externalSkuId || 'external'}`}
                       pagination={false}
                       dataSource={filteredPubSkuRowsForBulk}
                       scroll={{ x: 1180 }}
@@ -4669,9 +4677,15 @@ export default function ProductDraftDetailPage() {
                       <MultiPlatformPublishCenter
                         productId={id}
                         onDraftsCreated={async () => {
-                          await reloadPublishContext();
+                          const rows = await reloadPublishContext();
                           await reloadDouyinPublishTasks();
                           await reloadPublicationSkus();
+                          const douyinRow = rows.find(
+                            (p) =>
+                              (p.platform || '').toLowerCase() === 'douyin_shop' &&
+                              String(p.externalProductId || '').trim() !== '',
+                          );
+                          await reloadDouyinSkuBindingsForPublication(douyinRow?.id);
                         }}
                       />
                     </SectionCard>
@@ -5011,7 +5025,7 @@ export default function ProductDraftDetailPage() {
                                       onClick={() => {
                                         setReadinessPlat('douyin_shop');
                                         setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
-                                        setDraftTabKey('readiness');
+                                        openDraftLocation('readiness', 'publish-check');
                                       }}
                                     >
                                       查看抖店发布检查
@@ -5076,7 +5090,7 @@ export default function ProductDraftDetailPage() {
                                   <Table
                                     size="small"
                                     className="product-draft-douyin-draft__table"
-                                    rowKey={(r) => r.attrId || r.name}
+                                    rowKey={(r) => r.attrId || `${r.name || 'attr'}-${r.required ? 'required' : 'optional'}-${douyinAttrValueText(r.value)}`}
                                     pagination={false}
                                     scroll={{ x: 720 }}
                                     dataSource={douyinMapping.attributes ?? []}
@@ -5309,7 +5323,7 @@ export default function ProductDraftDetailPage() {
                                     <Table<DouyinSkuBindingRow>
                                       size="small"
                                       className="product-draft-douyin-bind__table"
-                                      rowKey="publicationSkuId"
+                                      rowKey={(r) => r.publicationSkuId || `${r.productSkuId || 'sku'}-${r.externalSkuId || 'external'}-${r.platformSkuName || 'platform'}`}
                                       pagination={false}
                                       scroll={{ x: 1200 }}
                                       dataSource={douyinSkuBinding?.rows ?? []}
@@ -5366,7 +5380,7 @@ export default function ProductDraftDetailPage() {
                                 <Table
                                   size="small"
                                   className="product-draft-douyin-draft__table"
-                                  rowKey={(r) => r.localSkuId || r.name}
+                                  rowKey={(r) => r.localSkuId || `${r.name || 'sku'}-${douyinAttrValueText(r.attrs ?? {})}-${r.price ?? ''}`}
                                   pagination={false}
                                   scroll={{ x: 820 }}
                                   dataSource={douyinMapping.skus ?? []}
@@ -5805,6 +5819,7 @@ export default function ProductDraftDetailPage() {
         open={aiOpen}
         onCancel={() => setAiOpen(false)}
         footer={null}
+        forceRender
         destroyOnHidden
         width={760}
         className="product-draft-ai-modal"
@@ -5882,8 +5897,8 @@ export default function ProductDraftDetailPage() {
               <div className="product-draft-ai-modal__meta">
                 {(aiResult.keywords ?? []).length ? (
                   <Space wrap size={4}>
-                    {(aiResult.keywords ?? []).map((keyword) => (
-                      <Tag key={keyword}>{keyword}</Tag>
+                    {(aiResult.keywords ?? []).map((keyword, index) => (
+                      <Tag key={`${keyword}-${index}`}>{keyword}</Tag>
                     ))}
                   </Space>
                 ) : null}
@@ -5970,6 +5985,7 @@ export default function ProductDraftDetailPage() {
         open={descOpen}
         onCancel={() => setDescOpen(false)}
         footer={null}
+        forceRender
         destroyOnHidden
         width={820}
         className="product-draft-ai-modal"
@@ -6194,6 +6210,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
         open={adjustOpen && !!adjustTarget}
+        forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
@@ -6260,6 +6277,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title="同步刊登规格库存"
         open={syncOpen && !!syncRow}
+        forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
@@ -6320,6 +6338,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
         open={stockSettingsOpen && !!stockSettingsTarget}
+        forceRender
         destroyOnHidden
         width={520}
         rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
@@ -6372,6 +6391,7 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={douyinSkuBindTarget ? `手动绑定抖店规格 · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店规格'}
         open={douyinSkuBindOpen && !!douyinSkuBindTarget}
+        forceRender
         destroyOnHidden
         width={640}
         rootClassName="tm-product-draft-detail product-draft-douyin-bind__modal-root"
