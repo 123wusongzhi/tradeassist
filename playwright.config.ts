@@ -1,3 +1,5 @@
+/// <reference types="node" />
+
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = !!process.env.CI;
@@ -31,7 +33,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev:admin -- --host 127.0.0.1 --port 8001',
+    command: isCI
+      ? 'pnpm --filter @trademind/admin exec max preview --host 127.0.0.1 --port 8001'
+      : 'pnpm dev:admin -- --host 127.0.0.1 --port 8001',
     url: 'http://127.0.0.1:8001',
     reuseExistingServer: !isCI,
     timeout: 120_000,
