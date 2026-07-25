@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "small-admin-ui",
+      "description": "局部 Admin UI 调整，例如修复一个稳定的 console warning、按钮间距或单个组件状态展示。",
+      "files": ["admin/src/pages/Products/DraftDetail/index.tsx", "admin/src/pages/Products/DraftDetail/index.test.tsx"],
+      "expectedSkills": ["frontend-design", "frontend-unit-testing", "admin-e2e-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": ["modular-architecture", "backend-testing", "api-contract-testing"],
+      "expectedChecks": ["test:frontend", "test:e2e:smoke", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["architecture:test", "test:backend", "test:db", "test:redis", "自动 baseline update"],
+      "depth": "light",
+      "reason": "UI 可见行为受影响，但不新增 shared、adapter、repository、worker、migration、API 或跨模块依赖。"
+    },
+    {
+      "id": "admin-interaction-bug",
+      "description": "Admin 页面交互 Bug，例如 Modal 关闭、重复点击、Tab 深链或表单提交状态异常。",
+      "files": ["admin/src/pages/Products/DraftDetail/index.tsx", "admin/e2e/specs/product-draft.spec.ts"],
+      "expectedSkills": ["frontend-design", "frontend-unit-testing", "admin-e2e-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": ["backend-testing"],
+      "expectedChecks": ["test:frontend", "test:e2e:smoke", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["test:db", "test:redis", "自动 baseline update"],
+      "depth": "light",
+      "reason": "交互、Console 和写请求安全需要浏览器回归；不改变 API 或后端状态机时不触发后端集成。"
+    },
+    {
+      "id": "admin-api-envelope",
+      "description": "Admin service、DTO、mock 或后端 envelope 解析变更。",
+      "files": ["admin/src/services/api.ts", "tests/contracts/api-contracts.test.ts", "backend/internal/api/router.go"],
+      "expectedSkills": ["api-contract-testing", "backend-testing", "frontend-design", "frontend-unit-testing", "admin-e2e-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": [],
+      "expectedChecks": ["test:contracts", "test:backend", "test:frontend", "test:e2e:smoke", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["生产数据库", "生产 Redis", "真实平台写请求", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "API envelope 影响前后端契约、Admin mock 和浏览器消费路径，必须覆盖契约和受影响 UI。"
+    },
+    {
+      "id": "collector-pure-function",
+      "description": "Collector 纯函数、价格归一化或评分逻辑变更。",
+      "files": ["collector/src/normalizer/price.ts", "collector/src/normalizer/price.test.ts"],
+      "expectedSkills": ["code-quality", "project-testing"],
+      "forbiddenSkills": ["frontend-design", "admin-e2e-testing", "backend-testing", "api-contract-testing", "modular-architecture"],
+      "expectedChecks": ["test:collector", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["test:e2e:smoke", "test:backend", "test:db", "test:redis", "真实平台写请求"],
+      "depth": "light",
+      "reason": "确定性纯函数只需要 Collector 单元、构建/质量和受影响测试，不应触发 Admin E2E。"
+    },
+    {
+      "id": "backend-service",
+      "description": "Go service 业务逻辑、状态校验或 provider 编排变更。",
+      "files": ["backend/internal/modules/productpublish/service.go", "backend/internal/modules/productpublish/service_test.go"],
+      "expectedSkills": ["backend-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": ["frontend-design", "admin-e2e-testing"],
+      "expectedChecks": ["test:backend", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["test:e2e:smoke", "生产数据库", "生产 Redis", "真实平台写请求"],
+      "depth": "light",
+      "reason": "后端 service 需要 Go 单元和质量检查；只有 API/DB/Redis/worker 边界变化才升级专项集成。"
+    },
+    {
+      "id": "backend-repository",
+      "description": "Go repository、数据库查询、事务归属或持久化边界变更。",
+      "files": ["backend/internal/modules/productpublish/repository.go", "backend/internal/testing/integration/productpublish_repository_test.go"],
+      "expectedSkills": ["modular-architecture", "backend-testing", "api-contract-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": ["frontend-design", "admin-e2e-testing"],
+      "expectedChecks": ["architecture:affected", "test:backend", "test:db", "test:contracts", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["test:e2e:smoke", "生产数据库", "真实平台写请求", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "Repository 影响数据库边界、事务和契约数据形状，必须做架构、DB 和契约验证。"
+    },
+    {
+      "id": "migration-change",
+      "description": "数据库 migration 或 schema 变更。",
+      "files": ["backend/migrations/202607260001_add_publication_retry.sql", "backend/internal/database/migrate_test.go"],
+      "expectedSkills": ["modular-architecture", "backend-testing", "api-contract-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": ["frontend-design"],
+      "expectedChecks": ["architecture:affected", "test:backend", "test:db", "test:contracts", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["生产数据库", "生产 Redis", "真实平台写请求", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "Schema 变化必须确认 migration 安全、repository/API shape、数据库测试环境和架构边界。"
+    },
+    {
+      "id": "shared-type-change",
+      "description": "公共 type、DTO、enum、contract fixture 或 shared/common 入口变更。",
+      "files": ["admin/src/types/publication.ts", "tests/contracts/api-contracts.test.ts"],
+      "expectedSkills": ["modular-architecture", "api-contract-testing", "frontend-design", "frontend-unit-testing", "backend-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": [],
+      "expectedChecks": ["architecture:affected", "test:contracts", "test:frontend", "test:backend", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["生产数据库", "生产 Redis", "真实平台写请求", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "公共类型和契约影响多个模块，需要单一事实来源、contract 和引用方测试。"
+    },
+    {
+      "id": "new-platform-adapter",
+      "description": "新增第三方平台 adapter 或平台错误分类。",
+      "files": ["backend/internal/providers/platform/tiktok/adapter.go", "backend/internal/providers/platform/tiktok/adapter_test.go"],
+      "expectedSkills": ["modular-architecture", "backend-testing", "api-contract-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": [],
+      "expectedChecks": ["architecture:check", "architecture:affected", "test:backend", "test:contracts", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["真实平台写请求", "生产数据库", "生产 Redis", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "新平台 adapter 必须限制第三方结构扩散，使用 fake adapter/server 并覆盖 timeout/retry/error 分类。"
+    },
+    {
+      "id": "new-worker",
+      "description": "新增 worker、queue consumer、scheduler 或重试调度能力。",
+      "files": ["backend/internal/queue/publication_retry_worker.go", "backend/internal/testing/redis/publication_retry_worker_test.go"],
+      "expectedSkills": ["modular-architecture", "backend-testing", "api-contract-testing", "code-quality", "project-testing"],
+      "forbiddenSkills": [],
+      "expectedChecks": ["architecture:check", "architecture:affected", "test:backend", "test:redis", "test:contracts", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["真实平台写请求", "生产数据库", "生产 Redis", "无限重试", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "Worker/queue 影响幂等、retry、Redis 隔离、状态转换和停止语义，必须深度验证。"
+    },
+    {
+      "id": "cross-module-feature",
+      "description": "新增跨平台刊登失败自动重试能力，涉及 Admin 状态、Go 状态机、Redis/Queue、Adapter、API Contract、数据库和 Worker 幂等性。",
+      "files": ["admin/src/pages/Products/DraftDetail/index.tsx", "admin/src/services/api.ts", "backend/internal/modules/productpublish/service.go", "backend/internal/queue/publication_retry_worker.go", "backend/internal/providers/platform/douyin/adapter.go", "backend/migrations/202607260001_add_publication_retry.sql", "tests/contracts/api-contracts.test.ts", "admin/e2e/specs/product-draft.spec.ts"],
+      "expectedSkills": ["modular-architecture", "code-quality", "project-testing", "frontend-design", "frontend-unit-testing", "admin-e2e-testing", "backend-testing", "api-contract-testing"],
+      "forbiddenSkills": [],
+      "expectedChecks": ["architecture:check", "architecture:affected", "architecture:test", "quality:affected", "test:affected", "test:frontend", "test:backend", "test:contracts", "test:e2e:smoke", "test:db", "test:redis", "test:e2e:publish-safety"],
+      "conditionalChecks": ["migration 仅当 schema 变化时运行", "E2E publish safety 必须运行", "Redis/queue test 必须运行", "backend integration 必须运行", "API contract 必须运行"],
+      "forbiddenChecks": ["真实平台写请求", "生产数据库", "生产 Redis", "自动 commit", "自动 push", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "跨模块重试能力同时影响 UI、API、状态机、数据库、Redis/Queue、adapter 和 worker，必须组合触发完整 Skill 与深度检查。"
+    },
+    {
+      "id": "documentation-only",
+      "description": "仅更新 README、docs 或说明文本，不改变代码、脚本、CI 或规则入口。",
+      "files": ["docs/ai-workflow.md", "README.md"],
+      "expectedSkills": ["code-quality"],
+      "forbiddenSkills": ["frontend-design", "admin-e2e-testing", "backend-testing", "api-contract-testing", "modular-architecture"],
+      "expectedChecks": ["quality:sensitive"],
+      "forbiddenChecks": ["test:e2e:smoke", "test:backend", "test:db", "test:redis", "architecture:check", "自动 baseline update"],
+      "depth": "light",
+      "reason": "纯文档只检查链接/路径/命令准确性、敏感信息和规范冲突，不应运行完整 E2E。"
+    },
+    {
+      "id": "test-only-change",
+      "description": "仅修改测试、fixture、mock、Playwright guard 或 Vitest 测试基础设施。",
+      "files": ["admin/e2e/utils/consoleGuard.ts", "tests/contracts/api-contracts.test.ts"],
+      "expectedSkills": ["code-quality", "project-testing", "admin-e2e-testing", "api-contract-testing"],
+      "forbiddenSkills": ["frontend-design"],
+      "expectedChecks": ["quality:affected", "test:affected", "test:contracts", "test:e2e:smoke"],
+      "forbiddenChecks": ["生产数据库", "生产 Redis", "真实平台写请求", "自动 baseline update"],
+      "depth": "light",
+      "reason": "测试变更仍需质量和测试总控；根据测试文件范围触发对应专项，不改变生产代码语义。"
+    },
+    {
+      "id": "architecture-config-change",
+      "description": "模块边界配置、架构 baseline、架构 checker 或架构 CI 变更。",
+      "files": ["tests/architecture/module-boundaries.json", "scripts/architecture/check-boundaries.mjs", ".github/workflows/project-tests.yml"],
+      "expectedSkills": ["modular-architecture", "code-quality", "project-testing"],
+      "forbiddenSkills": ["frontend-design", "admin-e2e-testing"],
+      "expectedChecks": ["architecture:test", "architecture:check", "architecture:affected", "quality:affected", "test:affected"],
+      "forbiddenChecks": ["test:e2e:smoke", "生产数据库", "生产 Redis", "真实平台写请求", "自动 baseline update"],
+      "depth": "deep",
+      "reason": "架构门禁本身变化必须验证 checker、baseline ratchet、CI wiring 和 affected 编排无循环。"
+    }
+  ]
+}

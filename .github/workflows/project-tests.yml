@@ -54,6 +54,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Workflow trigger check
+        run: pnpm workflow:check
+
+      - name: Workflow trigger tests
+        run: pnpm workflow:test
+
       - name: Resolve architecture diff base
         id: architecture-base
         shell: bash

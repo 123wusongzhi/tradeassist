@@ -220,7 +220,10 @@
     "quality:backend": "node scripts/quality/check-go.mjs",
     "quality:contracts": "pnpm test:contracts",
     "quality:sensitive": "node scripts/quality/check-sensitive-diff.mjs",
-    "quality:baseline:admin-ts": "node scripts/quality/check-typescript-baseline.mjs"
+    "quality:baseline:admin-ts": "node scripts/quality/check-typescript-baseline.mjs",
+    "workflow:check": "node scripts/workflow/check-skill-triggers.mjs",
+    "workflow:test": "vitest run --config vitest.workflow.config.ts",
+    "workflow:verify": "pnpm workflow:check && pnpm workflow:test"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.0",
