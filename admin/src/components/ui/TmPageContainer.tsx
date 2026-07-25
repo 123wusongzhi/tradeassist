@@ -17,7 +17,7 @@ export type TmPageContainerProps = PageContainerProps & {
 export default function TmPageContainer({
   title,
   subTitle,
-  contentMaxWidth = layoutTokens.settingsMaxWidth,
+  contentMaxWidth = layoutTokens.pageMaxWidth,
   padded = true,
   contentWrapperStyle,
   children,
@@ -25,15 +25,18 @@ export default function TmPageContainer({
   ...rest
 }: TmPageContainerProps) {
   const wrapperStyle: CSSProperties = {
-    maxWidth: contentMaxWidth,
-    marginInline: 'auto',
+    '--tm-page-content-max-width': `${contentMaxWidth}px`,
     ...contentWrapperStyle,
-  };
+  } as CSSProperties;
 
   return (
     <PageContainer
       {...rest}
       className={['tm-page-container', className].filter(Boolean).join(' ')}
+      style={{
+        '--tm-page-content-max-width': `${contentMaxWidth}px`,
+        ...rest.style,
+      } as CSSProperties}
       title={title}
       subTitle={subTitle}
     >
