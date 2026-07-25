@@ -122,8 +122,8 @@
     "test:p7-v2-formal-invocation": "node tests/gates/p7-v2/formal-invocation/fixtures.mjs",
     "test:p7-v2-env-start-cli": "node tests/gates/p7-v2/env-start-cli/fixtures.mjs",
     "test:p7-v2-preflight-v3": "node tests/gates/p7-v2/preflight-v3/fixtures.mjs",
-    "test:p7-v2-formal-binary-provenance": "node tests/gates/p7-v2/formal-binary-provenance/fixtures.mjs",
-    "test:p7-v2-formal-input-sequence": "node tests/gates/p7-v2/formal-input-sequence/fixtures.mjs",
+    "test:p7-v2-formal-binary-provenance": "node tests/gates/p7-v2/formal-binary-provenance.mjs",
+    "test:p7-v2-formal-input-sequence": "node tests/gates/p7-v2/formal-input-sequence.mjs",
     "test:p7-v2-load-profile-fingerprint": "node tests/gates/p7-v2/load-profile-fingerprint/fixtures.mjs",
     "test:p7-v2-load-profile-stage-schema": "node tests/gates/p7-v2/load-profile-stage-schema/fixtures.mjs",
     "test:p7-v2-prr-audit": "node tests/gates/p7-v2/prr-a-audit.mjs",
@@ -151,8 +151,6 @@
     "test:p7-v2-formal-warmup": "node tests/gates/p7-v2/formal-warmup/fixtures.mjs",
     "test:p7-v2-host-quiet-window": "node tests/gates/p7-v2/host-quiet-window/fixtures.mjs",
     "test:p7-v2-host-isolation-validation-runner": "node tests/gates/p7-v2/host-isolation-validation-runner.mjs",
-    "test:p7-v2-formal-binary-provenance": "node tests/gates/p7-v2/formal-binary-provenance.mjs",
-    "test:p7-v2-formal-input-sequence": "node tests/gates/p7-v2/formal-input-sequence.mjs",
     "test:p7-v2-conditional-development-closure": "node tests/gates/p7-v2/conditional-development-closure.mjs",
     "p7:conditional-close-gate": "node scripts/p7-conditional-development-closure-final-gate.mjs",
     "p8:entry-gate": "node scripts/p8-entry-gate.mjs",
@@ -188,6 +186,7 @@
     "dev:admin": "pnpm --filter @trademind/admin dev",
     "build:admin": "pnpm --filter @trademind/admin build",
     "preview:admin": "pnpm --filter @trademind/admin preview",
+    "test:frontend": "pnpm --filter @trademind/admin test",
     "test:e2e": "pnpm --filter @trademind/admin exec playwright test --config ../playwright.config.ts",
     "test:e2e:smoke": "pnpm --filter @trademind/admin exec playwright test --config ../playwright.config.ts --grep @smoke",
     "test:e2e:product-draft": "pnpm --filter @trademind/admin exec playwright test --config ../playwright.config.ts --grep @product-draft",
@@ -198,13 +197,26 @@
     "test:e2e:report": "pnpm --filter @trademind/admin exec playwright show-report ../playwright-report/admin-e2e",
     "dev:collector": "pnpm --filter @trademind/collector dev",
     "collect:test": "pnpm --filter @trademind/collector collect:test",
+    "test:collector": "pnpm --filter @trademind/collector test",
     "build:collector": "pnpm --filter @trademind/collector build",
-    "install:collector:browsers": "pnpm --filter @trademind/collector exec playwright install chromium"
+    "install:collector:browsers": "pnpm --filter @trademind/collector exec playwright install chromium",
+    "test:backend": "cd backend && go test ./...",
+    "test:backend:integration": "cd backend && go test ./internal/testing/integration ./internal/testing/redis",
+    "test:db": "cd backend && go test ./internal/testing/integration",
+    "test:redis": "cd backend && go test ./internal/testing/redis",
+    "test:contracts": "vitest run --config vitest.contracts.config.ts",
+    "test:affected": "node scripts/testing/test-affected.mjs"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.9.2",
+    "@vitejs/plugin-react": "^4.2.1",
     "execa": "^9.5.2",
+    "jsdom": "^29.1.1",
     "picocolors": "^1.1.1",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "vitest": "^0.34.6"
   }
 }
