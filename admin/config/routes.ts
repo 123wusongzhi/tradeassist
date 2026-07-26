@@ -61,6 +61,18 @@ export default [
         component: './TaskCenter/Alerts',
       },
       {
+        path: '/ops/task-center/operation-tasks',
+        name: '运营任务中心',
+        icon: 'ProfileOutlined',
+        component: './TaskCenter/OperationTasks',
+      },
+      {
+        path: '/ops/task-center/operation-tasks/:taskId',
+        name: '运营任务详情',
+        component: './TaskCenter/OperationTasks/Detail',
+        hideInMenu: true,
+      },
+      {
         path: '/ops/observability',
         name: '可观测性中心',
         icon: 'LineChartOutlined',

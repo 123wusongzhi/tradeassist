@@ -2,7 +2,6 @@ package operationtask
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -44,6 +43,8 @@ type DraftExecutionInput struct {
 	DraftPayloadHash string
 	Payload          datatypes.JSON
 	RequestID        string
+	IdempotencyKey   string
+	ActorID          uuid.UUID
 	AttemptNumber    int
 }
 
@@ -56,6 +57,10 @@ type DraftExecutionResult struct {
 
 type ExecutionAuthorizer interface {
 	CanExecute(ctx context.Context, tenantID int64, actorID uuid.UUID, taskID uuid.UUID) error
+}
+
+type ManualRetryAuthorizer interface {
+	CanRetry(ctx context.Context, tenantID int64, actorID uuid.UUID, taskID uuid.UUID) error
 }
 
 type ExecutionFailure struct {
@@ -224,6 +229,8 @@ func (s *ExecutionOrchestrator) execute(ctx context.Context, in ExecutionInput, 
 		DraftPayloadHash: prepared.draft.PayloadHash,
 		Payload:          prepared.draft.Payload,
 		RequestID:        strings.TrimSpace(in.RequestID),
+		IdempotencyKey:   executionIdempotencyKey(in),
+		ActorID:          in.ActorID,
 		AttemptNumber:    prepared.attempt.AttemptNumber,
 	})
 	if execErr == nil {
@@ -270,7 +277,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			out.replay = replay
 			return nil
 		}
-		if err != nil && !errors.Is(err, ErrNotFound) {
+		if !errors.Is(err, ErrNotFound) {
 			return err
 		}
 		if retry {
@@ -291,7 +298,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			return ErrExecutionInProgress
 		}
 		if retry {
-			if err := appendTaskEventTx(tx, OperationTaskEvent{
+			if err := appendAuditEventTx(tx, OperationTaskEvent{
 				TenantID:        in.TenantID,
 				OperationTaskID: in.OperationTaskID,
 				EventType:       OperationTaskEventTypeRetryRequested,
@@ -302,6 +309,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 				PlatformDraftID: &latestDraft.ID,
 				DraftVersion:    latestDraft.DraftVersion,
 				RequestID:       strings.TrimSpace(in.RequestID),
+				Reason:          "manual retry requested",
 				Metadata:        datatypes.JSON([]byte(`{}`)),
 			}); err != nil {
 				return err
@@ -349,7 +357,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 		if err := updateTaskStatusRevisionTx(tx, task, OperationTaskStatusExecutionQueued, &in.ActorID); err != nil {
 			return err
 		}
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       OperationTaskEventTypeExecutionQueued,
@@ -360,6 +368,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			PlatformDraftID: &latestDraft.ID,
 			DraftVersion:    latestDraft.DraftVersion,
 			RequestID:       strings.TrimSpace(in.RequestID),
+			Reason:          "execution queued",
 			Metadata:        datatypes.JSON([]byte(`{}`)),
 		}); err != nil {
 			return err
@@ -369,7 +378,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 		if err := updateTaskStatusRevisionTx(tx, task, OperationTaskStatusExecuting, &in.ActorID); err != nil {
 			return err
 		}
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       OperationTaskEventTypeExecutionStarted,
@@ -380,6 +389,7 @@ func (s *ExecutionOrchestrator) prepare(ctx context.Context, in ExecutionInput, 
 			PlatformDraftID: &latestDraft.ID,
 			DraftVersion:    latestDraft.DraftVersion,
 			RequestID:       strings.TrimSpace(in.RequestID),
+			Reason:          "execution started",
 			Metadata:        datatypes.JSON([]byte(`{}`)),
 		}); err != nil {
 			return err
@@ -433,7 +443,7 @@ func (s *ExecutionOrchestrator) finalizeSuccess(ctx context.Context, in Executio
 		if err := updateTaskStatusRevisionTx(tx, task, OperationTaskStatusDraftWritten, &in.ActorID); err != nil {
 			return err
 		}
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       OperationTaskEventTypeDraftWritten,
@@ -444,6 +454,7 @@ func (s *ExecutionOrchestrator) finalizeSuccess(ctx context.Context, in Executio
 			PlatformDraftID: &attempt.PlatformDraftID,
 			DraftVersion:    attempt.ExecutedDraftVersion,
 			RequestID:       strings.TrimSpace(in.RequestID),
+			Reason:          "draft written to local fixture",
 			Metadata:        result.SafeMetadata,
 		}); err != nil {
 			return err
@@ -523,7 +534,7 @@ func (s *ExecutionOrchestrator) finalizeFailure(ctx context.Context, in Executio
 		if err := updateTaskStatusRevisionTx(tx, task, OperationTaskStatusExecutionFailed, &in.ActorID); err != nil {
 			return err
 		}
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       OperationTaskEventTypeExecutionFailed,
@@ -534,6 +545,7 @@ func (s *ExecutionOrchestrator) finalizeFailure(ctx context.Context, in Executio
 			PlatformDraftID: &attempt.PlatformDraftID,
 			DraftVersion:    attempt.ExecutedDraftVersion,
 			RequestID:       strings.TrimSpace(in.RequestID),
+			Reason:          failure.SafeMessage,
 			Metadata:        failure.Details,
 		}); err != nil {
 			return err
@@ -571,6 +583,11 @@ func (s *ManualRetryService) Retry(ctx context.Context, in ExecutionInput) (*Exe
 	}
 	if s.MaxManualRetryAttempts <= 0 {
 		return nil, ErrRetryLimitExceeded
+	}
+	if retryAuthorizer, ok := s.Orchestrator.Authorizer.(ManualRetryAuthorizer); ok {
+		if err := retryAuthorizer.CanRetry(ctx, in.TenantID, in.ActorID, in.OperationTaskID); err != nil {
+			return nil, ErrPermissionDenied
+		}
 	}
 	if err := s.validateRetry(ctx, in); err != nil {
 		return nil, err
@@ -682,9 +699,7 @@ func sanitizeExecutionResult(result DraftExecutionResult) DraftExecutionResult {
 		result.ResultType = "local_draft"
 	}
 	result.ExternalReference = strings.TrimSpace(result.ExternalReference)
-	if len(result.SafeMetadata) == 0 || !json.Valid(result.SafeMetadata) || payloadHasSecret(result.SafeMetadata) {
-		result.SafeMetadata = datatypes.JSON([]byte(`{}`))
-	}
+	result.SafeMetadata = redactSafeJSON(result.SafeMetadata)
 	return result
 }
 
@@ -701,9 +716,7 @@ func sanitizeFailure(f ExecutionFailure) ExecutionFailure {
 	if f.SafeMessage == "" || safeTextHasSecret(f.SafeMessage) {
 		f.SafeMessage = safeExecutionMessage(f.Code)
 	}
-	if len(f.Details) == 0 || !json.Valid(f.Details) || payloadHasSecret(f.Details) {
-		f.Details = datatypes.JSON([]byte(`{}`))
-	}
+	f.Details = redactSafeJSON(f.Details)
 	if f.RetryPolicy == "" {
 		f.RetryPolicy = retryPolicyFor(f.Category, f.Retryable)
 	}

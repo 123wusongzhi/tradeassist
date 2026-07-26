@@ -1,6 +1,6 @@
 # P8 Execution Plan
 
-Status: **approved**
+Status: **P8 Development Complete**
 
 ```text
 phase=P8
@@ -129,6 +129,103 @@ productionReady=false
 ```
 
 Batch 4 adds only execution orchestration, failure classification, manual retry, and execution idempotency domain services. It does not start API, Admin UI, platform adapter productization, real platform writes, automatic publish, automatic listing, or background automatic retry.
+
+## Batch 5 Status
+
+```text
+P8-301=completed
+P8-302=completed
+P8-303=completed
+P8-304=completed
+P8-305=completed
+batchEvidence=docs/P8_TASK_BATCH_5_PLATFORM_DRAFT_ADAPTERS.md
+batchEvidenceJson=docs/p8-task-batch-5-platform-draft-adapters.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 5 adds only safe platform draft adapter boundaries. It does not start API, Admin UI, real Douyin API/OAuth, real credentials, real platform writes, automatic publish, automatic listing, or background workers.
+
+## Batch 6 Status
+
+```text
+P8-401=completed
+P8-402=completed
+P8-403=completed
+P8-404=completed
+batchEvidence=docs/P8_TASK_BATCH_6_PERMISSION_AUDIT_SECRET_FOUNDATION.md
+batchEvidenceJson=docs/p8-task-batch-6-permission-audit-secret-foundation.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 6 adds only RBAC, permission authorizers, audit event service, and sensitive metadata redaction foundation. It does not start Admin UI, real platform writes, automatic publish, automatic listing, production gray, or Production Ready.
+
+## Batch 7 Status
+
+```text
+P8-501=completed
+P8-502=completed
+P8-503=completed
+P8-504=completed
+P8-505=completed
+batchEvidence=docs/P8_TASK_BATCH_7_OPERATION_TASK_API.md
+batchEvidenceJson=docs/p8-task-batch-7-operation-task-api.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 7 adds only backend operation-task APIs over existing services and RBAC. It does not start Admin UI, real platform writes, automatic publish, automatic listing, production gray, tag, release, or Production Ready.
+
+## Batch 8 Status
+
+```text
+P8-601=completed
+P8-602=completed
+P8-603=completed
+P8-604=completed
+P8-605=completed
+P8-606=completed
+batchEvidence=docs/P8_TASK_BATCH_8_ADMIN_OPERATION_TASK_CENTER.md
+batchEvidenceJson=docs/p8-task-batch-8-admin-operation-task-center.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=In Progress
+productionReady=false
+```
+
+Batch 8 adds only the Admin operation-task center over the Batch 7 API. It does not complete P8 integration/closure tasks, real Douyin API/OAuth, real credentials, real platform writes, automatic publish, automatic listing, background automatic retry, scheduled execution, production queue workers, production gray, tag, release, or Production Ready.
+
+## Batch 9 Status
+
+```text
+P8-701=completed
+P8-702=completed
+P8-703=completed
+P8-704=completed
+P8-705=completed
+batchEvidence=docs/P8_TASK_BATCH_9_FINAL_INTEGRATION.md
+batchEvidenceJson=docs/p8-task-batch-9-final-integration.json
+closureEvidence=docs/P8_DEVELOPMENT_CLOSURE.md
+closureEvidenceJson=docs/p8-development-closure.json
+workingBranch=dev
+implementationCommitted=false
+checkpointStatus=not_created_by_owner_instruction
+phaseStatus=P8 Development Complete
+productionReady=false
+```
+
+Batch 9 closes P8 development by validating integration fixtures, real local backend Admin/API E2E with Bearer-token login, platform boundary gates, final gate evidence, and closure records. It does not authorize real credentials, real platform writes, automatic publish, automatic listing, production gray, tag, release, final production acceptance, or Production Ready.
 
 ## Required Planning Gates
 

@@ -101,11 +101,18 @@ func (p *Principal) CanOperateStore(storeID uuid.UUID) bool {
 }
 
 func normalizeRole(role string) string {
+	if r := strictRole(role); r != "" {
+		return r
+	}
+	return RoleAdmin
+}
+
+func strictRole(role string) string {
 	r := strings.TrimSpace(strings.ToLower(role))
 	switch r {
-	case RoleReadonly, RoleOperator, RoleAdmin:
+	case RoleReadonly, RoleOperator, RoleAdmin, RoleReviewer:
 		return r
 	default:
-		return RoleAdmin
+		return ""
 	}
 }

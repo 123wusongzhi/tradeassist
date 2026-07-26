@@ -13,6 +13,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/ops/workers/monitor': PERMISSIONS.TASK_RETRY,
   '/ops/task-center/failures': PERMISSIONS.TASK_RETRY,
   '/ops/task-center/alerts': PERMISSIONS.TASK_RETRY,
+  '/ops/task-center/operation-tasks': PERMISSIONS.OPERATION_TASK_AUDIT_READ,
   '/ops/observability': PERMISSIONS.OBSERVABILITY_READ,
   '/ops/backups': PERMISSIONS.BACKUP_READ,
   '/ops/restores': PERMISSIONS.RESTORE_READ,

@@ -8,9 +8,31 @@ export type ApiResponse<T> = {
   traceId?: string;
 };
 
+export type RequestOptions = {
+  headers?: Record<string, string>;
+};
+
+function withOptions(options?: RequestOptions) {
+  return options?.headers ? { headers: options.headers } : {};
+}
+
+export class ApiRequestError extends Error {
+  code: number;
+  traceId?: string;
+  data: unknown;
+
+  constructor(res: ApiResponse<unknown>) {
+    super(res.message || 'request_failed');
+    this.name = 'ApiRequestError';
+    this.code = res.code;
+    this.traceId = res.traceId;
+    this.data = res.data;
+  }
+}
+
 function unwrap<T>(res: ApiResponse<T>): T {
   if (res.code !== 0) {
-    throw new Error(res.message || 'request_failed');
+    throw new ApiRequestError(res as ApiResponse<unknown>);
   }
   return res.data;
 }
@@ -22,28 +44,31 @@ export async function getJSON<T>(path: string): Promise<T> {
 }
 
 /** 通用 PUT */
-export async function putJSON<T, B extends object>(path: string, body: B): Promise<T> {
+export async function putJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
   const res = await request<ApiResponse<T>>(path, {
     method: 'PUT',
     data: body,
+    ...withOptions(options),
   });
   return unwrap(res);
 }
 
 /** 通用 PATCH */
-export async function patchJSON<T, B extends object>(path: string, body: B): Promise<T> {
+export async function patchJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
   const res = await request<ApiResponse<T>>(path, {
     method: 'PATCH',
     data: body,
+    ...withOptions(options),
   });
   return unwrap(res);
 }
 
 /** 通用 POST */
-export async function postJSON<T>(path: string, body?: object): Promise<T> {
+export async function postJSON<T>(path: string, body?: object, options?: RequestOptions): Promise<T> {
   const res = await request<ApiResponse<T>>(path, {
     method: 'POST',
     data: body,
+    ...withOptions(options),
   });
   return unwrap(res);
 }

@@ -25,6 +25,24 @@ func TestPermissionsForRole(t *testing.T) {
 	if !HasPermission(RoleReadonly, PermOrderView) {
 		t.Fatal("readonly should view orders")
 	}
+	if !StrictHasPermission(RoleReviewer, PermOperationTaskReview) {
+		t.Fatal("reviewer should review operation tasks")
+	}
+	if !StrictHasPermission(RoleReviewer, PermOperationTaskExecute) || !StrictHasPermission(RoleReviewer, PermOperationTaskRetry) {
+		t.Fatal("reviewer should execute and retry operation tasks")
+	}
+	if StrictHasPermission(RoleReviewer, PermOperationTaskEdit) {
+		t.Fatal("reviewer must not edit operation tasks")
+	}
+	if !StrictHasPermission(RoleOperator, PermOperationTaskEdit) {
+		t.Fatal("operator should edit operation tasks")
+	}
+	if StrictHasPermission(RoleOperator, PermOperationTaskReview) || StrictHasPermission(RoleOperator, PermOperationTaskExecute) || StrictHasPermission(RoleOperator, PermOperationTaskRetry) {
+		t.Fatal("operator must not review, execute, or retry operation tasks")
+	}
+	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) {
+		t.Fatal("unknown roles must not inherit permissions on strict path")
+	}
 }
 
 func TestPrincipalStoreAccess(t *testing.T) {

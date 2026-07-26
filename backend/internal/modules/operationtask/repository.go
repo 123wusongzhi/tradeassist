@@ -577,10 +577,11 @@ func (r *ExecutionAttemptRepository) UpdateLifecycle(ctx context.Context, tenant
 		updates["external_reference"] = strings.TrimSpace(*patch.ExternalReference)
 	}
 	if patch.SafeMetadata != nil {
-		if !isValidJSON(*patch.SafeMetadata) || payloadHasSecret(*patch.SafeMetadata) {
+		metadata := redactSafeJSON(*patch.SafeMetadata)
+		if !isValidJSON(metadata) || payloadHasSecret(metadata) {
 			return nil, ErrValidation
 		}
-		updates["safe_metadata"] = *patch.SafeMetadata
+		updates["safe_metadata"] = metadata
 	}
 	if patch.StartedAt != nil {
 		updates["started_at"] = patch.StartedAt.UTC()
@@ -619,6 +620,7 @@ func (r *ExecutionErrorRepository) AppendError(ctx context.Context, executionErr
 	if r == nil || r.DB == nil {
 		return fmt.Errorf("execution error repository: db is nil")
 	}
+	executionError.Details = redactSafeJSON(executionError.Details)
 	if err := validateExecutionError(executionError); err != nil {
 		return err
 	}
@@ -700,6 +702,7 @@ func (r *OperationTaskEventRepository) AppendEvent(ctx context.Context, event *O
 	if r == nil || r.DB == nil {
 		return fmt.Errorf("operation task event repository: db is nil")
 	}
+	event.Metadata = redactSafeJSON(event.Metadata)
 	if err := validateOperationTaskEvent(event); err != nil {
 		return err
 	}

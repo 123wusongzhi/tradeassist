@@ -559,10 +559,14 @@ func TestExecutionErrorRepositoryAppendValidationAndImmutable(t *testing.T) {
 	require.ErrorIs(t, errorRepo.AppendError(ctx, &secretMessage), operationtask.ErrValidation)
 
 	secretDetails := sampleExecutionError(attempt, 2)
-	secretDetails.Details = datatypes.JSON([]byte(`{"accessToken":"secret"}`))
-	require.ErrorIs(t, errorRepo.AppendError(ctx, &secretDetails), operationtask.ErrValidation)
+	secretDetails.Details = datatypes.JSON([]byte(`{"accessToken":"secret","safe":"kept"}`))
+	require.NoError(t, errorRepo.AppendError(ctx, &secretDetails))
+	persistedSecretDetails, err := errorRepo.GetLatestByAttempt(ctx, attempt.TenantID, attempt.ID)
+	require.NoError(t, err)
+	require.NotContains(t, string(persistedSecretDetails.Details), "secret")
+	require.Contains(t, string(persistedSecretDetails.Details), "safe")
 
-	second := sampleExecutionError(attempt, 2)
+	second := sampleExecutionError(attempt, 3)
 	second.Category = operationtask.ExecutionErrorCategoryValidation
 	second.Code = "VALIDATION_ERROR"
 	second.Retryable = false
@@ -570,11 +574,11 @@ func TestExecutionErrorRepositoryAppendValidationAndImmutable(t *testing.T) {
 
 	list, err := errorRepo.ListByAttempt(ctx, 101, attempt.ID)
 	require.NoError(t, err)
-	require.Equal(t, []int{1, 2}, []int{list[0].Sequence, list[1].Sequence})
+	require.Equal(t, []int{1, 2, 3}, []int{list[0].Sequence, list[1].Sequence, list[2].Sequence})
 
 	latest, err := errorRepo.GetLatestByAttempt(ctx, 101, attempt.ID)
 	require.NoError(t, err)
-	require.Equal(t, 2, latest.Sequence)
+	require.Equal(t, 3, latest.Sequence)
 
 	require.Error(t, db.Model(&operationtask.ExecutionError{}).Where("id = ?", errRecord.ID).UpdateColumn("safe_message", "mutated").Error)
 	require.ErrorIs(t, db.Delete(&operationtask.ExecutionError{}, "id = ?", errRecord.ID).Error, operationtask.ErrImmutableRecord)
@@ -615,10 +619,14 @@ func TestOperationTaskEventRepositoryAppendPaginationValidationAndImmutable(t *t
 	require.ErrorIs(t, eventRepo.AppendEvent(ctx, &missingActor), operationtask.ErrValidation)
 
 	secretMetadata := sampleEvent(task, 4)
-	secretMetadata.Metadata = datatypes.JSON([]byte(`{"cookie":"secret"}`))
-	require.ErrorIs(t, eventRepo.AppendEvent(ctx, &secretMetadata), operationtask.ErrValidation)
+	secretMetadata.Metadata = datatypes.JSON([]byte(`{"cookie":"secret","safe":"kept"}`))
+	require.NoError(t, eventRepo.AppendEvent(ctx, &secretMetadata))
+	persistedSecretEvent, err := eventRepo.GetBySequence(ctx, task.TenantID, task.ID, 4)
+	require.NoError(t, err)
+	require.NotContains(t, string(persistedSecretEvent.Metadata), "secret")
+	require.Contains(t, string(persistedSecretEvent.Metadata), "safe")
 
-	badDraft := sampleEvent(task, 4)
+	badDraft := sampleEvent(task, 5)
 	badDraft.PlatformDraftID = &draft.ID
 	badDraft.DraftVersion = 2
 	require.ErrorIs(t, eventRepo.AppendEvent(ctx, &badDraft), operationtask.ErrReferenceMismatch)
@@ -641,11 +649,11 @@ func TestOperationTaskEventRepositoryAppendPaginationValidationAndImmutable(t *t
 	})
 	require.NoError(t, err)
 	require.False(t, page2.HasMore)
-	require.Equal(t, []int{3}, []int{page2.Items[0].Sequence})
+	require.Equal(t, []int{3, 4}, []int{page2.Items[0].Sequence, page2.Items[1].Sequence})
 
 	latest, err := eventRepo.GetLatestByTask(ctx, 101, task.ID)
 	require.NoError(t, err)
-	require.Equal(t, 3, latest.Sequence)
+	require.Equal(t, 4, latest.Sequence)
 
 	require.Error(t, db.Model(&operationtask.OperationTaskEvent{}).Where("id = ?", first.ID).UpdateColumn("reason", "mutated").Error)
 	require.ErrorIs(t, db.Delete(&operationtask.OperationTaskEvent{}, "id = ?", first.ID).Error, operationtask.ErrImmutableRecord)

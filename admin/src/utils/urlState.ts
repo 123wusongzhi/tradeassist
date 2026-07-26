@@ -75,6 +75,8 @@ const ALLOWED_QUERY_KEYS = new Set([
   'failedPagesOnly',
   'publishMode',
   'taskId',
+  'cursor',
+  'afterSequence',
   'sourcePlatform',
   'targetShopId',
 ]);

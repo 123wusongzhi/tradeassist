@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
   "phase": "P8",
-  "status": "approved",
+  "status": "Development Complete",
   "planVersion": 1,
   "baseCheckpoint": "ef537bf1d19c670f831e71a8c3c6fa7cbf1bc8ca",
   "canonicalScopeDecisionId": "P8-OWNER-SCOPE-DECISION-20260720",
   "canonicalScopeResolved": true,
   "executionPlanCompleted": true,
+  "developmentComplete": true,
   "productionReady": false,
   "p7ConditionalClosurePreserved": true,
   "p7DeferredPerformancePreserved": true,
@@ -22,10 +23,10 @@
       "id": "WS-01",
       "name": "Scope, Plan and Gate",
       "tasks": [
-        { "id": "P8-001", "title": "Owner Scope Decision", "dependencies": ["P7 conditional closure"], "acceptanceCriteria": ["Owner decision JSON and Markdown exist"], "evidenceRequirements": ["docs/p8-owner-approved-scope-decision.json"] },
-        { "id": "P8-002", "title": "Canonical Scope Manifest", "dependencies": ["P8-001"], "acceptanceCriteria": ["Discovery is resolved with high confidence"], "evidenceRequirements": ["docs/p8-canonical-scope-discovery.json"] },
-        { "id": "P8-003", "title": "Execution Plan", "dependencies": ["P8-001", "P8-002"], "acceptanceCriteria": ["Plan has workstreams, dependencies, criteria, evidence"], "evidenceRequirements": ["docs/p8-execution-plan.json"] },
-        { "id": "P8-004", "title": "Plan Gate and Fixtures", "dependencies": ["P8-003"], "acceptanceCriteria": ["Plan gate and fixtures pass"], "evidenceRequirements": ["pnpm test:p8-plan", "pnpm p8:plan-gate"] }
+        { "id": "P8-001", "title": "Owner Scope Decision", "status": "completed", "dependencies": ["P7 conditional closure"], "acceptanceCriteria": ["Owner decision JSON and Markdown exist"], "evidenceRequirements": ["docs/p8-owner-approved-scope-decision.json"] },
+        { "id": "P8-002", "title": "Canonical Scope Manifest", "status": "completed", "dependencies": ["P8-001"], "acceptanceCriteria": ["Discovery is resolved with high confidence"], "evidenceRequirements": ["docs/p8-canonical-scope-discovery.json"] },
+        { "id": "P8-003", "title": "Execution Plan", "status": "completed", "dependencies": ["P8-001", "P8-002"], "acceptanceCriteria": ["Plan has workstreams, dependencies, criteria, evidence"], "evidenceRequirements": ["docs/p8-execution-plan.json"] },
+        { "id": "P8-004", "title": "Plan Gate and Fixtures", "status": "completed", "dependencies": ["P8-003"], "acceptanceCriteria": ["Plan gate and fixtures pass"], "evidenceRequirements": ["pnpm test:p8-plan", "pnpm p8:plan-gate"] }
       ]
     },
     {
@@ -56,55 +57,55 @@
       "id": "WS-04",
       "name": "Platform Draft Adapters",
       "tasks": [
-        { "id": "P8-301", "title": "Platform Draft Interface", "dependencies": ["P8-204"], "acceptanceCriteria": ["Adapter contract forbids publish/listing"], "evidenceRequirements": ["adapter contract tests"] },
-        { "id": "P8-302", "title": "Local Draft Adapter", "dependencies": ["P8-301"], "acceptanceCriteria": ["Local drafts can be written idempotently"], "evidenceRequirements": ["local adapter tests"] },
-        { "id": "P8-303", "title": "Douyin Mock/Sandbox Adapter", "dependencies": ["P8-301"], "acceptanceCriteria": ["Douyin real credentials and writes are disabled"], "evidenceRequirements": ["douyin mock tests"] },
-        { "id": "P8-304", "title": "Unsupported Platform Guard", "dependencies": ["P8-301"], "acceptanceCriteria": ["Unknown platforms become local_draft_only"], "evidenceRequirements": ["platform guard tests"] },
-        { "id": "P8-305", "title": "Automatic Publish Guard", "dependencies": ["P8-301"], "acceptanceCriteria": ["No automatic publish or listing path exists"], "evidenceRequirements": ["boundary gate"] }
+        { "id": "P8-301", "title": "Platform Draft Interface", "status": "completed", "dependencies": ["P8-204"], "acceptanceCriteria": ["Adapter contract forbids publish/listing"], "evidenceRequirements": ["adapter contract tests"] },
+        { "id": "P8-302", "title": "Local Draft Adapter", "status": "completed", "dependencies": ["P8-301"], "acceptanceCriteria": ["Local drafts can be written idempotently"], "evidenceRequirements": ["local adapter tests"] },
+        { "id": "P8-303", "title": "Douyin Mock/Sandbox Adapter", "status": "completed", "dependencies": ["P8-301"], "acceptanceCriteria": ["Douyin real credentials and writes are disabled"], "evidenceRequirements": ["douyin mock tests"] },
+        { "id": "P8-304", "title": "Unsupported Platform Guard", "status": "completed", "dependencies": ["P8-301"], "acceptanceCriteria": ["Unknown platforms become local_draft_only"], "evidenceRequirements": ["platform guard tests"] },
+        { "id": "P8-305", "title": "Automatic Publish Guard", "status": "completed", "dependencies": ["P8-301"], "acceptanceCriteria": ["No automatic publish or listing path exists"], "evidenceRequirements": ["boundary gate"] }
       ]
     },
     {
       "id": "WS-05",
       "name": "Permission and Audit",
       "tasks": [
-        { "id": "P8-401", "title": "RBAC Integration", "dependencies": ["P8-203"], "acceptanceCriteria": ["Viewer/operator/reviewer/admin map to existing RBAC"], "evidenceRequirements": ["RBAC tests"] },
-        { "id": "P8-402", "title": "Review and Execution Permission", "dependencies": ["P8-401"], "acceptanceCriteria": ["Review and execution require reviewer/admin"], "evidenceRequirements": ["permission tests"] },
-        { "id": "P8-403", "title": "Audit Event Service", "dependencies": ["P8-105"], "acceptanceCriteria": ["Important operations record before/after and reason"], "evidenceRequirements": ["audit tests"] },
-        { "id": "P8-404", "title": "Secret Redaction", "dependencies": ["P8-403"], "acceptanceCriteria": ["Secrets do not appear in logs or evidence"], "evidenceRequirements": ["redaction scan"] }
+        { "id": "P8-401", "title": "RBAC Integration", "status": "completed", "dependencies": ["P8-203"], "acceptanceCriteria": ["Viewer/operator/reviewer/admin map to existing RBAC"], "evidenceRequirements": ["RBAC tests"] },
+        { "id": "P8-402", "title": "Review and Execution Permission", "status": "completed", "dependencies": ["P8-401"], "acceptanceCriteria": ["Review and execution require reviewer/admin"], "evidenceRequirements": ["permission tests"] },
+        { "id": "P8-403", "title": "Audit Event Service", "status": "completed", "dependencies": ["P8-105"], "acceptanceCriteria": ["Important operations record before/after and reason"], "evidenceRequirements": ["audit tests"] },
+        { "id": "P8-404", "title": "Secret Redaction", "status": "completed", "dependencies": ["P8-403"], "acceptanceCriteria": ["Secrets do not appear in logs or evidence"], "evidenceRequirements": ["redaction scan"] }
       ]
     },
     {
       "id": "WS-06",
       "name": "API",
       "tasks": [
-        { "id": "P8-501", "title": "Task CRUD and Query API", "dependencies": ["P8-201", "P8-401"], "acceptanceCriteria": ["Create/list/detail APIs follow repo style"], "evidenceRequirements": ["API tests"] },
-        { "id": "P8-502", "title": "Draft Edit API", "dependencies": ["P8-202", "P8-501"], "acceptanceCriteria": ["Draft edit resets approval when content changes"], "evidenceRequirements": ["API tests"] },
-        { "id": "P8-503", "title": "Approve and Reject API", "dependencies": ["P8-203", "P8-502"], "acceptanceCriteria": ["Approve/reject bind draft version and hash"], "evidenceRequirements": ["API tests"] },
-        { "id": "P8-504", "title": "Execute and Retry API", "dependencies": ["P8-204", "P8-205", "P8-206"], "acceptanceCriteria": ["Execute/retry are permission, state, and idempotency guarded"], "evidenceRequirements": ["API tests"] },
-        { "id": "P8-505", "title": "Attempts and Events API", "dependencies": ["P8-104", "P8-105"], "acceptanceCriteria": ["Attempts and audit timeline are queryable"], "evidenceRequirements": ["API tests"] }
+        { "id": "P8-501", "title": "Task CRUD and Query API", "status": "completed", "dependencies": ["P8-201", "P8-401"], "acceptanceCriteria": ["Create/list/detail APIs follow repo style"], "evidenceRequirements": ["API tests"] },
+        { "id": "P8-502", "title": "Draft Edit API", "status": "completed", "dependencies": ["P8-202", "P8-501"], "acceptanceCriteria": ["Draft edit resets approval when content changes"], "evidenceRequirements": ["API tests"] },
+        { "id": "P8-503", "title": "Approve and Reject API", "status": "completed", "dependencies": ["P8-203", "P8-502"], "acceptanceCriteria": ["Approve/reject bind draft version and hash"], "evidenceRequirements": ["API tests"] },
+        { "id": "P8-504", "title": "Execute and Retry API", "status": "completed", "dependencies": ["P8-204", "P8-205", "P8-206"], "acceptanceCriteria": ["Execute/retry are permission, state, and idempotency guarded"], "evidenceRequirements": ["API tests"] },
+        { "id": "P8-505", "title": "Attempts and Events API", "status": "completed", "dependencies": ["P8-104", "P8-105"], "acceptanceCriteria": ["Attempts and audit timeline are queryable"], "evidenceRequirements": ["API tests"] }
       ]
     },
     {
       "id": "WS-07",
       "name": "Admin UI",
       "tasks": [
-        { "id": "P8-601", "title": "Task List", "dependencies": ["P8-501"], "acceptanceCriteria": ["List supports status, platform, type, owner, failure filters"], "evidenceRequirements": ["admin build"] },
-        { "id": "P8-602", "title": "Task Detail", "dependencies": ["P8-501", "P8-505"], "acceptanceCriteria": ["Detail shows summary, suggestion, draft, status, history"], "evidenceRequirements": ["admin build"] },
-        { "id": "P8-603", "title": "Draft Preview and Edit", "dependencies": ["P8-502", "P8-602"], "acceptanceCriteria": ["Allowed fields can be edited with diffs"], "evidenceRequirements": ["admin build"] },
-        { "id": "P8-604", "title": "Approval Actions", "dependencies": ["P8-503", "P8-603"], "acceptanceCriteria": ["Approve/reject use confirmation dialogs"], "evidenceRequirements": ["admin build"] },
-        { "id": "P8-605", "title": "Execution and Retry Actions", "dependencies": ["P8-504", "P8-604"], "acceptanceCriteria": ["Execute/retry/cancel use confirmation dialogs"], "evidenceRequirements": ["admin build"] },
-        { "id": "P8-606", "title": "Audit Timeline", "dependencies": ["P8-505", "P8-602"], "acceptanceCriteria": ["Timeline exposes state changes and operators"], "evidenceRequirements": ["admin build"] }
+        { "id": "P8-601", "title": "Task List", "status": "completed", "dependencies": ["P8-501"], "acceptanceCriteria": ["List supports backend status, platform, and type filters with keyset cursor pagination"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] },
+        { "id": "P8-602", "title": "Task Detail", "status": "completed", "dependencies": ["P8-501", "P8-505"], "acceptanceCriteria": ["Detail shows summary, payload preview, drafts, attempts, and audit events"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] },
+        { "id": "P8-603", "title": "Draft Preview and Edit", "status": "completed", "dependencies": ["P8-502", "P8-602"], "acceptanceCriteria": ["Draft metadata is displayed and editable JSON submits through Batch 7 APIs with safe local diff"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] },
+        { "id": "P8-604", "title": "Approval Actions", "status": "completed", "dependencies": ["P8-503", "P8-603"], "acceptanceCriteria": ["Approve/reject dialogs bind latest draft version, hash, and task revision"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] },
+        { "id": "P8-605", "title": "Execution and Retry Actions", "status": "completed", "dependencies": ["P8-504", "P8-604"], "acceptanceCriteria": ["Execute/retry/cancel dialogs use backend allowedActions and idempotency keys"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] },
+        { "id": "P8-606", "title": "Audit Timeline", "status": "completed", "dependencies": ["P8-505", "P8-602"], "acceptanceCriteria": ["Timeline exposes ordered state changes and allowlisted safe metadata"], "evidenceRequirements": ["admin build", "docs/p8-task-batch-8-admin-operation-task-center.json"] }
       ]
     },
     {
       "id": "WS-08",
       "name": "Integration and Closure",
       "tasks": [
-        { "id": "P8-701", "title": "Integration Fixtures", "dependencies": ["P8-505", "P8-606"], "acceptanceCriteria": ["Fixtures cover happy path and failure path"], "evidenceRequirements": ["integration fixtures"] },
-        { "id": "P8-702", "title": "API/Admin E2E Fixtures", "dependencies": ["P8-701"], "acceptanceCriteria": ["Admin/API loop can be accepted without real writes"], "evidenceRequirements": ["E2E fixtures"] },
-        { "id": "P8-703", "title": "Platform Boundary Gate", "dependencies": ["P8-305", "P8-702"], "acceptanceCriteria": ["Real credentials, writes, publish, listing remain false"], "evidenceRequirements": ["boundary gate"] },
-        { "id": "P8-704", "title": "P8 Final Gate", "dependencies": ["P8-703"], "acceptanceCriteria": ["All P8 acceptance criteria pass"], "evidenceRequirements": ["P8 final gate"] },
-        { "id": "P8-705", "title": "Closure Evidence", "dependencies": ["P8-704"], "acceptanceCriteria": ["PROGRESS and closure docs preserve P10 boundary"], "evidenceRequirements": ["closure evidence"] }
+        { "id": "P8-701", "title": "Integration Fixtures", "status": "completed", "dependencies": ["P8-505", "P8-606"], "acceptanceCriteria": ["Fixtures cover happy path and failure path"], "evidenceRequirements": ["integration fixtures", "docs/p8-task-batch-9-final-integration.json"] },
+        { "id": "P8-702", "title": "API/Admin E2E Fixtures", "status": "completed", "dependencies": ["P8-701"], "acceptanceCriteria": ["Admin/API loop can be accepted without real writes"], "evidenceRequirements": ["admin/e2e/specs/p8-operation-task-real-backend.spec.ts", "real backend Bearer-token Playwright E2E"] },
+        { "id": "P8-703", "title": "Platform Boundary Gate", "status": "completed", "dependencies": ["P8-305", "P8-702"], "acceptanceCriteria": ["Real credentials, writes, publish, listing remain false"], "evidenceRequirements": ["boundary gate", "scripts/p8-task-batch-9-final-gate.mjs"] },
+        { "id": "P8-704", "title": "P8 Final Gate", "status": "completed", "dependencies": ["P8-703"], "acceptanceCriteria": ["All P8 acceptance criteria pass"], "evidenceRequirements": ["P8 final gate", "docs/p8-task-batch-9-final-gate.json"] },
+        { "id": "P8-705", "title": "Closure Evidence", "status": "completed", "dependencies": ["P8-704"], "acceptanceCriteria": ["PROGRESS and closure docs preserve P10 boundary"], "evidenceRequirements": ["docs/P8_DEVELOPMENT_CLOSURE.md", "docs/p8-development-closure.json"] }
       ]
     }
   ],
@@ -159,7 +160,91 @@
       "checkpointStatus": "not_created_by_owner_instruction",
       "phaseStatusAfterBatch": "In Progress",
       "productionReady": false
+    },
+    "P8-TASK-BATCH-5": {
+      "status": "completed",
+      "tasks": ["P8-301", "P8-302", "P8-303", "P8-304", "P8-305"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_5_PLATFORM_DRAFT_ADAPTERS.md",
+        "docs/p8-task-batch-5-platform-draft-adapters.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-6": {
+      "status": "completed",
+      "tasks": ["P8-401", "P8-402", "P8-403", "P8-404"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_6_PERMISSION_AUDIT_SECRET_FOUNDATION.md",
+        "docs/p8-task-batch-6-permission-audit-secret-foundation.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-7": {
+      "status": "completed",
+      "tasks": ["P8-501", "P8-502", "P8-503", "P8-504", "P8-505"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_7_OPERATION_TASK_API.md",
+        "docs/p8-task-batch-7-operation-task-api.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-8": {
+      "status": "completed",
+      "tasks": ["P8-601", "P8-602", "P8-603", "P8-604", "P8-605", "P8-606"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_8_ADMIN_OPERATION_TASK_CENTER.md",
+        "docs/p8-task-batch-8-admin-operation-task-center.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "In Progress",
+      "productionReady": false
+    },
+    "P8-TASK-BATCH-9": {
+      "status": "completed",
+      "tasks": ["P8-701", "P8-702", "P8-703", "P8-704", "P8-705"],
+      "evidence": [
+        "docs/P8_TASK_BATCH_9_FINAL_INTEGRATION.md",
+        "docs/p8-task-batch-9-final-integration.json",
+        "docs/P8_DEVELOPMENT_CLOSURE.md",
+        "docs/p8-development-closure.json",
+        "docs/P8_TASK_BATCH_9_FINAL_GATE.md",
+        "docs/p8-task-batch-9-final-gate.json"
+      ],
+      "workingBranch": "dev",
+      "implementationCommitted": false,
+      "changesCommitted": false,
+      "checkpointCreated": false,
+      "checkpointStatus": "not_created_by_owner_instruction",
+      "phaseStatusAfterBatch": "P8 Development Complete",
+      "productionReady": false
     }
+  },
+  "finalClosure": {
+    "status": "P8 Development Complete",
+    "closureEvidence": [
+      "docs/P8_DEVELOPMENT_CLOSURE.md",
+      "docs/p8-development-closure.json"
+    ],
+    "finalProductionAcceptanceDeferredToP10": true,
+    "productionReady": false
   },
   "planDeviations": [
     {

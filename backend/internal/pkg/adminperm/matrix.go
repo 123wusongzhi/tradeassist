@@ -58,6 +58,12 @@ const (
 	PermReleaseRollback = "release.rollback"
 	PermDRRead          = "dr.read"
 	PermDRExecute       = "dr.execute"
+	// P8 operation task permissions
+	PermOperationTaskEdit      = "operationtask.edit"
+	PermOperationTaskReview    = "operationtask.review"
+	PermOperationTaskExecute   = "operationtask.execute"
+	PermOperationTaskRetry     = "operationtask.retry"
+	PermOperationTaskAuditRead = "operationtask.audit.read"
 )
 
 var allPermissions = []string{
@@ -112,9 +118,23 @@ var allPermissions = []string{
 	PermReleaseRollback,
 	PermDRRead,
 	PermDRExecute,
+	PermOperationTaskEdit,
+	PermOperationTaskReview,
+	PermOperationTaskExecute,
+	PermOperationTaskRetry,
+	PermOperationTaskAuditRead,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
+
+var reviewerPermissions = []string{
+	PermOperationLogView,
+	PermAuditRead,
+	PermOperationTaskReview,
+	PermOperationTaskExecute,
+	PermOperationTaskRetry,
+	PermOperationTaskAuditRead,
+}
 
 var operatorPermissions = []string{
 	PermProductView,
@@ -144,6 +164,8 @@ var operatorPermissions = []string{
 	PermRestoreRead,
 	PermReleaseRead,
 	PermDRRead,
+	PermOperationTaskEdit,
+	PermOperationTaskAuditRead,
 }
 
 var readonlyPermissions = []string{
@@ -163,33 +185,59 @@ var readonlyPermissions = []string{
 	PermRestoreRead,
 	PermReleaseRead,
 	PermDRRead,
+	PermOperationTaskAuditRead,
 }
 
 // PermissionsForRole returns granted permission keys for a role.
 func PermissionsForRole(role string) []string {
 	switch normalizeRole(role) {
 	case RoleReadonly:
-		out := make([]string, len(readonlyPermissions))
-		copy(out, readonlyPermissions)
-		return out
+		return copyPermissions(readonlyPermissions)
 	case RoleOperator:
-		out := make([]string, len(operatorPermissions))
-		copy(out, operatorPermissions)
-		return out
+		return copyPermissions(operatorPermissions)
+	case RoleReviewer:
+		return copyPermissions(reviewerPermissions)
 	default:
-		out := make([]string, len(adminPermissions))
-		copy(out, adminPermissions)
-		return out
+		return copyPermissions(adminPermissions)
+	}
+}
+
+func StrictPermissionsForRole(role string) []string {
+	switch strictRole(role) {
+	case RoleAdmin:
+		return copyPermissions(adminPermissions)
+	case RoleOperator:
+		return copyPermissions(operatorPermissions)
+	case RoleReadonly:
+		return copyPermissions(readonlyPermissions)
+	case RoleReviewer:
+		return copyPermissions(reviewerPermissions)
+	default:
+		return []string{}
 	}
 }
 
 // HasPermission checks whether role grants a permission key.
 func HasPermission(role, perm string) bool {
+	return permissionIn(PermissionsForRole(role), perm)
+}
+
+func StrictHasPermission(role, perm string) bool {
+	return permissionIn(StrictPermissionsForRole(role), perm)
+}
+
+func copyPermissions(in []string) []string {
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
+}
+
+func permissionIn(perms []string, perm string) bool {
 	perm = strings.TrimSpace(perm)
 	if perm == "" {
 		return false
 	}
-	for _, p := range PermissionsForRole(role) {
+	for _, p := range perms {
 		if p == perm {
 			return true
 		}

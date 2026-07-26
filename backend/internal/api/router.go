@@ -43,6 +43,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
@@ -691,6 +692,9 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	inventory.Register(authed, inventoryH)
 	workerH := &worker.Handler{DB: dep.DB, Cfg: dep.Config}
 	worker.Register(authed, workerH)
+
+	operationTaskH := &operationtask.Handler{Svc: operationtask.NewAPIService(dep.DB)}
+	operationtask.Register(authed, operationTaskH)
 
 	tcSvc := &taskcenter.Service{
 		DB:             dep.DB,

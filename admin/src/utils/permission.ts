@@ -2,6 +2,7 @@ export const ROLES = {
   ADMIN: 'admin',
   OPERATOR: 'operator',
   READONLY: 'readonly',
+  REVIEWER: 'reviewer',
 } as const;
 
 export type AdminRole = (typeof ROLES)[keyof typeof ROLES];
@@ -20,6 +21,11 @@ export const PERMISSIONS = {
   CUSTOMER_VIEW: 'customer.view',
   CUSTOMER_OPERATE: 'customer.operate',
   TASK_RETRY: 'task.retry',
+  OPERATION_TASK_AUDIT_READ: 'operationtask.audit.read',
+  OPERATION_TASK_EDIT: 'operationtask.edit',
+  OPERATION_TASK_EXECUTE: 'operationtask.execute',
+  OPERATION_TASK_REVIEW: 'operationtask.review',
+  OPERATION_TASK_RETRY: 'operationtask.retry',
   SETTINGS_MANAGE: 'settings.manage',
   USER_MANAGE: 'user.manage',
   OPERATIONLOG_VIEW: 'operationlog.view',
@@ -60,6 +66,8 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.CUSTOMER_VIEW,
     PERMISSIONS.CUSTOMER_OPERATE,
     PERMISSIONS.TASK_RETRY,
+    PERMISSIONS.OPERATION_TASK_AUDIT_READ,
+    PERMISSIONS.OPERATION_TASK_EDIT,
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
     PERMISSIONS.STORE_OPERATE,
@@ -69,11 +77,18 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.RELEASE_READ,
     PERMISSIONS.DR_READ,
   ],
+  reviewer: [
+    PERMISSIONS.OPERATION_TASK_AUDIT_READ,
+    PERMISSIONS.OPERATION_TASK_REVIEW,
+    PERMISSIONS.OPERATION_TASK_EXECUTE,
+    PERMISSIONS.OPERATION_TASK_RETRY,
+  ],
   readonly: [
     PERMISSIONS.PRODUCT_VIEW,
     PERMISSIONS.ORDER_VIEW,
     PERMISSIONS.INVENTORY_VIEW,
     PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.OPERATION_TASK_AUDIT_READ,
     PERMISSIONS.OPERATIONLOG_VIEW,
     PERMISSIONS.STORE_VIEW,
     PERMISSIONS.OBSERVABILITY_READ,
@@ -86,7 +101,7 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
 
 export function normalizeRole(role?: string | null): AdminRole {
   const r = (role || '').trim().toLowerCase();
-  if (r === ROLES.OPERATOR || r === ROLES.READONLY) return r;
+  if (r === ROLES.OPERATOR || r === ROLES.READONLY || r === ROLES.REVIEWER) return r;
   return ROLES.ADMIN;
 }
 
@@ -131,6 +146,10 @@ export function canManageUsers(role?: string | null, perms?: string[]): boolean 
 
 export function canRetryTasks(role?: string | null, perms?: string[]): boolean {
   return hasPermission(role, PERMISSIONS.TASK_RETRY, perms);
+}
+
+export function canReadOperationTasks(role?: string | null, perms?: string[]): boolean {
+  return hasPermission(role, PERMISSIONS.OPERATION_TASK_AUDIT_READ, perms);
 }
 
 export const PERMISSION_DENIED_MESSAGE = '当前账号无权限访问此页面';

@@ -350,8 +350,9 @@ func TestExecutionClassifierRulesAndSafeMessages(t *testing.T) {
 		Category:    operationtask.ExecutionErrorCategoryInternal,
 		Code:        "internal_error",
 		SafeMessage: "Bearer secret",
-		Details:     datatypes.JSON([]byte(`{"accessToken":"secret"}`)),
+		Details:     datatypes.JSON([]byte(`{"accessToken":"secret","safe":"kept"}`)),
 	})
 	require.NotContains(t, secret.SafeMessage, "Bearer")
-	require.JSONEq(t, `{}`, string(secret.Details))
+	require.NotContains(t, string(secret.Details), "secret")
+	require.Contains(t, string(secret.Details), "safe")
 }

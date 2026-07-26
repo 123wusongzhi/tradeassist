@@ -9,6 +9,7 @@ const (
 	RoleAdmin    = "admin"
 	RoleOperator = "operator"
 	RoleReadonly = "readonly"
+	RoleReviewer = "reviewer"
 )
 
 // CanViewProduct returns true when admin can view product drafts.

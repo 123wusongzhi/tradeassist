@@ -76,7 +76,7 @@ func (s *TaskTransitionService) Transition(ctx context.Context, in TaskTransitio
 		if res.RowsAffected == 0 {
 			return ErrRevisionConflict
 		}
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       eventTypeForStatus(toStatus),
@@ -359,7 +359,7 @@ func (s *ApprovalService) decide(ctx context.Context, in ApprovalInput, decision
 		if err := updateTaskStatusRevisionTx(tx, task, toStatus, &in.ReviewerID); err != nil {
 			return err
 		}
-		return appendTaskEventTx(tx, OperationTaskEvent{
+		return appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       eventType,
@@ -441,7 +441,7 @@ func updateTaskStatusRevisionTx(tx *gorm.DB, task *OperationTask, status string,
 
 func appendDraftEventsTx(tx *gorm.DB, task *OperationTask, draft PlatformDraft, in DraftVersionInput, events []draftEventSpec) error {
 	for _, event := range events {
-		if err := appendTaskEventTx(tx, OperationTaskEvent{
+		if err := appendAuditEventTx(tx, OperationTaskEvent{
 			TenantID:        in.TenantID,
 			OperationTaskID: in.OperationTaskID,
 			EventType:       event.eventType,
@@ -462,7 +462,8 @@ func appendDraftEventsTx(tx *gorm.DB, task *OperationTask, draft PlatformDraft, 
 	return nil
 }
 
-func appendTaskEventTx(tx *gorm.DB, event OperationTaskEvent) error {
+func appendAuditEventTx(tx *gorm.DB, event OperationTaskEvent) error {
+	event.Metadata = redactSafeJSON(event.Metadata)
 	latest := OperationTaskEvent{}
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("tenant_id = ? AND operation_task_id = ?", event.TenantID, event.OperationTaskID).
