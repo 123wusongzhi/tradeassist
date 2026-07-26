@@ -1,6 +1,6 @@
 import { ArrowLeftOutlined, ReloadOutlined } from '@ant-design/icons';
 import { history, useParams } from '@umijs/max';
-import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Spin, Table, Tabs, Timeline, Typography, message } from 'antd';
+import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Spin, Table, Tabs, Tag, Timeline, Typography, message } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorAlert, SectionCard, TaskJsonBlock, TmPageContainer } from '@/components/ui';
