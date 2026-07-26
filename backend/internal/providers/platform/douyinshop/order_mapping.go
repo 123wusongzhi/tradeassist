@@ -285,6 +285,9 @@ func mapDouyinOrder(m map[string]any) platformp.PlatformOrder {
 		DeliveredAt:       parseUnixSec(m["finish_time"]),
 		RawData:           compactOrderRaw(orderStatus, ext, warnings),
 	}
+	updatedAt, revision := ExtractPlatformOrderMeta(m)
+	o.PlatformUpdatedAt = updatedAt
+	o.PlatformRevision = revision
 	o.Items = mapDouyinLineItems(m)
 	o.Shipments = mapDouyinShipments(m, orderStatus)
 	return o

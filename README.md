@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5+-3178C6?logo=typescript&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white">
@@ -26,8 +26,7 @@
   <a href="#界面预览">界面预览</a> ·
   <a href="#核心能力">核心能力</a> ·
   <a href="#架构与技术栈">架构与技术栈</a> ·
-  <a href="docs/README.md">文档中心</a> ·
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="docs/README.md">文档中心</a>
 </p>
 
 <p align="center">
@@ -38,7 +37,20 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-> 当前状态：**MVP Demo Ready**（2026-06-27 Phase R1 / R1.1 / R1.2）。R1.2 构建与 smoke 已通过；**`v0.1.0-demo` tag 仍 pending**（待真实预发 HTTPS + 备份勾选）。AI 商品运营与多平台刊登主链路可演示；Douyin Shop 仍为 **Release Candidate**，真实 E2E 待凭证。详见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)、[`docs/DEPLOYMENT_PRECHECK.md`](docs/DEPLOYMENT_PRECHECK.md)、[`docs/DEMO_RELEASE_UX_ACCEPTANCE.md`](docs/DEMO_RELEASE_UX_ACCEPTANCE.md)、[`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md)。
+## Release Status
+
+| Item | Status |
+| --- | --- |
+| Phase | Production Capability Development In Progress |
+| Demo | MVP Demo Ready |
+| Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
+| Backup / Release / DR | P6 fully closed; real production verification deferred |
+| Performance / Capacity | P7 Conditionally Closed; functional/development scope completed; capacity and repeatability deferred to P10 |
+| Tag | Tag deferred |
+| Production | Not Production Ready |
+| Douyin | Douyin Release Candidate |
+| Final acceptance | Final Production Acceptance Deferred to P10 |
+
 
 ## 项目定位
 
@@ -93,7 +105,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 - 店铺授权：已具备 Douyin Shop OAuth 闭环、敏感配置加密与连接测试。
 - 订单协同：支持订单同步、SKU 匹配、异常工作台等基础能力。
 - 库存协同：支持库存镜像、预警与平台同步任务。
-- 商品刊登：支持多平台刊登中心（单商品多店铺预检查与批量创建刊登草稿）、**多商品批量刊登向导**（商品列表多选 → 批次与子任务；Phase A2.2 含生产级统一配置 / 单独覆盖 UI、生效配置预览与配置校验；A2.1 含批量上限、显式 migration、幂等测试与生产收口）、**批量 AI 标题/描述**（Phase A3.1：四步向导 → 复核工作台 → 冲突保护应用与撤销；**A3.1.1** 失败任务中心联动与旧版入口梳理；**A3.1.2** 真实 Provider 试跑与路由 smoke 验收）、**批量 AI 图片处理**（Phase A3.2：五步向导 → 图片复核工作台 → 应用/撤销；质量检查 / 白底图 / 去水印等；不自动覆盖原图；**A3.2.1** 真实 Provider 试跑、路由 smoke、应用/撤销验收脚本见 `docs/BATCH_AI_IMAGE_UX_ACCEPTANCE.md`）、**AI 商品运营工作台**（Phase A3.3：汇总文案/图片待复核、发布检查、刊登异常与失败任务，统一跳转处理；见 `docs/AI_OPERATION_WORKBENCH_DESIGN.md`）、刊登草稿映射、发布任务、失败回收与人工校正；抖店可创建真实平台草稿，其他平台当前以本地草稿快照为主。
+- 商品刊登：支持多平台刊登中心、单商品与批量草稿创建、批量发布流程、AI 标题/描述复核、AI 图片处理、草稿映射、发布任务、失败恢复与人工校正。
 - AI 客服：支持建议回复与人工确认外发，避免 MVP 阶段自动外发风险。
 
 ### 工程化与扩展
@@ -101,6 +113,7 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 - Provider 架构：AI、存储、图片、平台、采集能力均通过 Provider 抽象扩展。
 - 自部署友好：默认 PostgreSQL + Redis，支持本地开发和 Docker Compose 完整部署。
 - Monorepo 协作：backend、admin、collector 与文档规则统一维护，适合团队协作与持续演进。
+- 可靠性地基：关键写路径统一幂等，AI 结果应用/撤销保护，Webhook 快速 ACK，异步 Worker 租约防止陈旧写回。
 
 ## 架构与技术栈
 
@@ -133,6 +146,11 @@ pnpm dev:admin
 pnpm dev:collector
 pnpm build:admin
 pnpm build:collector
+pnpm seed:demo-data
+pnpm seed:demo-permissions
+pnpm verify:demo-data
+pnpm verify:demo-permissions
+pnpm check:p4-r
 ```
 
 ### Docker 部署
@@ -162,16 +180,6 @@ docker compose -f docker-compose.full.yml up -d --build
 - [本地开发](docs/development.md)
 - [Docker 部署](docs/docker-deployment.md)
 - [环境变量](docs/env.md)
-
-## 当前重点
-
-| 优先级 | 当前聚焦 |
-| --- | --- |
-| 第一优先级 | 持续强化 AI 商品运营主线：采集、草稿、AI 文案、图片处理、发布前检查。 |
-| 第二优先级 | 打磨多平台跨境 ERP MVP，优先完成 Douyin Shop 的真实业务闭环。 |
-| 暂不扩展 | 多仓、采购、财务、重型 WMS / OMS、复杂 BI 等能力暂不作为当前阶段目标。 |
-
-详细规划见 [docs/roadmap.md](docs/roadmap.md) 与 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
 ## 文档导航
 

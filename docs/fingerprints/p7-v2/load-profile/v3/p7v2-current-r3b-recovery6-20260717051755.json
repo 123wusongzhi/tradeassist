@@ -1,0 +1,142 @@
+{
+  "fingerprintVersion": 3,
+  "runId": "p7v2-current-r3b-recovery6-20260717051755",
+  "runKind": "current",
+  "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066",
+  "canonicalProfile": {
+    "credentialMix": [
+      {
+        "role": "operator",
+        "weight": 1
+      },
+      {
+        "role": "readonly",
+        "weight": 1
+      },
+      {
+        "role": "system_admin",
+        "weight": 1
+      },
+      {
+        "role": "tenant_admin",
+        "weight": 1
+      }
+    ],
+    "load": {
+      "configuredVUs": 10,
+      "stages": [
+        {
+          "durationMs": 300000,
+          "name": "warmup",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 180000,
+          "name": "ramp",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 600000,
+          "name": "steady",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 120000,
+          "name": "rampdown",
+          "targetVUs": 0
+        }
+      ]
+    },
+    "loadEngine": {
+      "name": "k6"
+    },
+    "loadLibraries": [],
+    "loadScript": {
+      "relativePath": "tests/load/p7v2-baseline.js",
+      "sha256": "6544aa21d07fd1561ce41e81b8accd05a9e30d2f4f57afa5a123c6a528ced58d"
+    },
+    "requestMix": [
+      {
+        "method": "GET",
+        "routeId": "auth_security",
+        "weight": 2
+      },
+      {
+        "method": "GET",
+        "routeId": "inventory_list",
+        "weight": 15
+      },
+      {
+        "method": "GET",
+        "routeId": "operation_log_list",
+        "weight": 7
+      },
+      {
+        "method": "GET",
+        "routeId": "order_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "product_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "provider_mock_flow",
+        "weight": 5
+      },
+      {
+        "method": "GET",
+        "routeId": "task_list",
+        "weight": 10
+      },
+      {
+        "method": "GET",
+        "routeId": "webhook_event_list",
+        "weight": 8
+      },
+      {
+        "method": "POST",
+        "routeId": "webhook_ingestion",
+        "weight": 5
+      }
+    ],
+    "scenarios": [
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "warmup",
+        "startTimeMs": 0
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "ramp",
+        "startTimeMs": 300000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "steady",
+        "startTimeMs": 480000
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "rampdown",
+        "startTimeMs": 1080000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "security_negative",
+        "startTimeMs": 0,
+        "weight": 1
+      }
+    ],
+    "schemaVersion": 3
+  },
+  "derivedEvidence": true,
+  "sourceArtifactsModified": false
+}

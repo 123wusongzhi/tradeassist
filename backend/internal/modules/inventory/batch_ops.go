@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -795,9 +796,9 @@ func (s *Service) GetInventorySyncBatch(ctx context.Context, id uuid.UUID, recen
 }
 
 // ListInventorySyncBatchTasks lists tasks belonging to one batch (paginates via ListTasks).
-func (s *Service) ListInventorySyncBatchTasks(ctx context.Context, batchID uuid.UUID, q ListQuery) (*ListTasksResult, error) {
+func (s *Service) ListInventorySyncBatchTasks(c *gin.Context, batchID uuid.UUID, q ListQuery) (*ListTasksResult, error) {
 	q.BatchID = &batchID
-	return s.ListTasks(ctx, q)
+	return s.ListTasks(c, q)
 }
 
 // RetryInventorySyncBatchFailed retries every failed task still tied to this batch (same batch record).
@@ -815,7 +816,11 @@ func (s *Service) RetryInventorySyncBatchFailed(ctx context.Context, batchID uui
 		return nil, fmt.Errorf("no failed tasks in this batch")
 	}
 	for _, id := range ids {
-		if _, err := s.RetryInventorySyncTask(ctx, id, admin); err != nil {
+		var row InventorySyncTask
+		if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+			return nil, err
+		}
+		if _, err := s.retryInventorySyncTaskScoped(ctx, row.TenantID, id, admin); err != nil {
 			return nil, err
 		}
 	}
@@ -889,7 +894,7 @@ func (s *Service) RetryInventorySyncTasksIntoBatch(ctx context.Context, taskIDs 
 			}).Error; err != nil {
 			return nil, err
 		}
-		if _, err := s.RetryInventorySyncTask(ctx, t.ID, admin); err != nil {
+		if _, err := s.retryInventorySyncTaskScoped(ctx, t.TenantID, t.ID, admin); err != nil {
 			return nil, err
 		}
 	}

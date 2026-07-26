@@ -8,4 +8,6 @@ func Register(g *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g.POST("/storage/test-public-access", h.TestPublicAccess)
+	g.POST("/settings/storage/public-check", h.TestPublicAccess)
+	g.GET("/settings/storage/public-check/latest", h.GetLatestPublicCheck)
 }

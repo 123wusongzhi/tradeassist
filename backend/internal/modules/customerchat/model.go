@@ -13,6 +13,7 @@ import (
 // CustomerConversation is a manual/customer-service conversation (no platform sync in MVP).
 type CustomerConversation struct {
 	model.Base
+	TenantID               int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	Platform               string         `gorm:"size:64;index;not null" json:"platform"`
 	ShopID                 *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
 	ExternalConversationID *string        `gorm:"size:255;index" json:"externalConversationId,omitempty"`
@@ -32,6 +33,7 @@ func (CustomerConversation) TableName() string { return "customer_conversations"
 type CustomerMessage struct {
 	ID                uuid.UUID      `gorm:"type:char(36);primaryKey" json:"id"`
 	ConversationID    uuid.UUID      `gorm:"type:char(36);index;not null" json:"conversationId"`
+	ClientMessageID   string         `gorm:"size:128;index" json:"clientMessageId,omitempty"`
 	Role              string         `gorm:"size:32;index;not null" json:"role"`
 	Content           string         `gorm:"type:text;not null" json:"content"`
 	Language          string         `gorm:"size:32;not null" json:"language"`
@@ -62,6 +64,7 @@ type CustomerReplySuggestion struct {
 	PromptCode     string         `gorm:"size:64;index" json:"promptCode,omitempty"`
 	SuggestedReply string         `gorm:"type:text" json:"suggestedReply,omitempty"`
 	EditedReply    string         `gorm:"type:text" json:"editedReply,omitempty"`
+	RejectReason   string         `gorm:"type:text" json:"rejectReason,omitempty"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`
 	Language       string         `gorm:"size:32" json:"language,omitempty"`
 	Tone           string         `gorm:"size:64" json:"tone,omitempty"`

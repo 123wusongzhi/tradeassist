@@ -12,6 +12,25 @@ param(
 
 $ErrorActionPreference = "Continue"
 $ApiV1 = "$ApiBase/api/v1"
+$DatasetVersion = if ($env:DEMO_DATASET_VERSION) { $env:DEMO_DATASET_VERSION } else { "p4-r-v1" }
+$SeedStats = [ordered]@{
+    status = "passed"
+    datasetVersion = $DatasetVersion
+    created = 0
+    updated = 0
+    unchanged = 0
+    conflicted = 0
+    blockedReason = ""
+}
+
+function Write-SeedResult {
+    param([string]$Status, [int]$ExitCode, [string]$BlockedReason = "")
+    $script:SeedStats.status = $Status
+    if ($BlockedReason) { $script:SeedStats.blockedReason = $BlockedReason }
+    $script:SeedStats.generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    $script:SeedStats | ConvertTo-Json -Depth 6
+    exit $ExitCode
+}
 
 function Import-DotEnv {
     param([string]$Path)
@@ -35,6 +54,12 @@ Import-DotEnv (Join-Path $repoRoot ".env")
 if (-not $Account) { $Account = $env:ADMIN_BOOTSTRAP_EMAIL }
 if (-not $Password) { $Password = $env:ADMIN_BOOTSTRAP_PASSWORD }
 
+$effectiveAppEnv = if ($env:APP_ENV) { $env:APP_ENV.Trim().ToLowerInvariant() } else { "development" }
+if ($effectiveAppEnv -in @("production", "staging") -and $env:ENABLE_DEMO_SEED -ne "true") {
+    Write-Error "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+    Write-SeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "DEMO_SEED_FORBIDDEN_IN_PRODUCTION"
+}
+
 function Invoke-Api {
     param([string]$Method, [string]$Url, [string]$Body = $null, [string]$Token = $null)
     try {
@@ -52,7 +77,7 @@ function Invoke-Api {
 
 if (-not $Account -or -not $Password) {
     Write-Error "Set ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD"
-    exit 1
+    Write-SeedResult -Status "environment_blocked" -ExitCode 2 -BlockedReason "ADMIN_BOOTSTRAP_CREDENTIALS_MISSING"
 }
 
 Write-Host "Logging in..."
@@ -62,6 +87,22 @@ $token = $login.data.token
 if (-not $token) { Write-Error "login failed"; exit 1 }
 
 function New-Product($bodyObj) {
+    $title = [string]$bodyObj.title
+    if (-not $bodyObj.sourceUrl -and $title) {
+        $key = ($title.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
+        $bodyObj.sourceUrl = "demo://$DatasetVersion/product/$key"
+    }
+    if ($title) {
+        $existingList = Invoke-Api -Method Get -Url ($ApiV1 + "/products?page=1&pageSize=20&keyword=" + [uri]::EscapeDataString($title)) -Token $token
+        if ($existingList.list) {
+            $hit = @($existingList.list | Where-Object { $_.title -eq $title -or $_.sourceUrl -eq $bodyObj.sourceUrl } | Select-Object -First 1)
+            if ($hit) {
+                $script:SeedStats.unchanged++
+                return $hit[0]
+            }
+        }
+    }
+    $script:SeedStats.created++
     return Invoke-Api -Method Post -Url "$ApiV1/products" -Body ($bodyObj | ConvertTo-Json -Depth 8 -Compress) -Token $token
 }
 function Set-Product($id, $bodyObj) {
@@ -298,7 +339,7 @@ if (-not $SkipPublishBatches) {
             overrides = @{}
             includeWarnings = $true
             name = "R1 demo publish batch"
-            idempotencyKey = "r1-demo-publish-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            idempotencyKey = "$DatasetVersion-demo-publish-local-draft"
         } | ConvertTo-Json -Depth 8
         $created = Invoke-Api -Method Post -Url "$ApiV1/product-publish/batch-targets/create-drafts" -Body $body -Token $token
         if ($created.batchId) {
@@ -338,6 +379,16 @@ $taskSamples += @{
     sampleTodoIds = @($wbTodos.items | Select-Object -First 3 | ForEach-Object { $_.id })
     note = "aggregated todos from workbench"
 }
+if ($wbSummaryDto) {
+    $taskSamples += @{
+        type = "operation_workbench_summary"
+        aiTextReviewCount = [int64]$wbSummaryDto.aiTextReviewCount
+        aiImageReviewCount = [int64]$wbSummaryDto.aiImageReviewCount
+        publishCheckIssueCount = [int64]$wbSummaryDto.publishCheckIssueCount
+        publishTaskIssueCount = [int64]$wbSummaryDto.publishTaskIssueCount
+        note = "aggregated summary from workbench"
+    }
+}
 
 $localDraftTargetAvailable = $false
 $targetsForValidation = Invoke-Api -Method Get -Url "$ApiV1/product-publish/targets" -Token $token
@@ -362,7 +413,7 @@ if (-not $SkipAiBatches -and $aiTextReview.id) {
             productIds = @($aiTextReview.id)
             operationTypes = @("title")
             options = @{ language = "zh-CN"; platform = "douyin_shop"; tone = "professional" }
-            idempotencyKey = "r1-demo-ai-text-$(Get-Date -Format 'yyyyMMddHHmmss')"
+            idempotencyKey = "$DatasetVersion-demo-ai-text-title"
         } | ConvertTo-Json -Depth 6
         $batch = Invoke-Api -Method Post -Url "$ApiV1/products/ai-text/batches" -Body $batchBody -Token $token
         if ($batch.id) {
@@ -371,21 +422,345 @@ if (-not $SkipAiBatches -and $aiTextReview.id) {
     }
 }
 
+Write-Host "Phase F2: order demo samples..."
+$orderSamples = @()
+function Find-DemoOrderByExternalId($externalOrderId) {
+    if (-not $externalOrderId) { return $null }
+    $list = Invoke-Api -Method Get -Url ($ApiV1 + "/orders?page=1&pageSize=20&keyword=" + [uri]::EscapeDataString($externalOrderId)) -Token $token
+    if ($list.list) {
+        $hit = @($list.list | Where-Object { $_.externalOrderId -eq $externalOrderId } | Select-Object -First 1)
+        if ($hit) { return $hit }
+    }
+    return $null
+}
+function New-DemoOrder($bodyObj, $tag) {
+    $existing = $null
+    if ($bodyObj.externalOrderId) { $existing = Find-DemoOrderByExternalId $bodyObj.externalOrderId }
+    if ($existing -and $existing.id) {
+        $script:orderSamples += @{ tag = $tag; orderId = $existing.id; orderNo = $existing.orderNo; note = "reused existing demo order" }
+        return $existing
+    }
+    $o = Invoke-Api -Method Post -Url "$ApiV1/orders" -Body ($bodyObj | ConvertTo-Json -Depth 8 -Compress) -Token $token
+    if ($o.id) {
+        $script:orderSamples += @{ tag = $tag; orderId = $o.id; orderNo = $o.orderNo }
+    }
+    return $o
+}
+
+$ordNormal = New-DemoOrder @{
+    platform = "manual"; orderNo = "F2-DEMO-NORMAL"
+    externalOrderId = "F2-DEMO-NORMAL"
+    customerName = "Demo Buyer Normal"; status = "paid"; paymentStatus = "paid"
+    fulfillmentStatus = "unfulfilled"; currency = "CNY"; totalAmount = 88.5
+    items = @(@{ productTitle = "Demo matched item"; skuCode = "DEMO-SKU-OK"; quantity = 2; unitPrice = 44.25; totalPrice = 88.5 })
+} "normal_order"
+
+$ordUnmatched = New-DemoOrder @{
+    platform = "douyin_shop"; orderNo = "F2-DEMO-UNMATCH-$(Get-Random -Maximum 99999)"
+    externalOrderId = "DY-UNMATCH-DEMO"; customerName = "Demo Unmatched"
+    status = "paid"; paymentStatus = "paid"; fulfillmentStatus = "unfulfilled"; currency = "CNY"; totalAmount = 59
+    items = @(@{
+        productTitle = "Unknown platform SKU item"; externalSkuId = "EXT-SKU-NO-MAP"
+        skuName = "Color:Red"; quantity = 1; unitPrice = 59; totalPrice = 59
+    })
+} "sku_unmatched_order"
+
+if ($ordUnmatched.id) {
+    Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordUnmatched.id)/match-skus" -Body '{}' -Token $token | Out-Null
+}
+
+$ordAmbiguous = New-DemoOrder @{
+    platform = "douyin_shop"; orderNo = "F2-DEMO-AMBIG-$(Get-Random -Maximum 99999)"
+    externalOrderId = "DY-AMBIG-DEMO"; customerName = "Demo Ambiguous"
+    status = "paid"; paymentStatus = "paid"; currency = "CNY"; totalAmount = 39
+    items = @(@{
+        productTitle = "Ambiguous SKU demo"; externalSkuId = "EXT-SKU-AMBIG"; sellerSku = "SELLER-AMBIG"
+        quantity = 1; unitPrice = 39; totalPrice = 39
+    })
+} "sku_ambiguous_order"
+
+$ordersOutFile = Join-Path $repoRoot "docs/demo-dataset.orders.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F2 order demo samples; partial_success sync tasks require shop sync or DB seed in dev"
+    orders = $orderSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $ordersOutFile -Encoding UTF8
+Write-Host "Wrote $ordersOutFile with $($orderSamples.Count) order samples"
+
+Write-Host "Phase F4: customer service demo samples..."
+$customerSamples = @()
+function Add-CsSample($tag, $note, $extra) {
+    $item = @{ tag = $tag; note = $note }
+    if ($extra) {
+        foreach ($k in $extra.Keys) {
+            if ($k -eq 'note') { $item.detail = $extra[$k] } else { $item[$k] = $extra[$k] }
+        }
+    }
+    $script:customerSamples += $item
+}
+
+$mockShops = Invoke-Api -Method Get -Url "$ApiV1/shops?page=1&pageSize=20&platform=mock" -Token $token
+$mockShopId = $null
+if ($mockShops.list -and @($mockShops.list).Count -gt 0) { $mockShopId = $mockShops.list[0].id }
+
+function New-DemoConversation($bodyObj, $tag) {
+    $c = Invoke-Api -Method Post -Url "$ApiV1/customer/conversations" -Body ($bodyObj | ConvertTo-Json -Depth 6 -Compress) -Token $token
+    if ($c.id) {
+        Add-CsSample $tag "customer conversation" @{ conversationId = $c.id; platform = $c.platform; status = $c.status }
+    }
+    return $c
+}
+
+$csPending = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Buyer Pending"; customerLanguage = "zh-CN"
+} "pending_reply_conversation"
+if ($csPending.id) {
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csPending.id)/messages" -Body (@{
+        role = "customer"; content = "请问什么时候发货？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+$csOrder = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Buyer With Order"; customerLanguage = "zh-CN"
+} "order_linked_conversation"
+if ($csOrder.id -and $ordNormal.id) {
+    Invoke-Api -Method Put -Url "$ApiV1/customer/conversations/$($csOrder.id)" -Body (@{ orderId = $ordNormal.id } | ConvertTo-Json -Compress) -Token $token | Out-Null
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csOrder.id)/messages" -Body (@{
+        role = "customer"; content = "我的订单还没发货吗？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+$csInv = New-DemoConversation @{
+    platform = "manual"; customerName = "Demo Inventory Ask"; customerLanguage = "zh-CN"
+} "inventory_consult_conversation"
+if ($csInv.id -and $ordNormal.id) {
+    Invoke-Api -Method Put -Url "$ApiV1/customer/conversations/$($csInv.id)" -Body (@{ orderId = $ordNormal.id } | ConvertTo-Json -Compress) -Token $token | Out-Null
+    Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csInv.id)/messages" -Body (@{
+        role = "customer"; content = "这个规格还有库存吗？"; language = "zh-CN"
+    } | ConvertTo-Json -Compress) -Token $token | Out-Null
+}
+
+if ($mockShopId) {
+    New-DemoConversation @{
+        platform = "mock"; shopId = $mockShopId; customerName = "Mock Platform Buyer"; customerLanguage = "en"
+    } "platform_linked_conversation" | Out-Null
+}
+
+Add-CsSample "unauthorized_platform_hint" "shops without auth show pending authorization in UI" @{ probe = "settings/platforms" }
+Add-CsSample "send_failure_requires_platform" "send failures recorded when platform send fails" @{ note = "use mock shop + externalConversationId to exercise send" }
+
+$customerOutFile = Join-Path $repoRoot "docs/demo-dataset.customer-service.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F4 customer service demo samples; AI suggestions require configured AI provider"
+    samples = $customerSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $customerOutFile -Encoding UTF8
+Write-Host "Wrote $customerOutFile with $($customerSamples.Count) customer samples"
+
+Write-Host "Phase F3: inventory demo samples..."
+$inventorySamples = @()
+
+function Add-InvSample($tag, $note, $extra) {
+    $script:inventorySamples += @{ tag = $tag; note = $note } + $extra
+}
+
+$invNormal = New-Product @{
+    source = "manual"; title = "F3 demo normal stock SKU"
+    description = "Inventory center normal stock sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-NORMAL"; skuName = "Default"; price = 29; stock = 120; warningStock = 10; safetyStock = 2 })
+}
+if ($invNormal.id) { Add-InvSample "normal_stock_sku" "local stock 120" @{ productId = $invNormal.id } }
+
+$invLow = New-Product @{
+    source = "manual"; title = "F3 demo low stock SKU"
+    description = "Low stock alert sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-LOW"; skuName = "Default"; price = 19; stock = 3; warningStock = 10; safetyStock = 2 })
+}
+if ($invLow.id) { Add-InvSample "low_stock_sku" "stock below warning line" @{ productId = $invLow.id } }
+
+$invZero = New-Product @{
+    source = "manual"; title = "F3 demo zero stock SKU"
+    description = "Out of stock sample."
+    currency = "CNY"; status = "draft"
+    skus = @(@{ skuCode = "F3-ZERO"; skuName = "Default"; price = 9; stock = 0; warningStock = 5; safetyStock = 1 })
+}
+if ($invZero.id) { Add-InvSample "zero_stock_sku" "stock is 0" @{ productId = $invZero.id } }
+
+if ($ordNormal.id) {
+    $deduct = Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordNormal.id)/deduct-inventory" -Body '{}' -Token $token
+    Add-InvSample "deduct_success_order" "manual deduct attempt on F2 normal order" @{
+        orderId = $ordNormal.id; deductResult = $(if ($deduct.error) { $deduct.error } else { "ok" })
+    }
+}
+
+if ($ordUnmatched.id) {
+    $deductFail = Invoke-Api -Method Post -Url "$ApiV1/orders/$($ordUnmatched.id)/deduct-inventory" -Body '{}' -Token $token
+    Add-InvSample "deduct_blocked_unmatched_order" "SKU not matched blocks deduct" @{
+        orderId = $ordUnmatched.id; deductResult = $(if ($deductFail.error) { $deductFail.error } else { "unexpected_ok" })
+    }
+}
+
+$alertsProbe = Invoke-Api -Method Get -Url "$ApiV1/inventory/alerts?page=1&pageSize=5" -Token $token
+$centerProbe = Invoke-Api -Method Get -Url "$ApiV1/inventory?page=1&pageSize=5" -Token $token
+Add-InvSample "inventory_sync_disabled_default" "inventory_sync_enabled defaults off in platform config" @{ probe = "settings.platforms" }
+Add-InvSample "inventory_alerts_api" "GET /inventory/alerts reachable" @{
+    alertCount = if ($alertsProbe.list) { @($alertsProbe.list).Count } else { 0 }
+}
+Add-InvSample "inventory_center_api" "GET /inventory center reachable" @{
+    centerCount = if ($centerProbe.list) { @($centerProbe.list).Count } else { 0 }
+}
+
+$inventoryOutFile = Join-Path $repoRoot "docs/demo-dataset.inventory.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
+    samples = $inventorySamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $inventoryOutFile -Encoding UTF8
+Write-Host "Wrote $inventoryOutFile with $($inventorySamples.Count) inventory samples"
+
+Write-Host "Phase F7: dashboard aggregation probes..."
+$dashboardSamples = @()
+function Add-DashSample($tag, $note, $extra) {
+    $item = @{ tag = $tag; note = $note }
+    if ($extra) {
+        foreach ($k in $extra.Keys) {
+            if ($k -eq 'note') { $item.detail = $extra[$k] } else { $item[$k] = $extra[$k] }
+        }
+    }
+    $script:dashboardSamples += $item
+}
+
+$dashOverview = Invoke-Api -Method Get -Url "$ApiV1/dashboard/overview" -Token $token
+$dashTodos = Invoke-Api -Method Get -Url "$ApiV1/dashboard/todos" -Token $token
+$dashHealth = Invoke-Api -Method Get -Url "$ApiV1/dashboard/health" -Token $token
+$dashProdOps = Invoke-Api -Method Get -Url "$ApiV1/dashboard/product-operations" -Token $token
+
+Add-DashSample "dashboard_overview_api" "GET /dashboard/overview" @{
+    reachable = -not $dashOverview.error
+    kpiKeys = if ($dashOverview) { @($dashOverview.PSObject.Properties.Name) } else { @() }
+}
+Add-DashSample "dashboard_todos_api" "GET /dashboard/todos" @{ reachable = -not $dashTodos.error }
+Add-DashSample "dashboard_health_api" "GET /dashboard/health" @{ reachable = -not $dashHealth.error }
+Add-DashSample "collect_tasks_kpi" "collect tasks kpi sample" @{ hint = "run collect task or seed failed collect below" }
+Add-DashSample "product_drafts_kpi" "product drafts kpi" @{ productSlotCount = $productSlots.Count }
+Add-DashSample "ai_pending_review_kpi" "AI pending review kpi" @{ workbenchTodoSum = $wbSummaryTodoSum }
+Add-DashSample "publish_check_issues_kpi" "publish check issues kpi" @{ note = "from workbench todos" }
+Add-DashSample "publish_task_issues_kpi" "publish task issues kpi" @{ note = "from task samples" }
+Add-DashSample "order_exceptions_kpi" "order exceptions kpi" @{ orderSampleCount = $orderSamples.Count }
+Add-DashSample "inventory_alerts_kpi" "inventory alerts kpi" @{ inventorySampleCount = $inventorySamples.Count }
+Add-DashSample "customer_pending_kpi" "customer pending kpi" @{ customerSampleCount = $customerSamples.Count }
+Add-DashSample "failure_tasks_kpi" "failure tasks kpi" @{ taskCenterFailures = @($taskSamples | Where-Object { $_.type -eq "taskcenter_failure" }).Count }
+Add-DashSample "config_risk_kpi" "config risk kpi" @{ hint = "config-status center" }
+
+# Failed collect task sample (invalid URL -> worker failure for dashboard KPI)
+$collectFail = Invoke-Api -Method Post -Url "$ApiV1/collect/tasks" -Body (@{
+    source = "1688"; sourceUrl = "https://detail.1688.com/offer/f7-demo-invalid-$(Get-Random).html"
+} | ConvertTo-Json -Compress) -Token $token
+if ($collectFail.id) {
+    Add-DashSample "collect_failed_task" "F7 invalid collect URL task" @{ taskId = $collectFail.id }
+}
+
+# Order sync partial_success probe (requires shop with sync enabled)
+$shopsAll = Invoke-Api -Method Get -Url ($ApiV1 + '/shops?page=1&pageSize=20') -Token $token
+$syncShop = $null
+if ($shopsAll.list) {
+    $syncShop = @($shopsAll.list | Where-Object { $_.platform -match 'mock|manual' } | Select-Object -First 1)
+    if (-not $syncShop) { $syncShop = @($shopsAll.list | Select-Object -First 1) }
+}
+if ($syncShop -and $syncShop.id) {
+    $syncRes = Invoke-Api -Method Post -Url "$ApiV1/shops/$($syncShop.id)/sync-orders" -Body "{}" -Token $token
+    Add-DashSample "order_sync_probe" "POST sync-orders on first shop" @{
+        shopId = $syncShop.id
+        result = $(if ($syncRes.error) { $syncRes.error } else { "ok" })
+    }
+}
+
+# Customer AI suggestion probe (best-effort; requires AI provider)
+if ($csPending.id) {
+    $aiGen = Invoke-Api -Method Post -Url "$ApiV1/customer/conversations/$($csPending.id)/ai/generate-reply" -Body (@{
+        language = "zh-CN"; tone = "professional"
+    } | ConvertTo-Json -Compress) -Token $token
+    if ($aiGen.suggestionId) {
+        Add-CsSample "ai_suggestion_generated" "AI reply suggestion pending confirm" @{ suggestionId = $aiGen.suggestionId }
+        Add-DashSample "customer_ai_suggestion_kpi" "AI suggestion pending confirm" @{ conversationId = $csPending.id }
+    } else {
+        Add-CsSample "ai_suggestion_skipped" "AI provider not configured or generate failed" @{ error = $aiGen.error }
+    }
+}
+
+# Re-write customer output after F7 probes
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F4+F7 customer service demo samples"
+    samples = $customerSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $customerOutFile -Encoding UTF8
+
+$dashboardOutFile = Join-Path $repoRoot "docs/demo-dataset.dashboard.json"
+@{
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    note = "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
+    kpiCoverage = @(
+        "collect_failed", "product_drafts", "ai_pending_review", "publish_check_issues",
+        "publish_task_issues", "order_exceptions", "inventory_alerts", "customer_pending",
+        "failure_tasks", "config_risk"
+    )
+    samples = $dashboardSamples
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $dashboardOutFile -Encoding UTF8
+Write-Host "Wrote $dashboardOutFile with $($dashboardSamples.Count) dashboard samples"
+
+$fullProjectIndex = Join-Path $repoRoot "docs/demo-dataset.full-project.json"
+@{
+    phase = "P4-R"
+    demo_dataset_version = $DatasetVersion
+    demo_dataset_seeded_at = (Get-Date).ToUniversalTime().ToString("o")
+    demo_dataset_checksum = "script:$DatasetVersion"
+    generatedAt = (Get-Date).ToUniversalTime().ToString("o")
+    description = "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions"
+    datasets = @{
+        products = "docs/demo-dataset.json"
+        dashboard = "docs/demo-dataset.dashboard.json"
+        orders = "docs/demo-dataset.orders.json"
+        inventory = "docs/demo-dataset.inventory.json"
+        customer = "docs/demo-dataset.customer-service.json"
+        permissions = "docs/demo-dataset.permissions.json"
+    }
+    dashboardSamples = @{
+        collectFailed = "collect failed task sample"
+        orderPartialSuccess = "order sync partial_success sample"
+        inventorySyncFailed = "inventory sync failed sample"
+        customerAiSuggestion = "customer AI suggestion pending"
+        customerSendFailed = "customer send failed sample"
+        configRisk = "config status risk items"
+        storeIsolation = "demo_operator first shop only"
+    }
+    accounts = @{
+        admin = "demo_admin@trademind.local"
+        operator = "demo_operator@trademind.local"
+        readonly = "demo_readonly@trademind.local"
+    }
+} | ConvertTo-Json -Depth 6 | Set-Content -Path $fullProjectIndex -Encoding UTF8
+
 $validation = @{
     productSlots20          = ($productSlots.Count -ge 20)
     taskSamples7          = ($taskSamples.Count -ge 7)
-    aiTextBatchExists     = [bool](@($taskSamples | Where-Object { $_.type -eq 'ai_text_batch' }).Count -ge 1)
-    aiImageBatchExists    = [bool](@($taskSamples | Where-Object { $_.type -eq 'ai_image_batch' }).Count -ge 1)
-    publishBatchExists    = [bool](@($taskSamples | Where-Object { $_.type -eq 'publish_batch' }).Count -ge 1)
-    taskCenterFailure     = [bool](@($taskSamples | Where-Object { $_.type -eq 'taskcenter_failure' }).Count -ge 1)
+    aiTextBatchExists     = [bool](@($taskSamples | Where-Object { $_.type -eq "ai_text_batch" }).Count -ge 1)
+    aiImageBatchExists    = [bool](@($taskSamples | Where-Object { $_.type -eq "ai_image_batch" }).Count -ge 1)
+    publishBatchExists    = [bool](@($taskSamples | Where-Object { $_.type -eq "publish_batch" }).Count -ge 1)
+    taskCenterFailure     = [bool](@($taskSamples | Where-Object { $_.type -eq "taskcenter_failure" }).Count -ge 1)
     workbenchTodosGt0     = ($wbTodoTotal -gt 0 -or $wbSummaryTodoSum -gt 0)
     douyinReleaseCandidate = $true
     localDraftOnlySample  = (
         $localDraftTargetAvailable -or
-        [bool](@($taskSamples | Where-Object { $_.type -eq 'publish_batch' }).Count -ge 1) -or
-        [bool](@($taskSamples | Where-Object { $_.note -match 'local_draft_only' }).Count -ge 1)
+        [bool](@($taskSamples | Where-Object { $_.type -eq "publish_batch" }).Count -ge 1) -or
+        [bool](@($taskSamples | Where-Object { $_.note -match "local_draft_only" }).Count -ge 1)
     )
     noRealPlatformPublish = $true
+    orderSamples3         = ($orderSamples.Count -ge 3)
+    inventorySamples3     = ($inventorySamples.Count -ge 3)
+    customerSamples3      = ($customerSamples.Count -ge 3)
+    dashboardProbes       = ($dashboardSamples.Count -ge 5)
     passed                = $false
 }
 
@@ -393,15 +768,23 @@ $validation.passed = (
     $validation.productSlots20 -and
     $validation.taskSamples7 -and
     $validation.workbenchTodosGt0 -and
-    $validation.localDraftOnlySample
+    $validation.localDraftOnlySample -and
+    $validation.orderSamples3 -and
+    $validation.inventorySamples3 -and
+    $validation.customerSamples3
 )
 
 $report = @{
+    datasetVersion = $DatasetVersion
+    demo_dataset_version = $DatasetVersion
+    demo_dataset_seeded_at = (Get-Date).ToUniversalTime().ToString("o")
+    demo_dataset_checksum = "script:$DatasetVersion"
     generatedAt = (Get-Date).ToUniversalTime().ToString("o")
     apiBase = $ApiBase
     productSlotCount = $productSlots.Count
     productSlots = $productSlots
     taskSampleCount = $taskSamples.Count
+    orders = $orderSamples
     taskSamples = $taskSamples
     validation = $validation
     releaseStatus = "MVP Demo Ready"
@@ -413,8 +796,24 @@ $dir = Split-Path -Parent $OutFile
 if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
 $report | ConvertTo-Json -Depth 8 | Set-Content -Path $OutFile -Encoding UTF8
 Write-Host "Wrote $OutFile - $($productSlots.Count) product slots, $($taskSamples.Count) task samples"
-if (-not $validation.passed) {
-    Write-Warning "Demo data validation did not fully pass; see validation section in $OutFile"
-    exit 2
+
+Write-Host "Phase F8: dev edge-case demo seed..."
+$edgeSeed = Invoke-Api -Method Post -Url ($ApiV1 + "/dev/demo-seed/full-project-edge-cases") -Body "{}" -Token $token
+if ($edgeSeed -and $edgeSeed.samples) {
+    Write-Host ("F8 edge-case seed: " + @($edgeSeed.samples).Count + " samples")
+    if (Test-Path $fullProjectIndex) {
+        $fullProjectIndexObj = Get-Content $fullProjectIndex -Raw | ConvertFrom-Json
+        $fullProjectIndexObj.phase = "P4-R"
+        $fullProjectIndexObj | Add-Member -NotePropertyName edgeCaseSeed -NotePropertyValue $edgeSeed -Force
+        $fullProjectIndexObj | ConvertTo-Json -Depth 8 | Set-Content -Path $fullProjectIndex -Encoding UTF8
+    }
+} else {
+    $errMsg = if ($edgeSeed.error) { $edgeSeed.error } else { "unknown" }
+    Write-Host ("F8 edge-case seed skipped or failed: " + $errMsg)
 }
-exit 0
+
+if (-not $validation.passed) {
+    Write-Warning ('Demo data validation did not fully pass; see validation section in ' + $OutFile)
+    Write-SeedResult -Status "passed_with_warning" -ExitCode 0
+}
+Write-SeedResult -Status "passed" -ExitCode 0

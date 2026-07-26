@@ -42,6 +42,7 @@ type CheckBatchItem struct {
 	Status         string   `json:"status"`
 	StatusLabel    string   `json:"statusLabel"`
 	Issues         []string `json:"issues"`
+	IssueCodes     []string `json:"issueCodes,omitempty"`
 }
 
 // CheckBatchResponse POST /products/ai-images/batches/check response.
@@ -99,6 +100,12 @@ type ItemDetailDTO struct {
 	ResultImageURL     string           `json:"resultImageUrl,omitempty"`
 	QualityWarnings    []QualityWarning `json:"qualityWarnings"`
 	ErrorMessage       string           `json:"errorMessage,omitempty"`
+	ErrorCode          string           `json:"errorCode,omitempty"`
+	WarningCode        string           `json:"warningCode,omitempty"`
+	WarningMessage     string           `json:"warningMessage,omitempty"`
+	Recoverable        bool             `json:"recoverable,omitempty"`
+	NeedsConfig        bool             `json:"needsConfig,omitempty"`
+	SettingsURL        string           `json:"settingsUrl,omitempty"`
 	ImageTaskID        string           `json:"imageTaskId,omitempty"`
 	SourceSnapshotHash string           `json:"sourceSnapshotHash,omitempty"`
 	ApplyMode          string           `json:"applyMode,omitempty"`
@@ -107,12 +114,26 @@ type ItemDetailDTO struct {
 	ApplicationID      string           `json:"applicationId,omitempty"`
 }
 
+// BatchResultOverview summarizes batch outcomes for review UI.
+type BatchResultOverview struct {
+	SuccessCount        int               `json:"successCount"`
+	WarningCount        int               `json:"warningCount"`
+	FailedCount         int               `json:"failedCount"`
+	AppliedCount        int               `json:"appliedCount"`
+	RecoverableCount    int               `json:"recoverableCount"`
+	NonRecoverableCount int               `json:"nonRecoverableCount"`
+	ProviderReadiness   ProviderReadiness `json:"providerReadiness"`
+	NextActions         []string          `json:"nextActions,omitempty"`
+	SummaryMessage      string            `json:"summaryMessage,omitempty"`
+}
+
 // BatchDetailDTO GET batches/:id response.
 type BatchDetailDTO struct {
 	BatchListItem
-	Items  []ItemDetailDTO `json:"items"`
-	Input  map[string]any  `json:"input,omitempty"`
-	Output map[string]any  `json:"output,omitempty"`
+	Overview BatchResultOverview `json:"overview"`
+	Items    []ItemDetailDTO     `json:"items"`
+	Input    map[string]any      `json:"input,omitempty"`
+	Output   map[string]any      `json:"output,omitempty"`
 }
 
 // ApplyItemBody POST items/:id/apply
@@ -140,6 +161,7 @@ type ApplyItemResult struct {
 	ProductID    string `json:"productId"`
 	Status       string `json:"status"`
 	StatusLabel  string `json:"statusLabel"`
+	ErrorCode    string `json:"errorCode,omitempty"`
 	ErrorMessage string `json:"errorMessage,omitempty"`
 }
 

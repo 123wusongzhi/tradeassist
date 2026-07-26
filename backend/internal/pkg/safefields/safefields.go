@@ -9,7 +9,7 @@ import (
 var DefaultSensitiveKeys = []string{
 	"access_token", "refresh_token", "app_secret", "secret", "authorization", "code",
 	"encrypt_post_receiver", "encrypt_post_tel", "encrypt_post_addr",
-	"mobile", "phone", "address", "receiver",
+	"mobile", "phone", "email", "address", "receiver",
 	"accesstoken", "refreshtoken", "appsecret", "client_secret", "clientsecret",
 	"password", "passwd", "api_key", "apikey",
 }

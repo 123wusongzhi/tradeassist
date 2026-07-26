@@ -1,0 +1,33 @@
+{
+  "phase": "P7-V2-R2",
+  "status": "passed",
+  "scopedClosure": true,
+  "excludedGates": [
+    "current",
+    "regression",
+    "soak",
+    "demo",
+    "final-closure"
+  ],
+  "verificationChain": {
+    "authProbe": "passed",
+    "routeProbe": "passed",
+    "bootstrapIdempotency": "passed",
+    "authStability": "passed",
+    "diagnosticLoad": {
+      "status": "passed",
+      "runId": "p7v2-diagnostic-20260714180000"
+    },
+    "formalBaseline": {
+      "status": "passed",
+      "runId": "p7v2-baseline-20260714181000"
+    }
+  },
+  "retainedFailedBaselines": [
+    "p7v2-baseline-20260714143530",
+    "p7v2-baseline-quick",
+    "p7v2-baseline-20260714180000"
+  ],
+  "productionReady": false,
+  "completedAt": "2026-07-14T10:27:21.855Z"
+}

@@ -96,7 +96,7 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 
 	// Auto login
-	res, err := h.LoginSvc.Login(c.Request.Context(), emailAddr, body.Password)
+	res, err := h.LoginSvc.Login(c.Request.Context(), emailAddr, body.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		response.Fail(c, 500, response.CodeInternalError, "auto login failed")
 		return

@@ -1,6 +1,6 @@
 ﻿# Documentation Consistency Check (Phase R1.2-Auto)
 
-> Generated: 2026-06-27T06:18:38.4540356Z
+> Generated: 2026-07-13T09:55:38.5423543Z
 
 ## Result: PASS
 
@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | Admin route uses /ops/task-center/failures | PASS | ok |
 | README states MVP Demo Ready | PASS | README.md release line |
-| README v0.1.0-demo tag pending | PASS | tag status |
+| README states production capability phase | PASS | README.md stage line |
+| README states Tag deferred | PASS | tag status |
 | README Douyin Release Candidate | PASS | douyin status |
 | No unqualified Production Ready in docs/ | PASS | ok |
 | docs/api.md documents task-center failures API | PASS | api.md |
@@ -16,13 +17,15 @@
 
 ## Required release status
 
+- Production Capability Development In Progress
+- Infrastructure Foundation Ready
 - MVP Demo Ready
-- Tag pending (v0.1.0-demo)
+- Tag deferred
 - Not Production Ready
+- Final Acceptance Deferred (Phase P10)
 - Douyin Release Candidate
 
 ## Route convention
 
 - Frontend: /ops/task-center/failures
 - API: /api/v1/task-center/failures
-

@@ -12,7 +12,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -43,6 +45,17 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
+func (h *Handler) denyWrite(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		return false
+	}
+	if !adminperm.CanWriteProduct(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "当前账号为只读权限，无法执行此操作")
+		return true
+	}
+	return false
+}
+
 func atoiQP(c *gin.Context, key string, def int) int {
 	s := strings.TrimSpace(c.Query(key))
 	if s == "" {
@@ -69,6 +82,8 @@ func (h *Handler) List(c *gin.Context) {
 	q := ListQuery{
 		Page:                 atoiQP(c, "page", 1),
 		PageSize:             atoiQP(c, "pageSize", 20),
+		Cursor:               strings.TrimSpace(c.Query("cursor")),
+		Limit:                atoiQP(c, "limit", 0),
 		Status:               c.Query("status"),
 		Source:               c.Query("source"),
 		Keyword:              c.Query("keyword"),
@@ -78,13 +93,22 @@ func (h *Handler) List(c *gin.Context) {
 		ReadinessBlocked:     strings.TrimSpace(strings.ToLower(c.Query("readiness"))) == "blocked",
 		Publishable:          queryTruthy(c, "publishable"),
 	}
+	q.UseCursor = q.Cursor != "" || q.Limit > 0
 	res, err := h.Svc.List(c, q)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.HandleError(c, err)
 		return
 	}
 	response.OK(c, gin.H{
-		"list": res.Items,
+		"items":      res.Items,
+		"nextCursor": res.NextCursor,
+		"hasMore":    res.HasMore,
+		"limit":      res.Limit,
+		"list":       res.Items,
 		"pagination": gin.H{
 			"page":       res.Page,
 			"pageSize":   res.PageSize,
@@ -131,6 +155,9 @@ func (h *Handler) GetOperationProgress(c *gin.Context) {
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	var body CreateBody

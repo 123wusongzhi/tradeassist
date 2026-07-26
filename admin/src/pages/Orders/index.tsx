@@ -1,4 +1,4 @@
-import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { ModalForm, ProFormDigit, ProFormSelect, ProFormSwitch, ProFormText, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import {
   Badge,
@@ -23,11 +23,15 @@ import { formatDateTime } from '@/utils/formatTime';
 import { history, useLocation } from '@umijs/max';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   ORDER_FULFILLMENT_STATUS,
+  ORDER_INVENTORY_DEDUCT_SUMMARY,
   ORDER_PAYMENT_STATUS,
   ORDER_SHIPMENT_STATUS,
+  ORDER_SKU_MATCH_SUMMARY,
   ORDER_STATUS,
+  ORDER_SYNC_SUMMARY,
 } from '@/constants/status';
 import {
   createOrder,
@@ -54,6 +58,27 @@ import type { OrderInventoryEffectRow } from '@/services/inventory';
 import { fetchSettingsList } from '@/services/settings';
 import { queryShops } from '@/services/shops';
 import { pickGroup } from '@/utils/settingsForm';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+
+const ORDER_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'payStatus',
+  'skuStatus',
+  'inventoryStatus',
+  'status',
+  'fulfillmentStatus',
+  'platform',
+  'shopId',
+  'source',
+  'start',
+  'end',
+  'jumpOrder',
+] as const;
 
 function truthyInventorySetting(v: string | undefined): boolean {
   const s = String(v ?? '')
@@ -86,21 +111,32 @@ const SHIP_OPTS = Object.keys(ORDER_SHIPMENT_STATUS).map((v) => ({
   value: v,
 }));
 
-function statusTag(
-  raw: string,
-  map:
-    | typeof ORDER_STATUS
-    | typeof ORDER_PAYMENT_STATUS
-    | typeof ORDER_FULFILLMENT_STATUS
-    | typeof ORDER_SHIPMENT_STATUS,
-) {
-  const cfg = map[raw as keyof typeof map];
+type StatusTagMap = Record<string, { text: string; color: string }>;
+
+function statusTag(raw: string, map: StatusTagMap) {
+  const cfg = map[raw];
   if (!cfg) return <Tag>{raw}</Tag>;
   return <Tag color={cfg.color}>{cfg.text}</Tag>;
 }
 
 export default function OrdersPage() {
+  const emptyLocale = useListEmptyLocale('orderList', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof ORDER_QUERY_KEYS)[number], string | undefined>>(ORDER_QUERY_KEYS);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [detail, setDetail] = useState<OrderDetailDTO | null>(null);
   const [editForm] = Form.useForm();
@@ -188,16 +224,40 @@ export default function OrdersPage() {
   }, []);
 
   useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      paymentStatus: urlState.payStatus,
+      skuMatchStatus: urlState.skuStatus,
+      inventoryDeductStatus: urlState.inventoryStatus,
+      status: urlState.status,
+      fulfillmentStatus: urlState.fulfillmentStatus,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      createdAt: queryTimeRange(urlState.start, urlState.end),
+    });
+  }, [
+    urlState.fulfillmentStatus,
+    urlState.inventoryStatus,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.payStatus,
+    urlState.platform,
+    urlState.shopId,
+    urlState.skuStatus,
+    urlState.start,
+    urlState.end,
+    urlState.status,
+  ]);
+
+  useEffect(() => {
     const q = new URLSearchParams(ordersSearch);
     const jid = q.get('jumpOrder')?.trim();
     if (!jid) return;
-    history.replace('/orders');
-    setDrawerOpen(true);
-    void (async () => {
-      await refreshDetail(jid);
-      await loadInvEffects(jid);
-    })();
-  }, [ordersSearch, refreshDetail, loadInvEffects]);
+    history.replace(`/orders/${encodeURIComponent(jid)}`);
+  }, [ordersSearch]);
 
   const columns: ProColumns<OrderListRow>[] = useMemo(
     () => [
@@ -207,6 +267,12 @@ export default function OrdersPage() {
         hideInTable: true,
         valueType: 'select',
         fieldProps: { options: shopOptions, allowClear: true, showSearch: true },
+      },
+      {
+        title: '关键词',
+        dataIndex: 'keyword',
+        hideInTable: true,
+        fieldProps: { placeholder: '订单号 / 买家 / 平台单号', ...keywordFieldProps },
       },
       { title: '订单号', dataIndex: 'orderNo', copyable: true, width: 148 },
       {
@@ -253,16 +319,96 @@ export default function OrdersPage() {
         title: '支付',
         dataIndex: 'paymentStatus',
         width: 94,
-        search: false,
+        valueType: 'select',
+        valueEnum: ORDER_PAYMENT_STATUS,
         render: (_, r) => statusTag(r.paymentStatus, ORDER_PAYMENT_STATUS),
+      },
+      {
+        title: '商品数',
+        dataIndex: 'itemCount',
+        search: false,
+        width: 72,
+        render: (_, r) => r.itemCount ?? '—',
+      },
+      {
+        title: '规格匹配',
+        dataIndex: 'skuMatchStatus',
+        width: 108,
+        valueType: 'select',
+        valueEnum: ORDER_SKU_MATCH_SUMMARY,
+        render: (_, r) => {
+          const st = r.skuMatchStatus || 'none';
+          const cfg = ORDER_SKU_MATCH_SUMMARY[st as keyof typeof ORDER_SKU_MATCH_SUMMARY];
+          const label = cfg?.text || st;
+          return (
+            <span>
+              <Tag color={cfg?.color}>{label}</Tag>
+              {r.skuTotalCount ? (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                  {' '}
+                  {r.skuMatchedCount ?? 0}/{r.skuTotalCount}
+                </Typography.Text>
+              ) : null}
+            </span>
+          );
+        },
+      },
+      {
+        title: '库存扣减',
+        dataIndex: 'inventoryDeductStatus',
+        width: 100,
+        valueType: 'select',
+        valueEnum: ORDER_INVENTORY_DEDUCT_SUMMARY,
+        search: false,
+        render: (_, r) => {
+          const st = r.inventoryDeductStatus || 'none';
+          const cfg = ORDER_INVENTORY_DEDUCT_SUMMARY[st as keyof typeof ORDER_INVENTORY_DEDUCT_SUMMARY];
+          return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
+        },
+      },
+      {
+        title: '同步',
+        dataIndex: 'syncStatus',
+        width: 96,
+        valueType: 'select',
+        valueEnum: ORDER_SYNC_SUMMARY,
+        search: false,
+        render: (_, r) => {
+          const st = r.syncStatus || 'unknown';
+          const cfg = ORDER_SYNC_SUMMARY[st as keyof typeof ORDER_SYNC_SUMMARY];
+          return <Tag color={cfg?.color}>{cfg?.text || st}</Tag>;
+        },
+      },
+      {
+        title: '是否有异常',
+        dataIndex: 'hasException',
+        hideInTable: true,
+        valueType: 'select',
+        valueEnum: {
+          true: { text: '有异常' },
+          false: { text: '无异常' },
+        },
+      },
+      {
+        title: '异常',
+        dataIndex: 'openExceptionCount',
+        width: 72,
+        search: false,
+        render: (_, r) =>
+          (r.openExceptionCount ?? 0) > 0 ? (
+            <Badge count={r.openExceptionCount} size="small">
+              <Tag color="error">待处理</Tag>
+            </Badge>
+          ) : (
+            <Tag>无</Tag>
+          ),
       },
       {
         title: '履约',
         dataIndex: 'fulfillmentStatus',
-        width: 94,
+        hideInTable: true,
         valueType: 'select',
         valueEnum: ORDER_FULFILLMENT_STATUS,
-        render: (_, r) => statusTag(r.fulfillmentStatus, ORDER_FULFILLMENT_STATUS),
       },
       {
         title: '金额',
@@ -299,22 +445,42 @@ export default function OrdersPage() {
         render: (_, r) => formatDateTime(r.createdAt),
       },
       {
+        title: '更新时间',
+        dataIndex: 'updatedAt',
+        width: 160,
+        search: false,
+        render: (_, r) => (r.updatedAt ? formatDateTime(r.updatedAt) : '—'),
+      },
+      {
         title: '操作',
         valueType: 'option',
-        width: 80,
+        width: 220,
+        fixed: 'right',
         render: (_, r) => (
-          <a
-            onClick={() => {
-              setDrawerOpen(true);
-              void refreshDetail(r.id);
-            }}
-          >
-            详情
-          </a>
+          <Space wrap size={4}>
+            <a onClick={() => history.push(`/orders/${encodeURIComponent(r.id)}`)}>详情</a>
+            {(r.openExceptionCount ?? 0) > 0 ? (
+              <a
+                onClick={() =>
+                  history.push(
+                    appendSourceToUrl(
+                      `/orders/exceptions?orderId=${encodeURIComponent(r.id)}`,
+                      'order_detail',
+                    ),
+                  )
+                }
+              >
+                异常
+              </a>
+            ) : null}
+            <a onClick={() => history.push(`/orders/sync-tasks?shopId=${encodeURIComponent(r.shopId || '')}`)}>
+              同步
+            </a>
+          </Space>
         ),
       },
     ],
-    [shopOptions],
+    [shopOptions, keywordFieldProps],
   );
 
   const openItemModal = (row?: OrderItemRow) => {
@@ -427,11 +593,33 @@ export default function OrdersPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.orderList.title} subTitle={PAGE_COPY.orderList.description}>
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<OrderListRow>
         rowKey="id"
+        locale={emptyLocale}
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          paymentStatus: urlState.payStatus,
+          skuMatchStatus: urlState.skuStatus,
+          inventoryDeductStatus: urlState.inventoryStatus,
+          status: urlState.status,
+          fulfillmentStatus: urlState.fulfillmentStatus,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          start: urlState.start,
+          end: urlState.end,
+        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(ORDER_QUERY_KEYS, { replace: true });
+        }}
         toolBarRender={() => [
           <ModalForm
             key={`c-${createInvDefaults.deduct}-${createInvDefaults.sync}`}
@@ -477,21 +665,71 @@ export default function OrdersPage() {
           </ModalForm>,
         ]}
         request={async (params) => {
-          const res = await queryOrders({
-            page: params.current,
-            pageSize: params.pageSize,
-            platform: params.platform as string | undefined,
-            shopId: params.shopId as string | undefined,
-            orderNo: params.orderNo as string | undefined,
-            customerName: params.customerName as string | undefined,
-            status: params.status as string | undefined,
-            fulfillmentStatus: params.fulfillmentStatus as string | undefined,
+          const kw = prepareKeyword(params.keyword);
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            keyword: kw,
+            paymentStatus: (params.paymentStatus as string | undefined)?.trim(),
+            skuMatchStatus: (params.skuMatchStatus as string | undefined)?.trim(),
+            inventoryDeductStatus: (params.inventoryDeductStatus as string | undefined)?.trim(),
+            status: (params.status as string | undefined)?.trim(),
+            fulfillmentStatus: (params.fulfillmentStatus as string | undefined)?.trim(),
+            hasException:
+              params.hasException === 'true' || params.hasException === true ? true : undefined,
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              payStatus: qp.paymentStatus,
+              skuStatus: qp.skuMatchStatus,
+              inventoryStatus: qp.inventoryDeductStatus,
+              status: qp.status,
+              fulfillmentStatus: qp.fulfillmentStatus,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              start: qp.start,
+              end: qp.end,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
+          const res = await queryOrders({
+            page: qp.page,
+            pageSize: qp.pageSize,
+            platform: qp.platform,
+            shopId: qp.shopId,
+            keyword: qp.keyword,
+            status: qp.status,
+            paymentStatus: qp.paymentStatus,
+            fulfillmentStatus: qp.fulfillmentStatus,
+            skuMatchStatus: qp.skuMatchStatus,
+            inventoryDeductStatus: qp.inventoryDeductStatus,
+            hasException: qp.hasException,
+            start: qp.start,
+            end: qp.end,
           });
           return { data: res.list, total: res.pagination.total, success: true };
         }}
-        pagination={{ pageSize: 20 }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
       />
 
       <Drawer

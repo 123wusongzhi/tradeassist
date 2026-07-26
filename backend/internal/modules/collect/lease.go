@@ -3,10 +3,11 @@ package collect
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
-	"gorm.io/gorm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 )
 
 func (s *Service) collectLeaseTTL() time.Duration {
@@ -25,65 +26,55 @@ func (s *Service) collectLeaseTTL() time.Duration {
 }
 
 // tryClaimCollectTask atomically moves pending/retrying (due) to running with a lease.
-func (s *Service) tryClaimCollectTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*CollectTask, bool) {
+func (s *Service) tryClaimCollectTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*CollectTask, *tasklease.ClaimResult, bool) {
 	if s == nil || s.DB == nil {
-		return nil, false
+		return nil, nil, false
 	}
-	now := time.Now().UTC()
-	until := now.Add(lease)
-
-	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where(`id = ? AND (status = ? OR (status = ? AND next_retry_at IS NULL)) AND (locked_by IS NULL OR locked_until < ?)`,
-			taskID, StatusPending, StatusRetrying, now).
-		Updates(map[string]interface{}{
-			"status":            StatusRunning,
-			"locked_by":         workerID,
-			"locked_until":      &until,
-			"lock_version":      gorm.Expr("lock_version + 1"),
-			"started_at":        gorm.Expr("COALESCE(started_at, ?)", now),
-			"error_message":     "",
-			"finished_at":       nil,
-			"retry_enqueued_at": nil,
-			"updated_at":        now,
-		})
-	if res.Error != nil || res.RowsAffected == 0 {
-		return nil, false
+	claim, ok, err := tasklease.TryClaimPendingOrRetrying(ctx, s.DB, CollectTask{}.TableName(), StatusPending, StatusRetrying, StatusRunning, taskID, workerID, lease)
+	if err != nil || !ok {
+		return nil, nil, false
 	}
 	var task CollectTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return nil, false
+		return nil, nil, false
 	}
-	return &task, true
+	return &task, &claim, true
 }
 
-func (s *Service) startCollectLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, leaseTTL time.Duration) (stop func()) {
-	if s == nil || s.DB == nil {
+func (s *Service) startCollectLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, leaseTTL time.Duration) (stop func()) {
+	if s == nil || s.DB == nil || claim == nil {
 		return func() {}
 	}
-	interval := leaseTTL / 3
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
+	return tasklease.StartRenewal(ctx, s.DB, CollectTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion, leaseTTL)
+}
+
+func (s *Service) validateCollectLease(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult) error {
+	if claim == nil {
+		return tasklease.ErrLeaseLost
 	}
-	runCtx, cancel := context.WithCancel(ctx)
-	go func() {
-		tick := time.NewTicker(interval)
-		defer tick.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-tick.C:
-				until := time.Now().UTC().Add(leaseTTL)
-				_ = s.DB.WithContext(context.Background()).Model(&CollectTask{}).
-					Where("id = ? AND status = ? AND locked_by = ?", taskID, StatusRunning, workerID).
-					Updates(map[string]interface{}{
-						"locked_until": &until,
-						"updated_at":   time.Now().UTC(),
-					}).Error
-			}
-		}
-	}()
-	return cancel
+	return tasklease.ValidateLease(ctx, s.DB, CollectTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion)
+}
+
+func (s *Service) finishCollectTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	if err := s.validateCollectLease(ctx, taskID, workerID, claim); err != nil {
+		slog.Warn("collect_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
+		return err
+	}
+	now := time.Now().UTC()
+	updates["locked_by"] = nil
+	updates["locked_until"] = nil
+	updates["updated_at"] = now
+	res := s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return tasklease.ErrLeaseLost
+	}
+	return nil
 }
 
 // RecoverLeaseExpired is invoked by the task reaper when locked_until passes.
@@ -103,6 +94,8 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		Updates(map[string]interface{}{
 			"locked_by":    nil,
 			"locked_until": nil,
+			"execution_id": nil,
+			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
@@ -116,7 +109,7 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		RetryCount:   task.RetryCount,
 		MaxRetries:   s.effectiveMaxRetries(&task),
 	})
-	s.handleCollectJobError(ctx, &task, fmt.Errorf("worker lease expired"))
+	s.handleCollectJobError(ctx, &task, fmt.Errorf("worker lease expired"), "", nil)
 	return nil
 }
 
@@ -143,6 +136,8 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		Updates(map[string]interface{}{
 			"locked_by":    nil,
 			"locked_until": nil,
+			"execution_id": nil,
+			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
@@ -156,7 +151,7 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		RetryCount:   task.RetryCount,
 		MaxRetries:   s.effectiveMaxRetries(&task),
 	})
-	s.handleCollectJobError(ctx, &task, fmt.Errorf("legacy running task recovered"))
+	s.handleCollectJobError(ctx, &task, fmt.Errorf("legacy running task recovered"), "", nil)
 	return nil
 }
 
@@ -176,5 +171,5 @@ func (s *Service) handleCollectPanic(parent context.Context, taskID uuid.UUID, w
 		return
 	}
 	msg := truncateRunes(fmt.Sprintf("collect worker panic: %v", panicVal), 8000)
-	s.failTask(ctx, &cur, StatusRunning, msg, map[string]any{"panic": true})
+	s.failTask(ctx, &cur, StatusRunning, msg, map[string]any{"panic": true}, workerID, nil)
 }

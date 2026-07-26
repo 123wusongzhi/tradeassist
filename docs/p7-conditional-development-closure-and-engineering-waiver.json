@@ -1,0 +1,281 @@
+{
+  "schemaVersion": 1,
+  "phase": "P7",
+  "decision": "conditional_development_closure",
+  "decisionRecordedAt": "2026-07-20T00:00:00.000Z",
+  "p7ConditionalClosureCheckpoint": "recorded_in_final_response_after_commit",
+  "decisionTypes": [
+    "engineering_waiver",
+    "conditional_development_acceptance",
+    "known_risk_acceptance",
+    "deferred_capacity_acceptance"
+  ],
+  "taskStatus": "closed",
+  "functionalScopeStatus": "completed",
+  "developmentClosureStatus": "conditionally_accepted",
+  "capacityAcceptanceStatus": "deferred",
+  "performanceRepeatabilityStatus": "deferred_to_p10",
+  "dedicatedBenchmarkHostValidationStatus": "not_completed",
+  "knownRiskAccepted": true,
+  "engineeringWaiverApproved": true,
+  "readyForPhaseP8": true,
+  "productionReady": false,
+  "tagDeferred": true,
+  "finalProductionAcceptancePhase": "P10",
+  "reason": "P7 functional and development scope is complete, while benchmark repeatability on an exclusive Linux host remains unverified.",
+  "displayText": [
+    "Phase P7 Task Closed",
+    "Phase P7 Functional Scope Completed",
+    "Phase P7 Development Closure Conditionally Accepted",
+    "Phase P7 Capacity Acceptance Deferred",
+    "Phase P7 Performance Repeatability Acceptance Deferred to P10",
+    "Ready for Phase P8",
+    "Tag deferred",
+    "Not Production Ready",
+    "Final Production Acceptance Deferred to P10"
+  ],
+  "knownRisks": [
+    {
+      "riskId": "KR-01",
+      "description": "The same binary has shown material tail-latency variance on a shared development host.",
+      "impact": "P7 capacity and latency repeatability cannot be asserted from shared-host evidence.",
+      "likelihood": "medium",
+      "mitigation": "Re-run the fixed B1 -> C1 -> C2 -> B2 matrix on an exclusive Linux benchmark host before production acceptance.",
+      "ownerPhase": "P10",
+      "blockingForProduction": true,
+      "blockingForP8": false
+    },
+    {
+      "riskId": "KR-02",
+      "description": "Host Isolation V2 validation still contains current-side material regression evidence.",
+      "impact": "The existing validation set cannot prove capacity stability.",
+      "likelihood": "medium",
+      "mitigation": "Preserve V2 as audit evidence and supersede it only with a new dedicated-host validation matrix.",
+      "ownerPhase": "P10",
+      "blockingForProduction": true,
+      "blockingForP8": false
+    },
+    {
+      "riskId": "KR-03",
+      "description": "Host Isolation V3 stopped at the C2 dataset post-build barrier; the full four-run matrix was not completed.",
+      "impact": "Order-position and later-run degradation cannot be accepted or rejected from the incomplete V3 matrix.",
+      "likelihood": "high",
+      "mitigation": "Keep the V3 matrix closed as invalid_incomplete and start a fresh dedicated-host matrix in P10.",
+      "ownerPhase": "P10",
+      "blockingForProduction": true,
+      "blockingForP8": false
+    },
+    {
+      "riskId": "KR-04",
+      "description": "The complete B-C-C-B matrix on a dedicated Linux benchmark host has not been executed.",
+      "impact": "P7 capacity acceptance remains deferred.",
+      "likelihood": "high",
+      "mitigation": "Prepare a dedicated Linux benchmark host and execute the full matrix before tag, release, gray release, or production acceptance.",
+      "ownerPhase": "P10",
+      "blockingForProduction": true,
+      "blockingForP8": false
+    },
+    {
+      "riskId": "KR-05",
+      "description": "Current evidence cannot prove P7 capacity and latency stability under an exclusive benchmark environment.",
+      "impact": "Production Ready, capacity passed, and performance regression resolved claims are prohibited.",
+      "likelihood": "high",
+      "mitigation": "Treat P7 performance repeatability as a known accepted development risk and require P10 completion before production decisions.",
+      "ownerPhase": "P10",
+      "blockingForProduction": true,
+      "blockingForP8": false
+    }
+  ],
+  "deferredRequirements": [
+    {
+      "id": "P10-PERF-01",
+      "description": "Prepare an exclusive Linux Benchmark Host.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-02",
+      "description": "Execute the fixed B1 -> C1 -> C2 -> B2 validation matrix.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-03",
+      "description": "baselineSelfMaterialRegressionCount=0.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-04",
+      "description": "currentSelfMaterialRegressionCount=0.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-05",
+      "description": "orderPositionEffectDetected=false.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-06",
+      "description": "laterRunDegradationDetected=false.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-07",
+      "description": "Execute a fresh host-isolated Formal Baseline/Current Pair.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-08",
+      "description": "Comparability fully passes with mismatchCount=0.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-09",
+      "description": "Formal Regression failedMetricCount=0.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-10",
+      "description": "Pass at least 30 minutes of Soak, Demo x2, Stability, Race, and Cleanup.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    },
+    {
+      "id": "P10-PERF-11",
+      "description": "Complete final production capacity and performance acceptance.",
+      "requiredBeforeProduction": true,
+      "requiredBeforeTag": true,
+      "requiredBeforeRelease": true,
+      "requiredBeforeGrayRelease": true
+    }
+  ],
+  "p8Restrictions": [
+    "Business feature development may continue.",
+    "Frontend/backend functional completeness may continue.",
+    "Mock Provider integration may continue.",
+    "Non-Douyin platforms remain local_draft_only.",
+    "Tests and documentation may continue.",
+    "Non-production demos may continue.",
+    "Do not claim P7 Capacity Passed.",
+    "Do not claim Performance Regression Resolved.",
+    "Do not enable real Douyin writes or real credential E2E.",
+    "Do not enable automatic listing.",
+    "Do not create a production tag, release, gray release, or Production Ready claim."
+  ],
+  "p10BlockingRequirements": [
+    "P10-PERF-01",
+    "P10-PERF-02",
+    "P10-PERF-03",
+    "P10-PERF-04",
+    "P10-PERF-05",
+    "P10-PERF-06",
+    "P10-PERF-07",
+    "P10-PERF-08",
+    "P10-PERF-09",
+    "P10-PERF-10",
+    "P10-PERF-11"
+  ],
+  "historicalEvidence": [
+    {
+      "id": "HIST-01",
+      "description": "Historical Formal Regression failure.",
+      "sourcePath": "docs/regressions/p7-v2-r3b-recovery3-regression-v2-failed.json",
+      "status": "failed",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    },
+    {
+      "id": "HIST-02",
+      "description": "Historical B-C-C-B Repeatability Matrix not completed.",
+      "sourcePath": "docs/p7-v2-r3b-formal-pair-repeatability-order-bias-audit-final-gate.json",
+      "status": "failed",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    },
+    {
+      "id": "HIST-03",
+      "description": "Host Isolation V2 Validation Gate failed.",
+      "sourcePath": "docs/P7_V2_R3B_FORMAL_PAIR_REPEATABILITY_AND_ORDER_BIAS_AUDIT.md",
+      "status": "failed",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    },
+    {
+      "id": "HIST-04",
+      "description": "Host Isolation V3 Matrix invalid_incomplete.",
+      "sourcePath": "docs/p7-v2-r3b-host-isolation-v3-incomplete-matrix-closeout.json",
+      "status": "invalid_incomplete",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    },
+    {
+      "id": "HIST-05",
+      "description": "C2 Dataset Post-Build Barrier failed.",
+      "sourcePath": "docs/p7-v2-r3b-host-isolation-v3-incomplete-matrix-closeout.json",
+      "status": "failed",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    },
+    {
+      "id": "HIST-06",
+      "description": "Dedicated Benchmark Host Matrix not executed.",
+      "sourcePath": "docs/p7-v2-r3b-dedicated-benchmark-host-validation-final-gate.json",
+      "status": "not_completed",
+      "validForAudit": true,
+      "validForClosure": false,
+      "validForCapacityAcceptance": false
+    }
+  ],
+  "p8EntryBlocked": false,
+  "p10DeferredPerformanceWorkstreamOpen": true,
+  "realProviderWriteEnabled": false,
+  "realDouyinCredentialE2EEnabled": false,
+  "autoListingEnabled": false,
+  "platformBoundary": {
+    "douyin": "real adapter retained; real credential E2E deferred to P10",
+    "otherPlatforms": "local_draft_only",
+    "writePolicy": "platform draft plus human confirmation",
+    "automaticPublishForbidden": true
+  },
+  "historicalEvidencePreserved": true,
+  "historicalFailedResultsRewritten": false,
+  "thresholdChanged": false,
+  "sloChanged": false,
+  "materialityChanged": false,
+  "vusChanged": false,
+  "stagesChanged": false,
+  "durationChanged": false,
+  "datasetChanged": false
+}

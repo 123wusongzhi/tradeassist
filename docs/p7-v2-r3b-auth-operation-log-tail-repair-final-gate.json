@@ -1,0 +1,115 @@
+{
+  "phase": "P7-V2-R3B-AUTH-OPERATION-LOG-TAIL-MINIMAL-REPAIR-FINAL-GATE",
+  "component": "auth-operation-log-tail-repair-final-gate",
+  "status": "passed",
+  "failed": 0,
+  "failedChecks": [],
+  "sourceReport": "docs/p7-v2-r3b-auth-operation-log-tail-repair.json",
+  "rootCause": "B_auth_audit_or_operation_log_db_tail",
+  "repairPath": "auth_operation_log_hash_chain_or_commit_path_minimal_fix",
+  "queryBudgetEvidencePassed": true,
+  "explainEvidencePassed": true,
+  "benchmarkEvidencePassed": true,
+  "hashChainSemanticsUnchanged": true,
+  "securityAuditSemanticsUnchanged": true,
+  "failedLoginSemanticsUnchanged": true,
+  "transactionSemanticsUnchanged": true,
+  "hashChainConcurrencyPassed": true,
+  "rollbackTestsPassed": true,
+  "fullGoRacePassed": true,
+  "dataRaces": 0,
+  "formalDiagnosticWriterDisabled": true,
+  "thresholdChanged": false,
+  "sloChanged": false,
+  "materialityChanged": false,
+  "vusChanged": false,
+  "stagesChanged": false,
+  "datasetChanged": false,
+  "formalRerunStarted": false,
+  "checks": [
+    {
+      "id": "rootCause",
+      "status": "passed"
+    },
+    {
+      "id": "repairPath",
+      "status": "passed"
+    },
+    {
+      "id": "queryBudgetEvidencePassed",
+      "status": "passed"
+    },
+    {
+      "id": "explainEvidencePassed",
+      "status": "passed"
+    },
+    {
+      "id": "benchmarkEvidencePassed",
+      "status": "passed"
+    },
+    {
+      "id": "hashChainSemanticsUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "securityAuditSemanticsUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "failedLoginSemanticsUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "transactionSemanticsUnchanged",
+      "status": "passed"
+    },
+    {
+      "id": "hashChainConcurrencyPassed",
+      "status": "passed"
+    },
+    {
+      "id": "rollbackTestsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "fullGoRacePassed",
+      "status": "passed"
+    },
+    {
+      "id": "dataRaces",
+      "status": "passed"
+    },
+    {
+      "id": "formalDiagnosticWriterDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "materialityChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    }
+  ]
+}

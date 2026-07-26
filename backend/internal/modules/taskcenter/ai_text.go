@@ -234,12 +234,12 @@ func aiTextFailureRowFilter(db *gorm.DB, includeResolved bool) *gorm.DB {
 	if includeResolved {
 		return db
 	}
-	return db.Where(`
+	return db.Where(`(
 		status IN ?
 		OR (
 			status IN ?
 			AND quality_warnings IS NOT NULL
 			AND TRIM(quality_warnings::text) NOT IN ('null', '[]', '')
-		)`, []string{aiproducttext.ItemFailed, aiproducttext.ItemConflict},
+		))`, []string{aiproducttext.ItemFailed, aiproducttext.ItemConflict},
 		[]string{aiproducttext.ItemPendingReview, aiproducttext.ItemSuccess})
 }

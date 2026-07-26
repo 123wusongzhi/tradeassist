@@ -28,6 +28,8 @@ type Order struct {
 	OrderedAt         *time.Time     `json:"orderedAt,omitempty"`
 	ShippedAt         *time.Time     `json:"shippedAt,omitempty"`
 	DeliveredAt       *time.Time     `json:"deliveredAt,omitempty"`
+	PlatformUpdatedAt *time.Time     `gorm:"index" json:"platformUpdatedAt,omitempty"`
+	PlatformRevision  string         `gorm:"size:128;index" json:"platformRevision,omitempty"`
 	Remark            string         `gorm:"type:text" json:"remark,omitempty"`
 	RawData           datatypes.JSON `gorm:"type:jsonb" json:"rawData,omitempty"`
 	CreatedBy         *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`
@@ -43,9 +45,9 @@ type OrderItem struct {
 	model.HardDeleteBase
 	OrderID        uuid.UUID      `gorm:"type:char(36);index;not null" json:"orderId"`
 	ProductID      *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
-	ProductSKUID   *uuid.UUID     `gorm:"type:char(36);index" json:"productSkuId,omitempty"`
+	ProductSKUID   *uuid.UUID     `gorm:"column:product_sku_id;type:char(36);index" json:"productSkuId,omitempty"`
 	ExternalItemID *string        `gorm:"size:255" json:"externalItemId,omitempty"`
-	ExternalSKUID  *string        `gorm:"size:256" json:"externalSkuId,omitempty"`
+	ExternalSKUID  *string        `gorm:"column:external_sku_id;size:256" json:"externalSkuId,omitempty"`
 	SellerSKU      string         `gorm:"size:128" json:"sellerSku,omitempty"`
 	ProductTitle   string         `gorm:"size:512;not null" json:"productTitle"`
 	SKUName        string         `gorm:"size:512" json:"skuName,omitempty"`

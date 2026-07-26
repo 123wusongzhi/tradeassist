@@ -1,0 +1,77 @@
+{
+  "phase": "P5-V",
+  "status": "passed_with_real_environment_telemetry_verification_deferred",
+  "summary": {
+    "passed": 25,
+    "warnings": 0,
+    "failed": 0
+  },
+  "otlp": {
+    "protocol": "otlp_http",
+    "format": "json",
+    "standardCompatible": true,
+    "mockCollectorParsed": true,
+    "sensitiveFields": "passed",
+    "failureSafe": "passed",
+    "queueBounded": true,
+    "shutdownBounded": true
+  },
+  "acceptanceRuns": [
+    {
+      "rel": "docs/demo-auto-acceptance.run1.json",
+      "conclusion": "passed_with_blocked",
+      "startedAt": "2026-07-13T04:39:56.2438276Z",
+      "finishedAt": "2026-07-13T04:53:04.7368225Z",
+      "summary": {
+        "nonAiFailed": 0,
+        "blocked": 1,
+        "codeFailed": 0,
+        "passed": 19,
+        "deferred": 0,
+        "warning": 1,
+        "total": 21,
+        "failed": 0
+      },
+      "aiText": {
+        "status": "blocked",
+        "reasonCode": "environment_blocked",
+        "category": "external_provider"
+      },
+      "aiImage": {
+        "status": "warning",
+        "reasonCode": "warning",
+        "category": "external_provider"
+      }
+    },
+    {
+      "rel": "docs/demo-auto-acceptance.run2.json",
+      "conclusion": "passed_with_blocked",
+      "startedAt": "2026-07-13T04:53:28.3915703Z",
+      "finishedAt": "2026-07-13T05:05:22.8419963Z",
+      "summary": {
+        "nonAiFailed": 0,
+        "blocked": 1,
+        "codeFailed": 0,
+        "passed": 19,
+        "deferred": 0,
+        "warning": 1,
+        "total": 21,
+        "failed": 0
+      },
+      "aiText": {
+        "status": "blocked",
+        "reasonCode": "environment_blocked",
+        "category": "external_provider"
+      },
+      "aiImage": {
+        "status": "warning",
+        "reasonCode": "warning",
+        "category": "external_provider"
+      }
+    }
+  ],
+  "realEnvironmentTelemetryVerification": "deferred",
+  "externalAlertChannels": "deferred",
+  "productionSloValidation": "deferred",
+  "issues": []
+}

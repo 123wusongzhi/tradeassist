@@ -1,0 +1,69 @@
+{
+  "phase": "P7-C4-R",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:54:23.691Z",
+  "checkedAt": "2026-07-14T04:54:23.691Z",
+  "gitCommit": "4e55d8433e8627bb89239916e7dd634899234a6c",
+  "environmentFingerprint": "wsl2_local_postgresql_socket",
+  "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+  "databasePrefix": "trademind_p7c4_",
+  "queryExecuted": true,
+  "environment": {
+    "appEnv": "performance",
+    "hostClass": "local_or_wsl_isolated",
+    "production": false,
+    "dbHost": "/var/run/postgresql"
+  },
+  "cleanup": {
+    "environmentSafe": true,
+    "production": false,
+    "databasePrefix": "trademind_p7c4_",
+    "currentRunDatabase": "trademind_p7c4_p7c4_20260714042622",
+    "currentRunDatabaseRemoved": true,
+    "legacyRunDatabase": "trademind_p7c4_p7c4_20260714042442",
+    "legacyDatabase": "trademind_p7c4_p7c4_20260714042442",
+    "legacyDatabaseDropped": true,
+    "connectionsBefore": 0,
+    "connectionsTerminated": 0,
+    "remainingDatabases": [],
+    "remainingDatabasesWithPrefix": 0,
+    "processesRemaining": 0,
+    "portsRemaining": 0
+  },
+  "services": {
+    "postgresStopped": true,
+    "redisStoppedOrNotStarted": true,
+    "mockProviderStoppedOrNotStarted": true
+  },
+  "temporaryResources": {
+    "filesRemaining": 2,
+    "processesRemaining": 0,
+    "portsRemaining": 0
+  },
+  "existingRuntimeEvidence": {
+    "mediumDataset": "passed",
+    "pagination": "passed",
+    "queryPlan": "passed",
+    "nPlusOne": "passed",
+    "provider": "passed",
+    "permission": "passed",
+    "race": "passed",
+    "dataRaces": 0,
+    "deadlocks": 0
+  },
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 0
+  },
+  "gates": {
+    "p7C4": "passed",
+    "p7C3": "passed",
+    "p7C2": "passed",
+    "p7C": "passed"
+  },
+  "p7V2": "pending",
+  "productionReady": false,
+  "tagCreated": false,
+  "steps": [],
+  "issues": []
+}

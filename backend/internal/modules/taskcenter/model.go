@@ -8,6 +8,7 @@ import (
 // TaskFailureMark records operator intent in the failure center without mutating source task rows.
 type TaskFailureMark struct {
 	model.HardDeleteBase
+	TenantID    int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskType    string     `gorm:"size:32;uniqueIndex:uniq_task_failure_mark;not null" json:"taskType"`
 	SourceID    string     `gorm:"size:64;uniqueIndex:uniq_task_failure_mark;not null" json:"sourceId"`
 	SourceTable string     `gorm:"size:64;not null" json:"sourceTable"`

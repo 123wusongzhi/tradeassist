@@ -66,8 +66,21 @@ func (s *Service) buildItemDTO(_ context.Context, item *AIProductImageItem, p *p
 		ResultImageURL:     item.ResultImageURL,
 		SourceSnapshotHash: item.SourceSnapshotHash,
 		ErrorMessage:       item.ErrorMessage,
+		ErrorCode:          strings.TrimSpace(item.ErrorCode),
 		ApplyMode:          item.ApplyMode,
 		ApplyModeLabel:     applyModeLabel(item.ApplyMode),
+	}
+	if item.Status == ItemFailed {
+		norm := NormalizeItemErrorCode(item.ErrorCode, item.ErrorMessage)
+		dto.WarningCode = norm
+		if msg := WarningCodeMessage(norm); msg != "" {
+			dto.WarningMessage = msg
+		} else {
+			dto.WarningMessage = item.ErrorMessage
+		}
+		dto.Recoverable = IsWarningCodeRecoverable(norm)
+		dto.NeedsConfig = NeedsConfigForCode(norm)
+		dto.SettingsURL = WarningCodeSettingsURL(norm)
 	}
 	if item.ImageID != nil {
 		dto.ImageID = item.ImageID.String()
@@ -144,14 +157,57 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 		}
 	}
 	dtoItems := make([]ItemDetailDTO, 0, len(items))
+	var warningCount, recoverable, nonRecoverable int
 	for i := range items {
-		dtoItems = append(dtoItems, s.buildItemDTO(ctx, &items[i], products[items[i].ProductID]))
+		dto := s.buildItemDTO(ctx, &items[i], products[items[i].ProductID])
+		dtoItems = append(dtoItems, dto)
+		if items[i].Status == ItemFailed {
+			if dto.Recoverable {
+				recoverable++
+			} else {
+				nonRecoverable++
+			}
+		}
+		if len(dto.QualityWarnings) > 0 && (items[i].Status == ItemPendingReview || items[i].Status == ItemSuccess) {
+			warningCount++
+		}
 	}
 	var in, out map[string]any
 	_ = json.Unmarshal(b.Input, &in)
 	_ = json.Unmarshal(b.Output, &out)
+
+	provReady := ProviderReadiness{Status: "unknown", StatusLabel: "未知"}
+	if s.Settings != nil {
+		if img, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+			provReady = EvaluateProviderReadiness(s.configuredImageProvider(ctx), img)
+		}
+	}
+	overview := BatchResultOverview{
+		SuccessCount:        b.SuccessCount,
+		WarningCount:        warningCount,
+		FailedCount:         b.FailedCount,
+		AppliedCount:        b.AppliedCount,
+		RecoverableCount:    recoverable,
+		NonRecoverableCount: nonRecoverable,
+		ProviderReadiness:   provReady,
+	}
+	if b.FailedCount > 0 || warningCount > 0 || provReady.Status == "degraded" || provReady.Status == "missing" {
+		overview.SummaryMessage = "当前图片处理已完成，但部分能力因 Provider 配置缺失降级。你可以补充对应 Provider Key 后重新处理。"
+		overview.NextActions = []string{
+			"查看失败项原因并区分可恢复 / 不可恢复",
+			"前往「设置 → 图片 AI」补全 Provider 凭证",
+			"前往「设置 → 配置状态」查看整体就绪情况",
+		}
+		if provReady.SettingsURL != "" {
+			overview.NextActions = append(overview.NextActions, "补全配置后在本页点击「重试失败项」")
+		}
+	} else if b.SuccessCount > 0 {
+		overview.SummaryMessage = "批次处理完成，请在下方复核结果并选择应用方式。"
+	}
+
 	return &BatchDetailDTO{
 		BatchListItem: s.toBatchListItem(b),
+		Overview:      overview,
 		Items:         dtoItems,
 		Input:         in,
 		Output:        out,

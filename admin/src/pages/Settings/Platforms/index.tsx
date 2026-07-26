@@ -18,8 +18,11 @@ import {
 } from 'antd';
 import { Link } from '@umijs/renderer-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
+import StoragePublicUrlBanner from '@/components/platform/StoragePublicUrlBanner';
 import { ActionBar, FormGrid, FormGridFull, FormGridItem, SectionCard, TechnicalDetails, TmPageContainer } from '@/components/ui';
 import { ACTION_COPY, PAGE_COPY } from '@/constants/copywriting';
+import { confirmPlatformConfigSave } from '@/constants/sensitiveActions';
 import { platformRuntimeHref } from '@/constants/platformRuntime';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
 import {
@@ -368,16 +371,33 @@ function DouyinPreflightPanel() {
     <SectionCard title="抖店生产预检" extra={result?.checkedAt ? `最近：${result.checkedAt}` : undefined}>
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          上线前一键检查应用配置、店铺授权、功能开关、存储公网访问与基础数据状态。不含自动写操作。
+          上线前一键检查应用配置、店铺授权、功能开关、存储公网访问与基础数据状态。不含自动写操作，不执行真实抖店 E2E。
         </Paragraph>
+        <DouyinE2EPrecheckBanner blockedByCredentials={result?.blockedByRealCredentials ?? true} compact />
+        <StoragePublicUrlBanner
+          missing={
+            result?.checks?.some(
+              (c) => c.key === 'storage.public_base' && (c.status === 'failed' || c.status === 'warning'),
+            ) ?? false
+          }
+          compact
+        />
         <Space wrap>
           <Button type="primary" icon={<SafetyCertificateOutlined />} loading={running} onClick={() => void run()}>
             运行生产预检
           </Button>
+          <Button onClick={() => window.open('/docs/DOUYIN_E2E_PRECHECK_GUIDE.md', '_blank')}>
+            查看 E2E 准备清单
+          </Button>
           <Switch checked={liveTest} onChange={setLiveTest} /> <Text type="secondary">包含真实访问令牌刷新联调（需已授权店铺）</Text>
         </Space>
         {result?.blockedByRealCredentials ? (
-          <Alert showIcon type="info" message="部分真实联调项需应用 Key / 密钥与已授权店铺，当前以结构检查为主" />
+          <Alert
+            showIcon
+            type="info"
+            message="当前未配置抖店真实凭证，系统只能完成本地 Demo 与前置检查，不能执行真实抖店 E2E。"
+            description="凭证缺失不是系统失败，属于需真实环境凭证的前置检查项。抖店仍为发布候选。"
+          />
         ) : null}
         {result ? (
           <>
@@ -530,15 +550,21 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           <Form
             layout="vertical"
             form={form}
-            onFinish={async (vals: Record<string, unknown>) => {
-              try {
-                await putPlatformAppSettings(meta.platform, buildPutValues(fields, vals));
-                message.success('设置已保存');
-                await load();
-              } catch (e: unknown) {
-                message.error((e as Error)?.message || '保存失败');
-              }
-            }}
+            onFinish={(vals: Record<string, unknown>) =>
+              new Promise<void>((resolve, reject) => {
+                confirmPlatformConfigSave(async () => {
+                  try {
+                    await putPlatformAppSettings(meta.platform, buildPutValues(fields, vals));
+                    message.success('设置已保存');
+                    await load();
+                    resolve();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '保存失败');
+                    reject(e);
+                  }
+                });
+              })
+            }
           >
             <FormGrid>
               {fields.map((f) =>

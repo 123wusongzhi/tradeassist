@@ -1,0 +1,59 @@
+{
+  "phase": "P7-V2-R3B-PORT-R2",
+  "status": "passed",
+  "selectedHost": "127.0.0.1",
+  "selectedPort": 18080,
+  "classification": "stale_trademind_process",
+  "wsl": {
+    "status": "available",
+    "raw": [
+      "State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess",
+      "LISTEN 0      4096       127.0.0.1:18080      0.0.0.0:*    users:((\"server\",pid=1129,fd=19))"
+    ],
+    "pids": [
+      "1129"
+    ],
+    "identity": {
+      "present": true,
+      "pid": "1129",
+      "bootId": "674034cc-8b9d-44ab-8bfb-a6321e77bc85",
+      "processStartTicks": "2099",
+      "processStartTime": "",
+      "executablePath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "executableRealPath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "executableSha256": "4738ebd5492cad7d472dd24b7924d31e6c3aa1b0d5d9eae09a1b7b7edbc3e002",
+      "commandLine": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "workingDirectory": "/mnt/d/project/trademind-ai",
+      "listeningAddress": "127.0.0.1",
+      "listeningPort": 18080,
+      "socketInode": "",
+      "portOwnerPid": "1129",
+      "instanceNonce": "",
+      "capturedAt": "2026-07-15T11:52:34.437Z",
+      "identityKey": "674034cc-8b9d-44ab-8bfb-a6321e77bc85:1129:2099:4738ebd5492cad7d472dd24b7924d31e6c3aa1b0d5d9eae09a1b7b7edbc3e002"
+    },
+    "pidFile": ""
+  },
+  "windows": {
+    "status": "available",
+    "listeners": [
+      {
+        "localAddress": "127.0.0.1",
+        "localPort": 18080,
+        "state": 2,
+        "pid": 9732,
+        "name": "wslrelay.exe",
+        "executablePath": "C:\\Program Files\\WSL\\wslrelay.exe",
+        "commandLine": " --mode 2 --vm-id {4c595e32-40fe-4379-afac-5037289ac20e} --handle 2100",
+        "creationDate": "/Date(1784114899272)/"
+      }
+    ]
+  },
+  "portproxy": [],
+  "docker": [],
+  "belongsToTradeMind": true,
+  "strongEvidenceCount": 2,
+  "unknownProcessTerminated": false,
+  "unrelatedServiceAffected": false,
+  "generatedAt": "2026-07-15T11:52:34.561Z"
+}

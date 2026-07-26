@@ -1,0 +1,473 @@
+{
+  "phase": "P6-VR",
+  "runId": "p6-vr-2026-07-13T09-22-23-945Z",
+  "generatedAt": "2026-07-13T09:22:23.945Z",
+  "status": "passed",
+  "exitCode": 0,
+  "environment": {
+    "runner": "WSL2 Ubuntu",
+    "host": "Windows_NT 10.0.19045 x64",
+    "wslStatus": "؞��\u0006R�S: Ubuntu-22.04\r\n؞��Hr,g: 2\r\n",
+    "wslList": "  NAME            STATE           VERSION\r\n* Ubuntu-22.04    Stopped         2\r\n",
+    "kernel": "Linux SK-20250814VKAY 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux",
+    "distribution": "Ubuntu 22.04.5 LTS",
+    "architecture": "x86_64",
+    "goPath": "/usr/local/go/bin/go",
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "requiredGoVersion": "go1.25.0",
+    "goModVersion": "1.25.0",
+    "toolchainVersion": "",
+    "targetGoVersion": "go1.25.x",
+    "goProxy": "https://goproxy.cn,direct",
+    "cgoEnabled": true,
+    "gccPath": "/usr/bin/gcc",
+    "gccVersion": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+    "nodeVersion": "v22.22.1",
+    "pnpmVersion": "9.15.4",
+    "repositoryPath": "/mnt/d/project/trademind-ai",
+    "gitCommit": "61173235d460ea5eec223ee4cc1244014e454abb",
+    "gitTreeState": "dirty",
+    "gitStatusShort": " M .env.example\n M .env.production.example\n M CHANGELOG.md\n M backend/internal/database/migrate.go\n M backend/internal/modules/backup/service.go\n M backend/internal/modules/operationlog/hash_chain.go\n M backend/internal/modules/operationlog/service.go\n M backend/internal/modules/restore/service.go\n M docs/PROGRESS.md\n M docs/README.md\n M package.json\n?? backend/cmd/p6drill/\n?? docs/P6_V_FINAL_CLOSURE_REPORT.md\n?? docs/P6_V_ISOLATED_RESTORE_DRILL_REPORT.md\n?? docs/P6_V_RACE_TEST_REPORT.md\n?? docs/P6_V_RELEASE_ROLLBACK_DRILL_REPORT.md\n?? docs/p6-v-final-closure-report.json\n?? docs/p6-v-isolated-restore-drill-report.json\n?? docs/p6-v-race-test-report.json\n?? docs/p6-v-release-rollback-drill-report.json\n?? scripts/p6-v-final-closure-gate.mjs\n?? scripts/p6-v-isolated-restore-drill.mjs\n?? scripts/p6-v-linux-race.mjs\n?? scripts/p6-v-release-rollback-drill.mjs\n?? scripts/p6-v-start-isolated-postgres.mjs\n",
+    "goEnv": {
+      "goos": "linux",
+      "goarch": "amd64",
+      "cgoEnabled": "1",
+      "goroot": "/usr/local/go",
+      "gopath": "/root/go"
+    }
+  },
+  "baseline": {
+    "goModDownload": "passed",
+    "goModVerify": "passed",
+    "goTest": "passed",
+    "goBuild": "passed",
+    "exitCodes": {
+      "goModDownload": 0,
+      "goModVerify": 0,
+      "goTest": 0,
+      "goBuild": 0
+    }
+  },
+  "race": {
+    "status": "passed",
+    "environmentBlocked": false,
+    "reasonCode": "",
+    "dataRaces": 0,
+    "deadlocks": 0,
+    "packagesPassed": 9,
+    "packagesFailed": 0,
+    "combinedMatrix": "passed",
+    "combinedExitCode": 0,
+    "results": [
+      {
+        "name": "backup",
+        "package": "./internal/modules/backup/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "restore",
+        "package": "./internal/modules/restore/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "release",
+        "package": "./internal/modules/release/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "disasterrecovery",
+        "package": "./internal/modules/disasterrecovery/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "backupruntime",
+        "package": "./internal/pkg/backupruntime/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "artifact",
+        "package": "./internal/pkg/artifact/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "taskcenter",
+        "package": "./internal/modules/taskcenter/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "alerting",
+        "package": "./internal/modules/alerting/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      },
+      {
+        "name": "operationlog",
+        "package": "./internal/modules/operationlog/...",
+        "status": "passed",
+        "exitCode": 0,
+        "dataRaceDetected": false
+      }
+    ]
+  },
+  "commands": [
+    {
+      "command": "WSL2 Ubuntu: uname -a",
+      "exitCode": 0,
+      "stdout": "Linux SK-20250814VKAY 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:23.945Z",
+      "finishedAt": "2026-07-13T09:22:24.031Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: cat /etc/os-release",
+      "exitCode": 0,
+      "stdout": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.031Z",
+      "finishedAt": "2026-07-13T09:22:24.119Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: which go",
+      "exitCode": 0,
+      "stdout": "/usr/local/go/bin/go\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.119Z",
+      "finishedAt": "2026-07-13T09:22:24.215Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go version",
+      "exitCode": 0,
+      "stdout": "go version go1.25.12 linux/amd64\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.215Z",
+      "finishedAt": "2026-07-13T09:22:24.365Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go env GOOS GOARCH CGO_ENABLED GOROOT GOPATH",
+      "exitCode": 0,
+      "stdout": "linux\namd64\n1\n/usr/local/go\n/root/go\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.365Z",
+      "finishedAt": "2026-07-13T09:22:24.474Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: which gcc",
+      "exitCode": 0,
+      "stdout": "/usr/bin/gcc\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.474Z",
+      "finishedAt": "2026-07-13T09:22:24.552Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: gcc --version",
+      "exitCode": 0,
+      "stdout": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0\nCopyright (C) 2021 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.552Z",
+      "finishedAt": "2026-07-13T09:22:24.629Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: node --version",
+      "exitCode": 0,
+      "stdout": "v22.22.1\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.629Z",
+      "finishedAt": "2026-07-13T09:22:24.765Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: pnpm --version",
+      "exitCode": 0,
+      "stdout": "9.15.4\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:24.765Z",
+      "finishedAt": "2026-07-13T09:22:25.657Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: repository path check",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:25.739Z",
+      "finishedAt": "2026-07-13T09:22:25.817Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/backup/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:25.818Z",
+      "finishedAt": "2026-07-13T09:22:25.900Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/restore/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:25.900Z",
+      "finishedAt": "2026-07-13T09:22:25.976Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/release/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:25.976Z",
+      "finishedAt": "2026-07-13T09:22:26.050Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/disasterrecovery/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.050Z",
+      "finishedAt": "2026-07-13T09:22:26.123Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/pkg/backupruntime/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.123Z",
+      "finishedAt": "2026-07-13T09:22:26.203Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/pkg/artifact/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.203Z",
+      "finishedAt": "2026-07-13T09:22:26.277Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/taskcenter/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.277Z",
+      "finishedAt": "2026-07-13T09:22:26.350Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/alerting/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.350Z",
+      "finishedAt": "2026-07-13T09:22:26.424Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: package path check ./internal/modules/operationlog/...",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.424Z",
+      "finishedAt": "2026-07-13T09:22:26.499Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go mod download",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:26.499Z",
+      "finishedAt": "2026-07-13T09:22:39.178Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go mod verify",
+      "exitCode": 0,
+      "stdout": "all modules verified\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:39.178Z",
+      "finishedAt": "2026-07-13T09:22:42.260Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test ./...",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/cmd/p6drill\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/cmd/server\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/api\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/config\t0.019s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/database\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/encrypt\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/health\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/logger\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/metrics/douyin\t0.017s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/middleware\t0.018s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/admin\t0.072s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/adminuser\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench\t0.089s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/aiproductimage\t0.072s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/aiproducttext\t0.059s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/aiprompt\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/aitask\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/alerting\t0.039s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/auth\t0.140s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/backup\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/collect\t0.086s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/collectrule\t0.007s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/collectruleai\t0.011s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/configstatus\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/customerchat\t0.016s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/customersync\t0.077s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/demoseed\t0.027s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight\t0.014s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/douyinruntime\t0.021s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/exportmod\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/files\t0.024s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/idempotency\t0.020s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/imagetask\t0.276s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/inventory\t0.016s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/observabilitymod\t0.018s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/operationdashboard\t0.013s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/operationlog\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/order\t0.058s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/orderexception\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/ordersync\t0.017s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/pricing\t0.022s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/product\t0.151s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/productcheck\t0.060s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/productpublish\t0.175s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/release\t0.017s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/restore\t0.017s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/securitymod\t0.023s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/settings\t0.015s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/shop\t0.135s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/skucandidate\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/storagepublic\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter\t0.011s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier\t0.006s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskreaper\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/webhook\t0.127s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/worker\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/adminperm\t0.009s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse\t0.005s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/artifact\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/authcookie\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/authutil\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/backupruntime\t0.007s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/collectdomain\t0.007s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/crypto\t0.012s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/ctxkey\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/filescanner\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/httpclient\t0.018s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/httppublic\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/id\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/imagerender\t0.260s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/logging\t0.008s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/mask\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/metrics\t0.017s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/model\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/observability\t0.013s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/opslabels\t0.008s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/providerhealth\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/reporoot\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/repository\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/response\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/safedownload\t0.009s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/safefields\t0.007s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/security\t0.018s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/storagepublic\t1.645s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tasklease\t0.162s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/taskretry\t0.013s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tasktenant\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tenantquery\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tracing\t0.046s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai\t0.004s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/compatclient\t0.005s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/deepseek\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/errmap\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/openai\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/openai_compatible\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/qwen\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/collector\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/email\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/email/smtp\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/comfyui\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/dashscopeimage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/removebg\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/aliyun\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/paddleocr\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/tencent\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/amazon\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop\t3.895s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/lazada\t0.006s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/shopee\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/cos\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/keypath\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/local\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/localroot\t0.005s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/oss\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/s3store\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/queue\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/rdb\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/securitytests/idor\t0.779s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/securitytests/shopscope\t0.286s\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:22:42.260Z",
+      "finishedAt": "2026-07-13T09:24:07.088Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go build ./cmd/server/... ./cmd/p6drill",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:24:07.088Z",
+      "finishedAt": "2026-07-13T09:24:17.190Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/backup/...",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/backup\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:24:17.190Z",
+      "finishedAt": "2026-07-13T09:24:44.876Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/restore/...",
+      "exitCode": 0,
+      "stdout": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/restore\t1.052s\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:24:44.876Z",
+      "finishedAt": "2026-07-13T09:24:58.121Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/release/...",
+      "exitCode": 0,
+      "stdout": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/release\t1.053s\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:24:58.121Z",
+      "finishedAt": "2026-07-13T09:25:00.529Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/disasterrecovery/...",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:00.529Z",
+      "finishedAt": "2026-07-13T09:25:00.968Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/pkg/backupruntime/...",
+      "exitCode": 0,
+      "stdout": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/backupruntime\t1.014s\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:00.968Z",
+      "finishedAt": "2026-07-13T09:25:02.540Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/pkg/artifact/...",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/artifact\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:02.541Z",
+      "finishedAt": "2026-07-13T09:25:02.764Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/taskcenter/...",
+      "exitCode": 0,
+      "stdout": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter\t1.026s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier\t1.011s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:02.764Z",
+      "finishedAt": "2026-07-13T09:25:27.406Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/alerting/...",
+      "exitCode": 0,
+      "stdout": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/alerting\t1.103s\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:27.406Z",
+      "finishedAt": "2026-07-13T09:25:29.737Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: go test -race -timeout=15m ./internal/modules/operationlog/...",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/operationlog\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:29.737Z",
+      "finishedAt": "2026-07-13T09:25:30.043Z"
+    },
+    {
+      "command": "WSL2 Ubuntu: combined race matrix",
+      "exitCode": 0,
+      "stdout": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/backup\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/restore\t1.069s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/release\t1.068s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/backupruntime\t1.019s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/artifact\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter\t1.027s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier\t1.011s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/alerting\t1.100s\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/operationlog\t[no test files]\n",
+      "stderr": "",
+      "error": "",
+      "timedOut": false,
+      "startedAt": "2026-07-13T09:25:30.043Z",
+      "finishedAt": "2026-07-13T09:25:34.053Z"
+    }
+  ],
+  "issuesFound": [],
+  "issuesFixed": [],
+  "previousEnvironmentBlocked": {
+    "phase": "P6-V",
+    "status": "environment_blocked",
+    "capturedBeforeRemediation": true,
+    "host": "Windows_NT 10.0.19045 x64",
+    "windowsGoVersion": "go version go1.26.2 windows/amd64",
+    "wslGoPath": "/usr/bin/go",
+    "wslGoVersion": "go version go1.18.1 linux/amd64",
+    "requiredGoVersion": "go1.25.0",
+    "reasonCode": "GO_VERSION_INCOMPATIBLE",
+    "detail": "Initial P6-V Linux race verification was blocked because the WSL default Go toolchain was go1.18.1 while backend/go.mod requires go1.25.0."
+  }
+}

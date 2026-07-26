@@ -1,0 +1,28 @@
+{
+  "phase": "H1.5.1",
+  "status": "passed_with_warning",
+  "checkedAt": "2026-07-10T07:10:15.884Z",
+  "summary": {
+    "passed": 9,
+    "warning": 2,
+    "failed": 0,
+    "total": 11
+  },
+  "liveBrowserStatus": "passed",
+  "aiImageBaseline": "stable_range_14_to_15_of_16",
+  "issues": [
+    {
+      "id": "H151-shot-1366x768",
+      "level": "P2",
+      "message": "Screenshots not present locally (optional; run scripts/h1-5-live-browser-acceptance.mjs)",
+      "status": "warning"
+    },
+    {
+      "id": "H151-shot-1024x768",
+      "level": "P2",
+      "message": "Screenshots not present locally (optional; run scripts/h1-5-live-browser-acceptance.mjs)",
+      "status": "warning"
+    }
+  ],
+  "finalConclusion": "H1.5.1 check completed with issues — see issues array."
+}

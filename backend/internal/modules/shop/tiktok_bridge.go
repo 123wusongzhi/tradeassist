@@ -129,5 +129,6 @@ func (s *Service) persistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID
 	}
 	tok.ExpiresAt = accessExp
 	tok.RefreshExpiresAt = refreshExp
+	tok.TokenVersion = tok.TokenVersion + 1
 	return s.DB.WithContext(ctx).Save(&tok).Error
 }

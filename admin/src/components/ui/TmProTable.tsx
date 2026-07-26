@@ -18,7 +18,14 @@ type TmToolBarRender<T extends Record<string, unknown>, U extends Record<string,
 export default function TmProTable<
   T extends Record<string, unknown>,
   U extends Record<string, unknown> = Record<string, unknown>,
->({ actionRef: userActionRef, options, toolBarRender, onLoadingChange, ...rest }: TmProTableProps<T, U>) {
+>({
+  actionRef: userActionRef,
+  options,
+  toolBarRender,
+  onLoadingChange,
+  className,
+  ...rest
+}: TmProTableProps<T, U>) {
   const innerRef = useRef<ActionType>();
   const actionRef = userActionRef ?? innerRef;
   const [loading, setLoading] = useState(false);
@@ -27,7 +34,7 @@ export default function TmProTable<
     if (options === false) {
       return false;
     }
-    const base = options === true || options === undefined ? {} : options;
+    const base = options ?? {};
     return {
       density: true,
       setting: true,
@@ -63,6 +70,7 @@ export default function TmProTable<
   return (
     <ProTable<T, U>
       {...rest}
+      className={['tm-pro-table', className].filter(Boolean).join(' ')}
       actionRef={actionRef}
       options={mergedOptions}
       toolBarRender={mergedToolBarRender}

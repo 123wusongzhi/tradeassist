@@ -1,0 +1,56 @@
+{
+  "phase": "P8",
+  "gate": "P8-ENTRY",
+  "status": "allowed",
+  "checkedAt": "2026-07-20T00:00:00.000Z",
+  "gitCommit": "recorded_in_final_response_after_commit",
+  "sourceDecision": "docs/p7-conditional-development-closure-and-engineering-waiver.json",
+  "p7FunctionalScopeStatus": "completed",
+  "p7DevelopmentClosureStatus": "conditionally_accepted",
+  "p7CapacityAcceptanceStatus": "deferred",
+  "engineeringWaiverApproved": true,
+  "knownRiskAccepted": true,
+  "p10BlockingRequirementsPresent": true,
+  "readyForPhaseP8": true,
+  "productionReady": false,
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "p7FunctionalScopeCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "p7DevelopmentClosureAllowsP8",
+      "status": "passed"
+    },
+    {
+      "id": "conditionalWaiverComplete",
+      "status": "passed"
+    },
+    {
+      "id": "engineeringWaiverApproved",
+      "status": "passed"
+    },
+    {
+      "id": "knownRiskAccepted",
+      "status": "passed"
+    },
+    {
+      "id": "capacityDeferredWhenConditional",
+      "status": "passed"
+    },
+    {
+      "id": "productionReadyFalseWhenConditional",
+      "status": "passed"
+    },
+    {
+      "id": "p10BlockingRequirementsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "p8EntryAllowed",
+      "status": "passed"
+    }
+  ]
+}

@@ -389,7 +389,7 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 	}
 	lease := s.computeExecutionTimeout(ctx, &peek)
 
-	task, claimed, err := s.tryClaimImageTask(ctx, taskID, workerID, lease)
+	task, claim, claimed, err := s.tryClaimImageTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -397,7 +397,8 @@ func (s *Service) executeTask(ctx context.Context, taskID uuid.UUID, httpCtx *gi
 		return nil
 	}
 
-	stopRen := s.startImageLeaseRenewal(ctx, taskID, workerID, lease)
+	ctx = withImageLease(ctx, workerID, claim)
+	stopRen := s.startImageLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stopRen()
 
 	src := strings.TrimSpace(task.SourceImageURL)
@@ -639,7 +640,7 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 	}
 	next := now.Add(time.Duration(delaySec) * time.Second)
 
-	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
+	updates := map[string]any{
 		"status":            StatusRetrying,
 		"retry_count":       newRC,
 		"next_retry_at":     &next,
@@ -648,7 +649,13 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 		"retry_enqueued_at": nil,
 		"locked_by":         nil,
 		"locked_until":      nil,
-	}).Error
+	}
+	workerID, claim := imageLeaseFrom(ctx)
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		_ = s.finishImageTask(ctx, task.ID, workerID, claim, updates)
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error
+	}
 
 	maxR := s.effectiveMaxRetries(task)
 	if s.OpLog != nil {
@@ -671,7 +678,7 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 
 func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context, task *ImageTask, msg string, exhausted bool) error {
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(map[string]any{
+	updates := map[string]any{
 		"status":            StatusFailed,
 		"error_message":     msg,
 		"finished_at":       &fin,
@@ -679,7 +686,15 @@ func (s *Service) finalizeImageFailed(ctx context.Context, httpCtx *gin.Context,
 		"retry_enqueued_at": nil,
 		"locked_by":         nil,
 		"locked_until":      nil,
-	}).Error
+	}
+	workerID, claim := imageLeaseFrom(ctx)
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
+			return err
+		}
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error
+	}
 	if exhausted {
 		s.logRetryExhausted(ctx, httpCtx, task, msg)
 	} else {

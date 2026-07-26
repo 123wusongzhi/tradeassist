@@ -1,7 +1,8 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
-import { history, useLocation } from '@umijs/max';
+import { confirmSkuManualBind } from '@/constants/sensitiveActions';
+import { history } from '@umijs/max';
 import {
   Alert,
   Button,
@@ -37,6 +38,26 @@ import {
 import { getOrderItemSkuCandidates, type SkuCandidateRow } from '@/services/skuCandidates';
 import { searchProductSkus, type ProductSkuSearchHit } from '@/services/products';
 import { queryShops } from '@/services/shops';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { appendSourceToUrl, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
+
+const EXCEPTION_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'exceptionType',
+  'platform',
+  'shopId',
+  'status',
+  'severity',
+  'source',
+  'orderId',
+  'start',
+  'end',
+] as const;
 
 const EX_TYPES: Record<string, { text: string }> = {
   sku_unmatched: { text: '规格未匹配' },
@@ -45,7 +66,7 @@ const EX_TYPES: Record<string, { text: string }> = {
   inventory_deduct_failed: { text: '扣库存失败' },
   inventory_restore_failed: { text: '恢复库存失败' },
   inventory_sync_failed: { text: '库存同步失败' },
-  order_sync_partial_failed: { text: '订单同步部分失败' },
+  order_sync_partial_failed: { text: '页级同步失败' },
   missing_order_item: { text: '缺明细' },
   unknown: { text: '未知' },
 };
@@ -120,9 +141,25 @@ function candTrustBadge(conf: number) {
 }
 
 export default function OrderExceptionsPage() {
+  const emptyLocale = useListEmptyLocale('orderExceptions', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const { search: locSearch } = useLocation();
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof EXCEPTION_QUERY_KEYS)[number], string | undefined>>(
+      EXCEPTION_QUERY_KEYS,
+    );
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [summary, setSummary] = useState<OrderExceptionSummary | null>(null);
   const [shopOpts, setShopOpts] = useState<{ label: string; value: string }[]>([]);
 
@@ -154,16 +191,32 @@ export default function OrderExceptionsPage() {
   }, []);
 
   useEffect(() => {
-    const sp = new URLSearchParams(locSearch);
-    const oid = sp.get('orderId')?.trim();
-    const et = sp.get('exceptionType')?.trim();
-    if (!oid && !et) return;
-    formRef.current?.setFieldsValue({
-      ...(oid ? { orderId: oid } : {}),
-      ...(et ? { exceptionType: et } : {}),
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      exceptionType: urlState.exceptionType,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      status: urlState.status,
+      severity: urlState.severity,
+      orderId: urlState.orderId,
+      createdAt: queryTimeRange(urlState.start, urlState.end),
     });
     actionRef.current?.reload();
-  }, [locSearch]);
+  }, [
+    urlState.end,
+    urlState.exceptionType,
+    urlState.keyword,
+    urlState.orderId,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.severity,
+    urlState.shopId,
+    urlState.start,
+    urlState.status,
+  ]);
 
   const reload = useCallback(() => {
     actionRef.current?.reload();
@@ -304,6 +357,7 @@ export default function OrderExceptionsPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
+        fieldProps: keywordFieldProps,
       },
       {
         title: '店铺',
@@ -386,10 +440,30 @@ export default function OrderExceptionsPage() {
             {r.orderId ? (
               <a
                 onClick={() => {
-                  history.push(`/orders?jumpOrder=${encodeURIComponent(r.orderId!)}`);
+                  history.push(`/orders/${encodeURIComponent(r.orderId!)}`);
                 }}
               >
                 订单
+              </a>
+            ) : null}
+            {r.taskCenterUrl ? (
+              <a onClick={() => history.push(r.taskCenterUrl!)}>失败任务</a>
+            ) : r.orderId ? (
+              <a
+                onClick={() =>
+                  history.push(`/ops/task-center/failures?taskType=order_sync&keyword=${encodeURIComponent(r.orderId!)}`)
+                }
+              >
+                失败任务
+              </a>
+            ) : null}
+            {r.syncTaskId ? (
+              <a
+                onClick={() =>
+                  history.push(`/orders/sync-tasks?id=${encodeURIComponent(r.syncTaskId!)}`)
+                }
+              >
+                同步任务
               </a>
             ) : null}
             {(r.exceptionType === 'sku_unmatched' || r.exceptionType === 'sku_ambiguous') && (
@@ -499,7 +573,7 @@ export default function OrderExceptionsPage() {
         ),
       },
     ],
-    [reload, shopOpts, openCandModalOnly, openBind],
+    [reload, shopOpts, openCandModalOnly, openBind, keywordFieldProps],
   );
 
   return (
@@ -511,6 +585,7 @@ export default function OrderExceptionsPage() {
         聚合规格未匹配、扣库存失败与库存同步失败等需人工处理的问题；标记仅影响本列表视图，不改订单与任务原始状态。
         抖店订单同步后若 SKU 未绑定，请在此绑定本地规格后再扣库存或同步抖店库存。
       </Typography.Paragraph>
+      <KeywordSafetyHint visible={showSensitiveHint} />
       {summary ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
           <Col xs={24} sm={12} md={8} lg={4}>
@@ -551,8 +626,39 @@ export default function OrderExceptionsPage() {
         actionRef={actionRef}
         formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          exceptionType: urlState.exceptionType,
+          severity: urlState.severity,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          orderId: urlState.orderId,
+          status: urlState.status,
+          start: urlState.start,
+          end: urlState.end,
+        }}
         search={{ layout: 'vertical', defaultCollapsed: false }}
-        pagination={{ pageSize: 20 }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(EXCEPTION_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
+        locale={emptyLocale}
         request={async (params) => {
           let handled: boolean | undefined;
           let ignored: boolean | undefined;
@@ -560,19 +666,49 @@ export default function OrderExceptionsPage() {
           if (st === 'handled') handled = true;
           else if (st === 'ignored') ignored = true;
 
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            exceptionType: (params.exceptionType as string | undefined)?.trim(),
+            severity: (params.severity as string | undefined)?.trim(),
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            orderId: (params.orderId as string | undefined)?.trim(),
+            keyword: prepareKeyword(params.keyword),
+            start: typeof params.start === 'string' ? params.start : undefined,
+            end: typeof params.end === 'string' ? params.end : undefined,
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              exceptionType: qp.exceptionType,
+              severity: qp.severity,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              status: st,
+              orderId: qp.orderId,
+              start: qp.start,
+              end: qp.end,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
+
           const res = await queryOrderExceptions({
-            page: params.current,
-            pageSize: params.pageSize,
-            exceptionType: params.exceptionType as string | undefined,
-            severity: params.severity as string | undefined,
-            platform: params.platform as string | undefined,
-            shopId: params.shopId as string | undefined,
-            orderId: params.orderId as string | undefined,
-            keyword: params.keyword as string | undefined,
+            page: qp.page,
+            pageSize: qp.pageSize,
+            exceptionType: qp.exceptionType,
+            severity: qp.severity,
+            platform: qp.platform,
+            shopId: qp.shopId,
+            orderId: qp.orderId,
+            keyword: qp.keyword,
             handled,
             ignored,
-            start: params.start as string | undefined,
-            end: params.end as string | undefined,
+            start: qp.start,
+            end: qp.end,
           });
           setSummary(res.summary);
           return { data: res.list, total: res.total, success: true };
@@ -588,40 +724,39 @@ export default function OrderExceptionsPage() {
         footer={
           <Space>
             <Button onClick={() => setBindOpen(false)}>取消</Button>
-            <Popconfirm
-              title={`确认所选本地商品规格${pickedCandMeta ? `（候选分 ${pickedCandMeta.confidence} · ${pickedCandMeta.source}）` : ''}
-并执行所选库存动作？`}
-              okText="确认"
-              cancelText="返回"
-              onConfirm={async () => {
+            <Button
+              type="primary"
+              onClick={() => {
                 if (!bindRow || !pickedSku) {
                   message.warning('请选择本地商品规格');
                   return;
                 }
-                try {
-                  const out = await postOrderExceptionBindSku(bindRow.sourceType, bindRow.sourceId, {
-                    exceptionType: bindRow.exceptionType,
-                    productSkuId: pickedSku,
-                    deductInventory: deduct,
-                    syncInventory: syncPlat,
-                    autoMarkHandled: true,
-                    candidateConfidence: pickedCandMeta?.confidence,
-                    candidateSource: pickedCandMeta?.source,
-                  });
-                  if (out.inventoryDeductionError) {
-                    message.error(out.inventoryDeductionError);
-                  } else {
-                    message.success('处理完成');
+                confirmSkuManualBind(async () => {
+                  try {
+                    const out = await postOrderExceptionBindSku(bindRow.sourceType, bindRow.sourceId, {
+                      exceptionType: bindRow.exceptionType,
+                      productSkuId: pickedSku,
+                      deductInventory: deduct,
+                      syncInventory: syncPlat,
+                      autoMarkHandled: true,
+                      candidateConfidence: pickedCandMeta?.confidence,
+                      candidateSource: pickedCandMeta?.source,
+                    });
+                    if (out.inventoryDeductionError) {
+                      message.error(out.inventoryDeductionError);
+                    } else {
+                      message.success('处理完成');
+                    }
+                    setBindOpen(false);
+                    reload();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
                   }
-                  setBindOpen(false);
-                  reload();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
+                });
               }}
             >
-              <Button type="primary">确认</Button>
-            </Popconfirm>
+              确认
+            </Button>
           </Space>
         }
       >

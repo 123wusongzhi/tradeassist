@@ -1,0 +1,33 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3-GATEFIX",
+  "status": "passed",
+  "canonicalLoadProfile": {
+    "canonicalSchemaVersion": 3,
+    "loadProfileFingerprintVersion": 3,
+    "configuredVUs": 10,
+    "stageCount": 1,
+    "allStagesValid": true,
+    "runKindExcluded": true,
+    "runIdExcluded": true,
+    "emptyProfileRejected": true
+  },
+  "stageSemantics": {
+    "targetAliasSupported": true,
+    "targetVUsSupported": true,
+    "legalZeroSupported": true,
+    "missingTargetRejected": true,
+    "nullTargetRejected": true,
+    "nonFiniteTargetRejected": true,
+    "negativeTargetRejected": true,
+    "fractionalTargetRejected": true,
+    "conflictingTargetFieldsRejected": true
+  },
+  "execution": {
+    "runtimeFreezeCreated": false,
+    "environmentStarted": false,
+    "datasetExecuted": false,
+    "k6Executed": false,
+    "registryActiveEntryModified": false
+  },
+  "issues": []
+}

@@ -1,0 +1,10 @@
+{
+  "title": "P7 Database Capacity",
+  "tags": ["trademind", "p7", "database"],
+  "panels": [
+    { "title": "DB Pool Open / Idle / In Use", "type": "timeseries" },
+    { "title": "DB Wait Count / Duration", "type": "timeseries" },
+    { "title": "DB Query p95", "type": "timeseries" },
+    { "title": "Slow Query Ratio", "type": "timeseries" }
+  ]
+}

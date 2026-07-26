@@ -1,6 +1,7 @@
-import { ProCard, type ActionType, type ProColumns } from '@ant-design/pro-components';
+import { ProCard, type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { history, useLocation } from '@umijs/max';
+import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import {
   Badge,
@@ -40,6 +41,7 @@ import {
   type FailuresSummary,
 } from '@/services/taskCenter';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   canOpenFailureDetail,
   isPlatformAlertTaskType,
@@ -55,6 +57,45 @@ import {
 import { openPinduoduoLoginBrowser, openTaobaoTmallLoginBrowser } from '@/services/collectAuth';
 import { resolvePinduoduoLoginTargetUrl } from '@/utils/pinduoduoUrl';
 import { resolveTaobaoTmallLoginTargetUrl } from '@/utils/taobaoTmallUrl';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { appendSourceToUrl } from '@/utils/urlState';
+
+const FAILURE_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'taskType',
+  'normalizedStatus',
+  'failureCategory',
+  'recoveryStatus',
+  'severity',
+  'platform',
+  'shopId',
+  'keyword',
+  'start',
+  'end',
+  'includeResolved',
+  'includeMarked',
+  'drawer',
+  'id',
+  'detailTaskType',
+  'source',
+  'jumpId',
+] as const;
+
+function parsePositiveInt(value?: string, fallback = 1) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function queryTimeRange(start?: string, end?: string) {
+  if (!start || !end) return undefined;
+  const s = dayjs(start);
+  const e = dayjs(end);
+  if (!s.isValid() || !e.isValid()) return undefined;
+  return [s, e];
+}
 
 function normTag(norm: string) {
   const m = TASK_NORMALIZED_STATUS[norm];
@@ -93,6 +134,9 @@ function relatedHref(row: UnifiedTaskDTO): string | undefined {
   if (detail.includes('/product/publish-batches/') || detail.includes('/product/ai-text-batches/') || detail.includes('/product/ai-image-batches/')) {
     return detail;
   }
+  if (detail.includes('/orders/sync-tasks')) {
+    return detail;
+  }
   const t = row.relatedResourceType || '';
   const id = row.relatedResourceId || '';
   if (!id) return undefined;
@@ -108,15 +152,36 @@ function detailLinkLabel(detailUrl?: string | null): string {
   if (url.includes('/product/ai-text-batches/') || url.includes('/product/ai-image-batches/')) {
     return '复核工作台';
   }
+  if (url.includes('/orders/sync-tasks')) {
+    return '订单同步任务';
+  }
   return '打开任务详情';
 }
 
 export default function TaskCenterFailuresPage() {
+  const emptyLocale = useListEmptyLocale('taskFailures');
   const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof FAILURE_QUERY_KEYS)[number], string | undefined>>(
+      FAILURE_QUERY_KEYS,
+    );
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
   const listFilterRef = useRef({ includeResolved: false, includeMarked: false });
   const [includeResolved, setIncludeResolved] = useState(false);
   const [includeMarked, setIncludeMarked] = useState(false);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
   const [failureCatOpts, setFailureCatOpts] = useState<{ label: string; value: string }[]>([]);
   const [summary, setSummary] = useState<FailuresSummary | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -126,6 +191,45 @@ export default function TaskCenterFailuresPage() {
   const [pddLoginOpening, setPddLoginOpening] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
   const [recovering, setRecovering] = useState(false);
+
+  useEffect(() => {
+    const nextIncludeResolved = urlState.includeResolved === 'true';
+    const nextIncludeMarked = urlState.includeMarked === 'true';
+    listFilterRef.current = {
+      includeResolved: nextIncludeResolved,
+      includeMarked: nextIncludeMarked,
+    };
+    setIncludeResolved(nextIncludeResolved);
+    setIncludeMarked(nextIncludeMarked);
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      taskType: urlState.taskType,
+      normalizedStatus: urlState.normalizedStatus,
+      failureCategory: urlState.failureCategory,
+      recoveryStatus: urlState.recoveryStatus,
+      severity: urlState.severity,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      keyword: urlState.keyword,
+      timeRange: queryTimeRange(urlState.start, urlState.end),
+    });
+  }, [
+    urlState.end,
+    urlState.failureCategory,
+    urlState.includeMarked,
+    urlState.includeResolved,
+    urlState.keyword,
+    urlState.normalizedStatus,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.recoveryStatus,
+    urlState.severity,
+    urlState.shopId,
+    urlState.start,
+    urlState.taskType,
+  ]);
 
   const isTbLoginFailure = (row: UnifiedTaskDTO | FailureDetailDTO | null) => {
     if (!row || row.taskType !== 'collect') return false;
@@ -182,8 +286,10 @@ export default function TaskCenterFailuresPage() {
 
   useEffect(() => {
     const sp = new URLSearchParams(location.search || '');
-    const jumpId = sp.get('jumpId');
-    const taskType = sp.get('taskType');
+    const drawerId = sp.get('drawer') === 'failure' ? sp.get('id') : '';
+    const drawerTaskType = sp.get('drawer') === 'failure' ? sp.get('detailTaskType') : '';
+    const jumpId = drawerId || sp.get('jumpId');
+    const taskType = drawerTaskType || sp.get('taskType');
     if (!jumpId || !taskType) {
       return;
     }
@@ -196,16 +302,23 @@ export default function TaskCenterFailuresPage() {
       if (isPlatformAlertTaskType(taskType)) {
         message.info('该平台级告警无对应失败任务详情，请在告警中心查看');
         sp.delete('jumpId');
-        sp.delete('taskType');
+        sp.delete('drawer');
+        sp.delete('id');
+        sp.delete('detailTaskType');
         const qs = sp.toString();
         history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
         return;
       }
       message.warning('链接中的任务类型或 ID 无效，无法打开失败详情');
       sp.delete('jumpId');
-      sp.delete('taskType');
+      sp.delete('drawer');
+      sp.delete('id');
+      sp.delete('detailTaskType');
       const qs = sp.toString();
       history.replace(qs ? `${location.pathname}?${qs}` : location.pathname);
+      return;
+    }
+    if (detailOpen && detail?.id === jumpId && detail?.taskType === taskType) {
       return;
     }
     void (async () => {
@@ -222,7 +335,7 @@ export default function TaskCenterFailuresPage() {
         setDetailLoading(false);
       }
     })();
-  }, [location.pathname, location.search]);
+  }, [detail?.id, detail?.taskType, detailOpen, location.pathname, location.search]);
 
   const columns: ProColumns<UnifiedTaskDTO>[] = useMemo(
     () => [
@@ -331,6 +444,7 @@ export default function TaskCenterFailuresPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
+        fieldProps: keywordFieldProps,
       },
       {
         title: '创建时间',
@@ -353,7 +467,7 @@ export default function TaskCenterFailuresPage() {
           const href = relatedHref(r);
           if (!href) return r.relatedResourceTitle || '—';
           return (
-            <Typography.Link onClick={() => history.push(href)}>
+            <Typography.Link onClick={() => history.push(appendSourceToUrl(href, 'taskcenter'))}>
               {(r.relatedResourceTitle || '').slice(0, 32) || r.relatedResourceId}
             </Typography.Link>
           );
@@ -418,7 +532,7 @@ export default function TaskCenterFailuresPage() {
               告警列表
             </Button>
             {r.detailUrl ? (
-              <Button size="small" type="link" onClick={() => history.push(r.detailUrl!)}>
+              <Button size="small" type="link" onClick={() => history.push(appendSourceToUrl(r.detailUrl!, 'taskcenter'))}>
                 {detailLinkLabel(r.detailUrl)}
               </Button>
             ) : null}
@@ -460,7 +574,7 @@ export default function TaskCenterFailuresPage() {
         ),
       },
     ],
-    [failureCatOpts],
+    [failureCatOpts, keywordFieldProps],
   );
 
   async function doGenerateAlert(row: UnifiedTaskDTO) {
@@ -479,6 +593,7 @@ export default function TaskCenterFailuresPage() {
   }
 
   async function openDetail(row: UnifiedTaskDTO) {
+    setUrlState({ drawer: 'failure', id: row.id, detailTaskType: row.taskType });
     setDetail(null);
     setDetailOpen(true);
     setDetailLoading(true);
@@ -494,19 +609,10 @@ export default function TaskCenterFailuresPage() {
   }
 
   function confirmRetry(row: UnifiedTaskDTO) {
-    Modal.confirm({
-      title: '确认重试此任务？',
-      content: `${TASK_CENTER_TASK_TYPE_LABEL[row.taskType] || row.taskType} · ${row.id}`,
-      okText: '重试',
-      onOk: async () => {
-        try {
-          await retryTaskFailure(row.taskType, row.id);
-          message.success('已提交重试');
-          actionRef.current?.reload?.();
-        } catch (e) {
-          message.error((e as Error).message);
-        }
-      },
+    confirmFailureTaskRetry(1, async () => {
+      await retryTaskFailure(row.taskType, row.id);
+      message.success('已提交重试');
+      actionRef.current?.reload?.();
     });
   }
 
@@ -568,6 +674,7 @@ export default function TaskCenterFailuresPage() {
           message="抖店相关失败"
           description="刊登、图片上传、创建草稿、订单同步、库存同步、规格绑定失败会聚合到本页。错误信息已脱敏，不含授权凭证或应用密钥。抖店授权/类目/图片/规格未绑定类问题请按提示回到对应页面处理后再重试。"
         />
+        <KeywordSafetyHint visible={showSensitiveHint} />
         <ProCard variant="outlined" size="small">
           {summary ? (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -622,19 +729,12 @@ export default function TaskCenterFailuresPage() {
                       disabled={!batchRows.length}
                       type="primary"
                       onClick={() => {
-                        Modal.confirm({
-                          title: `批量重试（${batchRows.length} 条，最多 50）？`,
-                          onOk: async () => {
-                            try {
-                              const res = await batchRetryTaskFailures(
-                                batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
-                              );
-                              message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
-                              actionRef.current?.reload?.();
-                            } catch (e) {
-                              message.error((e as Error).message);
-                            }
-                          },
+                        confirmFailureTaskRetry(batchRows.length, async () => {
+                          const res = await batchRetryTaskFailures(
+                            batchRows.map((r) => ({ taskType: r.taskType, id: r.id })),
+                          );
+                          message.info(`成功 ${res.successCount}，失败 ${res.failedCount}`);
+                          actionRef.current?.reload?.();
                         });
                       }}
                     >
@@ -699,6 +799,8 @@ export default function TaskCenterFailuresPage() {
                         onChange={(checked) => {
                           listFilterRef.current.includeResolved = checked;
                           setIncludeResolved(checked);
+                          setUrlState({ includeResolved: checked, page: undefined });
+                          setTablePage(1);
                           actionRef.current?.reload?.();
                         }}
                       />
@@ -712,6 +814,8 @@ export default function TaskCenterFailuresPage() {
                         onChange={(checked) => {
                           listFilterRef.current.includeMarked = checked;
                           setIncludeMarked(checked);
+                          setUrlState({ includeMarked: checked, page: undefined });
+                          setTablePage(1);
                           actionRef.current?.reload?.();
                         }}
                       />
@@ -732,6 +836,21 @@ export default function TaskCenterFailuresPage() {
           rowKey={(r) => `${r.taskType}:${r.id}`}
           columns={columns}
           actionRef={actionRef}
+          formRef={formRef}
+          params={{
+            current: tablePage,
+            pageSize: tablePageSize,
+            taskType: urlState.taskType,
+            normalizedStatus: urlState.normalizedStatus,
+            failureCategory: urlState.failureCategory,
+            recoveryStatus: urlState.recoveryStatus,
+            severity: urlState.severity,
+            platform: urlState.platform,
+            shopId: urlState.shopId,
+            keyword: urlState.keyword,
+            start: urlState.start,
+            end: urlState.end,
+          }}
           search={{
             labelWidth: 'auto',
           }}
@@ -739,20 +858,38 @@ export default function TaskCenterFailuresPage() {
             listFilterRef.current = { includeResolved: false, includeMarked: false };
             setIncludeResolved(false);
             setIncludeMarked(false);
+            setTablePage(1);
+            setTablePageSize(20);
+            setDetailOpen(false);
+            setDetail(null);
+            clearUrlState(FAILURE_QUERY_KEYS, { replace: true });
           }}
           rowSelection={{
             selections: true,
             onChange: (_, rows) => setSel(rows),
           }}
-          pagination={{ pageSize: 20, showSizeChanger: true }}
+          pagination={{
+            current: tablePage,
+            pageSize: tablePageSize,
+            showSizeChanger: true,
+            onChange: (page, pageSize) => {
+              setTablePage(page);
+              setTablePageSize(pageSize);
+              setUrlState({
+                page: page > 1 ? page : undefined,
+                pageSize: pageSize !== 20 ? pageSize : undefined,
+              });
+            },
+          }}
           scroll={{ x: 1680 }}
           tableAlertRender={false}
+          locale={emptyLocale}
           request={async (params, sort, filter) => {
-            const kw = typeof params.keyword === 'string' ? params.keyword.trim() : '';
+            const kw = prepareKeyword(params.keyword) ?? '';
             try {
               const qp: Record<string, string | number | undefined> = {
-                page: params.current ?? 1,
-                pageSize: params.pageSize ?? 20,
+                page: params.current ?? tablePage,
+                pageSize: params.pageSize ?? tablePageSize,
                 taskType: (params.taskType as string | undefined)?.trim(),
                 normalizedStatus: (params.normalizedStatus as string | undefined)?.trim(),
                 platform: (params.platform as string | undefined)?.trim(),
@@ -770,6 +907,25 @@ export default function TaskCenterFailuresPage() {
               }
               if (typeof params.start === 'string' && params.start) qp.start = params.start;
               if (typeof params.end === 'string' && params.end) qp.end = params.end;
+              setUrlState(
+                {
+                  page: Number(qp.page) > 1 ? qp.page : undefined,
+                  pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                  taskType: qp.taskType,
+                  normalizedStatus: qp.normalizedStatus,
+                  platform: qp.platform,
+                  shopId: qp.shopId,
+                  keyword: qp.keyword,
+                  failureCategory: qp.failureCategory,
+                  severity: qp.severity,
+                  recoveryStatus: qp.recoveryStatus,
+                  start: qp.start,
+                  end: qp.end,
+                  includeResolved: listFilterRef.current.includeResolved,
+                  includeMarked: listFilterRef.current.includeMarked,
+                },
+                { replace: true },
+              );
               const data = await queryTaskFailures(qp);
               setSummary(data.summary);
               return { data: data.list, total: data.total, success: true };
@@ -784,7 +940,11 @@ export default function TaskCenterFailuresPage() {
       <Drawer
         width={640}
         open={detailOpen}
-        onClose={() => setDetailOpen(false)}
+        onClose={() => {
+          setDetailOpen(false);
+          setDetail(null);
+          setUrlState({ drawer: undefined, id: undefined, detailTaskType: undefined }, { replace: true });
+        }}
         title="失败任务详情（摘要）"
       >
         {detailLoading ? <Typography.Paragraph type="secondary">载入中...</Typography.Paragraph> : null}
@@ -829,6 +989,73 @@ export default function TaskCenterFailuresPage() {
                   (detail.recoveryStatus || detail.extra?.recoveryStatus) as string | undefined,
                 )}
               </Typography.Paragraph>
+            ) : null}
+            {detail.deadLetter ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }}>
+                <Tag color="error">死信任务</Tag>
+                {detail.safeRetry === false ? (
+                  <Typography.Text type="secondary"> · 不建议自动重试</Typography.Text>
+                ) : null}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.nextRunAt ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>下次执行：</Typography.Text> {formatDateTime(detail.nextRunAt)}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.idempotencyScope ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>幂等作用域：</Typography.Text> {detail.idempotencyScope}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.safeRetry === true && !detail.manualReviewRequired && !detail.unknownResult ? (
+              <Alert type="success" showIcon message="可安全重试" style={{ marginBottom: 8 }} />
+            ) : null}
+            {detail.safeRetry === false && !detail.manualReviewRequired && !detail.unknownResult ? (
+              <Alert type="warning" showIcon message="需要先人工确认" style={{ marginBottom: 8 }} />
+            ) : null}
+            {typeof detail.errorMessage === 'string' &&
+            /TARGET_VERSION_CONFLICT|UNDO_VERSION_CONFLICT|content conflict|目标.*变化|版本冲突/i.test(
+              detail.errorMessage,
+            ) ? (
+              <Alert type="warning" showIcon message="目标数据已变化，不能直接覆盖" style={{ marginBottom: 8 }} />
+            ) : null}
+            {typeof detail.errorMessage === 'string' &&
+            /TASK_LEASE_LOST|lease lost|租约|已被.*接管/i.test(detail.errorMessage) ? (
+              <Alert type="info" showIcon message="任务已被新的后台执行进程接管" style={{ marginBottom: 8 }} />
+            ) : null}
+            {detail.unknownResult ? (
+              <Alert type="error" showIcon message="结果未知，请先核对外部系统" style={{ marginBottom: 8 }} />
+            ) : null}
+            {(detail.heartbeatAt || detail.leaseVersion || detail.executionId) ? (
+              <TechnicalDetails>
+                {detail.heartbeatAt ? (
+                  <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
+                    <Typography.Text strong>最近心跳：</Typography.Text> {formatDateTime(detail.heartbeatAt)}
+                  </Typography.Paragraph>
+                ) : null}
+                {detail.leaseVersion != null ? (
+                  <Typography.Paragraph style={{ marginBottom: 4 }} type="secondary">
+                    <Typography.Text strong>租约版本：</Typography.Text> {detail.leaseVersion}
+                  </Typography.Paragraph>
+                ) : null}
+                {detail.executionId ? (
+                  <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                    <Typography.Text strong>执行标识：</Typography.Text>{' '}
+                    <Typography.Text code copyable={{ text: detail.executionId }}>
+                      {detail.executionId.slice(0, 8)}…
+                    </Typography.Text>
+                  </Typography.Paragraph>
+                ) : null}
+              </TechnicalDetails>
+            ) : null}
+            {detail.idempotencyStatus ? (
+              <Typography.Paragraph style={{ marginBottom: 0 }} type="secondary">
+                <Typography.Text strong>幂等状态：</Typography.Text> {detail.idempotencyStatus}
+              </Typography.Paragraph>
+            ) : null}
+            {detail.manualReviewRequired ? (
+              <Alert type="warning" showIcon message="需人工确认后再重试（平台写操作结果未知）" style={{ marginBottom: 8 }} />
             ) : null}
             {typeof detail.extra?.userMessage === 'string' && detail.extra.userMessage ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
@@ -929,18 +1156,15 @@ export default function TaskCenterFailuresPage() {
               {detail.retryable ? (
                 <Button
                   onClick={() => {
-                    Modal.confirm({
-                      title: '重试该采集任务？',
-                      okText: '重试',
-                      onOk: async () => {
-                        try {
-                          await retryTaskFailure(detail.taskType, detail.id);
-                          message.success('已提交重试');
-                          actionRef.current?.reload?.();
-                        } catch (e) {
-                          message.error((e as Error).message);
-                        }
-                      },
+                    confirmFailureTaskRetry(1, async () => {
+                      try {
+                        await retryTaskFailure(detail.taskType, detail.id);
+                        message.success('已提交重试');
+                        actionRef.current?.reload?.();
+                      } catch (e) {
+                        message.error((e as Error).message);
+                        throw e;
+                      }
                     });
                   }}
                 >
@@ -979,9 +1203,18 @@ export default function TaskCenterFailuresPage() {
                 </Button>
               ) : null}
               {detail.detailUrl ? (
-                <Button onClick={() => history.push(detail.detailUrl!)}>
+                <Button onClick={() => history.push(appendSourceToUrl(detail.detailUrl!, 'taskcenter'))}>
                   {detailLinkLabel(detail.detailUrl)}
                 </Button>
+              ) : null}
+              {detail.taskType === 'ai_image' ? (
+                <>
+                  <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
+                  <Button onClick={() => history.push('/settings/image')}>查看图片 AI 设置</Button>
+                  {(detail.failureCategory || '').includes('storage') ? (
+                    <Button onClick={() => history.push('/settings/storage')}>查看存储设置</Button>
+                  ) : null}
+                </>
               ) : null}
             </Space>
             {detail.extra?.urlTypeLabel ? (

@@ -137,5 +137,5 @@ func (s *Service) RecoverDouyinDraftStale(ctx context.Context, taskID uuid.UUID)
 		return err
 	}
 	douyinmetrics.RecordRecoverySuccess()
-	return s.completeDouyinDraftSuccess(ctx, &task, taskID, snap, buildRes, res)
+	return s.completeDouyinDraftSuccess(ctx, &task, taskID, "", nil, snap, buildRes, res)
 }

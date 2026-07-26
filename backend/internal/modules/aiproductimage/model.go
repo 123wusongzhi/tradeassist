@@ -36,6 +36,11 @@ const (
 
 	ConflictUserMessage = "商品图片在 AI 处理结果生成后已经被修改。为避免覆盖人工修改，请重新对比后再应用。"
 
+	ErrCodeTargetVersionConflict = "AI_IMAGE_TARGET_VERSION_CONFLICT"
+	ErrCodeUndoVersionConflict   = "AI_IMAGE_UNDO_VERSION_CONFLICT"
+
+	ItemProcessing = "processing"
+
 	BatchPending        = "pending"
 	BatchRunning        = "running"
 	BatchSuccess        = "success"
@@ -50,6 +55,7 @@ const (
 // AIProductImageBatch groups bulk AI image processing with human review.
 type AIProductImageBatch struct {
 	model.Base
+	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchNo        string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	BatchType      string         `gorm:"size:32;index;not null;default:ai_image" json:"batchType"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`

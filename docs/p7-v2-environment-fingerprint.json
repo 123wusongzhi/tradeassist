@@ -1,0 +1,27 @@
+{
+  "runs": [
+    {
+      "runId": "p7v2-diag-host-isolation-validation-b2-20260719061648",
+      "runType": "host-isolation-validation",
+      "gitCommit": "a5cf2e51fbbffb85f183a2d60fafc5cbeb0778ba",
+      "gitDirty": true,
+      "os": "linux",
+      "kernel": "6.6.87.2-microsoft-standard-WSL2",
+      "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+      "cpuCores": 12,
+      "memoryTotal": 8240975872,
+      "goVersion": "go version go1.25.12 linux/amd64",
+      "nodeVersion": "v22.22.1",
+      "pnpmVersion": "9.15.4",
+      "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+      "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+      "redisVersion": "redis-cli 6.0.16",
+      "startedAt": "2026-07-19T07:25:02.260Z",
+      "endedAt": "",
+      "databaseNameHash": "833e9d1b66a3a1e1",
+      "configFingerprint": "8b7d7af89215a75e",
+      "datasetProfile": "medium",
+      "postgresConfigHash": "0d41c0c9ba889b0eac68c5200302244d3bc70224341ce9ae50ab2008a92b2e09"
+    }
+  ]
+}

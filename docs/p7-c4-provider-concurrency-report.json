@@ -1,0 +1,21 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:29:51Z",
+  "acquireReleaseOk": true,
+  "boundedWaitOk": true,
+  "maxInflightRespected": true,
+  "doubleReleaseSafe": true,
+  "registryEntries": 1,
+  "durationMs": 22,
+  "guards": [
+    "no production datasets",
+    "requires APP_ENV=performance",
+    "requires PERFORMANCE_TEST_MODE=true",
+    "requires ALLOW_PERFORMANCE_DATASET=true",
+    "requires EXTERNAL_PROVIDER_MODE=mock",
+    "requires PostgreSQL database name prefix trademind_p7c4_",
+    "requires DB host localhost or 127.0.0.1"
+  ],
+  "issues": null
+}

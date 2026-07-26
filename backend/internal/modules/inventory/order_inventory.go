@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"gorm.io/gorm"
@@ -118,7 +119,7 @@ type deductLineOutcome struct {
 }
 
 // deductOneOrderLine runs inside a DB transaction for a single order line (commits independently).
-func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirror, it orderLineMirror, reasonBase string, allowNeg bool, opts OrderInventoryOptions) (deductLineOutcome, error) {
+func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID uuid.UUID, o orderMirror, it orderLineMirror, reasonBase string, allowNeg bool, opts OrderInventoryOptions) (deductLineOutcome, error) {
 	out := deductLineOutcome{}
 	now := time.Now().UTC()
 
@@ -154,6 +155,20 @@ func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirr
 		return out, nil
 	}
 
+	skuID := *it.ProductSKUID
+	eventKey := idempotency.InventoryDeduct(orderID.String(), it.ID.String(), skuID.String())
+	deductJob, _, acqErr := s.acquireDeductLine(ctx, orderID, it.ID, skuID, qty, reasonBase, opts)
+	if acqErr != nil {
+		return out, acqErr
+	}
+	if deductJob == nil && s.Idempotency != nil {
+		existing, err := s.resolveExistingDeductOutcome(ctx, tx, it.ID, skuID)
+		if err != nil {
+			return out, err
+		}
+		return existing, nil
+	}
+
 	var hitSuccess int64
 	if err := tx.Model(&OrderInventoryEffect{}).
 		Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, *it.ProductSKUID, EffectTypeDeduct, InventoryEffectSuccess).
@@ -161,6 +176,15 @@ func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirr
 		return out, err
 	}
 	if hitSuccess > 0 {
+		if deductJob != nil {
+			var eff OrderInventoryEffect
+			if err := tx.Where("order_item_id = ? AND product_sku_id = ? AND effect_type = ? AND status = ?", it.ID, skuID, EffectTypeDeduct, InventoryEffectSuccess).
+				First(&eff).Error; err == nil && eff.LogID != nil {
+				_ = s.completeDeductLine(ctx, deductJob, *eff.LogID)
+			} else {
+				s.failDeductLine(ctx, deductJob, "ALREADY_DEDUCTED", false)
+			}
+		}
 		out.skipped = true
 		return out, nil
 	}
@@ -179,6 +203,7 @@ func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirr
 		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
 			return out, err
 		}
+		s.failDeductLine(ctx, deductJob, "INSUFFICIENT_STOCK", false)
 		out.failedInsufficient = true
 		return out, nil
 	}
@@ -187,23 +212,25 @@ func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirr
 		if err := upsertFailedDeductEffect(tx, orderID, it, sku.ID, reasonBase, qty, true, opts.CreatedBy); err != nil {
 			return out, err
 		}
+		s.failDeductLine(ctx, deductJob, "INSUFFICIENT_STOCK", false)
 		out.failedInsufficient = true
 		return out, nil
 	}
 
 	rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
 	chg := InventoryChangeLog{
-		ProductID:      sku.ProductID,
-		ProductSKUID:   sku.ID,
-		ChangeType:     ChangeOrderDeduct,
-		BeforeStock:    before,
-		AfterStock:     after,
-		Delta:          -qty,
-		Reason:         reasonBase,
-		Remark:         rm,
-		CreatedBy:      opts.CreatedBy,
-		RefOrderID:     &orderID,
-		RefOrderItemID: &it.ID,
+		ProductID:        sku.ProductID,
+		ProductSKUID:     sku.ID,
+		ChangeType:       ChangeOrderDeduct,
+		BeforeStock:      before,
+		AfterStock:       after,
+		Delta:            -qty,
+		Reason:           reasonBase,
+		Remark:           rm,
+		CreatedBy:        opts.CreatedBy,
+		RefOrderID:       &orderID,
+		RefOrderItemID:   &it.ID,
+		BusinessEventKey: eventKey,
 	}
 	if err := tx.Create(&chg).Error; err != nil {
 		return out, err
@@ -238,6 +265,9 @@ func (s *Service) deductOneOrderLine(tx *gorm.DB, orderID uuid.UUID, o orderMirr
 		CreatedBy:    opts.CreatedBy,
 	}
 	if err := tx.Create(&eff).Error; err != nil {
+		return out, err
+	}
+	if err := s.completeDeductLine(ctx, deductJob, chg.ID); err != nil {
 		return out, err
 	}
 	out.synced = true
@@ -337,7 +367,7 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 		var line deductLineOutcome
 		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 			var ierr error
-			line, ierr = s.deductOneOrderLine(tx, orderID, o, it, reasonBase, allowNeg, opts)
+			line, ierr = s.deductOneOrderLine(ctx, tx, orderID, o, it, reasonBase, allowNeg, opts)
 			return ierr
 		})
 		if txErr != nil {

@@ -1,0 +1,133 @@
+# Post-F9 Enhancement Plan
+
+> **Phase**: H1  
+> **Status**: Post-F9 Enhancement · MVP Demo Ready · Tag deferred · 非 Production Ready · 抖店 Release Candidate
+
+## Strategy
+
+- Do not create a git tag in H1.
+- Continue on `dev` with low-risk, high-value platform polish.
+- Keep the Post-F9 freeze boundary: no heavy ERP scope, no new real platform OpenAPI, no automatic direct listing.
+- Do not enter real preprod, real Douyin E2E, production gray release, or Production Ready marking.
+
+## H1.0 Documentation Status
+
+Current project status is unified as:
+
+```text
+Post-F9 Enhancement
+MVP Demo Ready
+Tag deferred
+非 Production Ready
+抖店 Release Candidate
+```
+
+F9 conclusions remain valid:
+
+- Phase F9 Passed
+- P0 = 0 / P1 = 0
+- `pnpm demo:auto-acceptance` passed
+- Real preprod / public Storage / real Douyin E2E / gray release remain incomplete environment items
+
+## H1.1 Workbench URL State
+
+Primary target: P2-06 工作台后退 / 刷新状态保持.
+
+First batch (**completed**):
+
+| Page | Scope |
+| --- | --- |
+| `/dashboard/product-operations` | filters and dashboard-origin links |
+| `/ai/operation-workbench` | filters, pagination, drawer detail |
+| `/ops/task-center/failures` | filters, pagination, include switches, drawer detail |
+
+## H1.2 Second-Batch URL State
+
+Second batch (**completed**):
+
+| Page | Scope |
+| --- | --- |
+| `/orders/list` | keyword, pay/sku/inventory status, platform, shop, pagination, source |
+| `/orders/exceptions` | keyword, exception type, platform, shop, status, pagination, source |
+| `/product/drafts` | keyword, status, platform, shop, publish/ai status, pagination, source |
+| `/inventory` | keyword, stock/sync/bind filters, productSkuId deep link, pagination, source |
+| `/inventory/alerts` | keyword, alert type, stock status, platform, shop, pagination, source |
+| `/inventory/sync-tasks` | filters, batchId/productSkuId/id drawer deep links, pagination, source |
+| `/customer/hub` | lightweight platform / shop / source |
+| `/customer/conversations` | reply/AI/send filters, conversationId/suggestionId deep links, pagination, source |
+
+Deferred to later H1 batches: publish batches, collect tasks, order sync tasks, and other secondary lists.
+
+## H1.2.1 URL State Browser Check
+
+Third batch (**completed**):
+
+| Scope | Result |
+| --- | --- |
+| Browser/API spot-check on all H1.1 + H1.2 pages | passed_with_warning |
+| P0/P1 fixes | Dashboard `productSource` split, mount URL hydration, drawer reset on three pages, drafts source sync |
+| Reports | [`H1_2_URL_STATE_BROWSER_CHECK.md`](H1_2_URL_STATE_BROWSER_CHECK.md), [`h1-2-url-state-browser-check.json`](h1-2-url-state-browser-check.json) |
+
+## H1.3 AI 图片 Warning 收敛 + 抖店 E2E 前置提示（Completed）
+
+| Scope | Result |
+| --- | --- |
+| AI 图片结构化 warning 码 | `aiproductimage/warning_codes.go` + 前端 `aiImageWarnings.ts` |
+| 批次详情概览 | `/product/ai-image-batches/:id` overview + Provider 状态 |
+| 失败任务分类 | `ai_image_*` 配置/下载/Storage 等分类 + 跳转配置 |
+| 配置状态中心 | 通义万相 Key、Storage `public_base` 修复、影响范围 |
+| 抖店前置提示 | Platforms / ConfigStatus / Drafts / Publish 边界 Banner |
+| 文档 | `AI_IMAGE_WARNING_RECOVERY_GUIDE.md`, `DOUYIN_E2E_PRECHECK_GUIDE.md`, `STORAGE_PUBLIC_URL_GUIDE.md` |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
+## H1.4 订单/异常 URL 补漏 + Keyword UX（Completed）
+
+| Scope | Result |
+| --- | --- |
+| `/orders/list` URL | `status`, `fulfillmentStatus`, `start`/`end` (created range) |
+| `/orders/exceptions` URL | `severity`, `start`/`end` (created range) |
+| Keyword UX | max 80 chars, sensitive hint, clear → URL cleanup |
+| Browser back/forward | passed_with_warning (real browser manual review) |
+| Responsive 1366/1024 | passed / passed_with_warning |
+| Reports | [`H1_4_URL_KEYWORD_RESPONSIVE_CHECK.md`](H1_4_URL_KEYWORD_RESPONSIVE_CHECK.md), [`h1-4-url-keyword-responsive-check.json`](h1-4-url-keyword-responsive-check.json) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
+## H1.5 次级列表 URL 状态 + 浏览器签收（Completed）
+
+| Scope | Result |
+| --- | --- |
+| 刊登批次/任务 | `/product/publish-tasks` tab + filters + drawer + batch detail back |
+| 采集任务 | `/collect/tasks` `sourcePlatform` + events drawer + `source=collect` draft link |
+| 订单/客服同步任务 | Drawer `id` refresh restore + `partial_success` URL |
+| AI 文案/图片批次 | List pagination + detail `itemId`/`tab`/`warningCode` |
+| source 扩展 | `ai_workbench`, `config_status`, `publish_batch`, `order_sync`, `customer_sync` |
+| 浏览器后退/前进 | Chrome full + Edge sampled — **passed_with_warning** |
+| 1366/1024 响应式 | **passed** / **passed_with_warning** |
+| Reports | [`H1_5_SECONDARY_URL_BROWSER_CHECK.md`](H1_5_SECONDARY_URL_BROWSER_CHECK.md), [`h1-5-secondary-url-browser-check.json`](h1-5-secondary-url-browser-check.json) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
+## H1.5.1 真实浏览器签收 + AI 图片基线（Completed）
+
+| Scope | Result |
+| --- | --- |
+| Chrome 核心 13 页 | back/forward/refresh + Drawer/深链 — **passed** |
+| Edge 抽查 7 项 | **passed** |
+| 1366×768 截图 | 11 PNG — **passed** |
+| 1024×768 截图 | 8 PNG — **passed_with_warning** |
+| RBAC | admin / operator / readonly — **passed** |
+| AI 图片基线 | **stable_range_14_to_15_of_16**（本轮 14/16 `passed_with_warning`） |
+| URL 修复 | ProTable `params` 种子化；AI 工作台 compare-before-write |
+| Reports | [`H1_5_LIVE_BROWSER_ACCEPTANCE.md`](H1_5_LIVE_BROWSER_ACCEPTANCE.md), [`H1_5_AI_IMAGE_BASELINE_CONFIRMATION.md`](H1_5_AI_IMAGE_BASELINE_CONFIRMATION.md) |
+
+**未执行**：真实抖店 E2E、预发、灰度、打 tag、Production Ready。
+
+## Completion Rules
+
+- URL state must not include secrets, tokens, raw prompts, raw responses, or platform credentials.
+- Default values should not be written into URL.
+- Browser refresh should restore filters and open drawer state where supported.
+- Browser back should return to the previous query state.
+- P3 items stay deferred unless a separate roadmap decision is recorded.

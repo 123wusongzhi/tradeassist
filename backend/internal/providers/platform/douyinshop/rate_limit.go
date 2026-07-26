@@ -30,6 +30,9 @@ func RateLimitDelayFromError(err error) (time.Duration, bool) {
 	var de *Error
 	if AsError(err, &de) && de != nil {
 		if de.RateLimited {
+			if de.RetryAfter > 0 {
+				return time.Duration(de.RetryAfter) * time.Second, true
+			}
 			return 2 * time.Second, true
 		}
 	}

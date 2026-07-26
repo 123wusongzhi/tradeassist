@@ -1,0 +1,9 @@
+# P7 V2 R3B FIX BASELINE REUSE DECISION
+
+```json
+{
+  "runId": "p7v2-baseline-r3a-20260714225500",
+  "reuseDecision": "rebaseline_required",
+  "reuseReason": "The frozen raw artifact is absent, and R3B changes measurement and current-load semantic inputs; a strict comparison cannot be proven."
+}
+```

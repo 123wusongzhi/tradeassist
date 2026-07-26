@@ -1,0 +1,23 @@
+{
+  "phase": "P7-V2-R3B-SOAK-FAILURE-AUDIT-AND-CLOSE",
+  "status": "passed",
+  "k6ExitEventReceived": true,
+  "k6CloseEventReceived": true,
+  "childExitCode": 0,
+  "childSignal": null,
+  "stdoutClosed": true,
+  "stderrClosed": true,
+  "reportWriteCompleted": true,
+  "cleanupStarted": true,
+  "cleanupCompleted": false,
+  "remainingTimers": "not_available_after_manual_stop",
+  "remainingChildProcesses": 0,
+  "remainingSockets": "not_available_after_manual_stop",
+  "remainingHandles": "not_available_after_manual_stop",
+  "classification": "wrapper_lifecycle_bug",
+  "evidence": [
+    "scripts/p7-v2-soak.mjs waits for the child close event, clears the sampling timer, then performs a 5 minute cooldown.",
+    "The report printed by scripts/p7-v2-load.mjs was not the final wrapper report; a cooldown wait after child completion was expected.",
+    "The cooldown object references cooldown.goroutines and cooldown.mockProviderState while constructing cooldown, which can throw after the cooldown wait and prevent normal report finalization."
+  ]
+}

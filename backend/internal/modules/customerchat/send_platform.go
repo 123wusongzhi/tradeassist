@@ -3,6 +3,7 @@ package customerchat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -10,8 +11,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/taskretry"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -19,9 +22,82 @@ import (
 
 // SendPlatformMessageBody POST /customer/conversations/:id/send-platform-message
 type SendPlatformMessageBody struct {
-	Reply          string `json:"reply"`
-	SuggestionID   string `json:"suggestionId"`
-	IdempotencyKey string `json:"idempotencyKey"`
+	Reply           string `json:"reply"`
+	SuggestionID    string `json:"suggestionId"`
+	IdempotencyKey  string `json:"idempotencyKey"`
+	ClientMessageID string `json:"clientMessageId"`
+}
+
+type customerSendHashPayload struct {
+	ConversationID  string `json:"conversationId"`
+	ClientMessageID string `json:"clientMessageId"`
+	Reply           string `json:"reply"`
+}
+
+func customerSendRequestHash(conversationID uuid.UUID, clientMessageID, reply string) string {
+	payload := customerSendHashPayload{
+		ConversationID:  conversationID.String(),
+		ClientMessageID: clientMessageID,
+		Reply:           reply,
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return idempotency.HashRequest([]byte(fmt.Sprintf("%s|%s|%s", conversationID.String(), clientMessageID, reply)))
+	}
+	return idempotency.HashRequest(b)
+}
+
+func isUnknownPlatformSendResult(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	cl := taskretry.Classify(err, 0)
+	switch cl.Code {
+	case taskretry.CodeTimeout, taskretry.CodeNetworkError:
+		return true
+	default:
+		return false
+	}
+}
+
+func isPermanentSendFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	cl := taskretry.Classify(err, 0)
+	switch cl.Code {
+	case taskretry.CodePermissionDenied,
+		taskretry.CodeInvalidRequest,
+		taskretry.CodeValidationFailed,
+		taskretry.CodeResourceNotFound,
+		taskretry.CodeUnsupportedOperation,
+		taskretry.CodeBusinessRuleRejected,
+		taskretry.CodeIdempotencyConflict:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Service) loadSentMessage(ctx context.Context, conversationID uuid.UUID, clientMessageID string, resourceID string) (*CustomerMessage, error) {
+	if rid := strings.TrimSpace(resourceID); rid != "" {
+		if mid, err := uuid.Parse(rid); err == nil {
+			var msg CustomerMessage
+			if err := s.DB.WithContext(ctx).First(&msg, "id = ? AND conversation_id = ?", mid, conversationID).Error; err == nil {
+				return &msg, nil
+			}
+		}
+	}
+	var existing CustomerMessage
+	if err := s.DB.WithContext(ctx).
+		Where("conversation_id = ? AND client_message_id = ?", conversationID, clientMessageID).
+		First(&existing).Error; err != nil {
+		return nil, err
+	}
+	return &existing, nil
 }
 
 // SendPlatformMessage delivers a human-approved reply via the platform Provider.
@@ -37,6 +113,11 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("reply is required")
 	}
 
+	clientMsgID := strings.TrimSpace(body.ClientMessageID)
+	if clientMsgID == "" {
+		return nil, fmt.Errorf("clientMessageId is required")
+	}
+
 	var conv CustomerConversation
 	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
 		return nil, err
@@ -48,27 +129,102 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("conversation has no platform external id")
 	}
 
+	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "customer-send")
+	var acquiredRecordID uuid.UUID
+	var acquired bool
+
+	if s.Idempotency != nil {
+		key := idempotency.CustomerSend(conversationID.String(), clientMsgID)
+		reqHash := customerSendRequestHash(conversationID, clientMsgID, reply)
+		res, acqErr := s.Idempotency.Acquire(c.Request.Context(), idempotency.ScopeCustomerSend, key, reqHash, owner, idempotency.DefaultLease)
+		decision, rec, classifyErr := idempotency.Classify(res, acqErr)
+		switch decision {
+		case idempotency.DecisionAlreadySucceeded:
+			rid := ""
+			if res != nil {
+				rid = res.ResourceID
+			}
+			if rid == "" && rec != nil {
+				rid = rec.ResourceID
+			}
+			msg, err := s.loadSentMessage(c.Request.Context(), conversationID, clientMsgID, rid)
+			if err != nil {
+				return nil, &PlatformSendError{
+					Code:                 ErrCodeCustomerMessageInProgress,
+					Message:              "message replay unavailable",
+					ManualReviewRequired: false,
+					SafeRetry:            true,
+				}
+			}
+			return msg, nil
+		case idempotency.DecisionInProgress:
+			return nil, &PlatformSendError{
+				Code:                 ErrCodeCustomerMessageInProgress,
+				Message:              "send already in progress",
+				ManualReviewRequired: false,
+				SafeRetry:            true,
+			}
+		case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			return nil, idempotency.ErrKeyConflict
+		case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+			if res == nil || res.Record == nil {
+				return nil, fmt.Errorf("idempotency: missing record")
+			}
+			acquiredRecordID = res.Record.ID
+			acquired = true
+		default:
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			return nil, acqErr
+		}
+	} else {
+		msg, err := s.loadSentMessage(c.Request.Context(), conversationID, clientMsgID, "")
+		if err == nil {
+			return msg, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
+	failIdempotency := func(code string, retryable bool) {
+		if !acquired || s.Idempotency == nil {
+			return
+		}
+		_ = s.Idempotency.Fail(c.Request.Context(), acquiredRecordID, owner, code, retryable)
+	}
+
 	shopRow, auth, err := s.Shops.PlainAuthForProvider(c, *conv.ShopID)
 	if err != nil {
+		failIdempotency(err.Error(), true)
 		return nil, err
 	}
 	if err := ensureShopCustomerMessageAuth(shopRow, auth); err != nil {
+		failIdempotency(err.Error(), false)
 		return nil, err
 	}
 
 	prov := platformp.Get(strings.TrimSpace(shopRow.Platform))
 	if prov == nil {
+		failIdempotency("unknown platform", false)
 		return nil, fmt.Errorf("unknown platform")
 	}
 	cm, ok := platformp.AsCustomerMessage(prov)
 	if !ok {
+		failIdempotency("platform does not implement customer messaging", false)
 		return nil, fmt.Errorf("platform does not implement customer messaging")
 	}
 	st := platformp.CustomerMessageImplementationStatus(prov)
 	if st == platformp.StatusPlanned || st == platformp.StatusDisabled {
+		failIdempotency(platformp.ErrCustomerMessageNotImplemented.Error(), false)
 		return nil, platformp.ErrCustomerMessageNotImplemented
 	}
 	if err := s.ensurePlatformPartnerConfig(c.Request.Context(), prov); err != nil {
+		failIdempotency(err.Error(), false)
 		return nil, err
 	}
 
@@ -84,9 +240,59 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		ConversationID:         conv.ID,
 		Reply:                  reply,
 		MessageType:            MessageTypeText,
-		IdempotencyKey:         strings.TrimSpace(body.IdempotencyKey),
+		IdempotencyKey:         clientMsgID,
 	})
 	if err != nil {
+		if isUnknownPlatformSendResult(err) {
+			failIdempotency(ErrCodeCustomerMessageUnknownResult, false)
+			cat := FailureCategoryReplySendFailed
+			_ = s.recordFailure(c.Request.Context(), CustomerFailureEvent{
+				ConversationID: conv.ID,
+				Platform:       strings.TrimSpace(conv.Platform),
+				ShopID:         conv.ShopID,
+				Category:       cat,
+				ErrorMessage:   ErrCodeCustomerMessageUnknownResult,
+				Status:         FailureEventStatusOpen,
+			})
+			if s.OpLog != nil {
+				_ = s.OpLog.Write(c, operationlog.WriteOpts{
+					AdminUserID: adminID,
+					Action:      "customer.platform_message.send.unknown",
+					Resource:    "customer_conversation",
+					ResourceID:  conv.ID.String(),
+					Status:      "failed",
+					Message:     fmt.Sprintf("conversationId=%s shopId=%s code=%s", conv.ID.String(), conv.ShopID.String(), ErrCodeCustomerMessageUnknownResult),
+				})
+			}
+			return nil, &PlatformSendError{
+				Code:                 ErrCodeCustomerMessageUnknownResult,
+				Message:              "platform send result unknown; manual review required",
+				ManualReviewRequired: true,
+				SafeRetry:            false,
+			}
+		}
+
+		retryable := !isPermanentSendFailure(err)
+		failIdempotency(err.Error(), retryable)
+		cat := classifySendFailure(err)
+		var sugID *uuid.UUID
+		if sid := strings.TrimSpace(body.SuggestionID); sid != "" {
+			if u, perr := uuid.Parse(sid); perr == nil {
+				sugID = &u
+				_ = s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).
+					Where("id = ? AND conversation_id = ?", u, conv.ID).
+					Updates(map[string]any{"status": SuggestionSendFailed, "updated_at": time.Now().UTC()}).Error
+			}
+		}
+		_ = s.recordFailure(c.Request.Context(), CustomerFailureEvent{
+			ConversationID: conv.ID,
+			SuggestionID:   sugID,
+			Platform:       strings.TrimSpace(conv.Platform),
+			ShopID:         conv.ShopID,
+			Category:       cat,
+			ErrorMessage:   err.Error(),
+			Status:         FailureEventStatusOpen,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
@@ -99,6 +305,9 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		}
 		return nil, err
 	}
+
+	s.resolveFailures(c.Request.Context(), conv.ID, FailureCategoryReplySendFailed, nil)
+	s.resolveFailures(c.Request.Context(), conv.ID, FailureCategoryReplyPermissionDenied, nil)
 
 	extMid := strings.TrimSpace(res.ExternalMessageID)
 	var extPtr *string
@@ -117,6 +326,7 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		msg := &CustomerMessage{
 			ConversationID:    conv.ID,
+			ClientMessageID:   clientMsgID,
 			Role:              RoleAgent,
 			Content:           reply,
 			Language:          conv.CustomerLanguage,
@@ -150,7 +360,28 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		}
 		return nil
 	}); err != nil {
-		return nil, err
+		failIdempotency(ErrCodeCustomerMessageUnknownResult, false)
+		return nil, &PlatformSendError{
+			Code:                 ErrCodeCustomerMessageUnknownResult,
+			Message:              "platform may have accepted message but local persist failed; manual review required",
+			ManualReviewRequired: true,
+			SafeRetry:            false,
+		}
+	}
+
+	if acquired && s.Idempotency != nil {
+		summary, _ := json.Marshal(map[string]string{
+			"messageId":       outMsg.ID.String(),
+			"clientMessageId": clientMsgID,
+		})
+		if err := s.Idempotency.Complete(c.Request.Context(), acquiredRecordID, owner, idempotency.CompleteResult{
+			ResponseCode:    "CUSTOMER_MESSAGE_SENT",
+			ResponseSummary: string(summary),
+			ResourceType:    "customer_message",
+			ResourceID:      outMsg.ID.String(),
+		}); err != nil {
+			return nil, err
+		}
 	}
 
 	if s.OpLog != nil {

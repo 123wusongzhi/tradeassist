@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -137,9 +138,9 @@ func (c *Commands) resolveOrderID(ctx context.Context, sourceType, sourceID stri
 }
 
 // RetryInventorySync enqueues retry for a failed inventory_sync_tasks row.
-func (c *Commands) RetryInventorySync(ctx context.Context, taskID uuid.UUID, admin *uuid.UUID) (*inventory.TaskDTO, error) {
+func (c *Commands) RetryInventorySync(cctx *gin.Context, taskID uuid.UUID, admin *uuid.UUID) (*inventory.TaskDTO, error) {
 	if c == nil || c.Inv == nil {
 		return nil, fmt.Errorf("inventory unavailable")
 	}
-	return c.Inv.RetryInventorySyncTask(ctx, taskID, admin)
+	return c.Inv.RetryInventorySyncTask(cctx, taskID, admin)
 }

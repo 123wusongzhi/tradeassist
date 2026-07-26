@@ -1,0 +1,47 @@
+{
+  "phase": "P5",
+  "status": "passed_with_real_environment_telemetry_verification_deferred",
+  "logging": {
+    "structured": "passed",
+    "redaction": "passed",
+    "correlation": "passed"
+  },
+  "metrics": {
+    "http": "passed",
+    "database": "passed",
+    "providers": "passed",
+    "tasks": "passed",
+    "webhooks": "passed",
+    "business": "passed",
+    "security": "passed",
+    "cardinalityPolicy": "passed"
+  },
+  "tracing": {
+    "http": "passed",
+    "provider": "passed",
+    "taskPropagation": "passed",
+    "exportFailureSafe": "passed"
+  },
+  "alerting": {
+    "rules": "passed",
+    "deduplication": "passed",
+    "cooldown": "passed",
+    "recovery": "passed",
+    "channels": "code_ready_external_config_deferred"
+  },
+  "slo": {
+    "definitions": "passed",
+    "errorBudget": "passed"
+  },
+  "ui": {
+    "observabilityCenter": "passed",
+    "alerts": "passed"
+  },
+  "realEnvironmentTelemetryVerification": "deferred",
+  "issues": [],
+  "summary": {
+    "passed": 60,
+    "warnings": 0,
+    "failed": 0
+  }
+}

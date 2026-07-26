@@ -26,6 +26,13 @@ type UnifiedTaskDTO struct {
 	MaxRetries           int        `json:"maxRetries,omitempty"`
 	LockedBy             string     `json:"lockedBy,omitempty"`
 	LockedUntil          *time.Time `json:"lockedUntil,omitempty"`
+	HeartbeatAt          *time.Time `json:"heartbeatAt,omitempty"`
+	ExecutionID          string     `json:"executionId,omitempty"`
+	LeaseVersion         int        `json:"leaseVersion,omitempty"`
+	Attempt              int        `json:"attempt,omitempty"`
+	MaxAttempts          int        `json:"maxAttempts,omitempty"`
+	IdempotencyScope     string     `json:"idempotencyScope,omitempty"`
+	UnknownResult        bool       `json:"unknownResult,omitempty"`
 	CreatedAt            time.Time  `json:"createdAt"`
 	UpdatedAt            time.Time  `json:"updatedAt"`
 	StartedAt            *time.Time `json:"startedAt,omitempty"`
@@ -42,6 +49,12 @@ type UnifiedTaskDTO struct {
 	AlertStatus          string     `json:"alertStatus,omitempty"`
 	RelatedAlertID       string     `json:"relatedAlertId,omitempty"`
 	RecoveryStatus       string     `json:"recoveryStatus,omitempty"`
+	NextRunAt            *time.Time `json:"nextRunAt,omitempty"`
+	DeadLetter           bool       `json:"deadLetter,omitempty"`
+	IdempotencyStatus    string     `json:"idempotencyStatus,omitempty"`
+	SafeRetry            bool       `json:"safeRetry,omitempty"`
+	ManualReviewRequired bool       `json:"manualReviewRequired,omitempty"`
+	RequestID            string     `json:"requestId,omitempty"`
 }
 
 // FailuresSummary is returned with list and summary-only endpoints.
@@ -60,9 +73,12 @@ type FailuresSummary struct {
 
 // ListFailuresResult is paged list + summary for the current filter.
 type ListFailuresResult struct {
-	List    []UnifiedTaskDTO `json:"list"`
-	Total   int64            `json:"total"`
-	Summary FailuresSummary  `json:"summary"`
+	List       []UnifiedTaskDTO `json:"list"`
+	Total      int64            `json:"total"`
+	Summary    FailuresSummary  `json:"summary"`
+	Limit      int              `json:"limit"`
+	NextCursor string           `json:"nextCursor,omitempty"`
+	HasMore    bool             `json:"hasMore"`
 }
 
 // FailureDetailDTO extends the list row with optional type-specific snippets.

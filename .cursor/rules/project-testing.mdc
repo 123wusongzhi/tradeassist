@@ -1,0 +1,37 @@
+---
+description: Project-wide testing automation for frontend, Node, Go backend, API contracts, database, Redis, queue, and affected test selection
+globs: admin/src/**,collector/src/**,backend/**/*.go,backend/migrations/**,tests/**,admin/e2e/**,scripts/testing/**,package.json,admin/package.json,collector/package.json,pnpm-lock.yaml,pnpm-workspace.yaml,go.mod,go.work,docker-compose*.yml,.github/workflows/**,.agents/skills/**,.cursor/rules/**,.env*.example
+alwaysApply: false
+---
+
+# Project Testing 自动规则
+
+任何新功能、Bug 修复、前端、后端、API、DTO、数据库、Redis、队列、路由、业务状态机、依赖、构建或 CI 变更，必须读取并遵循：
+
+- `.agents/skills/project-testing/SKILL.md`
+
+根据范围继续读取：
+
+- UI：`.agents/skills/frontend-design/SKILL.md`
+- Admin 浏览器：`.agents/skills/admin-e2e-testing/SKILL.md`
+- 前端单元：`.agents/skills/frontend-unit-testing/SKILL.md`
+- 后端：`.agents/skills/backend-testing/SKILL.md`
+- API：`.agents/skills/api-contract-testing/SKILL.md`
+
+用户不需要主动要求测试。未运行必要测试不得声明完成；无法运行必须报告阻塞原因。不得通过 skip、only 或宽泛白名单掩盖失败。未经用户要求不得 commit/push。
+
+## 自动测试选择
+
+- 前端页面/组件变更：前端单元/组件测试、Admin E2E smoke、受影响页面 E2E。
+- 纯 TypeScript 工具变更：相关单元测试、typecheck；不影响 UI 时可不跑完整浏览器。
+- Node collector/script 变更：Node unit、collector build；涉及 API/页面采集时加 contract 或受影响 E2E。
+- 后端 service/controller 变更：backend unit、HTTP integration、contract、受影响 E2E。
+- repository/model/migration 变更：migration test、database integration、repository tests、backend unit、contract。
+- Redis/queue/worker 变更：Redis integration、queue producer/consumer、retry/idempotency、backend integration。
+- API/DTO/envelope 变更：backend tests、API contract、frontend unit、Admin E2E contract、受影响页面 smoke。
+- 共享类型/契约变更：所有引用 package 单元测试、typecheck、contract、关键 E2E。
+- 测试基础设施/CI/package/lockfile 变更：运行更广泛 P0，不只跑单文件。
+
+## Bug 修复
+
+先定位问题层级，尽可能添加修复前失败、修复后通过的回归测试。测试表达用户可见问题或真实业务行为，不依赖内部实现。无法新增测试时最终报告说明原因。

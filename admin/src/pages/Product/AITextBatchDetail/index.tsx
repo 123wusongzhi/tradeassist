@@ -5,6 +5,7 @@ import {
   aiTextBatchStatusTag,
   aiTextItemStatusTag,
 } from '@/constants/aiProductText';
+import { confirmApplyAiText, confirmUndoAiText } from '@/constants/sensitiveActions';
 import {
   applyAiProductTextItem,
   applyAiProductTextSelected,
@@ -18,14 +19,14 @@ import {
   type AIProductTextItemRow,
 } from '@/services/aiProductText';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams, useSearchParams } from '@umijs/max';
+import { Link, history, useParams } from '@umijs/max';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { normalizeSource } from '@/utils/urlState';
 import {
   Alert,
   Button,
   Card,
   Descriptions,
-  Modal,
-  Popconfirm,
   Segmented,
   Space,
   Table,
@@ -37,12 +38,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AITextBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const focusItemId = (searchParams.get('itemId') || '').trim();
+  const { state: urlState, setState: setUrlState } = useUrlQueryState<{
+    itemId?: string;
+    tab?: string;
+    source?: string;
+  }>(['itemId', 'tab', 'source']);
+  const navSource = normalizeSource(urlState.source);
+  const focusItemId = (urlState.itemId || '').trim();
   const [detail, setDetail] = useState<AIProductTextBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(urlState.tab || 'all');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [reviewItem, setReviewItem] = useState<AIProductTextItemRow | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -93,29 +99,35 @@ export default function AITextBatchDetailPage() {
       message.warning('请选择待复核结果');
       return;
     }
-    Modal.confirm({
-      title: '批量应用已选结果',
-      content:
-        '将把选中的 AI 文案应用到商品。应用前会再次检查商品是否被人工修改，发现冲突的商品不会被覆盖。',
-      onOk: async () => {
-        setActing(true);
-        try {
-          const res = await applyAiProductTextSelected(id, selectedKeys);
-          message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
-          setSelectedKeys([]);
-          await reload();
-        } catch (e: unknown) {
-          message.error((e as Error)?.message || '批量应用失败');
-        } finally {
-          setActing(false);
-        }
-      },
+    confirmApplyAiText('选中文案', async () => {
+      setActing(true);
+      try {
+        const res = await applyAiProductTextSelected(id, selectedKeys);
+        message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
+        setSelectedKeys([]);
+        await reload();
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '批量应用失败');
+      } finally {
+        setActing(false);
+      }
     });
   };
+
+  useEffect(() => {
+    if (urlState.tab) setStatusFilter(urlState.tab);
+  }, [urlState.tab]);
 
   const openReview = (row: AIProductTextItemRow) => {
     setReviewItem(row);
     setReviewOpen(true);
+    setUrlState({ itemId: row.id });
+  };
+
+  const closeReview = () => {
+    setReviewOpen(false);
+    setReviewItem(null);
+    setUrlState({ itemId: undefined }, { replace: true });
   };
 
   const batchTag = detail ? aiTextBatchStatusTag(detail.status, detail.statusLabel) : null;
@@ -141,7 +153,17 @@ export default function AITextBatchDetailPage() {
               <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
             <Space wrap style={{ marginTop: 12 }}>
-              <Button onClick={() => history.push('/product/drafts')}>返回商品列表</Button>
+              <Button
+                onClick={() => {
+                  const back =
+                    navSource === 'ai_workbench'
+                      ? '/ai/operation-workbench'
+                      : `/ai/text-batches${navSource ? `?source=${encodeURIComponent(navSource)}` : ''}`;
+                  history.push(back);
+                }}
+              >
+                {navSource === 'ai_workbench' ? '返回 AI 工作台' : '返回批次列表'}
+              </Button>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -169,25 +191,26 @@ export default function AITextBatchDetailPage() {
               >
                 批量应用已选结果
               </Button>
-              <Popconfirm
-                title="撤销本批次已应用结果？"
-                description="若商品后续被人工修改，对应项撤销会失败。"
-                onConfirm={async () => {
+              <Button
+                disabled={!detail.appliedCount}
+                onClick={() => {
                   if (!id) return;
-                  setActing(true);
-                  try {
-                    const res = await undoAiProductTextBatchApplied(id);
-                    message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
-                    await reload();
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '撤销失败');
-                  } finally {
-                    setActing(false);
-                  }
+                  confirmUndoAiText('本批次文案', async () => {
+                    setActing(true);
+                    try {
+                      const res = await undoAiProductTextBatchApplied(id);
+                      message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
+                      await reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '撤销失败');
+                    } finally {
+                      setActing(false);
+                    }
+                  });
                 }}
               >
-                <Button disabled={!detail.appliedCount}>批量撤销本批次应用</Button>
-              </Popconfirm>
+                批量撤销本批次应用
+              </Button>
             </Space>
           </Card>
 
@@ -203,7 +226,11 @@ export default function AITextBatchDetailPage() {
           <Segmented
             options={AI_TEXT_REVIEW_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
             value={statusFilter}
-            onChange={(v) => setStatusFilter(String(v))}
+            onChange={(v) => {
+              const next = String(v);
+              setStatusFilter(next);
+              setUrlState({ tab: next === 'all' ? undefined : next, itemId: undefined }, { replace: true });
+            }}
             style={{ marginBottom: 12 }}
           />
 
@@ -297,26 +324,26 @@ export default function AITextBatchDetailPage() {
         open={reviewOpen}
         item={reviewItem}
         loading={acting}
-        onClose={() => {
-          setReviewOpen(false);
-          setReviewItem(null);
-        }}
+        onClose={closeReview}
         onApply={async (text) => {
           if (!reviewItem) return;
-          setActing(true);
-          try {
-            if (text !== reviewItem.prepareApplyText) {
-              await updateAiProductTextEditedText(reviewItem.id, text);
+          const label = reviewItem.operationLabel || 'AI 文案';
+          confirmApplyAiText(label, async () => {
+            setActing(true);
+            try {
+              if (text !== reviewItem.prepareApplyText) {
+                await updateAiProductTextEditedText(reviewItem.id, text);
+              }
+              await applyAiProductTextItem(reviewItem.id, text);
+              message.success('已应用');
+              closeReview();
+              await reload();
+            } catch (e: unknown) {
+              message.error((e as Error)?.message || '应用失败');
+            } finally {
+              setActing(false);
             }
-            await applyAiProductTextItem(reviewItem.id, text);
-            message.success('已应用');
-            setReviewOpen(false);
-            await reload();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '应用失败');
-          } finally {
-            setActing(false);
-          }
+          });
         }}
         onRegenerate={async () => {
           if (!reviewItem) return;

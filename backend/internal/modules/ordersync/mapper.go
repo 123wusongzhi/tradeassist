@@ -60,6 +60,8 @@ func ToSyncedPayloads(in []platformp.PlatformOrder) []order.SyncedOrderPayload {
 			PaidAt:            po.PaidAt,
 			ShippedAt:         po.ShippedAt,
 			DeliveredAt:       po.DeliveredAt,
+			PlatformUpdatedAt: po.PlatformUpdatedAt,
+			PlatformRevision:  strings.TrimSpace(po.PlatformRevision),
 			Items:             items,
 			Shipments:         ships,
 			RawSummary:        sum,

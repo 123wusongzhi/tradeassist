@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "relativeThresholds": {
+    "p95": 0.1,
+    "p99": 0.15,
+    "throughput": 0.1
+  },
+  "materialityFloors": {
+    "p50Ms": 1,
+    "p90Ms": 2,
+    "p95Ms": 2,
+    "p99Ms": 3
+  },
+  "minimumSamples": {
+    "coreScenario": 100,
+    "lowFrequencyScenario": 50
+  },
+  "zeroSemantics": "explicit",
+  "missingSemantics": "not_comparable",
+  "absoluteSloRequired": true
+}

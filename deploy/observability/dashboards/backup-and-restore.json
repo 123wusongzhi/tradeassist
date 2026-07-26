@@ -1,0 +1,12 @@
+{
+  "title": "TradeMind Backup and Restore",
+  "description": "P6 backup and restore dashboard definition without credentials.",
+  "panels": [
+    { "title": "Backup success rate", "metric": "backup_jobs_total", "labels": ["backup_type", "result", "environment_class"] },
+    { "title": "Last successful backup", "metric": "backup_last_success_timestamp", "labels": ["backup_type", "environment_class"] },
+    { "title": "Backup age", "metric": "backup_age_seconds", "labels": ["backup_type", "environment_class"] },
+    { "title": "Backup size trend", "metric": "backup_bytes_total", "labels": ["backup_type", "result", "environment_class"] },
+    { "title": "Verification result", "metric": "backup_verification_total", "labels": ["backup_type", "result", "environment_class"] },
+    { "title": "Restore validation", "metric": "restore_validation_total", "labels": ["result", "environment_class"] }
+  ]
+}

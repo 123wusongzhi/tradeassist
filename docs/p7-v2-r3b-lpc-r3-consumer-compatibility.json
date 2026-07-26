@@ -1,0 +1,61 @@
+{
+  "phase": "P7-V2-R3B-LPC-R3-GATEFIX",
+  "status": "passed",
+  "consumers": [
+    {
+      "consumer": "producer",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-load-profile-fingerprint.mjs"
+    },
+    {
+      "consumer": "artifactFreeze",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-artifact-freeze.mjs"
+    },
+    {
+      "consumer": "loadWrappers",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-baseline.mjs"
+    },
+    {
+      "consumer": "registry",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-artifact-freeze.mjs"
+    },
+    {
+      "consumer": "evidenceResolver",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-evidence-resolver.mjs"
+    },
+    {
+      "consumer": "comparability",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-r3-comparability-check.mjs"
+    },
+    {
+      "consumer": "regression",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-regression.mjs"
+    },
+    {
+      "consumer": "scopedGate",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-r3b-lpc-r3-gatefix-final-gate.mjs"
+    },
+    {
+      "consumer": "fastCloseOrchestrator",
+      "supportsCanonicalSchemaV3": true,
+      "supportsFingerprintV3": true,
+      "source": "scripts/p7-v2-r3b-fast-close.mjs"
+    }
+  ],
+  "issues": []
+}

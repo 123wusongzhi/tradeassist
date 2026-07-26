@@ -1,0 +1,45 @@
+{
+  "phase": "P7",
+  "status": "incomplete",
+  "failed": 6,
+  "passed": 1,
+  "regressionThresholdPct": 20,
+  "errorRateThreshold": 0.01,
+  "checks": [
+    {
+      "id": "baseline:go-benchmark.json",
+      "status": "failed",
+      "detail": "docs/performance-baselines/go-benchmark.json"
+    },
+    {
+      "id": "baseline:api-load-baseline.json",
+      "status": "failed",
+      "detail": "docs/performance-baselines/api-load-baseline.json"
+    },
+    {
+      "id": "baseline:database-query-baseline.json",
+      "status": "failed",
+      "detail": "docs/performance-baselines/database-query-baseline.json"
+    },
+    {
+      "id": "baseline:worker-baseline.json",
+      "status": "failed",
+      "detail": "docs/performance-baselines/worker-baseline.json"
+    },
+    {
+      "id": "baseline:webhook-baseline.json",
+      "status": "failed",
+      "detail": "docs/performance-baselines/webhook-baseline.json"
+    },
+    {
+      "id": "current-load-report",
+      "status": "passed",
+      "detail": "docs/p7-load-test-report.json"
+    },
+    {
+      "id": "current-metrics-present",
+      "status": "failed",
+      "detail": "load report must include metrics with baseline/current p95 and error rate"
+    }
+  ]
+}

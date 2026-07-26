@@ -38,6 +38,19 @@ export type UnifiedTaskDTO = {
   alertStatus?: string;
   relatedAlertId?: string;
   recoveryStatus?: string;
+  nextRunAt?: string;
+  deadLetter?: boolean;
+  idempotencyStatus?: string;
+  idempotencyScope?: string;
+  safeRetry?: boolean;
+  manualReviewRequired?: boolean;
+  unknownResult?: boolean;
+  requestId?: string;
+  heartbeatAt?: string;
+  executionId?: string;
+  leaseVersion?: number;
+  attempt?: number;
+  maxAttempts?: number;
   /** 详情接口附加字段；列表项通常无此字段 */
   extra?: Record<string, unknown>;
 };

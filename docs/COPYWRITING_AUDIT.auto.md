@@ -1,6 +1,6 @@
 # Demo Release 中文文案自动审计（Phase R1.2-Auto）
 
-> 生成时间：2026-06-27T06:17:43.464Z
+> 生成时间：2026-07-13T09:54:36.115Z
 > 工具：`node scripts/check-ui-copy.mjs --strict --report`
 
 ## 结论：✅ 通过

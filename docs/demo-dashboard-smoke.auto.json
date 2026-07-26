@@ -1,0 +1,37 @@
+﻿{
+    "phase":  "F7",
+    "failed":  0,
+    "generatedAt":  "2026-07-13T09:55:41.9192852Z",
+    "results":  [
+                    {
+                        "detail":  "",
+                        "endpoint":  "/dashboard/overview",
+                        "status":  "passed",
+                        "httpCode":  200
+                    },
+                    {
+                        "detail":  "",
+                        "endpoint":  "/dashboard/todos",
+                        "status":  "passed",
+                        "httpCode":  200
+                    },
+                    {
+                        "detail":  "",
+                        "endpoint":  "/dashboard/health",
+                        "status":  "passed",
+                        "httpCode":  200
+                    },
+                    {
+                        "detail":  "",
+                        "endpoint":  "/dashboard/product-operations",
+                        "status":  "passed",
+                        "httpCode":  200
+                    },
+                    {
+                        "detail":  "",
+                        "endpoint":  "/settings/config-status",
+                        "status":  "passed",
+                        "httpCode":  200
+                    }
+                ]
+}

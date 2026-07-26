@@ -6,7 +6,7 @@
 
 - Node.js
 - pnpm `9.15+`
-- Go `1.22+`
+- Go `1.25+`
 - **二选一**（基础设施）：
   - Docker / Docker Compose（默认，`pnpm dev` 会自动 `docker compose up` 拉起 PostgreSQL / Redis）
   - 或本机已安装并运行 **PostgreSQL**（默认 `127.0.0.1:5432`）与 **Redis**（默认 `127.0.0.1:6379`），账号密码与 `.env` 一致
@@ -39,6 +39,9 @@ pnpm dev:infra
 pnpm dev:backend
 pnpm dev:admin
 pnpm dev:collector
+pnpm p7:dataset -- --profile small
+pnpm check:p7
+pnpm check:p7:regression
 pnpm dev:stop
 pnpm dev:reset
 ```
@@ -47,6 +50,12 @@ pnpm dev:reset
 
 - `pnpm check:dev`：检查 Node、pnpm、Go、Docker 或本机 PostgreSQL / Redis、环境变量等。
 - `pnpm dev:infra`：仅启动 PostgreSQL 与 Redis。
+- `pnpm p7:dataset -- --profile small`：运行 P7 数据集生成器 dry-run；写入隔离数据库需额外传 `--write` 并满足 performance 环境守卫。
+- `pnpm check:p7` / `pnpm check:p7:regression`：生成 P7 性能容量与回归门闸报告；真实负载 / Soak / Race 证据未齐时会失败。
+- `pnpm p7-v2:r3b:lpf-audit`：仅从冻结 Recovery3 evidence 导出并校验 Load Profile V2；不会启动 k6 或修改 Raw Artifact。
+- `pnpm p7-v2:r3b:lpf-comparability`：使用版本化 V2 sidecar 执行 Recovery3 comparability；V1 报告保持不变。
+- `pnpm p7-v2:r3b:regression`：仅在 Comparability V2 通过后评估冻结 Raw Artifact；不重新执行性能负载。
+- `pnpm p7-v2:r3b:lpf-gate`：执行 LPF-V2 scoped gate；Soak、Demo、最终 Gate 不属于该命令范围。
 - `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）/ collector 端口上残留的上一进程，避免端口占用导致 backend 启动失败。
 - `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。
@@ -85,6 +94,7 @@ Copy-Item .env.example .env
 - `APP_HTTP_ADDR=:8080`
 - `COLLECTOR_HTTP_ADDR=:3100`
 - `COLLECTOR_BASE_URL=http://127.0.0.1:3100`
+- `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`（P5-V 标准 OTLP/HTTP JSON；真实 backend 未配置时 `TRACING_ENABLED=false`）
 
 完整变量说明见 [env.md](env.md)。新增或修改变量时，还要按 [module-map.md](module-map.md) 检查 Docker、README、部署文档和代码默认值。
 

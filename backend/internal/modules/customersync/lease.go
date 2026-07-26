@@ -3,11 +3,12 @@ package customersync
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"gorm.io/gorm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 )
 
 func (s *Service) taskLeaseTTL() time.Duration {
@@ -17,63 +18,58 @@ func (s *Service) taskLeaseTTL() time.Duration {
 	return 120 * time.Second
 }
 
-func (s *Service) tryClaimTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*CustomerMessageSyncTask, bool, error) {
+func (s *Service) tryClaimTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*CustomerMessageSyncTask, *tasklease.ClaimResult, bool, error) {
 	if s == nil || s.DB == nil {
-		return nil, false, fmt.Errorf("customersync: no db")
+		return nil, nil, false, fmt.Errorf("customersync: no db")
 	}
-	now := time.Now().UTC()
-	until := now.Add(lease)
-	res := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).
-		Where(`id = ? AND status = ? AND (locked_by IS NULL OR locked_until < ?)`, taskID, StatusPending, now).
-		Updates(map[string]any{
-			"status":       StatusRunning,
-			"locked_by":    workerID,
-			"locked_until": &until,
-			"lock_version": gorm.Expr("lock_version + 1"),
-			"started_at":   gorm.Expr("COALESCE(started_at, ?)", now),
-			"updated_at":   now,
-		})
-	if res.Error != nil {
-		return nil, false, res.Error
+	claim, ok, err := tasklease.TryClaim(ctx, s.DB, CustomerMessageSyncTask{}.TableName(), StatusPending, StatusRunning, taskID, workerID, lease)
+	if err != nil {
+		return nil, nil, false, err
 	}
-	if res.RowsAffected == 0 {
-		return nil, false, nil
+	if !ok {
+		return nil, nil, false, nil
 	}
 	var task CustomerMessageSyncTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	return &task, true, nil
+	return &task, &claim, true, nil
 }
 
-func (s *Service) startLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, leaseTTL time.Duration) (stop func()) {
-	if s == nil || s.DB == nil {
+func (s *Service) startLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, leaseTTL time.Duration) (stop func()) {
+	if s == nil || s.DB == nil || claim == nil {
 		return func() {}
 	}
-	interval := leaseTTL / 3
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
+	return tasklease.StartRenewal(ctx, s.DB, CustomerMessageSyncTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion, leaseTTL)
+}
+
+func (s *Service) validateCustomerSyncLease(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult) error {
+	if claim == nil {
+		return tasklease.ErrLeaseLost
 	}
-	runCtx, cancel := context.WithCancel(ctx)
-	go func() {
-		tick := time.NewTicker(interval)
-		defer tick.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-tick.C:
-				until := time.Now().UTC().Add(leaseTTL)
-				_ = s.DB.WithContext(context.Background()).Model(&CustomerMessageSyncTask{}).
-					Where("id = ? AND status = ? AND locked_by = ?", taskID, StatusRunning, workerID).
-					Updates(map[string]any{
-						"locked_until": &until,
-						"updated_at":   time.Now().UTC(),
-					}).Error
-			}
-		}
-	}()
-	return cancel
+	return tasklease.ValidateLease(ctx, s.DB, CustomerMessageSyncTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion)
+}
+
+func (s *Service) finishCustomerSyncTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	if err := s.validateCustomerSyncLease(ctx, taskID, workerID, claim); err != nil {
+		slog.Warn("customer_sync_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
+		return err
+	}
+	now := time.Now().UTC()
+	updates["locked_by"] = nil
+	updates["locked_until"] = nil
+	updates["updated_at"] = now
+	res := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).
+		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return tasklease.ErrLeaseLost
+	}
+	return nil
 }
 
 func (s *Service) handlePanic(parent context.Context, taskID uuid.UUID, workerID string, panicVal any) {
@@ -135,6 +131,8 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			"finished_at":   &fin,
 			"locked_by":     nil,
 			"locked_until":  nil,
+			"execution_id":  nil,
+			"heartbeat_at":  nil,
 			"updated_at":    fin,
 		}).Error
 	if s.OpLog != nil {
@@ -176,6 +174,8 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 			"finished_at":   &fin,
 			"locked_by":     nil,
 			"locked_until":  nil,
+			"execution_id":  nil,
+			"heartbeat_at":  nil,
 			"updated_at":    fin,
 		}).Error
 	if s.OpLog != nil {

@@ -248,7 +248,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		}
 	}
 
-	out, err := s.GetDTO(ctx, task.ID)
+	out, err := s.GetDTO(ctx, task.TenantID, task.ID)
 	if err != nil {
 		return nil, err
 	}

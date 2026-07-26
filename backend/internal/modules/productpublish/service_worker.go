@@ -49,7 +49,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	}()
 
 	lease := s.publishLeaseTTL()
-	taskRow, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, lease)
+	taskRow, claim, claimed, err := s.tryClaimProductPublishTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		return nil
 	}
 
-	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, lease)
+	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer cancelRen()
 
 	if s.OpLog != nil {
@@ -76,17 +76,13 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
 		code := inferPublishErrorCode(msg)
-		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":         TaskFailed,
-				"publish_status": StatusPubFailed,
-				"error_code":     code,
-				"error_message":  msg,
-				"finished_at":    &fin,
-				"locked_by":      nil,
-				"locked_until":   nil,
-				"updated_at":     fin,
-			}).Error
+		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":         TaskFailed,
+			"publish_status": StatusPubFailed,
+			"error_code":     code,
+			"error_message":  msg,
+			"finished_at":    &fin,
+		})
 		if rid, ok := snapshotPublicationFromTask(taskRow); ok {
 			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
 				Updates(map[string]any{
@@ -177,19 +173,15 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	}, 20, 300)
 	rawOut, _ := json.Marshal(outSnap)
 
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":          TaskSuccess,
-			"publish_status":  StatusSuccess,
-			"error_message":   "",
-			"error_code":      "",
-			"finished_at":     &fin,
-			"output":          datatypes.JSON(rawOut),
-			"platform_result": datatypes.JSON(rawOut),
-			"locked_by":       nil,
-			"locked_until":    nil,
-			"updated_at":      fin,
-		}).Error
+	_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":          TaskSuccess,
+		"publish_status":  StatusSuccess,
+		"error_message":   "",
+		"error_code":      "",
+		"finished_at":     &fin,
+		"output":          datatypes.JSON(rawOut),
+		"platform_result": datatypes.JSON(rawOut),
+	})
 
 	pubSnap := platformp.TrimRawMap(map[string]any{
 		"externalProductId": res.ExternalProductID,

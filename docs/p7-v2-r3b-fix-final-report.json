@@ -1,0 +1,50 @@
+{
+  "phase": "P7-V2-R3B-FIX",
+  "status": "incomplete",
+  "blockers": {
+    "soakEvidence": "resolved_in_harness",
+    "currentRestartEvidence": "resolved_in_harness",
+    "stabilityState": "resolved_in_harness",
+    "raceReuse": "resolved_in_harness",
+    "currentScriptMapping": "resolved",
+    "regressionEngine": "resolved",
+    "baselineRegistryGate": "resolved",
+    "demoManifest": "resolved",
+    "runAllSafety": "resolved",
+    "frozenArtifactIntegrity": "blocked"
+  },
+  "baseline": {
+    "runId": "p7v2-baseline-r3a-20260714225500",
+    "reuseDecision": "rebaseline_required",
+    "reuseReason": "The frozen raw artifact is absent, and R3B changes measurement and current-load semantic inputs; a strict comparison cannot be proven."
+  },
+  "tests": {
+    "syntax": "passed",
+    "gateFixtures": "passed",
+    "dryGate": "failed_as_expected_due_to_pending_execution",
+    "goTest": "passed",
+    "goBuild": "passed",
+    "adminBuild": "passed",
+    "collectorBuild": "passed",
+    "checkDev": "passed",
+    "checkUiCopy": "passed",
+    "gitDiffCheck": "passed"
+  },
+  "execution": {
+    "currentExecuted": false,
+    "regressionExecuted": false,
+    "soakExecuted": false,
+    "demoExecuted": false
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "issues": [
+    "Frozen baseline raw artifact is absent; rebaseline is required before R3B execution.",
+    "Cooldown runtime metric collection is not implemented; recovery cannot be derived from samples."
+  ]
+}

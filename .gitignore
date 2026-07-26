@@ -2,10 +2,18 @@
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.demo
+.env.development
 .env.docker
 .envrc
+!.env.example
+!.env.production.example
+!.env.*.example
 
 # Runtime data
+tools/k6/
 /data/uploads/*
 !/data/uploads/.gitkeep
 /data/browser-profiles/*
@@ -54,6 +62,7 @@ playwright-report/
 test-results/
 blob-report/
 .playwright/
+.playwright-mcp/
 ms-playwright/
 
 # Monorepo / 构建工具
@@ -75,6 +84,7 @@ __debug_bin*
 # Logs
 *.log
 /logs/
+/artifacts/
 
 # IDE / 编辑器
 .idea/

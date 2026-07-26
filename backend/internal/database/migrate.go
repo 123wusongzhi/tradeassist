@@ -9,20 +9,26 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/orderexception"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/performance"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/release"
+	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
@@ -109,11 +115,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateLegacyProductTextColumns(db); err != nil {
 		return err
 	}
-	if err := migrateDouyinPhase102Indexes(db); err != nil {
-		return err
-	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
+		&admin.UserStorePermission{},
 		&settings.Setting{},
 		&operationlog.OperationLog{},
 		&files.FileRecord{},
@@ -159,11 +163,68 @@ func AutoMigrate(db *gorm.DB) error {
 		&customerchat.CustomerConversation{},
 		&customerchat.CustomerMessage{},
 		&customerchat.CustomerReplySuggestion{},
+		&customerchat.CustomerFailureEvent{},
 		&taskcenter.TaskFailureMark{},
 		&taskcenter.TaskAlert{},
 		&taskcenter.TaskAlertNotification{},
+		&backup.Job{},
+		&backup.Artifact{},
+		&backup.Verification{},
+		&backup.RetentionHold{},
+		&backup.ObjectInventory{},
+		&restore.Job{},
+		&restore.Validation{},
+		&release.Run{},
+		&release.Artifact{},
+		&release.Step{},
+		&release.Rollback{},
+		&disasterrecovery.Drill{},
+		&performance.TestRun{},
+		&performance.Regression{},
+		&performance.CapacitySnapshot{},
+		&performance.RateLimitPolicy{},
+		&performance.QuotaPolicy{},
 	); err != nil {
 		return err
 	}
-	return migratePublishBatchA21(db)
+	if err := operationtask.Migrate(db); err != nil {
+		return err
+	}
+	if err := migrateDouyinPhase102Indexes(db); err != nil {
+		return err
+	}
+	if err := migratePublishBatchA21(db); err != nil {
+		return err
+	}
+	if err := migrateP2Reliability(db); err != nil {
+		return err
+	}
+	if err := migrateP21Reliability(db); err != nil {
+		return err
+	}
+	if err := migrateP22Reliability(db); err != nil {
+		return err
+	}
+	if err := migrateP3Douyin(db); err != nil {
+		return err
+	}
+	if err := migrateP31Douyin(db); err != nil {
+		return err
+	}
+	if err := migrateP32Webhook(db); err != nil {
+		return err
+	}
+	if err := migrateP4Security(db); err != nil {
+		return err
+	}
+	if err := migrateP41Security(db); err != nil {
+		return err
+	}
+	if err := migrateP42Security(db); err != nil {
+		return err
+	}
+	if err := migrateP5Observability(db); err != nil {
+		return err
+	}
+	return migrateP7Performance(db)
 }

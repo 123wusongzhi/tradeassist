@@ -10,12 +10,13 @@ import (
 
 // Task status values (aligned with rules).
 const (
-	StatusPending   = "pending"
-	StatusRunning   = "running"
-	StatusSuccess   = "success"
-	StatusFailed    = "failed"
-	StatusCancelled = "cancelled"
-	StatusRetrying  = "retrying"
+	StatusPending    = "pending"
+	StatusRunning    = "running"
+	StatusSuccess    = "success"
+	StatusFailed     = "failed"
+	StatusCancelled  = "cancelled"
+	StatusRetrying   = "retrying"
+	StatusDeadLetter = "dead_letter"
 )
 
 // Batch aggregate status (derived from child tasks via reconciliation).
@@ -30,6 +31,7 @@ const (
 // CollectBatch groups many collect_tasks within one bulk submission.
 type CollectBatch struct {
 	model.HardDeleteBase
+	TenantID       int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	Source         string     `gorm:"size:64;index;not null" json:"source"`
 	TotalCount     int        `gorm:"not null" json:"totalCount"`
 	PendingCount   int        `gorm:"not null" json:"pendingCount"`
@@ -47,6 +49,7 @@ func (CollectBatch) TableName() string { return "collect_batches" }
 // CollectTask persists orchestration state; collector never writes this table.
 type CollectTask struct {
 	model.HardDeleteBase
+	TenantID        int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchID         *uuid.UUID     `gorm:"type:char(36);index" json:"batchId,omitempty"`
 	Source          string         `gorm:"size:64;index;not null" json:"source"`
 	SourceURL       string         `gorm:"size:2048;not null" json:"sourceUrl"`
@@ -65,6 +68,8 @@ type CollectTask struct {
 	LockedBy        *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
 	LockedUntil     *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
 	LockVersion     int            `gorm:"default:0;not null" json:"lockVersion"`
+	HeartbeatAt     *time.Time     `gorm:"index" json:"heartbeatAt,omitempty"`
+	ExecutionID     *string        `gorm:"size:36;index" json:"executionId,omitempty"`
 }
 
 func (CollectTask) TableName() string { return "collect_tasks" }

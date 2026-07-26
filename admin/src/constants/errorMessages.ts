@@ -10,6 +10,22 @@ export type UserErrorMessage = {
 };
 
 const ERROR_MAP: Record<string, UserErrorMessage> = {
+  AUTH_INVALID_CREDENTIALS: {
+    title: '账号或密码不正确',
+    detail: '请检查邮箱、手机号和密码后再试。',
+  },
+  AUTH_ACCOUNT_TEMPORARILY_LOCKED: {
+    title: '账号暂时被锁定',
+    detail: '登录失败次数过多，请稍后再试。',
+  },
+  AUTH_TOO_MANY_ATTEMPTS: {
+    title: '登录尝试过于频繁',
+    detail: '请稍后再试，或联系管理员确认账号状态。',
+  },
+  AUTH_USER_DISABLED: {
+    title: '账号已被停用',
+    detail: '请联系管理员启用账号后再登录。',
+  },
   DOUYIN_SKU_NOT_BOUND: {
     title: '该规格尚未绑定抖店规格',
     detail: '请先完成规格绑定后再同步库存。',

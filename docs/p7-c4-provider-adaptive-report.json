@@ -1,0 +1,24 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:29:52Z",
+  "slowdownObserved": true,
+  "retryAfterRespected": true,
+  "gradualRecovery": true,
+  "rateNeverZero": true,
+  "contextCancelRespected": true,
+  "beforeConcurrency": 8,
+  "afterSlowdown": 4,
+  "afterRecovery": 5,
+  "durationMs": 27,
+  "guards": [
+    "no production datasets",
+    "requires APP_ENV=performance",
+    "requires PERFORMANCE_TEST_MODE=true",
+    "requires ALLOW_PERFORMANCE_DATASET=true",
+    "requires EXTERNAL_PROVIDER_MODE=mock",
+    "requires PostgreSQL database name prefix trademind_p7c4_",
+    "requires DB host localhost or 127.0.0.1"
+  ],
+  "issues": null
+}

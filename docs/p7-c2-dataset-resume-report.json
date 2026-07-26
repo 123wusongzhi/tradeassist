@@ -1,0 +1,44 @@
+{
+  "phase": "P7-C2",
+  "status": "passed",
+  "generatedAt": "2026-07-13T15:54:43.047Z",
+  "runId": "p7c2-20260713154542",
+  "profile": "medium",
+  "plannedRows": 1900150,
+  "interruption": {
+    "mode": "fail_after_batches",
+    "classification": "controlled_interruption",
+    "exitCode": 75,
+    "completedBatches": 5,
+    "rowsBeforeInterruption": 3150
+  },
+  "resume": {
+    "insertedRows": 1897000,
+    "existingRows": 3150,
+    "failedRows": 0,
+    "duplicateRows": 0,
+    "finalActualRows": 1900150
+  },
+  "idempotencyRerun": {
+    "exitCode": 0,
+    "insertedRows": 0,
+    "existingRows": 1900150,
+    "actualRows": 1900150
+  },
+  "fingerprint": "a4ffc07a8d839dc647cd06ac0d547eebd42904e26524696986637c0380c952b2",
+  "fingerprintStable": true,
+  "cleanupStatus": "passed",
+  "runtimeEnvironment": "docs/p7-c2-runtime-environment.json",
+  "commands": [
+    "mkdir -p .p7c2 && go build -o .p7c2/p7load ./cmd/p7load",
+    "./.p7c2/p7load --profile=medium --run-id=p7c2-20260713154542 --execute --fail-after-batches=5",
+    "./.p7c2/p7load --profile=medium --run-id=p7c2-20260713154542 --execute",
+    "./.p7c2/p7load --profile=medium --run-id=p7c2-20260713154542 --execute",
+    "./.p7c2/p7load --profile=medium --run-id=p7c2-20260713154542 --execute --cleanup-only"
+  ],
+  "dryRun": false,
+  "productionResourceAccess": false,
+  "realProviderAccess": false,
+  "realDouyinWrite": false,
+  "issues": []
+}

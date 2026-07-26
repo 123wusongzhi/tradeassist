@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
@@ -141,6 +142,47 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 				markDouyinImageFailed(&items[i], imageErrCode(srcErr), safeImageErr(srcErr))
 				continue
 			}
+			contentHash := douyinImageContentHash(src.Data)
+			if !body.Force {
+				if cached, ok := s.lookupDouyinImageAsset(ctx, shopID, contentHash); ok && strings.TrimSpace(cached.PlatformImageID) != "" {
+					now := time.Now().UTC()
+					items[i].PlatformImageID = cached.PlatformImageID
+					items[i].PlatformImageURL = cached.PlatformImageURLSummary
+					items[i].StorageURL = strings.TrimSpace(src.StorageURL)
+					items[i].StorageKey = strings.TrimSpace(src.StorageKey)
+					items[i].UploadStatus = DouyinImageStatusUploaded
+					items[i].Status = "uploaded"
+					items[i].NeedSync = false
+					items[i].UploadedAt = &now
+					_ = s.touchDouyinImageAssetVerified(ctx, cached.ID)
+					continue
+				}
+			}
+			var idemRecID *uuid.UUID
+			if s.Idempotency != nil {
+				idemKey := idempotency.DouyinImageUpload(shopID.String(), src.StorageKey, contentHash)
+				res, acqErr := s.Idempotency.Acquire(ctx, idempotency.ScopeDouyinImage, idemKey, idempotency.HashRequest([]byte(idemKey)), "douyin-image-upload", idempotency.DefaultLease)
+				decision, rec, _ := idempotency.Classify(res, acqErr)
+				switch decision {
+				case idempotency.DecisionAlreadySucceeded:
+					if res != nil && strings.TrimSpace(res.ResourceID) != "" {
+						now := time.Now().UTC()
+						items[i].PlatformImageID = res.ResourceID
+						items[i].UploadStatus = DouyinImageStatusUploaded
+						items[i].Status = "uploaded"
+						items[i].UploadedAt = &now
+						continue
+					}
+				case idempotency.DecisionInProgress:
+					markDouyinImageFailed(&items[i], DouyinImageUploadFailed, "image upload already in progress")
+					continue
+				case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+					if rec != nil {
+						id := rec.ID
+						idemRecID = &id
+					}
+				}
+			}
 			platformImage, upErr := uploader.UploadImage(ctx, shopID.String(), platformdouyin.UploadImageRequest{
 				ImageType: typ,
 				FileName:  src.FileName,
@@ -149,6 +191,15 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 				SourceURL: src.StorageURL,
 			})
 			if upErr != nil {
+				var de *platformdouyin.Error
+				if platformdouyin.AsError(upErr, &de) && de != nil && de.UnknownResult {
+					_ = s.upsertDouyinImageAsset(ctx, shopID, src.StorageKey, contentHash, "", "", DouyinImageAssetStatusUnknown, idemRecID)
+					if idemRecID != nil && s.Idempotency != nil {
+						s.Idempotency.Fail(ctx, *idemRecID, "douyin-image-upload", de.Code, false)
+					}
+				} else if idemRecID != nil && s.Idempotency != nil {
+					s.Idempotency.Fail(ctx, *idemRecID, "douyin-image-upload", providerImageErrCode(upErr), true)
+				}
 				markDouyinImageFailed(&items[i], providerImageErrCode(upErr), safeImageErr(upErr))
 				continue
 			}
@@ -165,6 +216,14 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 			items[i].NeedSync = false
 			items[i].UploadedAt = &now
 			items[i].Raw = platformImage.Raw
+			_ = s.upsertDouyinImageAsset(ctx, shopID, src.StorageKey, contentHash, items[i].PlatformImageID, items[i].PlatformImageURL, DouyinImageAssetStatusUploaded, idemRecID)
+			if idemRecID != nil {
+				_ = s.Idempotency.Complete(ctx, *idemRecID, "douyin-image-upload", idempotency.CompleteResult{
+					ResponseCode: "DOUYIN_IMAGE_UPLOADED",
+					ResourceType: "douyin_image_asset",
+					ResourceID:   items[i].PlatformImageID,
+				})
+			}
 			logDouyinProductImage(c, s, adminID, productID, "douyin.image.upload.success", "success", "", "image uploaded")
 		}
 		return items

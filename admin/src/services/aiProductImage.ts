@@ -27,6 +27,7 @@ export type CheckBatchItem = {
   status: string;
   statusLabel: string;
   issues: string[];
+  issueCodes?: string[];
 };
 
 export type CheckBatchResponse = {
@@ -59,6 +60,28 @@ export type AIProductImageBatchRow = {
 
 export type QualityWarning = { code: string; title?: string; message: string };
 
+export type ProviderReadiness = {
+  provider: string;
+  status: string;
+  statusLabel: string;
+  summary?: string;
+  missingCodes?: string[];
+  degradedOps?: string[];
+  settingsUrl?: string;
+};
+
+export type BatchResultOverview = {
+  successCount: number;
+  warningCount: number;
+  failedCount: number;
+  appliedCount: number;
+  recoverableCount: number;
+  nonRecoverableCount: number;
+  providerReadiness: ProviderReadiness;
+  nextActions?: string[];
+  summaryMessage?: string;
+};
+
 export type AIProductImageItemRow = {
   id: string;
   productId: string;
@@ -74,6 +97,12 @@ export type AIProductImageItemRow = {
   resultImageUrl?: string;
   qualityWarnings: QualityWarning[];
   errorMessage?: string;
+  errorCode?: string;
+  warningCode?: string;
+  warningMessage?: string;
+  recoverable?: boolean;
+  needsConfig?: boolean;
+  settingsUrl?: string;
   imageTaskId?: string;
   applyMode?: string;
   applyModeLabel?: string;
@@ -82,6 +111,7 @@ export type AIProductImageItemRow = {
 };
 
 export type AIProductImageBatchDetail = AIProductImageBatchRow & {
+  overview: BatchResultOverview;
   items: AIProductImageItemRow[];
   input?: Record<string, unknown>;
   output?: Record<string, unknown>;

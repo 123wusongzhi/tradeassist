@@ -1,0 +1,12 @@
+{
+  "phase": "P7-V2-R2",
+  "component": "bootstrap",
+  "status": "passed",
+  "bootstrapRun1": "passed",
+  "bootstrapRun2": "passed",
+  "duplicateUsers": 0,
+  "duplicateRoles": 0,
+  "duplicateAssignments": 0,
+  "idempotent": true,
+  "generatedAt": "2026-07-14T09:38:23.827Z"
+}

@@ -1,0 +1,27 @@
+{
+  "phase": "P7-C3",
+  "status": "incomplete",
+  "generatedAt": "2026-07-14T00:00:00+08:00",
+  "rootBlockers": [
+    {
+      "id": "taskcenter_sql_keyset",
+      "type": "root_blocker",
+      "status": "partial",
+      "summary": "Task Center failure list now has signed merge cursor support, but the underlying cross-table merge is not a single repository SQL keyset path.",
+      "dependentFailures": ["task_pagination_runtime", "query_plan_runtime", "capability_task_cursor_partial"]
+    },
+    {
+      "id": "runtime_evidence_not_executed",
+      "type": "root_blocker",
+      "status": "blocked",
+      "summary": "Medium PostgreSQL pagination runtime, query plan, N+1 runtime, and Linux race evidence were not executed in this turn.",
+      "dependentFailures": ["p7_c3_final_gate_failed", "p7_c2_gate_not_reclosed", "p7_c_closure_not_reclosed"]
+    }
+  ],
+  "dependentFailures": [
+    {"id": "query_plan_runtime", "blockedBy": "runtime_evidence_not_executed"},
+    {"id": "nplusone_runtime", "blockedBy": "runtime_evidence_not_executed"},
+    {"id": "incremental_linux_race", "blockedBy": "runtime_evidence_not_executed"}
+  ]
+}
+

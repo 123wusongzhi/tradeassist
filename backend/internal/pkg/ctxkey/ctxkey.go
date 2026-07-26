@@ -8,3 +8,9 @@ const AdminID = "admin_id"
 
 // AdminUsername holds the JWT username claim (*gin.Context key).
 const AdminUsername = "admin_username"
+
+// TenantID holds the authenticated tenant id (*gin.Context key).
+const TenantID = "tenant_id"
+
+// SessionID holds the authenticated session id (*gin.Context key).
+const SessionID = "session_id"

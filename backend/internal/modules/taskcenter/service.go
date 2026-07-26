@@ -3,6 +3,7 @@ package taskcenter
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"gorm.io/gorm"
 )
 
@@ -53,10 +55,56 @@ type ListFailureParams struct {
 	End              *time.Time
 	Page             int
 	PageSize         int
+	Cursor           string
+	Limit            int
+	UseCursor        bool
 
 	FailureCategory string
 	Severity        string
 	RecoveryStatus  string
+	AllowedShopIDs  []uuid.UUID
+	TenantID        int64
+}
+
+func taskCursorScope(p ListFailureParams) (filterFingerprint string, shopScopeHash string) {
+	allowed := make([]string, 0, len(p.AllowedShopIDs))
+	for _, id := range p.AllowedShopIDs {
+		allowed = append(allowed, id.String())
+	}
+	sort.Strings(allowed)
+	shopScope := strings.TrimSpace(p.ShopID)
+	shopScopeHash = pagination.Fingerprint(map[string]any{
+		"shopId":         shopScope,
+		"allowedShopIds": allowed,
+	})
+	filterFingerprint = pagination.Fingerprint(map[string]any{
+		"tenantId":         p.TenantID,
+		"taskType":         p.TaskType,
+		"status":           p.Status,
+		"normalizedStatus": p.NormalizedStatus,
+		"platform":         p.Platform,
+		"shopId":           shopScope,
+		"keyword":          p.Keyword,
+		"includeResolved":  p.IncludeResolved,
+		"includeMarked":    p.IncludeMarked,
+		"requireIgnored":   p.RequireIgnored,
+		"requireHandled":   p.RequireHandled,
+		"start":            p.Start,
+		"end":              p.End,
+		"failureCategory":  p.FailureCategory,
+		"severity":         p.Severity,
+		"recoveryStatus":   p.RecoveryStatus,
+		"allowedShopIds":   allowed,
+		"sort":             "sort_key_desc_id_desc",
+	})
+	return filterFingerprint, shopScopeHash
+}
+
+func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.DB {
+	if p.TenantID > 0 {
+		return q.Where("tenant_id = ?", p.TenantID)
+	}
+	return q
 }
 
 func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
@@ -107,6 +155,26 @@ func passesUnifiedFilters(d UnifiedTaskDTO, p ListFailureParams) bool {
 	if p.ShopID != "" && !strings.EqualFold(strings.TrimSpace(p.ShopID), strings.TrimSpace(d.ShopID)) {
 		return false
 	}
+	if len(p.AllowedShopIDs) > 0 {
+		shopRaw := strings.TrimSpace(d.ShopID)
+		if shopRaw == "" {
+			return false
+		}
+		sid, err := uuid.Parse(shopRaw)
+		if err != nil {
+			return false
+		}
+		allowed := false
+		for _, id := range p.AllowedShopIDs {
+			if id == sid {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return false
+		}
+	}
 	if wf := strings.TrimSpace(p.FailureCategory); wf != "" && !strings.EqualFold(wf, strings.TrimSpace(d.FailureCategory)) {
 		return false
 	}
@@ -133,7 +201,7 @@ func (s *Service) collectMerged(ctx context.Context, p ListFailureParams, perTyp
 	}
 	var merged []UnifiedTaskDTO
 	for _, tt := range types {
-		part, err := s.listOneType(ctx, tt, p, now, perTypeLimit)
+		part, err := s.listOneType(ctx, tt, p, now, perTypeLimit, TaskSourceCursor{SourceID: tt})
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +270,7 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRet
 			AND TRIM(locked_by) <> ''
 			AND locked_until < ?
 		)`
-	args := []any{[]string{"failed", "retrying"}, now}
+	args := []any{[]string{"failed", "retrying", "partial_success"}, now}
 	if trackRetryStale {
 		staleCut := now.Add(-staleRetryAfterDrift * time.Minute)
 		q += `
@@ -213,7 +281,7 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRet
 		)`
 		args = append(args, staleCut)
 	}
-	return db.Where(q, args...)
+	return db.Where("("+strings.TrimSpace(q)+")", args...)
 }
 
 func (s *Service) fetchMarks(ctx context.Context, taskType string, ids []string) (markSet, error) {
@@ -342,7 +410,7 @@ func taskTypesFor(p ListFailureParams) []string {
 	all := []string{
 		TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
 		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync,
-		TaskTypeAIText, TaskTypeAIImage,
+		TaskTypeAIText, TaskTypeAIImage, TaskTypeCustomerFailure,
 	}
 	tt := strings.TrimSpace(p.TaskType)
 	if tt == "" {
@@ -360,7 +428,7 @@ func parseTaskType(s string) (string, error) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	switch s {
 	case TaskTypeCollect, TaskTypeImage, TaskTypeOrderSync,
-		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText, TaskTypeAIImage:
+		TaskTypeCustomerMessageSync, TaskTypeProductPublish, TaskTypeInventorySync, TaskTypeAIText, TaskTypeAIImage, TaskTypeCustomerFailure:
 		return s, nil
 	default:
 		return "", fmt.Errorf("unknown taskType")
@@ -372,6 +440,9 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("taskcenter: no db")
 	}
+	if p.UseCursor && p.Limit > 0 {
+		p.PageSize = p.Limit
+	}
 	page, pageSize := clampPage(p.Page, p.PageSize)
 	p.Page, p.PageSize = page, pageSize
 	types := taskTypesFor(p)
@@ -379,18 +450,52 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 		return zero, fmt.Errorf("invalid taskType")
 	}
 
-	limit := mergeFetchLimit(page, pageSize)
-	merged, err := s.collectMerged(ctx, p, limit)
+	filterFingerprint, shopScopeHash := taskCursorScope(p)
+	var mergeCur *TaskMergeCursorPayload
+	if p.UseCursor && strings.TrimSpace(p.Cursor) != "" {
+		decoded, err := decodeTaskMergeCursor(p.Cursor, p.TenantID, shopScopeHash, filterFingerprint)
+		if err != nil {
+			return zero, err
+		}
+		mergeCur = &decoded
+	}
+
+	limit := pageSize
+	if p.UseCursor {
+		merged, sourceCursors, hasMore, err := s.mergeTaskSources(ctx, p, mergeCur, limit)
+		if err != nil {
+			return zero, err
+		}
+		if err := s.attachAlertStatuses(ctx, merged); err != nil {
+			return zero, err
+		}
+		summary := FailuresSummary{ByType: map[string]int64{}, ByPlatform: map[string]int64{}}
+		summary.fillFromMerged(merged)
+		nextCursor, err := buildNextMergeCursor(hasMore, p.TenantID, shopScopeHash, filterFingerprint, sourceCursors, types)
+		if err != nil {
+			return zero, err
+		}
+		return ListFailuresResult{
+			List:       merged,
+			Total:      int64(len(merged)),
+			Summary:    summary,
+			Limit:      pageSize,
+			NextCursor: nextCursor,
+			HasMore:    hasMore,
+		}, nil
+	}
+
+	if _, err := pagination.NormalizePage(page, pageSize); err != nil {
+		return zero, err
+	}
+	merged, err := s.collectMerged(ctx, p, mergeFetchLimit(page, pageSize))
 	if err != nil {
 		return zero, err
 	}
 	if err := s.attachAlertStatuses(ctx, merged); err != nil {
 		return zero, err
 	}
-	summary := FailuresSummary{
-		ByType:     map[string]int64{},
-		ByPlatform: map[string]int64{},
-	}
+	summary := FailuresSummary{ByType: map[string]int64{}, ByPlatform: map[string]int64{}}
 	summary.fillFromMerged(merged)
 
 	start := (page - 1) * pageSize
@@ -407,6 +512,8 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 		List:    pageRows,
 		Total:   int64(len(merged)),
 		Summary: summary,
+		Limit:   pageSize,
+		HasMore: end < len(merged),
 	}, nil
 }
 

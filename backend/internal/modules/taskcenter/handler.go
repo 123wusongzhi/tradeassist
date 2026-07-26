@@ -12,6 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -91,13 +93,28 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		End:              endPtr,
 		Page:             page,
 		PageSize:         pageSize,
+		Cursor:           strings.TrimSpace(c.Query("cursor")),
+		Limit:            atoiQ(1, c.Query("limit"), 0),
 	}
+	p.UseCursor = p.Cursor != "" || p.Limit > 0
 	if !applyMarkFiltersFromQuery(c, &p) {
 		response.Fail(c, 400, response.CodeBadRequest, "ignored and handled filters are mutually exclusive")
 		return
 	}
+	if h.Svc != nil && h.Svc.DB != nil {
+		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+			p.TenantID = tid
+		}
+		if pr, err := adminperm.LoadPrincipal(c, h.Svc.DB); err == nil && pr != nil && !pr.IsAdmin() {
+			p.AllowedShopIDs = pr.AllowedStoreIDs()
+		}
+	}
 	out, err := h.Svc.ListFailures(c.Request.Context(), p)
 	if err != nil {
+		if code := pagination.ErrorCode(err); code != "" {
+			response.JSON(c, 400, response.CodeBadRequest, code, gin.H{"errorCode": code})
+			return
+		}
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -137,6 +154,11 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 	p.RequireIgnored = mf.RequireIgnored
 	p.RequireHandled = mf.RequireHandled
+	if h.Svc != nil && h.Svc.DB != nil {
+		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
+			p.TenantID = tid
+		}
+	}
 	su, err := h.Svc.Summary(c.Request.Context(), p)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())

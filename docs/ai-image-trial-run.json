@@ -1,0 +1,407 @@
+﻿{
+    "totalItems":  16,
+    "failedItems":  2,
+    "providerStatus":  {
+                           "configured":  true,
+                           "provider":  "dashscope_image",
+                           "hasApiKey":  false,
+                           "overview":  {
+                                            "providerCurrent":  "dashscope_image",
+                                            "removebg":  false,
+                                            "openaiImage":  false,
+                                            "comfyui":  false
+                                        }
+                       },
+    "apiBase":  "http://127.0.0.1:8080",
+    "checkResults":  [
+                         {
+                             "summary":  {
+                                             "productCount":  5,
+                                             "imageCount":  51,
+                                             "itemCount":  51,
+                                             "readyCount":  0,
+                                             "warningCount":  51,
+                                             "blockedCount":  0
+                                         },
+                             "label":  "quality_check"
+                         }
+                     ],
+    "taskCenterAiImageFailures":  50,
+    "items":  [
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I1-quality",
+                      "productId":  "3f7ab4be-db35-4bbd-aefd-4ec621b3d8ee",
+                      "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.alicdn.com/imgextra/i2/2206692357221/O1CN01cFnxcx23DH2diMmri_!!4611686018427384933-0-item_pic.jpg_q50.jpg",
+                      "itemId":  "8046bc18-622e-4700-9e74-ae7a2b5caa08",
+                      "qualityWarningCount":  1,
+                      "imageId":  "9b4b851d-a514-4228-808a-4f4436197a01",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "text_heavy",
+                                                  "title":  "文字较多",
+                                                  "message":  "图片文字较多，建议翻译或简化后再上架。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "quality_check",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.alicdn.com/imgextra/i2/2206692357221/O1CN01cFnxcx23DH2diMmri_!!4611686018427384933-0-item_pic.jpg_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I1-quality",
+                      "productId":  "6784021b-d9f8-4afe-82d9-603c8eff07e8",
+                      "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.alicdn.com/imgextra/i3/2220005877660/O1CN01Z8xaru26SKyX2EcQw~crop,13,5,777,777~_!!2220005877660.png_q50.jpg",
+                      "itemId":  "db98cd8d-e78b-495b-bab1-de68062535b3",
+                      "qualityWarningCount":  1,
+                      "imageId":  "dd1bb6f1-fcb1-4a42-bd87-cae7646ea730",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "text_heavy",
+                                                  "title":  "文字较多",
+                                                  "message":  "图片文字较多，建议翻译或简化后再上架。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "quality_check",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.alicdn.com/imgextra/i3/2220005877660/O1CN01Z8xaru26SKyX2EcQw~crop,13,5,777,777~_!!2220005877660.png_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I1-quality",
+                      "productId":  "80792536-b5b0-4dcb-b174-49b7b7376153",
+                      "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.alicdn.com/imgextra/i4/2219580678138/O1CN01c8X9Tw29zGGs4n67k_!!4611686018427387898-0-item_pic.jpg_q50.jpg",
+                      "itemId":  "1c8f73eb-5992-442e-806d-eea31eded26a",
+                      "qualityWarningCount":  2,
+                      "imageId":  "186e023f-a984-49f6-b7ea-8cf9a78f3f38",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "text_heavy",
+                                                  "title":  "文字较多",
+                                                  "message":  "图片文字较多，建议翻译或简化后再上架。"
+                                              },
+                                              {
+                                                  "code":  "text_heavy",
+                                                  "title":  "文字较多",
+                                                  "message":  "图片文字较多，建议翻译或简化后再上架。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "quality_check",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.alicdn.com/imgextra/i4/2219580678138/O1CN01c8X9Tw29zGGs4n67k_!!4611686018427387898-0-item_pic.jpg_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I1-quality",
+                      "productId":  "7e83c5fd-84f0-4fb3-a4fc-161cda5cef15",
+                      "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://gw.alicdn.com/imgextra/O1CN01kqj0eM26SL089L9nL_!!4611686018427381660-2-item_pic.png_q50.jpg",
+                      "itemId":  "98ff0bea-b51b-4ac1-b489-7b19a60aa1b8",
+                      "qualityWarningCount":  1,
+                      "imageId":  "951d8379-55cb-408b-948d-ba6de5efec7e",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "text_heavy",
+                                                  "title":  "文字较多",
+                                                  "message":  "图片文字较多，建议翻译或简化后再上架。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "quality_check",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://gw.alicdn.com/imgextra/O1CN01kqj0eM26SL089L9nL_!!4611686018427381660-2-item_pic.png_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I1-quality",
+                      "productId":  "dae67a74-7f45-44dc-bc03-6305ef53f7e4",
+                      "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.alicdn.com/imgextra/i3/2217668316685/O1CN01CwjB2e1zFmpxPGcqw_!!4611686018427383309-0-item_pic.jpg_q50.jpg",
+                      "itemId":  "b8c948be-8453-4206-b594-c9d496420985",
+                      "qualityWarningCount":  1,
+                      "imageId":  "c7ecce58-4ca9-497a-9244-ce56b4b14dd1",
+                      "qualityWarnings":  [
+                                              {
+                                                  "code":  "watermark_suspected",
+                                                  "title":  "疑似有水印",
+                                                  "message":  "图片疑似含有水印，建议使用去水印处理。"
+                                              }
+                                          ],
+                      "status":  "pending_review",
+                      "operationType":  "quality_check",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.alicdn.com/imgextra/i3/2217668316685/O1CN01CwjB2e1zFmpxPGcqw_!!4611686018427383309-0-item_pic.jpg_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I2-white-bg",
+                      "productId":  "0b358b76-4650-4a2b-b8dd-9c8512d8dc1b",
+                      "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/0b358b76-4650-4a2b-b8dd-9c8512d8dc1b/ai/replace_background/2026/07/b3badd07-4cc8-47d1-8d47-2f8c523aecaa.webp",
+                      "itemId":  "bd4a821b-8296-4990-b02f-80c065695370",
+                      "qualityWarningCount":  0,
+                      "imageId":  "05c0c0c5-7af0-45d0-bab4-ada4d6047cae",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "white_background",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-material-img/2024-01-29/0508d097-c151-4bdf-9ad1-903adb9798f6.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I2-white-bg",
+                      "productId":  "1822c905-baef-4780-91d4-03b19e472b1e",
+                      "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/1822c905-baef-4780-91d4-03b19e472b1e/ai/replace_background/2026/07/08db79bf-bc8f-48b1-806f-3a702df3af7e.webp",
+                      "itemId":  "2bba422a-8116-45f7-8a6c-fc578d41aed6",
+                      "qualityWarningCount":  0,
+                      "imageId":  "01ba1cac-ee2d-4e34-b265-f6fb3758fa0b",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "white_background",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-goods-image/2026-01-17/daee1c95-8f86-4756-b9b3-936b683beb00.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  false,
+                      "batchLabel":  "I2-white-bg",
+                      "productId":  "768ee2b6-a1a3-45a5-add0-96c256dd049b",
+                      "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                      "errorMessage":  "无法从源图链接下载图片，请确认图片 URL 可访问或重新上传图片。",
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "",
+                      "itemId":  "f714e57e-d48e-4a27-b554-e51ebfdc1fe5",
+                      "qualityWarningCount":  0,
+                      "imageId":  "bb740c0d-6525-456e-8a14-164d7ab1fa40",
+                      "qualityWarnings":  null,
+                      "status":  "failed",
+                      "operationType":  "white_background",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://gw.alicdn.com/imgextra/O1CN01eYJpsR1GureqZzthW_!!2218895890683-0-picasso.jpg_q50.jpg_.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I2-white-bg",
+                      "productId":  "39fc259b-17b5-497b-a89c-52dc05da34b3",
+                      "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/39fc259b-17b5-497b-a89c-52dc05da34b3/ai/replace_background/2026/07/eff270f4-c2dc-40de-b840-19247d881828.webp",
+                      "itemId":  "006cff19-e704-4d0f-a131-bcee37dce68c",
+                      "qualityWarningCount":  0,
+                      "imageId":  "14c97cdb-c0eb-42e1-a154-95c53168f416",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "white_background",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://gw.alicdn.com/imgextra/O1CN01eYJpsR1GureqZzthW_!!2218895890683-0-picasso.jpg_q50.jpg"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I2-white-bg",
+                      "productId":  "c86caf35-921c-4f0b-838c-70324d0752a6",
+                      "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/c86caf35-921c-4f0b-838c-70324d0752a6/ai/replace_background/2026/07/968721c6-de9c-407f-ac7f-c6042c6e7ca3.webp",
+                      "itemId":  "1931b0e8-3e4b-4309-ab84-188245bfc004",
+                      "qualityWarningCount":  0,
+                      "imageId":  "7ef96ce6-5e4f-4b58-b364-243431259e82",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "white_background",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-goods-image/2026-04-01/8e9e8e4e-a213-4fa1-9072-e03e6224a6cd.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I3-watermark",
+                      "productId":  "874abdd6-18e6-49a8-b25b-90ded0cf72b7",
+                      "batchId":  "06fc72a9-8417-449a-a08f-7e51e433422a",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/874abdd6-18e6-49a8-b25b-90ded0cf72b7/ai/remove_watermark/2026/07/f591e949-1937-4382-9e73-8e3ac8ae1f40.webp",
+                      "itemId":  "14ca02ef-0fa4-4b18-aad9-b4f0021f23ef",
+                      "qualityWarningCount":  0,
+                      "imageId":  "7bf0d228-cc63-47c3-9eef-0cbaeac0fc67",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "remove_watermark",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-goods-image/2026-04-28/304fa52d-b2b5-4644-99a4-f9e9c790fd70.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I3-watermark",
+                      "productId":  "a6b65420-ad0e-4e47-80de-1280201f2ba1",
+                      "batchId":  "06fc72a9-8417-449a-a08f-7e51e433422a",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/a6b65420-ad0e-4e47-80de-1280201f2ba1/ai/remove_watermark/2026/07/2f3e75ea-a7e6-442b-8de8-e58f49617d78.webp",
+                      "itemId":  "267140e1-c208-4aa8-ac21-cb6a3e94302f",
+                      "qualityWarningCount":  0,
+                      "imageId":  "9e6c6ea9-a81d-4127-bd0e-395f1b6adca5",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "remove_watermark",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-material-img/2025-05-26/b2057712-a13c-49a6-9daf-e92d32a662ba.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I3-watermark",
+                      "productId":  "836ddf90-036b-44cf-a3b0-4e5fe0c22a9d",
+                      "batchId":  "06fc72a9-8417-449a-a08f-7e51e433422a",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "/static/products/836ddf90-036b-44cf-a3b0-4e5fe0c22a9d/ai/remove_watermark/2026/07/2c1b78d2-a69a-4988-aae9-24481cc58de8.webp",
+                      "itemId":  "b6057a6c-c710-4c14-9b8b-87df2ae9b694",
+                      "qualityWarningCount":  0,
+                      "imageId":  "be638c45-3ebe-443a-8087-512bcab5645e",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "remove_watermark",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-goods-image/2026-03-26/1aa0fad7-3fc5-4c9e-9a20-61ba0f495108.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I4-select-main",
+                      "productId":  "ffc1f07c-874f-4681-9bd8-6e101e884ece",
+                      "batchId":  "018f9e66-badc-474f-bd15-b5156c8d1fe3",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.pddpic.com/mms-material-img/2022-10-19/d3872650-7d78-41d9-8dc7-69afe2fd27cc.jpeg.a.jpeg?imageMogr2/quality/90/format/webp",
+                      "itemId":  "1dd0d1aa-dbed-4779-a853-f026bd1cd9a3",
+                      "qualityWarningCount":  0,
+                      "imageId":  "5aef9194-0dff-4d81-a43a-70e35233c8f6",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "select_best_main",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-material-img/2022-10-19/e2b86dba-8b65-422b-94c4-e841d63d9322.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  true,
+                      "batchLabel":  "I4-select-main",
+                      "productId":  "970152fa-f12b-411b-afd1-51c714e0e5fb",
+                      "batchId":  "018f9e66-badc-474f-bd15-b5156c8d1fe3",
+                      "errorMessage":  null,
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "https://img.pddpic.com/mms-material-img/2022-10-19/9660e0dc-7819-4b32-9d92-0b515b62de20.jpeg.a.jpeg?imageMogr2/quality/90/format/webp",
+                      "itemId":  "88009785-3b12-4e6c-aee9-87e6454f18c0",
+                      "qualityWarningCount":  0,
+                      "imageId":  "f16f1926-c420-4c0a-939d-b25eae2b3206",
+                      "qualityWarnings":  null,
+                      "status":  "pending_review",
+                      "operationType":  "select_best_main",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-material-img/2022-10-19/6e3369f2-cac6-407c-ab49-356606abea32.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  },
+                  {
+                      "hasResult":  false,
+                      "batchLabel":  "I4-select-main",
+                      "productId":  "0c6b8e25-1012-4f2f-844c-792923461b14",
+                      "batchId":  "018f9e66-badc-474f-bd15-b5156c8d1fe3",
+                      "errorMessage":  "图片处理超时，可稍后重试或检查 Provider 网络与超时设置。",
+                      "autoOverwrite":  false,
+                      "productMainCount":  0,
+                      "resultImageUrl":  "",
+                      "itemId":  "4326616b-e276-4ca1-a042-d8a96ff0ed61",
+                      "qualityWarningCount":  0,
+                      "imageId":  "b49c70ce-6e7e-47d3-bf09-e24004e31327",
+                      "qualityWarnings":  null,
+                      "status":  "failed",
+                      "operationType":  "select_best_main",
+                      "imageType":  "main",
+                      "sourceImageUrl":  "https://img.pddpic.com/mms-material-img/2022-10-19/6f0537f4-46ec-4ff6-9959-d1bee777059f.jpeg.a.jpeg?imageMogr2/quality/90/format/webp"
+                  }
+              ],
+    "pendingReview":  14,
+    "successItems":  14,
+    "conclusion":  "passed_with_warning",
+    "emptyResults":  0,
+    "qualityWarningItems":  5,
+    "batches":  [
+                    {
+                        "failedCount":  0,
+                        "label":  "I1-quality",
+                        "batchId":  "6cacc189-9d94-4fb2-b619-09c18d7be807",
+                        "successCount":  5,
+                        "operationTypes":  [
+                                               "quality_check"
+                                           ],
+                        "batchNo":  "IMG202607100005",
+                        "status":  "success"
+                    },
+                    {
+                        "failedCount":  1,
+                        "label":  "I2-white-bg",
+                        "batchId":  "5b0f4bb6-ace4-41f2-ad51-4c854f52870c",
+                        "successCount":  4,
+                        "operationTypes":  [
+                                               "white_background"
+                                           ],
+                        "batchNo":  "IMG202607100006",
+                        "status":  "partial_success"
+                    },
+                    {
+                        "failedCount":  0,
+                        "label":  "I3-watermark",
+                        "batchId":  "06fc72a9-8417-449a-a08f-7e51e433422a",
+                        "successCount":  3,
+                        "operationTypes":  [
+                                               "remove_watermark"
+                                           ],
+                        "batchNo":  "IMG202607100007",
+                        "status":  "success"
+                    },
+                    {
+                        "failedCount":  1,
+                        "label":  "I4-select-main",
+                        "batchId":  "018f9e66-badc-474f-bd15-b5156c8d1fe3",
+                        "successCount":  2,
+                        "operationTypes":  [
+                                               "select_best_main"
+                                           ],
+                        "batchNo":  "IMG202607100008",
+                        "status":  "partial_success"
+                    }
+                ],
+    "generatedAt":  "2026-07-10T06:52:46.3469545Z"
+}

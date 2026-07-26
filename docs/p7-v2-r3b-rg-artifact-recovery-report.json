@@ -1,0 +1,63 @@
+{
+  "phase": "P7-V2-R3B-RG",
+  "status": "failed",
+  "filesystemConflictObserved": true,
+  "baselineArtifactAvailable": false,
+  "currentArtifactAvailable": false,
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-20260714163000",
+    "expectedPath": "artifacts/p7-v2/baseline/p7v2-baseline-r3b-20260714163000/baseline.summary.json",
+    "recoveredPath": "",
+    "archivePath": "",
+    "exists": false,
+    "sizeBytes": 0,
+    "expectedSizeBytes": 9982,
+    "sha256": "",
+    "expectedSha256": "a044200730ef92d807502c5c157994c50210ff81069ca52e8d639c4c204716ed",
+    "hashVerified": false,
+    "jsonParseable": false,
+    "requests": 0,
+    "scenarioMetricsPresent": false
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-20260714164500",
+    "expectedPath": "artifacts/p7-v2/current/p7v2-current-r3b-20260714164500/current.summary.json",
+    "recoveredPath": "",
+    "archivePath": "",
+    "exists": false,
+    "sizeBytes": 0,
+    "expectedSizeBytes": 0,
+    "sha256": "",
+    "expectedSha256": "",
+    "hashVerified": false,
+    "jsonParseable": false,
+    "requests": 0,
+    "scenarioMetricsPresent": false
+  },
+  "sameArtifact": false,
+  "reportsUsedAsArtifact": false,
+  "regressionRecalculationAllowed": false,
+  "rebaselineRequired": true,
+  "currentRerunRequired": true,
+  "reason": "original immutable current k6 artifact could not be recovered or verified",
+  "conclusion": [
+    "Existing Baseline/Current Artifacts Insufficient",
+    "Regression Recalculation Prohibited",
+    "Rebaseline And Current Rerun Required"
+  ],
+  "execution": {
+    "regressionRecalculated": false,
+    "soakExecuted": false,
+    "demoExecuted": false,
+    "stabilityExecuted": false,
+    "raceExecuted": false,
+    "finalGateExecuted": false
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  }
+}

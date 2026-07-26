@@ -3,14 +3,43 @@ package imagetask
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
-	"gorm.io/gorm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 )
+
+type imageLeaseCtxKey struct{}
+
+type imageLeaseBag struct {
+	WorkerID string
+	Claim    *tasklease.ClaimResult
+}
+
+func withImageLease(ctx context.Context, workerID string, claim *tasklease.ClaimResult) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if claim == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, imageLeaseCtxKey{}, imageLeaseBag{WorkerID: workerID, Claim: claim})
+}
+
+func imageLeaseFrom(ctx context.Context) (string, *tasklease.ClaimResult) {
+	if ctx == nil {
+		return "", nil
+	}
+	v, ok := ctx.Value(imageLeaseCtxKey{}).(imageLeaseBag)
+	if !ok || v.Claim == nil {
+		return "", nil
+	}
+	return v.WorkerID, v.Claim
+}
 
 func (s *Service) computeExecutionTimeout(ctx context.Context, task *ImageTask) time.Duration {
 	if task == nil {
@@ -31,66 +60,58 @@ func (s *Service) computeExecutionTimeout(ctx context.Context, task *ImageTask) 
 	return timeout
 }
 
-func (s *Service) tryClaimImageTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*ImageTask, bool, error) {
+func (s *Service) tryClaimImageTask(ctx context.Context, taskID uuid.UUID, workerID string, lease time.Duration) (*ImageTask, *tasklease.ClaimResult, bool, error) {
 	if s == nil || s.DB == nil {
-		return nil, false, fmt.Errorf("imagetask: no db")
+		return nil, nil, false, fmt.Errorf("imagetask: no db")
 	}
-	now := time.Now().UTC()
-	until := now.Add(lease)
-	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where(`id = ? AND (status = ? OR (status = ? AND next_retry_at IS NULL)) AND (locked_by IS NULL OR locked_until < ?)`,
-			taskID, StatusPending, StatusRetrying, now).
-		Updates(map[string]any{
-			"status":            StatusRunning,
-			"locked_by":         workerID,
-			"locked_until":      &until,
-			"lock_version":      gorm.Expr("lock_version + 1"),
-			"started_at":        gorm.Expr("COALESCE(started_at, ?)", now),
-			"finished_at":       nil,
-			"error_message":     "",
-			"retry_enqueued_at": nil,
-		})
-	if res.Error != nil {
-		return nil, false, res.Error
+	claim, ok, err := tasklease.TryClaimPendingOrRetrying(ctx, s.DB, ImageTask{}.TableName(), StatusPending, StatusRetrying, StatusRunning, taskID, workerID, lease)
+	if err != nil {
+		return nil, nil, false, err
 	}
-	if res.RowsAffected == 0 {
-		return nil, false, nil
+	if !ok {
+		return nil, nil, false, nil
 	}
 	var task ImageTask
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	return &task, true, nil
+	return &task, &claim, true, nil
 }
 
-func (s *Service) startImageLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, leaseTTL time.Duration) (stop func()) {
-	if s == nil || s.DB == nil {
+func (s *Service) startImageLeaseRenewal(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, leaseTTL time.Duration) (stop func()) {
+	if s == nil || s.DB == nil || claim == nil {
 		return func() {}
 	}
-	interval := leaseTTL / 3
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
+	return tasklease.StartRenewal(ctx, s.DB, ImageTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion, leaseTTL)
+}
+
+func (s *Service) validateImageLease(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult) error {
+	if claim == nil {
+		return tasklease.ErrLeaseLost
 	}
-	runCtx, cancel := context.WithCancel(ctx)
-	go func() {
-		tick := time.NewTicker(interval)
-		defer tick.Stop()
-		for {
-			select {
-			case <-runCtx.Done():
-				return
-			case <-tick.C:
-				until := time.Now().UTC().Add(leaseTTL)
-				_ = s.DB.WithContext(context.Background()).Model(&ImageTask{}).
-					Where("id = ? AND status = ? AND locked_by = ?", taskID, StatusRunning, workerID).
-					Updates(map[string]any{
-						"locked_until": &until,
-						"updated_at":   time.Now().UTC(),
-					}).Error
-			}
-		}
-	}()
-	return cancel
+	return tasklease.ValidateLease(ctx, s.DB, ImageTask{}.TableName(), StatusRunning, taskID, workerID, claim.ExecutionID, claim.LeaseVersion)
+}
+
+func (s *Service) finishImageTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	if err := s.validateImageLease(ctx, taskID, workerID, claim); err != nil {
+		slog.Warn("image_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
+		return err
+	}
+	now := time.Now().UTC()
+	updates["locked_by"] = nil
+	updates["locked_until"] = nil
+	updates["updated_at"] = now
+	res := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+		Updates(updates)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return tasklease.ErrLeaseLost
+	}
+	return nil
 }
 
 func (s *Service) handleImagePanic(parent context.Context, httpCtx *gin.Context, taskID uuid.UUID, workerID string, panicVal any) {
@@ -129,6 +150,8 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		Updates(map[string]any{
 			"locked_by":    nil,
 			"locked_until": nil,
+			"execution_id": nil,
+			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
@@ -170,6 +193,8 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		Updates(map[string]any{
 			"locked_by":    nil,
 			"locked_until": nil,
+			"execution_id": nil,
+			"heartbeat_at": nil,
 			"updated_at":   now,
 		}).Error
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {

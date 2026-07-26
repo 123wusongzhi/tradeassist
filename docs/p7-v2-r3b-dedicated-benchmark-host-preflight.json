@@ -1,0 +1,262 @@
+{
+  "phase": "P7-V2-R3B-DEDICATED-BENCHMARK-HOST-CONTRACT",
+  "formalHostIsolationVersion": 3,
+  "dedicatedBenchmarkHostContractVersion": 1,
+  "hostContractHash": "f783835fcfcef6dd59c250f4cc806bcccad3715275a91ef00ade8cbc29bd001b",
+  "hostContractStartHash": "f783835fcfcef6dd59c250f4cc806bcccad3715275a91ef00ade8cbc29bd001b",
+  "hostContractEndHash": "f783835fcfcef6dd59c250f4cc806bcccad3715275a91ef00ade8cbc29bd001b",
+  "hostname": "SK-20250814VKAY",
+  "machineIdHash": "unsupported",
+  "osRelease": "Windows_NT 10.0.19045",
+  "kernelVersion": "10.0.19045",
+  "architecture": "x64",
+  "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+  "logicalCpuCount": 12,
+  "cpuQuota": "unsupported",
+  "cpuAffinity": "unsupported",
+  "cpuQuotaStable": true,
+  "memoryTotalBytes": 17010700288,
+  "swapTotalBytes": 0,
+  "swapUsedBytes": 0,
+  "filesystemType": "unsupported",
+  "benchmarkFilesystemMount": "",
+  "repositoryOnNativeLinuxFilesystem": false,
+  "freeDiskBytes": 0,
+  "postgresDataOnNativeLinuxFilesystem": false,
+  "rawEvidenceOnNativeLinuxFilesystem": false,
+  "virtualizationType": "unsupported",
+  "containerRuntimeVersion": "",
+  "nodePath": "D:\\nvm\\nodejs\\node.exe",
+  "nodeVersion": "v22.15.0",
+  "nodePlatform": "win32",
+  "nodeArch": "x64",
+  "pnpmPath": "D:\\nvm\\nodejs\\pnpm",
+  "pnpmVersion": "9.15.4",
+  "goPath": "D:\\g\\go\\bin\\go.exe",
+  "goVersion": "go version go1.26.2 windows/amd64",
+  "GOOS": "windows",
+  "GOARCH": "amd64",
+  "gccPath": "",
+  "gccVersion": "",
+  "dockerPath": "",
+  "dockerVersion": "",
+  "dockerDaemonReachable": false,
+  "k6Path": "",
+  "k6Version": "",
+  "postgresVersion": "postgres (PostgreSQL) 17.9",
+  "repositoryRoot": "D:\\project\\trademind-ai",
+  "repositoryGitCommit": "48c4628f82a200a246a4aa6d8cd7cd6e870d2c3e",
+  "repositoryGitDirty": true,
+  "schedulerSamples": [
+    {
+      "loadAverage1m": 0,
+      "logicalCpuCount": 12,
+      "cpuStealPct": 0,
+      "ioWaitPct": 0,
+      "runQueue": 0
+    },
+    {
+      "loadAverage1m": 0,
+      "logicalCpuCount": 12,
+      "cpuStealPct": 0,
+      "ioWaitPct": 0,
+      "runQueue": 0
+    },
+    {
+      "loadAverage1m": 0,
+      "logicalCpuCount": 12,
+      "cpuStealPct": 0,
+      "ioWaitPct": 0,
+      "runQueue": 0
+    }
+  ],
+  "timeSyncActive": false,
+  "clockSource": "unsupported",
+  "cpuFrequencyGovernor": "unsupported",
+  "thermalThrottleDetected": true,
+  "systemTimerCount": 0,
+  "dockerContainerCount": 0,
+  "relatedProcessCount": 0,
+  "concurrentBuildProcessCount": 0,
+  "unknownHeavyProcessCount": 0,
+  "unknownDatabaseWorkloadCount": 0,
+  "processSampleCount": 0,
+  "contract": {
+    "formalHostIsolationVersion": 3,
+    "dedicatedBenchmarkHostContractVersion": 1,
+    "hostIsolationUpgrade": false,
+    "requiredPlatform": {
+      "nodePlatform": "linux",
+      "nodeArch": "x64",
+      "goos": "linux",
+      "goarch": "amd64"
+    },
+    "requiredK6Version": "k6 v0.57.0",
+    "postgresIsolationMode": "dedicated_ephemeral_postgres_instance_per_run",
+    "requiredNativeFilesystem": true,
+    "benchmarkWindow": {
+      "exclusive": true,
+      "allowedProcessSet": [
+        "benchmarkRunner",
+        "testedApplication",
+        "slotPostgres",
+        "k6",
+        "requiredSystemServices"
+      ]
+    },
+    "immutableThresholds": {
+      "minFreeDiskBytes": 21474836480,
+      "minMemoryBytes": 8589934592,
+      "maxLoadPerLogicalCpu": 0.9,
+      "maxCpuStealPct": 1,
+      "maxIoWaitPct": 5,
+      "activeSwapAllowed": false
+    },
+    "prohibitedActions": [
+      "host_isolation_v4",
+      "formal_plan",
+      "runtime_freeze",
+      "formal_pair",
+      "soak",
+      "demo",
+      "fifth_run",
+      "threshold_relaxation",
+      "load_contract_change",
+      "business_runtime_change"
+    ]
+  },
+  "hostFingerprint": "b0767de569c40725baeca12c7b9c638ea05a46eb7a20215487aea1ccfda03e9e",
+  "status": "failed",
+  "failedCount": 10,
+  "failed": [
+    "nodePlatform",
+    "GOOS",
+    "nativeLinuxFilesystem",
+    "freeDiskHeadroomPassed",
+    "dockerDaemonReachable",
+    "gccPath",
+    "k6VersionMatch",
+    "workingTreeClean",
+    "timeSyncActive",
+    "thermalThrottleDetected"
+  ],
+  "checks": [
+    {
+      "id": "formalHostIsolationVersion",
+      "status": "passed"
+    },
+    {
+      "id": "dedicatedBenchmarkHostContractVersion",
+      "status": "passed"
+    },
+    {
+      "id": "nodePlatform",
+      "status": "failed"
+    },
+    {
+      "id": "nodeArch",
+      "status": "passed"
+    },
+    {
+      "id": "GOOS",
+      "status": "failed"
+    },
+    {
+      "id": "GOARCH",
+      "status": "passed"
+    },
+    {
+      "id": "nativeLinuxFilesystem",
+      "status": "failed"
+    },
+    {
+      "id": "freeDiskHeadroomPassed",
+      "status": "failed"
+    },
+    {
+      "id": "memoryHeadroomPassed",
+      "status": "passed"
+    },
+    {
+      "id": "cpuQuotaStable",
+      "status": "passed"
+    },
+    {
+      "id": "dockerDaemonReachable",
+      "status": "failed"
+    },
+    {
+      "id": "gccPath",
+      "status": "failed"
+    },
+    {
+      "id": "k6VersionMatch",
+      "status": "failed"
+    },
+    {
+      "id": "postgresVersion",
+      "status": "passed"
+    },
+    {
+      "id": "workingTreeClean",
+      "status": "failed"
+    },
+    {
+      "id": "exclusiveBenchmarkWindow",
+      "status": "passed"
+    },
+    {
+      "id": "schedulerContentionDetected",
+      "status": "passed"
+    },
+    {
+      "id": "backgroundIoContentionDetected",
+      "status": "passed"
+    },
+    {
+      "id": "activeSwapDuringWindow",
+      "status": "passed"
+    },
+    {
+      "id": "unknownHeavyProcessCount",
+      "status": "passed"
+    },
+    {
+      "id": "unknownDatabaseWorkloadCount",
+      "status": "passed"
+    },
+    {
+      "id": "timeSyncActive",
+      "status": "failed"
+    },
+    {
+      "id": "thermalThrottleDetected",
+      "status": "failed"
+    },
+    {
+      "id": "hostContractImmutable",
+      "status": "passed"
+    }
+  ],
+  "nativeLinuxFilesystem": false,
+  "exclusiveBenchmarkWindow": true,
+  "schedulerContentionDetected": false,
+  "backgroundIoContentionDetected": false,
+  "activeSwapDuringWindow": false,
+  "freeDiskHeadroomPassed": false,
+  "memoryHeadroomPassed": true,
+  "k6VersionMatch": false,
+  "hostContractImmutable": true,
+  "workingTreeClean": false,
+  "generatedAt": "2026-07-20T07:47:57.243Z",
+  "secretsRecorded": false,
+  "publicIpRecorded": false,
+  "sshKeyRecorded": false,
+  "providerCredentialRecorded": false,
+  "formalPlanCreated": false,
+  "runtimeFreezeCreated": false,
+  "formalPairStarted": false,
+  "businessRuntimeChanged": false,
+  "loadContractChanged": false,
+  "validationMatrixAlreadyPresent": false
+}

@@ -113,7 +113,7 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.List(c.Request.Context(), q)
+	res, err := h.Svc.List(c, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -140,7 +140,7 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	out, err := h.Svc.GetDTO(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

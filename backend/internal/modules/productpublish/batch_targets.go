@@ -13,6 +13,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 )
 
@@ -301,6 +302,14 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		adminKey = adminID.String()
 	}
 	idemKey := batchIdempotencyKey(adminKey, req.ProductIDs, req.Targets, req.CommonConfig, req.Overrides)
+	inRaw, _ := json.Marshal(req)
+	idemJob, replayRes, acqErr := s.acquirePublishBatch(ctx, c, idemKey, inRaw)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingPublishBatch(ctx, replayRes, idemKey)
+	}
 	var existing ProductPublishBatch
 	if idemKey != "" {
 		if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
@@ -316,6 +325,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		Overrides:    req.Overrides,
 	})
 	if err != nil {
+		s.failPublishBatchCreate(ctx, idemJob, "PUBLISH_BATCH_CHECK_FAILED", true)
 		return nil, err
 	}
 	checkByKey := map[string]BatchTargetCheckItem{}
@@ -323,7 +333,6 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		checkByKey[it.ProductID+":"+it.TargetKey] = it
 	}
 
-	inRaw, _ := json.Marshal(req)
 	batch := ProductPublishBatch{
 		BatchType:      BatchTypeMultiProduct,
 		Name:           strings.TrimSpace(req.Name),
@@ -343,6 +352,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 				return s.batchCreateResponseFromExisting(ctx, &dupBatch)
 			}
 		}
+		s.failPublishBatchCreate(ctx, idemJob, "PUBLISH_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 
@@ -448,6 +458,10 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}).Error
 
 	s.writeBatchOpLog(c, batch.ID, batchStatus, successN, failedN, skippedN, "product.publish.batch.create")
+
+	if err := s.completePublishBatchCreate(ctx, idemJob, batch.ID); err != nil {
+		return nil, err
+	}
 
 	return &BatchTargetsCreateDraftsResponse{
 		BatchID:      batch.ID.String(),
@@ -575,14 +589,24 @@ func (s *Service) batchCreateResponseFromExisting(ctx context.Context, batch *Pr
 }
 
 // ListPublishBatches returns paginated multi-product batches.
-func (s *Service) ListPublishBatches(ctx context.Context, page, pageSize int) ([]PublishBatchListItem, int64, error) {
+func (s *Service) ListPublishBatches(c *gin.Context, page, pageSize int) ([]PublishBatchListItem, int64, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	q := s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
+	q := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
+	taskSub := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Select("DISTINCT batch_id").Where("batch_id IS NOT NULL")
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, taskSub, "shop_id"); err != nil {
+		return nil, 0, err
+	} else {
+		taskSub = scoped
+	}
+	p, _ := adminperm.LoadPrincipal(c, s.DB)
+	if p != nil && !p.IsAdmin() {
+		q = q.Where("id IN (?)", taskSub)
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err

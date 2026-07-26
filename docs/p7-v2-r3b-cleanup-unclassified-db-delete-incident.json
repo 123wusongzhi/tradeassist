@@ -1,0 +1,23 @@
+{
+  "phase": "P7-V2-R3B-PRE-FORMAL-RESOURCE-CLASSIFICATION",
+  "incidentType": "cleanup_unclassified_database_delete",
+  "recordedAt": "2026-07-17T07:36:00.000Z",
+  "destructiveActionOccurred": true,
+  "finalCheckOnlyOverwroteActionHistory": true,
+  "historicalDatabaseDeletedCount": 0,
+  "unknownDatabaseDeletedCount": 1,
+  "deletedDatabaseName": "unknown",
+  "deleteAttemptId": "unknown",
+  "deletedAt": "unknown",
+  "deleteCommandSource": "previous cleanup stdout/stderr or transient attempt evidence was not recoverable from retained reports",
+  "classificationAtDeletion": "unclassified_diagnostic_database",
+  "ownershipEvidenceAtDeletion": "not recoverable",
+  "auditCompleteness": false,
+  "formalArtifactsAffected": false,
+  "formalFrozenEvidenceAffected": false,
+  "rawDiagnosticReportsDeleted": false,
+  "notes": [
+    "Repository and temp snapshot searches found older droppedDatabases evidence for known current-formal cleanups, but not the precise unclassified diagnostic database name described by the interrupted cleanup.",
+    "The incident is recorded explicitly so later check-only cleanup reports cannot erase the fact that a destructive action occurred."
+  ]
+}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 func normalizeCollectConcurrency(n int) int {
@@ -90,8 +91,20 @@ func runCollectWorker(ctx context.Context, log *slog.Logger, svc *Service, queue
 			continue
 		}
 
-		// Use a detached context so in-flight Collector calls are not cut off by worker shutdown.
 		jobCtx := context.Background()
+		if svc.DB != nil {
+			var probe CollectTask
+			if err := svc.DB.WithContext(jobCtx).Select("tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, uuid.Nil, "collect")
+				if terr != nil {
+					if log != nil {
+						log.Warn("collect_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				jobCtx = wctx
+			}
+		}
 		svc.RunCollectJob(jobCtx, tid, workerLeaseID)
 	}
 }

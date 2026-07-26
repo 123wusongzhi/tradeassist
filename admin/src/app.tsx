@@ -1,11 +1,22 @@
-import type { CSSProperties, KeyboardEvent, ReactElement } from 'react';
+import type { CSSProperties, KeyboardEvent, ReactElement, ReactNode } from 'react';
 import { LogoutOutlined } from '@ant-design/icons';
 import { Avatar, Dropdown, Space, Tooltip } from 'antd';
-import { history, useModel, type RequestConfig, type RunTimeLayoutConfig } from '@umijs/max';
+import type { MenuDataItem } from '@umijs/route-utils';
+import { history } from '@umijs/max';
+import type { RequestConfig, RunTimeLayoutConfig } from '@/typings/umi-runtime';
 import AppMessageBridge from '@/components/AppMessageBridge';
 import BrandLogo from '@/components/BrandLogo';
 import { AUTH_TOKEN_KEY } from '@/constants/auth';
+import { themeTokens, tmSemanticTokens } from '@/constants/layoutTokens';
 import { postJSON } from '@/services/request';
+import { filterMenuByPermission } from '@/utils/menuAccess';
+import { useInitialStateModel } from '@/hooks/useInitialStateModel';
+import type { InitialState, InitialStateModel } from '@/typings/umi-runtime';
+
+/** ProLayout 侧栏菜单头部 / 头像区回调的常用 props */
+type SiderMenuLayoutProps = {
+  collapsed?: boolean;
+};
 
 async function loadProfileFromToken(token: string): Promise<API.CurrentUser | undefined> {
   const res = await fetch('/api/v1/auth/profile', {
@@ -74,7 +85,7 @@ export const request: RequestConfig = {
   },
 };
 
-const TM_AVATAR_GRADIENT_BG = 'linear-gradient(135deg, #2563eb 0%, #0891b2 100%)';
+const TM_AVATAR_GRADIENT_BG = `linear-gradient(135deg, ${themeTokens.colorPrimary} 0%, ${tmSemanticTokens.dataAccent} 100%)`;
 
 const TM_AVATAR_STYLE: CSSProperties = { background: TM_AVATAR_GRADIENT_BG };
 
@@ -82,9 +93,7 @@ const TM_AVATAR_STYLE: CSSProperties = { background: TM_AVATAR_GRADIENT_BG };
 const TM_BRAND_MARK = <BrandLogo height={28} />;
 
 async function logoutAndClear(
-  setInitialState: (fn: (s: { currentUser?: API.CurrentUser }) => {
-    currentUser?: API.CurrentUser;
-  }) => Promise<unknown>,
+  setInitialState: InitialStateModel['setInitialState'],
 ) {
   try {
     await postJSON('/api/v1/auth/logout');
@@ -123,11 +132,7 @@ function resolveUserLabels(user?: API.CurrentUser) {
   };
 }
 
-function buildLogoutMenu(
-  setInitialState: (fn: (s: { currentUser?: API.CurrentUser }) => {
-    currentUser?: API.CurrentUser;
-  }) => Promise<unknown>,
-) {
+function buildLogoutMenu(setInitialState: InitialStateModel['setInitialState']) {
   return {
     items: [
       {
@@ -142,7 +147,7 @@ function buildLogoutMenu(
 
 /** 侧栏底部账号：整行可点，向上弹出菜单；邮箱账号双行展示避免截断 */
 function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
-  const { setInitialState, initialState } = useModel('@@initialState');
+  const { setInitialState, initialState } = useInitialStateModel();
   const { primary, secondary, initial } = resolveUserLabels(initialState?.currentUser);
   const menu = buildLogoutMenu(setInitialState);
   const tooltipTitle = secondary ? `${primary}\n${secondary}` : primary;
@@ -175,7 +180,7 @@ function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
     <Dropdown
       menu={menu}
       trigger={['click']}
-      placement={collapsed ? 'rightTop' : 'topLeft'}
+      placement={collapsed ? 'topRight' : 'topLeft'}
       overlayStyle={{ minWidth: 140 }}
     >
       <div
@@ -203,7 +208,7 @@ function SiderUserFooter({ collapsed }: { collapsed?: boolean }) {
 }
 
 function RightActions() {
-  const { setInitialState, initialState } = useModel('@@initialState');
+  const { setInitialState, initialState } = useInitialStateModel();
   const { primary, initial } = resolveUserLabels(initialState?.currentUser);
 
   return (
@@ -225,7 +230,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   logo: TM_BRAND_MARK,
   /** ProLayout 在侧栏会把 avatar 区域与（未定义 actionsRender 时的）rightContentRender 各渲染一遍，导致两行相同账号 */
   actionsRender: () => [],
-  menuHeaderRender: (logoDom, _titleDom, props) => {
+  menuHeaderRender: (logoDom: ReactNode, _titleDom: ReactNode, props?: SiderMenuLayoutProps) => {
     const collapsed = props?.collapsed;
     const goHome = () => history.push('/dashboard');
     const interactive = {
@@ -277,31 +282,38 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
             fontWeight: 600,
             fontSize: 16,
             letterSpacing: '-0.02em',
-            color: '#0f172a',
+            color: themeTokens.colorText,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}
         >
-          贸灵 <span style={{ fontWeight: 500, color: '#64748b' }}>TradeMind</span>
+          贸灵 <span style={{ fontWeight: 500, color: themeTokens.colorTextSecondary }}>TradeMind</span>
         </span>
       </div>
     );
   },
   avatarProps: initialState?.currentUser
     ? {
-        render: (_avatarProps, _defaultDom, menuProps) => (
+        render: (
+          _avatarProps: Record<string, unknown>,
+          _defaultDom: ReactNode,
+          menuProps?: SiderMenuLayoutProps,
+        ) => (
           <SiderUserFooter collapsed={menuProps?.collapsed} />
         ),
       }
     : false,
   token: {
     headerHeight: 56,
-    colorBgLayout: '#f4f6f9',
-    colorTextMenuSelected: '#2563eb',
+    colorBgLayout: themeTokens.colorBgLayout,
+    colorTextMenuSelected: themeTokens.colorPrimary,
     colorBgMenuItemSelected: 'rgba(37, 99, 235, 0.09)',
+    siderWidth: 224,
   },
   menu: { locale: false },
+  menuDataRender: (menuData: MenuDataItem[]) =>
+    filterMenuByPermission(menuData, initialState?.currentUser?.role, initialState?.currentUser?.permissions),
   onPageChange: () => {
     const { pathname } = history.location;
     if (pathname === '/user/login' || pathname.startsWith('/user/login')) return;

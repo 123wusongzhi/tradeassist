@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
 func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc *Service, queueName string, concurrency int, reg *worker.Registry) {
@@ -77,7 +78,21 @@ func runPublishWorkerLoop(ctx context.Context, log *slog.Logger, svc *Service, q
 			}
 			continue
 		}
-		if err := svc.ProcessQueuedTask(context.Background(), tid, workerLeaseID); err != nil && log != nil {
+		jobCtx := context.Background()
+		if svc.DB != nil {
+			var probe ProductPublishTask
+			if err := svc.DB.WithContext(jobCtx).Select("shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, probe.ShopID, "product_publish")
+				if terr != nil {
+					if log != nil {
+						log.Warn("product_publish_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				jobCtx = wctx
+			}
+		}
+		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("product_publish_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}
 	}

@@ -1,0 +1,31 @@
+{
+  "phase": "P7-V",
+  "status": "blocked",
+  "runId": "p7v-medium-20260713",
+  "kind": "current",
+  "baseUrl": "http://127.0.0.1:8080/",
+  "vus": 2,
+  "duration": "10s",
+  "scenarios": [],
+  "failedScenarios": 0,
+  "metrics": {},
+  "environment": {
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "arch": "x64",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "cpuCores": 12,
+    "memory": 17010700288,
+    "node": "v22.15.0",
+    "k6": "",
+    "gitCommit": "9989dcba9043e73a95114f999aa0edf61ce24ce7",
+    "gitTreeState": "dirty",
+    "datasetProfile": "medium",
+    "datasetFingerprint": "dd691cc86f40107647c81533c829d04be44de704737f9522cdfa855863ccaa9c"
+  },
+  "issues": [
+    "k6 is not available"
+  ],
+  "productionReady": false,
+  "realProductionPerformanceVerification": "deferred"
+}

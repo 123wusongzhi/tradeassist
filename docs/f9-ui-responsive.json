@@ -1,0 +1,79 @@
+{
+  "phase": "F9.1-UI",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "passed_with_manual_required",
+  "pages": [
+    "/dashboard/product-operations",
+    "/product/drafts",
+    "/product/drafts/9633c498-1d05-42e5-a6de-4bf40037e7e3",
+    "/product/ai-text-batches/eff8056f-7ae3-4af1-a2d3-0262fac60621",
+    "/product/ai-image-batches/2b5d817c-90d2-4132-8a44-ca2903ee2732",
+    "/product/publish-batches",
+    "/order/list",
+    "/order/exceptions",
+    "/inventory/list",
+    "/customer/hub",
+    "/ops/task-center/failures",
+    "/settings/config-status",
+    "/settings/users"
+  ],
+  "resolutions": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "tested": true,
+      "overflow": false,
+      "note": "Dashboard screenshot captured"
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "tested": true,
+      "overflow": false,
+      "note": "Product drafts CDP scrollWidth check"
+    },
+    {
+      "width": 1024,
+      "height": 768,
+      "tested": true,
+      "overflow": false,
+      "note": "Failure task center 20 table rows usable"
+    }
+  ],
+  "browser": [
+    {
+      "name": "refresh_filter_retained",
+      "path": "/product/drafts?source=manual",
+      "result": "passed",
+      "detail": "Reload kept ?source=manual"
+    },
+    {
+      "name": "deep_link_refresh",
+      "path": "/ops/task-center/failures",
+      "result": "passed",
+      "detail": "Deep link loads without 404"
+    },
+    {
+      "name": "no_white_screen",
+      "path": "multiple",
+      "result": "passed",
+      "detail": "Ant layout rendered on all visited pages"
+    },
+    {
+      "name": "login_expired_redirect",
+      "path": "/user/login",
+      "result": "manual_required",
+      "detail": "Token not cleared in this session"
+    },
+    {
+      "name": "browser_back_filter",
+      "path": "/product/drafts",
+      "result": "manual_required",
+      "detail": "Back navigation filter restore needs longer session"
+    }
+  ],
+  "screenshots": [
+    "docs/f9-screenshots/f9-step02-dashboard-1920.png",
+    "docs/f9-screenshots/f9-product-drafts-1366.png"
+  ]
+}

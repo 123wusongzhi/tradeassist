@@ -13,6 +13,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -241,7 +242,7 @@ func (h *Handler) ListTasks(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListTasks(c.Request.Context(), q)
+	res, err := h.Svc.ListTasks(c, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -267,13 +268,17 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	tid, _ := adminperm.TenantIDFromGin(c)
+	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
 			return
 		}
 		response.HandleError(c, err)
+		return
+	}
+	if out.ShopID != uuid.Nil && !adminperm.RequireStoreView(c, h.Svc.DB, out.ShopID) {
 		return
 	}
 	response.OK(c, out)
@@ -311,7 +316,8 @@ func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	out, err := h.Svc.GetDTO(c.Request.Context(), id)
+	tid, _ := adminperm.TenantIDFromGin(c)
+	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		response.OK(c, gin.H{"recovered": true})
 		return
@@ -357,7 +363,7 @@ func (h *Handler) ListDouyinPublishTasks(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	res, err := h.Svc.ListTasks(c.Request.Context(), ListTasksQuery{
+	res, err := h.Svc.ListTasks(c, ListTasksQuery{
 		Page:      atoiQ(c, "page", 1),
 		PageSize:  atoiQ(c, "pageSize", 20),
 		ProductID: &pid,
@@ -579,7 +585,7 @@ func (h *Handler) ListPublishBatches(c *gin.Context) {
 	}
 	page := atoiQ(c, "page", 1)
 	pageSize := atoiQ(c, "pageSize", 20)
-	list, total, err := h.Svc.ListPublishBatches(c.Request.Context(), page, pageSize)
+	list, total, err := h.Svc.ListPublishBatches(c, page, pageSize)
 	if err != nil {
 		response.HandleError(c, err)
 		return

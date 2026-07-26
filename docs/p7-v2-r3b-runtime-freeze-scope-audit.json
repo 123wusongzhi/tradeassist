@@ -1,0 +1,476 @@
+{
+  "phase": "P7-V2-R3B-FINAL-CLOSE-REFREEZE",
+  "component": "runtime-freeze-scope-audit",
+  "status": "passed",
+  "scopeAuditComplete": true,
+  "runtimeFreezeScopeVersion": 2,
+  "configFingerprintVersion": 2,
+  "storedRuntimeFreezeId": "9c6ac077f03c76a978cefa76c624a08ca774039a91c9408599623dc4f1bec522",
+  "storedTrackedDiffHash": "60362a85f3eafc5ea7d3f5f62ead8ff066d2253597b6a2bbc7831d31d34b42b7",
+  "rebuiltTrackedDiffHash": "19d06911d6218089af449bdb4ea646269f9bb991bda9f6f6b3afb7ef7f001fd2",
+  "trackedDiffHashMatch": false,
+  "storedConfigFingerprint": "1b4ce3b08f15397f50a606551caa5ec2decd80fab045294a2ec3ffdc04841553",
+  "rebuiltConfigFingerprint": "89ef10199cac7a2bfcc8ddda8aae683e3e31ee1fafc206a365e48a8a48a00fec",
+  "configFingerprintMatch": false,
+  "storedRuntimeSourceTreeHash": "b312edbc8020bc614fe1fd7c08d0fe71ea87a68aeedf4463447c74105f0eed87",
+  "rebuiltRuntimeSourceTreeHash": "da6c6c4ce97d8f7325e437fe460ae7349116294e8a6c8447b3d73493cbb30344",
+  "runtimeSourceTreeHashMatch": false,
+  "storedEvidenceToolingHash": "90b426f980dd90a600f09b29afdecac005ead0e2de6a275c29e119f0ae093351",
+  "rebuiltEvidenceToolingHash": "02701fd849d57c886cc1918af37e6ee73f222f5a4815bd84884185a25d6097cb",
+  "evidenceToolingHashMatch": false,
+  "changedFilesSinceFreeze": [
+    {
+      "path": "docs/P7_V2_LOAD_HOST_GUARD_REPORT.md",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_LPC_R3_CONSUMER_COMPATIBILITY.md",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_PORT_OWNER_AUDIT.md",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_RUNTIME_ENVIRONMENT.md",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-environment-fingerprint.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-load-host-guard-report.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-fast-close-r3-final-report.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-lpc-r3-consumer-compatibility.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-lpc-r3-gatefix-final-report.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-port-owner-audit.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-run-manifest.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "mutable_execution_state",
+      "reason": "manifest and registry pointers mutate during formal execution"
+    },
+    {
+      "path": "docs/p7-v2-runtime-environment.json",
+      "changeType": "modified",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "package.json",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-baseline.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-current.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-evidence-resolver.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3-comparability-check.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3-lib.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-fast-close.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-lpc-r3-gatefix-final-gate.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-lpc-r3-recovery6-plan.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-lpc-r3-runtime-freeze.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-preflight.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-regression.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "tests/gates/p7-v2/runtime-freeze-contract/fixtures.mjs",
+      "changeType": "modified",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "docs/P7_V2_R3B_FAST_CLOSE_R3_RECOVERY6_PREFLIGHT_AUDIT.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_FAST_CLOSE_R3_RUNTIME_FREEZE.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_FORMAL_WIRING_FINAL_REPORT.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_FORMAL_WIRING_PREFLIGHT.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_RECOVERY6_PORT_RECOVERY.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/P7_V2_R3B_RUNTIME_FREEZE_SCOPE_AUDIT.md",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-fast-close-r3-recovery6-preflight-audit.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-formal-wiring-final-report.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-formal-wiring-preflight.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-recovery6-port-recovery.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-recovery6-superseded-plan.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "docs/p7-v2-r3b-runtime-freeze-scope-audit.json",
+      "changeType": "added",
+      "includedInStoredScope": false,
+      "includedInRebuiltScope": false,
+      "classification": "generated_evidence_output",
+      "reason": "runtime evidence and artifacts are generated outputs"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-formal-wiring-final-gate.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-refreeze-scope-final-gate.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-runtime-freeze-revalidate.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-runtime-freeze-scope-audit.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "scripts/p7-v2-runtime-freeze-scope.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "tests/gates/p7-v2/formal-v3-wiring/fixtures.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    },
+    {
+      "path": "tests/gates/p7-v2/runtime-freeze-scope-v2/fixtures.mjs",
+      "changeType": "added",
+      "includedInStoredScope": true,
+      "includedInRebuiltScope": true,
+      "classification": "immutable_execution_input",
+      "reason": "formal runtime or gate input is included in freeze scope"
+    }
+  ],
+  "changedConfigFields": [
+    {
+      "jsonPath": "dataset",
+      "storedValue": null,
+      "rebuiltValue": {
+        "profile": "medium",
+        "expectedRows": 1900150,
+        "datasetGeneratorHash": "09185795a37e57346a12ebfe39c431005a5219c47a3ce26ec5d490fd6734ee18"
+      },
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "environment",
+      "storedValue": null,
+      "rebuiltValue": {
+        "appEnv": "performance",
+        "performanceTestMode": true,
+        "externalProviderMode": "mock",
+        "douyinWriteEnabled": false,
+        "autoListingEnabled": false
+      },
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "load",
+      "storedValue": null,
+      "rebuiltValue": {
+        "canonicalSchemaVersion": 3,
+        "loadProfileFingerprintVersion": 3,
+        "loadProfileFingerprint": "6ebabfd8050b8a788bff6d53f297d18e5ae6cfe5167316cad404a68b8287204e"
+      },
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "network",
+      "storedValue": null,
+      "rebuiltValue": {
+        "host": "127.0.0.1",
+        "port": 18080,
+        "baseUrl": "http://127.0.0.1:18080"
+      },
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "policy",
+      "storedValue": null,
+      "rebuiltValue": {
+        "sloFingerprint": "b2e577551e8394ed659d38600aab127c42798e829ac04238d18a5085d45b26fa",
+        "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+        "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37"
+      },
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "version",
+      "storedValue": null,
+      "rebuiltValue": 2,
+      "classification": "semantic",
+      "reason": "canonical config v2 includes only explicit semantic execution inputs"
+    },
+    {
+      "jsonPath": "$legacy.runtime.env",
+      "storedValue": "<legacy-env-hash-only>",
+      "rebuiltValue": "<canonical-config-v2>",
+      "classification": "runtime_state",
+      "reason": "legacy config fingerprint was built from runtime environment state and is replaced by explicit canonical config v2"
+    }
+  ],
+  "allChangedFilesClassified": true,
+  "allChangedConfigFieldsClassified": true,
+  "unexpectedSourceChangeCount": 0,
+  "unexpectedSourceChanges": [],
+  "rebuildError": "",
+  "oldRuntimeFreezeInvalidation": {
+    "runtimeFreezeId": "9c6ac077f03c76a978cefa76c624a08ca774039a91c9408599623dc4f1bec522",
+    "status": "invalidated",
+    "active": false,
+    "validForFormalExecution": false,
+    "reason": "runtime_freeze_scope_and_config_fingerprint_changed"
+  },
+  "oldRecovery6PlanSupersession": {
+    "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715103749",
+    "currentRunId": "p7v2-current-r3b-recovery6-20260715103749",
+    "status": "superseded_before_formal_execution",
+    "active": false,
+    "validForExecution": false,
+    "reason": "runtime_freeze_revalidation_failed"
+  }
+}

@@ -45,11 +45,30 @@ cat > "$OUT_MD" <<EOF
 
 目录：\`$REPORT_DIR\`
 
-| 脚本 | 用途 |
+| 脚本 | 用途 | 执行条件 |
+| --- | --- | --- |
+| \`scripts/douyin-e2e-preflight.sh\` | 健康检查 + 生产预检 + 运行状态 | 需 Admin 登录 |
+| \`scripts/douyin-e2e-readonly.sh\` | 只读链路探针 | 凭证齐全时执行，否则 skipped |
+| \`scripts/douyin-e2e-write.sh\` | 写链路探针 | 需 \`ALLOW_DOUYIN_WRITE_TEST=true\` |
+
+## H1.3 前置检查报告字段
+
+| 检查项 | 状态值 |
 | --- | --- |
-| \`scripts/douyin-e2e-preflight.sh\` | 健康检查 + 生产预检 + 运行状态 |
-| \`scripts/douyin-e2e-readonly.sh\` | 只读链路探针 |
-| \`scripts/douyin-e2e-write.sh\` | 写链路（需 \`ALLOW_DOUYIN_WRITE_TEST=true\`） |
+| 凭证 / App Key | passed / blocked_by_real_credentials |
+| OAuth 授权 | passed / 未授权 / 待真实凭证 |
+| Storage public_base | passed / blocked_by_environment |
+| 真实写接口 | skipped（本阶段不自动调用） |
+| 创建草稿 | skipped 或 manual |
+| 直接上架 | 否 |
+
+失败任务入口：\`/ops/task-center/failures?platform=douyin_shop\`
+
+下一步建议：
+
+- 配置 Storage \`public_base\` 并测试公网访问
+- 配置抖店 App Key / Secret 并完成 OAuth
+- 阅读 [\`docs/DOUYIN_E2E_PRECHECK_GUIDE.md\`](../docs/DOUYIN_E2E_PRECHECK_GUIDE.md)
 
 ## 下一步
 

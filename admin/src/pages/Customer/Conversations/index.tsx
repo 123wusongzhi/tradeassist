@@ -1,12 +1,21 @@
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
-import type { ActionType, ProColumns } from '@ant-design/pro-components';
+import type { ActionType, ProColumns, ProFormInstance } from '@ant-design/pro-components';
 import { formatDateTime } from '@/utils/formatTime';
 
-import { history } from '@umijs/max';
+import { history, useLocation } from '@umijs/max';
 import { Button, Tag, Typography, message } from 'antd';
-import { useEffect, useRef, useState } from 'react';
-import { CUSTOMER_CONVERSATION_STATUS } from '@/constants/status';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { parsePositiveInt } from '@/utils/urlState';
+import {
+  CUSTOMER_CONVERSATION_STATUS,
+  CUSTOMER_SEND_STATUS,
+  CUSTOMER_SUGGESTION_STATUS,
+} from '@/constants/status';
 import { PLATFORM_OPTIONS, platformLabel } from '@/constants/userFriendly';
 import {
   createConversation,
@@ -16,11 +25,121 @@ import {
 } from '@/services/customer';
 import { queryShops } from '@/services/shops';
 
+const CONVERSATION_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'replyStatus',
+  'aiSuggestionStatus',
+  'sendStatus',
+  'platform',
+  'shopId',
+  'conversationId',
+  'suggestionId',
+  'drawer',
+  'source',
+  'pendingReply',
+  'hasAiSuggestion',
+  'sendFailed',
+  'hasOrder',
+  'status',
+] as const;
+
+function readConversationLegacyFilters(search: string) {
+  const sp = new URLSearchParams(search);
+  const replyStatus = sp.get('replyStatus')?.trim();
+  const aiSuggestionStatus = sp.get('aiSuggestionStatus')?.trim();
+  const sendStatus = sp.get('sendStatus')?.trim();
+  return {
+    pendingReply:
+      sp.get('pendingReply') === '1' ||
+      replyStatus === 'pending' ||
+      replyStatus === 'pending_reply' ||
+      sp.get('status') === 'pending_reply',
+    hasAiSuggestion:
+      sp.get('hasAiSuggestion') === '1' ||
+      aiSuggestionStatus === 'pending',
+    sendFailed: sp.get('sendFailed') === '1' || sendStatus === 'failed',
+    hasOrder: sp.get('hasOrder') === '1',
+    conversationId: sp.get('conversationId')?.trim(),
+    suggestionId: sp.get('suggestionId')?.trim(),
+  };
+}
+
+function tagFrom(raw: string | undefined, map: Record<string, { text: string; color: string }>) {
+  const k = (raw || '').trim();
+  if (!k) return '—';
+  const m = map[k as keyof typeof map];
+  return m ? <Tag color={m.color}>{m.text}</Tag> : <Tag>{k}</Tag>;
+}
+
 export default function CustomerConversationsPage() {
   const actionRef = useRef<ActionType>();
+  const formRef = useRef<ProFormInstance>();
+  const location = useLocation();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof CONVERSATION_QUERY_KEYS)[number], string | undefined>>(
+      CONVERSATION_QUERY_KEYS,
+    );
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef,
+    actionRef,
+    setTablePage,
+  });
+  const legacyFilters = useMemo(
+    () => readConversationLegacyFilters(location.search),
+    [location.search],
+  );
   const [createOpen, setCreateOpen] = useState(false);
+  const emptyLocale = useListEmptyLocale('customerConversations', {
+    permissionScoped: true,
+    onAction: () => setCreateOpen(true),
+    actionLabel: '新建会话',
+  });
   const [pullOpen, setPullOpen] = useState(false);
   const [shopOptions, setShopOptions] = useState<{ label: string; value: string }[]>([]);
+
+  const urlFilters = legacyFilters;
+
+  useEffect(() => {
+    const cid = legacyFilters.conversationId;
+    if (!cid) return;
+    const sp = new URLSearchParams(location.search);
+    sp.delete('conversationId');
+    const qs = sp.toString();
+    history.replace(qs ? `/customer/conversations/${cid}?${qs}` : `/customer/conversations/${cid}`);
+  }, [legacyFilters.conversationId, location.search]);
+
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      pendingReply: urlFilters.pendingReply ? 'true' : undefined,
+      hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
+      sendFailed: urlFilters.sendFailed ? 'true' : undefined,
+      hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+    });
+  }, [
+    urlFilters.hasAiSuggestion,
+    urlFilters.hasOrder,
+    urlFilters.pendingReply,
+    urlFilters.sendFailed,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+  ]);
 
   useEffect(() => {
     void (async () => {
@@ -38,7 +157,42 @@ export default function CustomerConversationsPage() {
     })();
   }, []);
 
-  const columns: ProColumns<ConversationRow>[] = [
+  const columns: ProColumns<ConversationRow>[] = useMemo(
+    () => [
+    {
+      title: '关键词',
+      dataIndex: 'keyword',
+      hideInTable: true,
+      fieldProps: { placeholder: '买家 / 会话 ID / 订单', ...keywordFieldProps },
+    },
+    {
+      title: '待回复',
+      dataIndex: 'pendingReply',
+      hideInTable: true,
+      valueType: 'select',
+      valueEnum: { true: { text: '是' }, false: { text: '否' } },
+    },
+    {
+      title: '有 AI 建议',
+      dataIndex: 'hasAiSuggestion',
+      hideInTable: true,
+      valueType: 'select',
+      valueEnum: { true: { text: '是' }, false: { text: '否' } },
+    },
+    {
+      title: '发送失败',
+      dataIndex: 'sendFailed',
+      hideInTable: true,
+      valueType: 'select',
+      valueEnum: { true: { text: '是' }, false: { text: '否' } },
+    },
+    {
+      title: '有关联订单',
+      dataIndex: 'hasOrder',
+      hideInTable: true,
+      valueType: 'select',
+      valueEnum: { true: { text: '是' }, false: { text: '否' } },
+    },
     {
       title: '店铺',
       dataIndex: 'shopId',
@@ -53,17 +207,9 @@ export default function CustomerConversationsPage() {
       },
     },
     {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      width: 172,
-      search: false,
-      valueType: 'dateTime',
-      render: (_, row) => formatDateTime(row.createdAt),
-    },
-    {
       title: '平台',
       dataIndex: 'platform',
-      width: 120,
+      width: 100,
       valueType: 'select',
       fieldProps: {
         showSearch: true,
@@ -76,81 +222,159 @@ export default function CustomerConversationsPage() {
     {
       title: '店铺',
       dataIndex: 'shopName',
-      width: 140,
+      width: 120,
       search: false,
       ellipsis: true,
-      render: (_, row) =>
-        row.shopName ? (
-          <span>
-            {row.shopName}
-            {row.shopPlatform ? ` / ${platformLabel(row.shopPlatform)}` : ''}
-          </span>
-        ) : (
-          '—'
-        ),
+      render: (_, row) => row.shopName || '—',
     },
     {
-      title: '客户名',
+      title: '买家',
       dataIndex: 'customerName',
-      width: 140,
+      width: 120,
       fieldProps: { placeholder: '筛选' },
-    },
-    {
-      title: '语言',
-      dataIndex: 'customerLanguage',
-      width: 88,
-      search: false,
+      render: (_, row) => row.customerNameMasked || row.customerName,
     },
     {
       title: '状态',
       dataIndex: 'status',
-      width: 120,
+      width: 96,
       valueType: 'select',
       valueEnum: Object.fromEntries(
         Object.entries(CUSTOMER_CONVERSATION_STATUS).map(([k, v]) => [k, { text: v.text }]),
       ),
-      render: (_, row) => {
-        const m = CUSTOMER_CONVERSATION_STATUS[row.status as keyof typeof CUSTOMER_CONVERSATION_STATUS];
-        return <Tag color={m?.color}>{m?.text ?? row.status}</Tag>;
-      },
+      render: (_, row) => tagFrom(row.status, CUSTOMER_CONVERSATION_STATUS),
     },
     {
-      title: '最新消息',
+      title: '最近消息',
       dataIndex: 'latestMessage',
       ellipsis: true,
       search: false,
     },
     {
-      title: '最后消息时间',
-      dataIndex: 'lastMessageAt',
-      width: 172,
+      title: '关联订单',
+      dataIndex: 'orderNo',
+      width: 120,
       search: false,
-      valueType: 'dateTime',
-      render: (_, row) => formatDateTime(row.lastMessageAt),
+      render: (_, row) =>
+        row.orderNo ? (
+          <Typography.Link onClick={() => history.push(`/orders/${row.orderId}`)}>{row.orderNo}</Typography.Link>
+        ) : (
+          '—'
+        ),
+    },
+    {
+      title: '关联商品',
+      dataIndex: 'productTitle',
+      width: 140,
+      search: false,
+      ellipsis: true,
+    },
+    {
+      title: 'AI 建议',
+      dataIndex: 'aiSuggestionStatus',
+      width: 96,
+      search: false,
+      render: (_, row) => tagFrom(row.aiSuggestionStatus, CUSTOMER_SUGGESTION_STATUS),
+    },
+    {
+      title: '发送状态',
+      dataIndex: 'sendStatus',
+      width: 96,
+      search: false,
+      render: (_, row) => tagFrom(row.sendStatus, CUSTOMER_SEND_STATUS),
+    },
+    {
+      title: '更新时间',
+      dataIndex: 'lastMessageAt',
+      width: 160,
+      search: false,
+      render: (_, row) => formatDateTime(row.lastMessageAt || row.updatedAt),
     },
     {
       title: '操作',
       valueType: 'option',
-      width: 100,
+      width: 160,
       render: (_, row) => [
-        <Typography.Link key="open" onClick={() => history.push(`/customer/conversations/${row.id}`)}>
-          打开会话
+        <Typography.Link
+          key="open"
+          onClick={() => {
+            const sp = new URLSearchParams(location.search);
+            sp.delete('conversationId');
+            const qs = sp.toString();
+            history.push(
+              qs
+                ? `/customer/conversations/${row.id}?${qs}`
+                : `/customer/conversations/${row.id}`,
+            );
+          }}
+        >
+          查看会话
         </Typography.Link>,
+        row.openFailureCount ? (
+          <Typography.Link
+            key="fail"
+            onClick={() => history.push(`/ops/task-center/failures?taskType=customer_failure`)}
+          >
+            失败任务
+          </Typography.Link>
+        ) : null,
       ],
     },
-  ];
+  ],
+    [keywordFieldProps, location.search],
+  );
 
   return (
-    <TmPageContainer title="会话列表" subTitle="查看与管理各平台买家会话，可拉取平台消息或人工回复。">
+    <TmPageContainer title="会话列表" subTitle="所有回复需人工确认；系统不会自动发送消息。">
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <ProTable<ConversationRow>
         rowKey="id"
         actionRef={actionRef}
+        formRef={formRef}
         columns={columns}
+        params={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          keyword: urlState.keyword,
+          platform: urlState.platform,
+          shopId: urlState.shopId,
+          pendingReply: urlFilters.pendingReply ? 'true' : undefined,
+          hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
+          sendFailed: urlFilters.sendFailed ? 'true' : undefined,
+          hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+        }}
         search={{ labelWidth: 'auto' }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
-        options={{ reload: true, density: true, setting: true }}
-        headerTitle={false}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(CONVERSATION_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
+        form={{
+          initialValues: {
+            pendingReply: urlFilters.pendingReply ? 'true' : undefined,
+            hasAiSuggestion: urlFilters.hasAiSuggestion ? 'true' : undefined,
+            sendFailed: urlFilters.sendFailed ? 'true' : undefined,
+            hasOrder: urlFilters.hasOrder ? 'true' : undefined,
+          },
+        }}
+        locale={emptyLocale}
         toolBarRender={() => [
+          <Button key="hub" onClick={() => history.push('/customer/hub')}>
+            客服中心
+          </Button>,
           <Button key="pull" onClick={() => setPullOpen(true)}>
             拉取平台消息
           </Button>,
@@ -159,13 +383,55 @@ export default function CustomerConversationsPage() {
           </Button>,
         ]}
         request={async (params) => {
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
+            platform: (params.platform as string | undefined)?.trim(),
+            shopId: (params.shopId as string | undefined)?.trim(),
+            keyword: prepareKeyword(params.keyword),
+            pendingReply: params.pendingReply as boolean | string | undefined,
+            hasAiSuggestion: params.hasAiSuggestion as boolean | string | undefined,
+            sendFailed: params.sendFailed as boolean | string | undefined,
+            hasOrder: params.hasOrder as boolean | string | undefined,
+          };
+          const replyStatus =
+            qp.pendingReply === 'true' || qp.pendingReply === true ? 'pending_reply' : undefined;
+          const aiSuggestionStatus =
+            qp.hasAiSuggestion === 'true' || qp.hasAiSuggestion === true ? 'pending' : undefined;
+          const sendStatus =
+            qp.sendFailed === 'true' || qp.sendFailed === true ? 'failed' : undefined;
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              keyword: qp.keyword,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              replyStatus,
+              aiSuggestionStatus,
+              sendStatus,
+              pendingReply: replyStatus ? '1' : undefined,
+              hasAiSuggestion: aiSuggestionStatus ? '1' : undefined,
+              sendFailed: sendStatus ? '1' : undefined,
+              hasOrder:
+                qp.hasOrder === 'true' || qp.hasOrder === true ? '1' : undefined,
+              suggestionId: urlState.suggestionId || legacyFilters.suggestionId,
+              source: urlState.source,
+            },
+            { replace: true },
+          );
           const res = await queryConversations({
-            page: params.current,
-            pageSize: params.pageSize,
-            platform: params.platform as string | undefined,
+            page: qp.page,
+            pageSize: qp.pageSize,
+            platform: qp.platform,
             status: params.status as string | undefined,
-            shopId: params.shopId as string | undefined,
+            shopId: qp.shopId,
             customerName: params.customerName as string | undefined,
+            keyword: qp.keyword,
+            pendingReply: qp.pendingReply,
+            hasAiSuggestion: qp.hasAiSuggestion,
+            sendFailed: qp.sendFailed,
+            hasOrder: qp.hasOrder,
           });
           return {
             data: res.list,
@@ -221,8 +487,8 @@ export default function CustomerConversationsPage() {
           ]}
           rules={[{ required: true }]}
         />
-        <ProFormText name="start" label="开始时间（可选）" placeholder="2026-05-01T00:00:00Z" extra="ISO 8601 格式" />
-        <ProFormText name="end" label="结束时间（可选）" placeholder="2026-05-16T23:59:59Z" extra="ISO 8601 格式" />
+        <ProFormText name="start" label="开始时间（可选）" placeholder="2026-05-01T00:00:00Z" />
+        <ProFormText name="end" label="结束时间（可选）" placeholder="2026-05-16T23:59:59Z" />
         <ProFormText name="cursor" label="游标（可选）" />
         <ProFormDigit name="limit" label="每页条数" min={1} max={200} fieldProps={{ precision: 0 }} />
       </ModalForm>

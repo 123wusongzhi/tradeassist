@@ -10,6 +10,8 @@ const ROOT = join(import.meta.dirname, '..');
 const STRICT = process.argv.includes('--strict');
 const reportIdx = process.argv.indexOf('--report');
 const REPORT_FILE = reportIdx >= 0 ? process.argv[reportIdx + 1] : null;
+const jsonIdx = process.argv.indexOf('--json');
+const JSON_FILE = jsonIdx >= 0 ? process.argv[jsonIdx + 1] : null;
 
 const INTERNAL_SCAN_DIRS = [
   join(ROOT, 'admin/src/pages'),
@@ -18,7 +20,7 @@ const INTERNAL_SCAN_DIRS = [
 
 /** 代码逻辑 / 映射层 — 不算 UI 主文案直出 */
 const INTERNAL_CODE_ALLOW =
-  /===|!==|dataIndex:|rowKey=|rowKey:|operationTypes|operationType:|filter\(|includes\(|\.status|value:\s*['"`]|label:\s*['"`]|text:\s*['"`]|color:|OP_LABEL|statusTag|getStatus|publishLabels|aiProductText|aiProductImage|TechnicalDetails|TaskJsonBlock|copywriting|\/\*\*|\/\/|params\.|detail\.batch|bulkOp|selectedOps|opChoice|form\.|API|ConvertToJson|type\s+\w+|来源类型|来源编号|问题代码|内容快照|qualityWarnings\?|qualityWarnings\.|qualityWarnings\[|expectedUpdatedAt:|sourceType:|sourceId:|postOrderException|deleteOrderException|relatedResource|partial_success:|partial_success,|\['partial_success'|StatusTag\.tsx|addList\(|undoProduct|undoAiDescription|await\s+/i;
+  /===|!==|dataIndex:|rowKey=|rowKey:|operationTypes|operationType:|filter\(|includes\(|\.status|value:\s*['"`]|label:\s*['"`]|text:\s*['"`]|color:|OP_LABEL|statusTag|getStatus|publishLabels|publishCapabilityLabel|aiProductText|aiProductImage|TechnicalDetails|TaskJsonBlock|copywriting|commonStatusLabel|PublishBoundaryBanner|publishBoundaryCapability|capability=|as const|\/\*\*|\/\/|params\.|detail\.batch|bulkOp|selectedOps|opChoice|form\.|API|ConvertToJson|type\s+\w+|来源类型|来源编号|问题代码|内容快照|qualityWarnings\?|qualityWarnings\.|qualityWarnings\[|expectedUpdatedAt:|sourceType:|sourceId:|postOrderException|deleteOrderException|relatedResource|partial_success:|partial_success,|\['partial_success'|StatusTag\.tsx|addList\(|undoProduct|undoAiDescription|await\s+/i;
 
 /** @type {{ pattern: RegExp; hint: string; allow?: RegExp }[]} */
 const RULES = [
@@ -48,7 +50,7 @@ const RULES = [
     hint: '→ 发布候选',
     allow: /RELEASE_GATE|RELEASE_GATE_CONCLUSION|'Release Candidate':|\/\*\*|\/\//,
   },
-  { pattern: /\bblocked_by_/i, hint: '→ 中文说明' },
+  { pattern: /\bblocked_by_/i, hint: '→ 中文说明', allow: /blocked_by_[a-z_]+:\s*['"`]/i },
   {
     pattern: /\bneed_check\b/,
     hint: '→ 需要检查',
@@ -196,6 +198,9 @@ if (allHits.length === 0) {
   if (REPORT_FILE) {
     writeReport([]);
   }
+  if (JSON_FILE) {
+    writeJsonReport([]);
+  }
   process.exit(0);
 }
 
@@ -212,8 +217,30 @@ console.log('详见 docs/ui-copywriting.md');
 if (REPORT_FILE) {
   writeReport(allHits);
 }
+if (JSON_FILE) {
+  writeJsonReport(allHits);
+}
 
 process.exit(STRICT ? 1 : 0);
+
+/** @param {typeof hits} items */
+function writeJsonReport(items) {
+  const dir = dirname(JSON_FILE);
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    /* exists */
+  }
+  const payload = {
+    phase: 'F7',
+    generatedAt: new Date().toISOString(),
+    passed: items.length === 0,
+    hitCount: items.length,
+    hits: items.slice(0, 500),
+  };
+  writeFileSync(JSON_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  console.log(`Wrote ${JSON_FILE}`);
+}
 
 /** @param {typeof hits} items */
 function writeReport(items) {

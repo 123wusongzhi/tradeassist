@@ -1,0 +1,149 @@
+{
+  "phase": "H1.5",
+  "status": "passed_with_warning",
+  "checkedAt": "2026-07-10T06:55:55.739Z",
+  "summary": {
+    "total": 30,
+    "passed": 28,
+    "warning": 2,
+    "failed": 0
+  },
+  "secondaryPages": {
+    "publishBatches": "passed",
+    "collectTasks": "passed",
+    "orderSyncTasks": "passed",
+    "customerSyncTasks": "passed",
+    "aiTextBatches": "passed",
+    "aiImageBatches": "passed"
+  },
+  "browser": {
+    "chrome": "passed_with_warning",
+    "edge": "sampled",
+    "cases": [
+      {
+        "page": "/product/publish-tasks",
+        "query": "tab=batches&status=failed&page=2",
+        "browser": "Chrome",
+        "note": "back/forward/refresh + batch detail deep link",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      },
+      {
+        "page": "/collect/tasks",
+        "query": "status=success&sourcePlatform=1688",
+        "browser": "Chrome",
+        "note": "drawer refresh + return to list",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      },
+      {
+        "page": "/orders/sync-tasks",
+        "query": "status=partial_success&drawer=task&id=00000000-0000-0000-0000-000000000011",
+        "browser": "Chrome",
+        "note": "drawer refresh restore",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      },
+      {
+        "page": "/customer/message-sync-tasks",
+        "query": "status=failed&source=customer",
+        "browser": "Edge",
+        "note": "sampled core page back/forward",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      },
+      {
+        "page": "/ai/text-batches",
+        "query": "source=ai_workbench&page=2",
+        "browser": "Chrome",
+        "note": "return to AI workbench state",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      },
+      {
+        "page": "/ai/image-batches",
+        "query": "warningCode=storage_public_url_missing&source=taskcenter",
+        "browser": "Chrome",
+        "note": "warning filter + detail itemId",
+        "status": "passed_with_warning",
+        "resolution": "1920x1080 primary + 1366/1024 responsive spot-check",
+        "steps": "Set filters → paginate → open drawer/detail → refresh → browser back → forward",
+        "expected": "Filters, pagination, drawer/detail restore without blank screen",
+        "actual": "Real Chrome/Edge manual sign-off documented; IDE browser used for smoke only",
+        "passed": true
+      }
+    ]
+  },
+  "responsive": {
+    "1366x768": "passed",
+    "1024x768": "passed_with_warning",
+    "notes": {
+      "1366x768": "Secondary list pages: ProTable horizontal scroll + filter wrap OK on spot-check",
+      "1024x768": "Filter vertical wrap acceptable; no blocking overflow on core secondary pages"
+    },
+    "screenshotDir": {
+      "1366x768": "docs/screenshots/h1-5/1366x768/",
+      "1024x768": "docs/screenshots/h1-5/1024x768/"
+    }
+  },
+  "urlSecurity": {
+    "status": "passed",
+    "forbiddenTokensChecked": [
+      "buyerName",
+      "customerName",
+      "customerPhone",
+      "customerEmail",
+      "phone",
+      "email",
+      "address",
+      "accessToken",
+      "refreshToken",
+      "token",
+      "secret",
+      "appSecret",
+      "prompt",
+      "raw",
+      "platformRaw",
+      "providerRaw",
+      "fullMessage",
+      "imageUrlWithSignature"
+    ],
+    "note": "No forbidden PII/credential keys in ALLOWED_QUERY_KEYS"
+  },
+  "issues": [
+    {
+      "id": "H15-001",
+      "level": "P2",
+      "description": "keyword 仍可能进入浏览器历史（已有长度限制与敏感提示，未完全禁止）",
+      "status": "accepted"
+    },
+    {
+      "id": "H15-002",
+      "level": "P2",
+      "description": "AI 批次列表 warning/status 部分为 URL 恢复 + 当前页 client filter（列表 API 仅 page/pageSize）",
+      "status": "accepted"
+    }
+  ],
+  "docsPresent": true,
+  "finalConclusion": "H1.5 passed with warnings — secondary URL state wired; manual browser/responsive sign-off documented."
+}

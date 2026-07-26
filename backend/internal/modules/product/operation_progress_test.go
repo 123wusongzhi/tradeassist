@@ -43,6 +43,7 @@ func TestOperationProgressCalculatesReadyFromContent(t *testing.T) {
 	db := newOperationProgressTestDB(t)
 	price := 19.9
 	p := Product{
+		TenantID:    1,
 		Source:      "manual",
 		Title:       "Portable coffee grinder",
 		Description: "A compact hand coffee grinder with stainless steel burrs for travel and home brewing.",
@@ -86,6 +87,7 @@ func TestOperationProgressCalculatesReadyFromContent(t *testing.T) {
 func TestOperationProgressPrioritizesFailedIssues(t *testing.T) {
 	db := newOperationProgressTestDB(t)
 	p := Product{
+		TenantID:    1,
 		Source:      "manual",
 		Title:       "Portable coffee grinder",
 		Description: "A compact hand coffee grinder with stainless steel burrs for travel and home brewing.",
@@ -115,6 +117,7 @@ func TestOperationProgressPrioritizesFailedIssues(t *testing.T) {
 func TestAIContentApplyRejectsConflictAndUndoProtectsManualChange(t *testing.T) {
 	db := newOperationProgressTestDB(t)
 	p := Product{
+		TenantID:    1,
 		Source:      "manual",
 		Title:       "Portable coffee grinder",
 		Description: "A compact hand coffee grinder with stainless steel burrs for travel and home brewing.",
@@ -168,6 +171,7 @@ func TestAIContentApplyRejectsConflictAndUndoProtectsManualChange(t *testing.T) 
 func TestAIContentApplyRejectsFailedTaskAndStaleSnapshot(t *testing.T) {
 	db := newOperationProgressTestDB(t)
 	p := Product{
+		TenantID:    1,
 		Source:      "manual",
 		Title:       "Portable coffee grinder",
 		Description: "A compact hand coffee grinder with stainless steel burrs for travel and home brewing.",
@@ -227,6 +231,7 @@ func TestListOperationStepFiltersReuseEffectiveTitleDescriptionAndImageRules(t *
 
 	createProduct := func(title, originalTitle, description, aiDescription string) Product {
 		p := Product{
+			TenantID:      1,
 			Source:        "manual",
 			Title:         title,
 			OriginalTitle: originalTitle,
@@ -304,6 +309,7 @@ func TestListAttachOperationProgressUsesFixedBatchQueries(t *testing.T) {
 
 	for i := 0; i < 25; i++ {
 		p := Product{
+			TenantID:    1,
 			Source:      "manual",
 			Title:       fmt.Sprintf("Batch progress product %d", i),
 			Description: "Enough description text for list operation progress summary attachment.",

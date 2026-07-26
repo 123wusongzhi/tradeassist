@@ -1,0 +1,221 @@
+{
+  "phase": "P7-V2-R3B-WEBHOOK-TAIL-REGRESSION-REPAIR",
+  "status": "local_repair_verified_formal_pending",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260717051755",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260717051755",
+  "runtimeFreezeId": "013bd47206add0d44d102977a5de452667ab5a6b31c233fb42fa00bb28d63620",
+  "failedMetrics": [
+    {
+      "metric": "Webhook Ingestion",
+      "aggregation": "p95",
+      "baselineValue": 19.3266438,
+      "currentValue": 23.091402000000002,
+      "absoluteDelta": 3.764758200000003,
+      "relativeDelta": 0.19479627393971027,
+      "finalVerdict": "failed_material_regression"
+    },
+    {
+      "metric": "Webhook Ingestion",
+      "aggregation": "p99",
+      "baselineValue": 34.82735036999988,
+      "currentValue": 58.69811770000004,
+      "absoluteDelta": 23.870767330000163,
+      "relativeDelta": 0.6854029111144307,
+      "finalVerdict": "failed_material_regression"
+    }
+  ],
+  "failedMetricCount": 2,
+  "notComparableCount": 0,
+  "invalidMetricCount": 0,
+  "insufficientSampleCount": 0,
+  "summaryStatMissingCount": 0,
+  "branchMixEvidence": {
+    "audited": true,
+    "formalArtifactContainsBranchMix": false,
+    "branchMixComparabilityProven": false,
+    "diagnosticSource": "docs/p7-v2-r3b-dual-p99-low-cardinality-diagnostics.json",
+    "baselineInputSeed": null,
+    "currentInputSeed": null,
+    "inputSeedMatch": null,
+    "baselineDuplicateSequenceHash": null,
+    "currentDuplicateSequenceHash": null,
+    "duplicateSequenceMatch": null,
+    "baseline": {
+      "normalInsertCount": 2511,
+      "duplicateConflictCount": 0,
+      "duplicateConsistencyErrorCount": 0,
+      "normalInsertRatio": 1,
+      "duplicateConflictRatio": 0
+    },
+    "current": {
+      "normalInsertCount": 2510,
+      "duplicateConflictCount": 0,
+      "duplicateConsistencyErrorCount": 0,
+      "normalInsertRatio": 1,
+      "duplicateConflictRatio": 0
+    },
+    "duplicateRatioAbsoluteDelta": 0,
+    "duplicateRatioRelativeDelta": 0,
+    "classification": "not_branch_mix_regression"
+  },
+  "stageTimingEvidence": {
+    "audited": true,
+    "formalArtifactContainsStageTiming": false,
+    "diagnosticSource": "docs/p7-v2-r3b-dual-p99-low-cardinality-diagnostics.json",
+    "webhookTransactionStageCoveragePassed": true,
+    "webhookBusinessStageCoveragePassed": true,
+    "normal_insert": {
+      "baseline": {
+        "total": { "count": 3701, "p50": 9.3676, "p90": 13.7167, "p95": 15.7367, "p99": 32.7571, "max": 102.2334, "mean": 8.1378 },
+        "event_insert": { "count": 2511, "p50": 3.5921, "p90": 4.838, "p95": 5.7061, "p99": 10.9209, "max": 49.6422, "mean": 3.7931 },
+        "idempotency_check": { "count": 5022, "p50": 3.2898, "p90": 4.8815, "p95": 5.6643, "p99": 11.7716, "max": 63.2667, "mean": 3.7735 }
+      },
+      "current": {
+        "total": { "count": 3701, "p50": 9.8225, "p90": 13.5655, "p95": 14.9063, "p99": 26.8132, "max": 96.9257, "mean": 8.0771 },
+        "event_insert": { "count": 2510, "p50": 3.6904, "p90": 4.7357, "p95": 5.218, "p99": 9.2687, "max": 25.2995, "mean": 3.7469 },
+        "idempotency_check": { "count": 5020, "p50": 3.5955, "p90": 4.9219, "p95": 5.5123, "p99": 10.2502, "max": 66.4173, "mean": 3.7939 }
+      }
+    },
+    "duplicate_conflict": {
+      "baseline": { "count": 0 },
+      "current": { "count": 0 }
+    },
+    "webhookSlowestStages": [
+      "idempotency_check",
+      "event_insert"
+    ],
+    "diagnosticAfterRepairShowsWebhookTailImproved": true
+  },
+  "sqlFingerprintEvidence": {
+    "audited": true,
+    "diagnosticSource": "docs/p7-v2-r3b-sql-fingerprint-pg-wait-diagnostics.json",
+    "normalInsertQueryCount": 1,
+    "duplicatePathQueryCount": 2,
+    "freshDuplicateEventStruct": true,
+    "operations": [
+      {
+        "operation": "webhook.idempotency_lookup",
+        "calls": 4984,
+        "errors": 0,
+        "expectedConflicts": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP50": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP50": 2.4904,
+        "queryExecutionP95": 24.1684,
+        "queryExecutionP99": 42.247
+      },
+      {
+        "operation": "webhook.event_insert",
+        "calls": 2492,
+        "errors": 0,
+        "expectedConflicts": 0,
+        "rowsAffected": 2492,
+        "connectionAcquireP50": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP50": 4.4055,
+        "queryExecutionP95": 15.0413,
+        "queryExecutionP99": 41.3021
+      },
+      {
+        "operation": "webhook.idempotency_complete",
+        "calls": 2492,
+        "errors": 0,
+        "expectedConflicts": 0,
+        "rowsAffected": 0,
+        "connectionAcquireP50": 0,
+        "connectionAcquireP95": 0,
+        "connectionAcquireP99": 0,
+        "queryExecutionP50": 3.9348,
+        "queryExecutionP95": 11.9715,
+        "queryExecutionP99": 44.0582
+      }
+    ],
+    "businessOperationsApplicableInMeasuredPath": false,
+    "missingBusinessOperations": [
+      "webhook.order_upsert",
+      "webhook.inventory_update",
+      "webhook.task_enqueue",
+      "webhook.operation_log_insert"
+    ]
+  },
+  "pgWaitEvidence": {
+    "audited": true,
+    "diagnosticSource": "docs/p7-v2-r3b-sql-fingerprint-pg-wait-diagnostics.json",
+    "webhookTailPgWaitOverlapRatio": 0.3125,
+    "webhookTailLockOverlapRatio": 0,
+    "webhookTailCommitOverlapRatio": 0,
+    "blockedBackendMax": 0,
+    "lockWaitCount": 0,
+    "connectionPoolWaitObserved": false
+  },
+  "queryPlanEvidence": {
+    "audited": true,
+    "explainAnalyzeExecuted": false,
+    "reason": "Failed formal runtime databases were cleaned before this audit; frozen artifacts are preserved and were not modified. No blind index change was made.",
+    "indexChangeMade": false
+  },
+  "primaryRootCause": "C_webhook_event_insert_or_idempotency_query_tail",
+  "secondaryRootCauses": [
+    "formal_artifacts_do_not_include_branch_or_stage_samples",
+    "diagnostic_pair_shows_normal_insert_only_and_no_duplicate_ratio_shift"
+  ],
+  "confidence": "medium",
+  "evidenceSupporting": [
+    "The only failed formal metrics are Webhook Ingestion p95 and p99.",
+    "Branch diagnostics show duplicateConflictRatio=0 for both baseline and current.",
+    "The local repair removes the successful normal-insert event reload while preserving duplicate conflict reload semantics.",
+    "The diagnostic pair after local repair shows current webhook total p99 below baseline."
+  ],
+  "evidenceContradicting": [
+    "The failed frozen formal artifacts do not contain per-request branch mix, stage timing, or SQL timing samples.",
+    "Current max latency is lower than baseline max in the failed formal pair."
+  ],
+  "repairPath": "Remove redundant normal-insert event reload; preserve duplicate conflict reload with a fresh Event struct and explicit consistency error.",
+  "changedFiles": [
+    "backend/internal/modules/webhook/service.go",
+    "backend/internal/modules/webhook/handler_test.go",
+    "tests/gates/p7-v2/webhook-p99/fixtures.mjs",
+    "docs/p7-v2-r3b-webhook-p99-local-repair-verification.json",
+    "docs/p7-v2-webhook-p99-fixture-report.json",
+    "docs/p7-v2-r3b-webhook-tail-regression-repair.json",
+    "docs/P7_V2_R3B_WEBHOOK_TAIL_REGRESSION_REPAIR.md",
+    "scripts/p7-v2-r3b-webhook-tail-repair-final-gate.mjs"
+  ],
+  "beforeMetrics": {
+    "webhookIngestion": {
+      "baseline": { "p50": 13.192955, "p90": 17.3114066, "p95": 19.3266438, "p99": 34.82735036999988, "max": 508.237401 },
+      "current": { "p50": 12.223401, "p90": 16.611701, "p95": 23.091402000000002, "p99": 58.69811770000004, "max": 93.262647 }
+    }
+  },
+  "afterDiagnosticMetrics": {
+    "webhookIngestion": {
+      "baseline": { "p50": 9.3676, "p90": 13.7167, "p95": 15.7367, "p99": 32.7571, "max": 102.2334 },
+      "current": { "p50": 9.8225, "p90": 13.5655, "p95": 14.9063, "p99": 26.8132, "max": 96.9257 }
+    }
+  },
+  "queryBudget": {
+    "normalInsertQueryCount": 1,
+    "duplicatePathQueryCount": 2,
+    "normalInsertReloadRemoved": true,
+    "duplicateReloadPreserved": true
+  },
+  "businessSemanticsUnchanged": true,
+  "idempotencySemanticsUnchanged": true,
+  "transactionSemanticsUnchanged": true,
+  "operationLogSemanticsUnchanged": true,
+  "taskSemanticsUnchanged": true,
+  "testsPassed": true,
+  "racePassed": true,
+  "dataRaces": 0,
+  "goBuildPassed": true,
+  "projectChecksPassed": true,
+  "authRepairPreserved": true,
+  "formalRerunStarted": false,
+  "newRuntimeFreezeRequired": true,
+  "newFormalPairRequired": true,
+  "productionReady": false,
+  "tagDeferred": true
+}

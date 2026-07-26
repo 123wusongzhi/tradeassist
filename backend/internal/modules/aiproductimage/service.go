@@ -14,10 +14,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -34,12 +36,19 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 
 // Service orchestrates AI product image batch operations with human review.
 type Service struct {
-	DB       *gorm.DB
-	Settings *settings.Service
-	Products *product.Service
-	Image    *imagetask.Service
-	OpLog    *operationlog.Service
+	DB          *gorm.DB
+	Settings    *settings.Service
+	Products    *product.Service
+	Image       *imagetask.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 }
+
+const (
+	errAIImageBatchInProgress  = "AI_IMAGE_BATCH_IN_PROGRESS"
+	errAIImageBatchKeyConflict = "AI_IMAGE_BATCH_KEY_CONFLICT"
+)
 
 func (s *Service) batchMaxProducts(ctx context.Context) int {
 	return settingInt(ctx, s.Settings, "ai_image_batch_max_products", defaultMaxProducts, 500)
@@ -216,7 +225,7 @@ func (s *Service) validateImageURL(ctx context.Context, rawURL string) (accessib
 	return true, nil
 }
 
-func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op string, imageOK bool) CheckBatchItem {
+func (s *Service) checkOneImage(ctx context.Context, p *product.Product, img product.ProductImage, op string, readiness ProviderReadiness) CheckBatchItem {
 	pubURL := strings.TrimSpace(img.PublicURL)
 	if pubURL == "" {
 		pubURL = strings.TrimSpace(img.OriginURL)
@@ -232,6 +241,7 @@ func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op
 		Status:         "ready",
 		StatusLabel:    checkStatusLabel("ready"),
 		Issues:         []string{},
+		IssueCodes:     []string{},
 	}
 	if p != nil {
 		item.ProductTitle = strings.TrimSpace(p.Title)
@@ -240,17 +250,46 @@ func (s *Service) checkOneImage(p *product.Product, img product.ProductImage, op
 		item.Status = "blocked"
 		item.StatusLabel = checkStatusLabel("blocked")
 		item.Issues = append(item.Issues, "图片缺少有效链接")
+		item.IssueCodes = append(item.IssueCodes, CodeImageDownloadFailed)
 	}
 	if op == OpSelectBestMain && img.ImageType != product.ImageTypeMain {
 		item.Status = "warning"
 		item.StatusLabel = checkStatusLabel("warning")
 		item.Issues = append(item.Issues, "主图优选建议通常针对主图")
 	}
-	if !imageOK {
+	if readiness.Status == "missing" {
 		item.Status = "blocked"
 		item.StatusLabel = checkStatusLabel("blocked")
-		item.Issues = append(item.Issues, "AI 图片服务未配置")
+		item.Issues = append(item.Issues, WarningCodeMessage(CodeProviderConfigMissing))
+		item.IssueCodes = append(item.IssueCodes, CodeProviderConfigMissing)
+	} else if readiness.Status == "degraded" {
+		for _, dop := range readiness.DegradedOps {
+			if dop == op {
+				item.Status = "blocked"
+				item.StatusLabel = checkStatusLabel("blocked")
+				code := CodeUnsupportedOperation
+				if op == OpWhiteBackground {
+					code = CodeWhiteBackgroundProviderMissing
+				}
+				if op == OpRemoveLogo {
+					code = CodeLogoRemoveUnsupported
+				}
+				item.Issues = append(item.Issues, WarningCodeMessage(code))
+				item.IssueCodes = append(item.IssueCodes, code)
+			}
+		}
+		if len(readiness.MissingCodes) > 0 && item.Status != "blocked" {
+			for _, mc := range readiness.MissingCodes {
+				if op == OpWhiteBackground || op == OpOptimizeBackground {
+					item.Status = "blocked"
+					item.StatusLabel = checkStatusLabel("blocked")
+					item.Issues = append(item.Issues, WarningCodeMessage(mc))
+					item.IssueCodes = append(item.IssueCodes, mc)
+				}
+			}
+		}
 	}
+	_ = ctx
 	return item
 }
 
@@ -291,6 +330,16 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 		return nil, fmt.Errorf("本次选择的图片较多，请分批处理（最多 %d 张）", maxI)
 	}
 	imageOK := s.imageConfigured(ctx)
+	readiness := ProviderReadiness{Status: "missing", StatusLabel: "未配置"}
+	if s.Settings != nil {
+		if img, err := s.Settings.PlainByGroup(ctx, 0, "image"); err == nil {
+			readiness = EvaluateProviderReadiness(s.configuredImageProvider(ctx), img)
+		}
+	}
+	if !imageOK {
+		readiness.Status = "missing"
+		readiness.StatusLabel = "未配置"
+	}
 	resp := &CheckBatchResponse{
 		Summary: CheckBatchSummary{
 			ProductCount: len(productIDs),
@@ -308,13 +357,14 @@ func (s *Service) CheckBatch(ctx context.Context, req CheckBatchRequest) (*Check
 			accessible, urlIssues = s.validateImageURL(ctx, sel.Image.OriginURL)
 		}
 		for _, op := range ops {
-			cell := s.checkOneImage(p, sel.Image, op, imageOK)
+			cell := s.checkOneImage(ctx, p, sel.Image, op, readiness)
 			if len(urlIssues) > 0 {
 				if cell.Status == "ready" {
 					cell.Status = "warning"
 					cell.StatusLabel = checkStatusLabel("warning")
 				}
 				cell.Issues = append(cell.Issues, urlIssues...)
+				cell.IssueCodes = append(cell.IssueCodes, ClassifyErrorMessage(urlIssues[0]))
 			}
 			for _, w := range checkImageQualityWarnings(cell.SourceImageURL, accessible) {
 				if cell.Status == "ready" {
@@ -395,10 +445,106 @@ func summarizeInput(ops []string, opts ImageGenerationOptions) map[string]any {
 	}
 }
 
+func imageBatchRequestHashPayload(req CreateBatchRequest, adminID *uuid.UUID, productIDs, imageIDs []uuid.UUID, ops []string) []byte {
+	payload := map[string]any{
+		"productIds":     uuidStrings(productIDs),
+		"imageIds":       uuidStrings(imageIDs),
+		"operationTypes": ops,
+		"options":        req.Options,
+	}
+	if adminID != nil {
+		payload["adminId"] = adminID.String()
+	}
+	if k := strings.TrimSpace(req.IdempotencyKey); k != "" {
+		payload["idempotencyKey"] = k
+	}
+	b, _ := json.Marshal(payload)
+	return b
+}
+
+type imageBatchAcquire struct {
+	RecordID uuid.UUID
+	Owner    string
+}
+
+func (s *Service) acquireImageBatch(c *gin.Context, ctx context.Context, idemKey string, reqHash []byte) (*imageBatchAcquire, *idempotency.AcquireResult, error) {
+	if s == nil || s.Idempotency == nil || idemKey == "" {
+		return nil, nil, nil
+	}
+	owner := "ai-image-batch-create"
+	if c != nil {
+		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
+	}
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIImage, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	decision, rec, _ := idempotency.Classify(res, err)
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		return nil, res, nil
+	case idempotency.DecisionInProgress:
+		return nil, res, fmt.Errorf("%s", errAIImageBatchInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		return nil, res, fmt.Errorf("%s", errAIImageBatchKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if rec == nil && res != nil {
+			rec = res.Record
+		}
+		if rec == nil {
+			return nil, res, fmt.Errorf("idempotency: missing record")
+		}
+		return &imageBatchAcquire{RecordID: rec.ID, Owner: owner}, res, nil
+	default:
+		return nil, res, err
+	}
+}
+
+func (s *Service) completeImageBatchCreate(ctx context.Context, job *imageBatchAcquire, batchID uuid.UUID) error {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return nil
+	}
+	summary, _ := json.Marshal(map[string]string{"batchId": batchID.String()})
+	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+		ResponseCode:    "AI_IMAGE_BATCH_CREATED",
+		ResponseSummary: string(summary),
+		ResourceType:    "ai_product_image_batch",
+		ResourceID:      batchID.String(),
+	})
+}
+
+func (s *Service) failImageBatchCreate(ctx context.Context, job *imageBatchAcquire, code string, retryable bool) {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return
+	}
+	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+}
+
+func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string) (*AIProductImageBatch, error) {
+	rid := ""
+	if res != nil {
+		rid = res.ResourceID
+		if rid == "" && res.Record != nil {
+			rid = res.Record.ResourceID
+		}
+	}
+	if rid != "" {
+		if bid, err := uuid.Parse(rid); err == nil {
+			var batch AIProductImageBatch
+			if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err == nil {
+				return &batch, nil
+			}
+		}
+	}
+	var existing AIProductImageBatch
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+		return &existing, nil
+	}
+	return nil, fmt.Errorf("%s", errAIImageBatchInProgress)
+}
+
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
 	if !s.imageConfigured(ctx) {
+		s.ObserveAIImage("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 图片服务未配置，请先在「设置 → 图片 AI」完成配置")
 	}
 	productIDs, err := parseProductIDs(req.ProductIDs)
@@ -439,6 +585,14 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if idemKey == "" {
 		idemKey = buildIdempotencyKey(adminID, productIDs, imageIDs, ops, req.Options)
 	}
+	reqHash := imageBatchRequestHashPayload(req, adminID, productIDs, imageIDs, ops)
+	idemJob, replayRes, acqErr := s.acquireImageBatch(c, ctx, idemKey, reqHash)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingImageBatch(ctx, replayRes, idemKey)
+	}
 	var existing AIProductImageBatch
 	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
 		return &existing, nil
@@ -448,6 +602,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 	inJSON, _ := json.Marshal(summarizeInput(ops, req.Options))
@@ -469,6 +624,8 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		StartedAt:      &now,
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
+		s.ObserveAIImage("internal", "batch_create", "batch", "failure", "database", 0)
 		return nil, err
 	}
 
@@ -496,6 +653,11 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		}
 	}
 	if err := s.DB.WithContext(ctx).CreateInBatches(&items, 50).Error; err != nil {
+		s.failImageBatchCreate(ctx, idemJob, "AI_IMAGE_BATCH_CREATE_FAILED", true)
+		return nil, err
+	}
+
+	if err := s.completeImageBatchCreate(ctx, idemJob, batch.ID); err != nil {
 		return nil, err
 	}
 
@@ -510,6 +672,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		})
 	}
 
+	s.ObserveAIImage("internal", "batch_create", "batch", "success", "", 0)
 	go s.runGeneration(detachedGinContext(c), batch.ID, req.Options, adminID)
 	return batch, nil
 }
@@ -538,6 +701,7 @@ func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, opts ImageGen
 
 func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts ImageGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	start := time.Now()
 	var item AIProductImageItem
 	if err := s.DB.WithContext(ctx).First(&item, "id = ?", seed.ID).Error; err != nil {
 		return
@@ -591,12 +755,18 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 		return
 	}
 	if err := s.Image.FinalizeNewImageTask(ctx, c, task); err != nil {
+		s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", "enqueue_failed", time.Since(start))
 		s.failItem(ctx, item.ID, "enqueue_failed", truncateMsg(err.Error(), 500))
 		return
 	}
 
 	finished, runErr := s.waitForImageTask(ctx, task.ID, 5*time.Minute)
 	if runErr != nil {
+		if isAIImageTimeout(runErr.Error()) {
+			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "timeout", "timeout", "provider_timeout", time.Since(start))
+		} else {
+			s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "failure", "failure", classifyAIImageError(runErr.Error()), time.Since(start))
+		}
 		s.failItem(ctx, item.ID, "generation_failed", truncateMsg(runErr.Error(), 500))
 		return
 	}
@@ -653,7 +823,8 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 			updates["image_updated_at"] = &t
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", item.ID).Updates(updates).Error
+	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
+	s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "request", "success", "", time.Since(start))
 }
 
 func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) (*imagetask.ImageTask, error) {
@@ -683,10 +854,18 @@ func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeou
 }
 
 func (s *Service) failItem(ctx context.Context, itemID uuid.UUID, code, msg string) {
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ?", itemID).Updates(map[string]any{
+	norm := NormalizeItemErrorCode(code, msg)
+	if norm == CodeProviderTimeout {
+		s.ObserveAIImage("configured", "generation", "timeout", "timeout", "provider_timeout", 0)
+	}
+	userMsg := msg
+	if m := WarningCodeMessage(norm); m != "" {
+		userMsg = m
+	}
+	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).Where("id = ? AND status IN ?", itemID, []string{ItemRunning, ItemPending}).Updates(map[string]any{
 		"status":        ItemFailed,
-		"error_code":    code,
-		"error_message": msg,
+		"error_code":    norm,
+		"error_message": userMsg,
 	}).Error
 }
 

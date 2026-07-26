@@ -1,0 +1,29 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:26:23.407Z",
+  "runId": "p7c4-20260714042622",
+  "hostClass": "wsl2_local_postgresql_socket",
+  "port": 5432,
+  "databaseNameHash": "ff885e90afa729e5",
+  "postgreSQLVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+  "gitCommit": "d8425521849aa4e8935942b0b4cbcd3be719a267",
+  "schemaVersion": "AutoMigrate",
+  "migrationVersion": "AutoMigrate+p7",
+  "datasetProfile": "medium",
+  "plannedRows": 1900150,
+  "env": {
+    "APP_ENV": "performance",
+    "PERFORMANCE_TEST_MODE": "true",
+    "ALLOW_PERFORMANCE_DATASET": "true",
+    "EXTERNAL_PROVIDER_MODE": "mock",
+    "DOUYIN_WRITE_ENABLED": "false",
+    "AUTO_LISTING_ENABLED": "false",
+    "DB_NAME": "trademind_p7c4_p7c4_20260714042622",
+    "DB_DRIVER": "postgres",
+    "DB_HOST": "/var/run/postgresql",
+    "DB_PORT": "5432",
+    "DB_USER": "root"
+  },
+  "issues": []
+}

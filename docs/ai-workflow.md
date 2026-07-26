@@ -208,10 +208,11 @@ AI 不应把“成长”理解成在本地偷偷保存私有记忆；TradeMind �
 
 ## Admin 文案与 UI 规范
 
-管理端改动（页面、组件、样式）时，除 `docs/module-map.md` 外还应遵守以下约定：
+管理端改动（页面、组件、样式）时，除 `docs/module-map.md` 外必须先读取 `.agents/skills/frontend-design/SKILL.md`；该 skill 是 Admin UI 设计规范、共享组件规范、布局规范、响应式验收和 AI 实施流程的唯一完整来源。下表只列常用辅助资源，不替代主规范。
 
 | 资源 | 用途 |
 | --- | --- |
+| `.agents/skills/frontend-design/SKILL.md` | Admin UI 主规范、五档视口、`browser_route`、根节点横向溢出、readonly、rowKey、Header / Content 基线、API / payload 保护 |
 | `docs/ui-copywriting.md` | 用户可见文案术语表、禁止项、`pnpm check:ui-copy` |
 | `admin/src/constants/copywriting.ts` | 页面标题、说明、商品/平台/任务/库存统一术语 |
 | `admin/src/constants/layoutTokens.ts` | 页面内边距、卡片间距、表单栅格间距 |
@@ -231,12 +232,7 @@ AI 不应把“成长”理解成在本地偷偷保存私有记忆；TradeMind �
 
 ### 布局原则（摘要）
 
-- 页面容器：`padding-inline 24px`，`max-width 1440px`（看板 1680px）。
-- 间距仅用：4 / 8 / 12 / 16 / 20 / 24 / 32 / 40。
-- 配置表单桌面端两列，`<1100px` 单列；开关字段独立一行（名称 + 开关 + 说明）。
-- 标题与说明分行；表格文本左对齐，金额/数量右对齐。
-
-改动 Admin 页面时：先查是否已有 `PAGE_COPY` / 公共组件可复用，避免每页手写样式与重复术语。**页面容器统一使用 `TmPageContainer`**（勿直接使用 `PageContainer`），看板类页面可设置 `contentMaxWidth={layoutTokens.dashboardMaxWidth}`。
+布局、横向基线、页面容器、五档视口、Modal / Drawer / Popconfirm 和写请求副作用验收以 `.agents/skills/frontend-design/SKILL.md` 为准。改动 Admin 页面时：先查是否已有 `PAGE_COPY` / 公共组件可复用，避免每页手写样式与重复术语；页面容器优先使用 `TmPageContainer`，看板类页面可按主规范使用 `layoutTokens.dashboardMaxWidth`。
 
 ### 已落地的典型模式
 
@@ -267,3 +263,33 @@ AI 不应把“成长”理解成在本地偷偷保存私有记忆；TradeMind �
 - 已按 `docs/module-map.md` 检查关联内容。
 - 已按 `docs/task-checklist.md` 执行或说明验证。
 - 新增长期经验已写到合适文档，而不是只留在聊天里。
+
+## Phase F1 全项目功能规划（2026-06-29）
+
+**策略调整**：当前不进入最终人工验收 / 真实预发 / 抖店 E2E / 生产灰度；先按规划补齐全项目功能（F2–F8），再 Phase F9 统一总体验收。
+
+开始 F2+ 功能开发前，Agent 应先读：
+
+| 文档 | 用途 |
+| --- | --- |
+| [FULL_PROJECT_FUNCTION_MAP.md](FULL_PROJECT_FUNCTION_MAP.md) | 34 模块完成度、页面/API/表、缺口 |
+| [FULL_PROJECT_MVP_MAIN_FLOW.md](FULL_PROJECT_MVP_MAIN_FLOW.md) | 16 步主链路：入口、兜底、跳转 |
+| [FULL_PROJECT_DEVELOPMENT_PLAN.md](FULL_PROJECT_DEVELOPMENT_PLAN.md) | F2–F9 阶段目标与边界 |
+| [FULL_PROJECT_MVP_GAP_AUDIT.md](FULL_PROJECT_MVP_GAP_AUDIT.md) | P0–P3 缺口优先级 |
+
+**F 阶段任务分流**：
+
+| 阶段 | 优先模块 | 禁止 |
+| --- | --- | --- |
+| F2 | 订单、异常工作台、SKU 匹配 | 售后/退款/财务 |
+| F3 | 库存预警、扣减、平台同步 | 多仓 WMS / 自动补货 |
+| F4 | 客服、AI 回复建议、人工发送 | 自动发送 |
+| F5 | 配置状态中心、RBAC | 多租户 SSO |
+| F6 | 总 Dashboard、全局体验 | 复杂 BI |
+| F7 | Demo 数据全链路样本 | 真实平台数据 |
+| F8 | 只修 P0/P1 | 新功能 |
+| F9 | 人工走查、预发、抖店 E2E、灰度 | —（F8 后启动） |
+
+**Phase F7（2026-06-30）**：全项目 Demo 数据升级完成。Demo 走查前先跑 [`DEMO_SEEDING_GUIDE.md`](DEMO_SEEDING_GUIDE.md)；自动化回归用 [`DEMO_AUTO_ACCEPTANCE_GUIDE.md`](DEMO_AUTO_ACCEPTANCE_GUIDE.md)（Phase F7-Auto，**非**最终人工验收）。
+
+缺口分级沿用 [FULL_PROJECT_MVP_GAP_AUDIT.md](FULL_PROJECT_MVP_GAP_AUDIT.md)：**P0** 主链路断点 → **P1** 影响试用 → **P2** 体验 → **P3** 后续增强。

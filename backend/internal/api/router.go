@@ -11,26 +11,36 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	"github.com/trademind-ai/trademind/backend/internal/health"
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/adminuser"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aioperationbatch"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiopsworkbench"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/auth"
+	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
+	"github.com/trademind-ai/trademind/backend/internal/modules/configstatus"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
+	"github.com/trademind-ai/trademind/backend/internal/modules/demoseed"
+	"github.com/trademind-ai/trademind/backend/internal/modules/disasterrecovery"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinpreflight"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
+	"github.com/trademind-ai/trademind/backend/internal/modules/exportmod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationdashboard"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -40,12 +50,18 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/release"
+	"github.com/trademind-ai/trademind/backend/internal/modules/restore"
+	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/skucandidate"
 	"github.com/trademind-ai/trademind/backend/internal/modules/storagepublic"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
+	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -137,16 +153,19 @@ func (a collectRuleCreatorAdapter) CreateFromAI(c *gin.Context, body collectrule
 
 // Deps holds process-wide dependencies for HTTP handlers.
 type Deps struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	Redis     *rdb.Client
-	Encrypter *encrypt.Service
+	Config          *config.Config
+	DB              *gorm.DB
+	Redis           *rdb.Client
+	Encrypter       *encrypt.Service
+	MigrationsReady bool
 	// OpLog optional; when nil Register creates a default operation log service from DB.
 	OpLog *operationlog.Service
+	// Obs optional P5 observability facade.
+	Obs *observability.Observability
 }
 
 // Register mounts routes on the engine and returns services for optional async workers.
-func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service) {
+func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *ordersync.Service, *customersync.Service, *productpublish.Service, *inventory.Service, *taskcenter.Service, *douyinruntime.Service, *webhook.Service, *files.Service, *securitymod.Service) {
 	if dep == nil {
 		dep = &Deps{}
 	}
@@ -154,26 +173,58 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	h := healthHandler(dep)
 	r.GET("/health", h)
 	r.GET("/api/v1/health", h)
+	health.Register(r, &health.Deps{
+		Config:          dep.Config,
+		DB:              dep.DB,
+		Redis:           dep.Redis,
+		MigrationsReady: dep.MigrationsReady,
+	})
+
+	if dep.Obs != nil && dep.Config != nil && dep.Config.Observability.MetricsEnabled {
+		metricsPath := strings.TrimSpace(dep.Config.Observability.MetricsPath)
+		if metricsPath == "" {
+			metricsPath = "/internal/metrics"
+		}
+		internal := r.Group(metricsPath)
+		internal.Use(middleware.MetricsGuard(dep.Config.Observability.MetricsInternalOnly, nil))
+		internal.GET("", observabilitymod.MetricsEndpoint(dep.Obs))
+	}
+
+	alertCooldown := 5 * time.Minute
+	alertRecovery := true
+	if dep.Config != nil {
+		if dep.Config.Observability.AlertDefaultCooldownSecs > 0 {
+			alertCooldown = time.Duration(dep.Config.Observability.AlertDefaultCooldownSecs) * time.Second
+		}
+		alertRecovery = dep.Config.Observability.AlertRecoveryEnabled
+	}
 
 	adminStore := &admin.Store{DB: dep.DB}
-	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore}
+	var metricCatalog *metrics.Catalog
+	if dep.Obs != nil {
+		metricCatalog = dep.Obs.Catalog
+	}
+	sessionSvc := &auth.SessionService{Cfg: dep.Config, DB: dep.DB, Admins: adminStore, Metrics: metricCatalog}
+	loginSvc := &auth.LoginService{Cfg: dep.Config, Admins: adminStore, Sessions: sessionSvc, Metrics: metricCatalog}
 	settingsSvc := &settings.Service{DB: dep.DB, Encrypter: dep.Encrypter}
 	opLogSvc := dep.OpLog
 	if opLogSvc == nil {
 		opLogSvc = &operationlog.Service{DB: dep.DB}
 	}
+	idempotencySvc := &idempotency.Service{DB: dep.DB}
 
 	aiGateway := &aigate.Gateway{Settings: settingsSvc}
 
-	authH := &auth.Handler{LoginSvc: loginSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc}
-	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway}
-	opLogH := &operationlog.Handler{Svc: opLogSvc}
+	authH := &auth.Handler{LoginSvc: loginSvc, Sessions: sessionSvc, Admins: adminStore, OpLog: opLogSvc, Redis: dep.Redis, Settings: settingsSvc, DB: dep.DB, Cfg: dep.Config}
+	sessionH := &auth.SessionHandler{Cfg: dep.Config, Sessions: sessionSvc, OpLog: opLogSvc, DB: dep.DB}
+	setH := &settings.Handler{Svc: settingsSvc, OpLog: opLogSvc, AIGateway: aiGateway, DB: dep.DB}
+	opLogH := &operationlog.Handler{Svc: opLogSvc, DB: dep.DB}
 
 	maxUp := int64(10 << 20)
 	if dep.Config != nil {
 		maxUp = dep.Config.MaxUploadBytes()
 	}
-	fileSvc := &files.Service{DB: dep.DB, Settings: settingsSvc, MaxBytes: maxUp}
+	fileSvc := &files.Service{DB: dep.DB, Redis: dep.Redis, Settings: settingsSvc, MaxBytes: maxUp, Metrics: metricCatalog}
 	fileH := &files.Handler{Svc: fileSvc}
 	staticH := &files.StaticHandler{Settings: settingsSvc}
 
@@ -231,12 +282,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	imageTaskH := &imagetask.Handler{Svc: imageTaskSvc}
 
 	productSvc := &product.Service{
-		DB:        dep.DB,
-		OpLog:     opLogSvc,
-		Settings:  settingsSvc,
-		Prompts:   promptSvc,
-		AITasks:   aiTaskSvc,
-		AIGateway: aiGateway,
+		DB:          dep.DB,
+		OpLog:       opLogSvc,
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AITasks:     aiTaskSvc,
+		AIGateway:   aiGateway,
+		Idempotency: idempotencySvc,
 	}
 	productH := &product.Handler{Svc: productSvc, Files: fileSvc}
 
@@ -250,19 +302,23 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aiBatchH := &aioperationbatch.Handler{Svc: aiBatchSvc}
 
 	aiProductTextSvc := &aiproducttext.Service{
-		DB:       dep.DB,
-		Settings: settingsSvc,
-		Products: productSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Products:    productSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	aiProductTextH := &aiproducttext.Handler{Svc: aiProductTextSvc}
 
 	aiProductImageSvc := &aiproductimage.Service{
-		DB:       dep.DB,
-		Settings: settingsSvc,
-		Products: productSvc,
-		Image:    imageTaskSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Products:    productSvc,
+		Image:       imageTaskSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	aiProductImageH := &aiproductimage.Handler{Svc: aiProductImageSvc}
 
@@ -323,7 +379,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}
-	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc}
+	storagePublicH := &storagepublic.Handler{Svc: storagePublicSvc, OpLog: opLogSvc, DB: dep.DB}
 
 	douyinPreflightSvc := &douyinpreflight.Service{
 		DB:       dep.DB,
@@ -341,11 +397,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	douyinRuntimeH := &douyinruntime.Handler{Svc: douyinRuntimeSvc}
 
 	inventorySvc := &inventory.Service{
-		DB:       dep.DB,
-		Redis:    dep.Redis,
-		Shops:    shopSvc,
-		Settings: settingsSvc,
-		OpLog:    opLogSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Settings:    settingsSvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	if dep.Config != nil {
 		inventorySvc.QueueEnabled = dep.Config.InventorySyncQueueEnabled
@@ -360,16 +418,18 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	inventoryH := &inventory.Handler{Svc: inventorySvc}
 
-	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc}
+	orderSvc := &order.Service{DB: dep.DB, OpLog: opLogSvc, Shops: shopSvc, Settings: settingsSvc, Idempotency: idempotencySvc}
 	orderH := &order.Handler{Svc: orderSvc, Inv: inventorySvc}
 
 	orderSyncSvc := &ordersync.Service{
-		DB:        dep.DB,
-		Redis:     dep.Redis,
-		Shops:     shopSvc,
-		Orders:    orderSvc,
-		Inventory: inventorySvc,
-		OpLog:     opLogSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Orders:      orderSvc,
+		Inventory:   inventorySvc,
+		OpLog:       opLogSvc,
+		Idempotency: idempotencySvc,
+		Metrics:     metricCatalog,
 	}
 	if dep.Config != nil {
 		orderSyncSvc.QueueEnabled = dep.Config.OrderSyncQueueEnabled
@@ -401,14 +461,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	customerChatSvc := &customerchat.Service{
-		DB:        dep.DB,
-		Settings:  settingsSvc,
-		Prompts:   promptSvc,
-		AITasks:   aiTaskSvc,
-		AIGateway: aiGateway,
-		OpLog:     opLogSvc,
-		Orders:    orderSvc,
-		Shops:     shopSvc,
+		DB:          dep.DB,
+		Settings:    settingsSvc,
+		Prompts:     promptSvc,
+		AITasks:     aiTaskSvc,
+		AIGateway:   aiGateway,
+		OpLog:       opLogSvc,
+		Orders:      orderSvc,
+		Shops:       shopSvc,
+		Idempotency: idempotencySvc,
 	}
 	customerChatH := &customerchat.Handler{Svc: customerChatSvc}
 
@@ -468,12 +529,13 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 
 	productPublishSvc := &productpublish.Service{
-		DB:        dep.DB,
-		Redis:     dep.Redis,
-		Shops:     shopSvc,
-		Settings:  settingsSvc,
-		OpLog:     opLogSvc,
-		Readiness: readinessSvc,
+		DB:          dep.DB,
+		Redis:       dep.Redis,
+		Shops:       shopSvc,
+		Settings:    settingsSvc,
+		OpLog:       opLogSvc,
+		Readiness:   readinessSvc,
+		Idempotency: idempotencySvc,
 	}
 	if dep.Config != nil {
 		productPublishSvc.QueueEnabled = dep.Config.ProductPublishQueueEnabled
@@ -501,11 +563,16 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	v1.POST("/auth/login", authH.Login)
 	v1.POST("/auth/register", authH.Register)
 	v1.POST("/auth/send-email-code", authH.SendEmailCode)
+	v1.POST("/auth/refresh", sessionH.Refresh)
 
 	authed := v1.Group("")
-	authed.Use(middleware.BearerAuth(dep.Config))
+	authed.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	authed.GET("/auth/profile", authH.Profile)
 	authed.POST("/auth/logout", authH.Logout)
+	authed.GET("/auth/sessions", sessionH.ListSessions)
+	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
+	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
+	authed.POST("/auth/logout-all", sessionH.LogoutAll)
 	authed.GET("/settings", setH.List)
 	authed.PUT("/settings", setH.Put)
 	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
@@ -552,7 +619,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
 	collectorAlias := r.Group("/api/collector")
-	collectorAlias.Use(middleware.BearerAuth(dep.Config))
+	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
 	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
 	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
@@ -569,6 +636,53 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	customersync.Register(authed, customerSyncH)
 	customerchat.Register(authed, customerChatH)
 	shop.RegisterPublic(v1, shopH)
+	webhookRegistry := webhook.NewRegistry(dep.Config)
+	// Register Douyin webhook signature verifier — loads app_secret from settings
+	// (platform_douyin_shop group). If secret is missing the verifier is still
+	// registered but Verify returns CodeVerifierNotConfigured.
+	if settingsSvc != nil {
+		appEnv := ""
+		if dep.Config != nil {
+			appEnv = dep.Config.AppEnv
+		}
+		if plain, err := settingsSvc.PlainByGroup(context.Background(), 0, "platform_douyin_shop"); err == nil {
+			appSecret := plain["app_secret"]
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifierWithEnv(appSecret, appEnv))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifierWithEnv(appSecret, appEnv))
+		} else {
+			webhookRegistry.Register("douyin_shop", webhook.NewDouyinVerifierWithEnv("", appEnv))
+			webhookRegistry.Register("douyin", webhook.NewDouyinVerifierWithEnv("", appEnv))
+		}
+	}
+	webhookSvc := &webhook.Service{
+		DB:          dep.DB,
+		Idempotency: idempotencySvc,
+		Verifiers:   webhookRegistry,
+		Metrics:     metricCatalog,
+		ShopResolver: &webhook.DBWebhookShopResolver{
+			DB: dep.DB,
+			AppEnv: func() string {
+				if dep.Config != nil {
+					return dep.Config.AppEnv
+				}
+				return ""
+			}(),
+		},
+		OrderHandler: &ordersync.DouyinOrderWebhookHandler{
+			DB:     dep.DB,
+			Shops:  shopSvc,
+			Orders: orderSvc,
+		},
+		AppEnv: "",
+	}
+	if dep.Config != nil {
+		webhookSvc.MaxPayloadBytes = dep.Config.WebhookMaxBodyBytes()
+		webhookSvc.MaxClockSkew = dep.Config.WebhookMaxClockSkew()
+		webhookSvc.AppEnv = dep.Config.AppEnv
+	}
+	webhookH := &webhook.Handler{Svc: webhookSvc}
+	webhook.Register(authed, webhookH)
+	webhook.RegisterPublic(v1, webhookH)
 	shop.Register(authed, shopH)
 	storagepublic.Register(authed, storagePublicH)
 	douyinpreflight.Register(authed, douyinPreflightH)
@@ -594,11 +708,22 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	tcH := &taskcenter.Handler{Svc: tcSvc}
 	taskcenter.Register(authed, tcH)
 
+	configStatusSvc := &configstatus.Service{
+		DB:       dep.DB,
+		Settings: settingsSvc,
+		Redis:    dep.Redis,
+		Config:   dep.Config,
+		Shops:    shopSvc,
+	}
+	configStatusH := &configstatus.Handler{Svc: configStatusSvc}
+	configstatus.Register(authed, configStatusH)
+
 	dashSvc := &operationdashboard.Service{
 		DB:              dep.DB,
 		Inventory:       inventorySvc,
 		TaskCenter:      tcSvc,
 		OrderExceptions: excSvc,
+		ConfigStatus:    configStatusSvc,
 	}
 	dashH := &operationdashboard.Handler{Svc: dashSvc}
 	operationdashboard.Register(authed, dashH)
@@ -611,7 +736,42 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
 	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
 
-	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc
+	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
+	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
+	adminuser.Register(authed, adminUserH)
+
+	secSvc := &securitymod.Service{DB: dep.DB, Cfg: dep.Config, OpLogs: opLogSvc, Metrics: metricCatalog}
+	secH := &securitymod.Handler{Svc: secSvc, DB: dep.DB}
+	securitymod.RegisterRoutes(authed, secH)
+
+	exportSvc := &exportmod.Service{DB: dep.DB}
+	exportH := &exportmod.Handler{Svc: exportSvc}
+	exportmod.RegisterRoutes(authed, exportH)
+
+	backupSvc := &backup.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, OpLog: opLogSvc, Metrics: metricCatalog}
+	backupH := &backup.Handler{Svc: backupSvc}
+	backup.Register(authed, backupH)
+	restoreSvc := &restore.Service{DB: dep.DB, Cfg: dep.Config, Enc: dep.Encrypter, Backup: backupSvc, OpLog: opLogSvc}
+	restoreH := &restore.Handler{Svc: restoreSvc}
+	restore.Register(authed, restoreH)
+	releaseSvc := &release.Service{DB: dep.DB, Cfg: dep.Config, Backup: backupSvc, OpLog: opLogSvc}
+	releaseH := &release.Handler{Svc: releaseSvc}
+	release.Register(authed, releaseH)
+	drSvc := &disasterrecovery.Service{DB: dep.DB, Cfg: dep.Config}
+	drH := &disasterrecovery.Handler{Svc: drSvc}
+	disasterrecovery.Register(authed, drH)
+
+	alertSvc := alerting.NewService(dep.DB, alertCooldown, alertRecovery)
+	obsH := &observabilitymod.Handler{DB: dep.DB, Cfg: dep.Config, Obs: dep.Obs, Alert: alertSvc}
+	observabilitymod.Register(authed, obsH)
+
+	if dep.Config != nil && dep.Config.EnableDemoSeed && !config.IsProduction(dep.Config.AppEnv) {
+		demoSeedSvc := &demoseed.Service{DB: dep.DB, OpLog: opLogSvc, AppEnv: dep.Config.AppEnv}
+		demoSeedH := &demoseed.Handler{Svc: demoSeedSvc}
+		demoseed.Register(authed, demoSeedH)
+	}
+
+	return collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc
 }
 
 func healthHandler(dep *Deps) gin.HandlerFunc {

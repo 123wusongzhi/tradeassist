@@ -4,14 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -21,10 +26,11 @@ var ErrNotFound = errors.New("order not found")
 
 // Service orchestrates internal orders manually entered from admin (no marketplace sync).
 type Service struct {
-	DB       *gorm.DB
-	OpLog    *operationlog.Service
-	Shops    *shop.Service
-	Settings *settings.Service
+	DB          *gorm.DB
+	OpLog       *operationlog.Service
+	Shops       *shop.Service
+	Settings    *settings.Service
+	Idempotency *idempotency.Service
 }
 
 // AIContext holds serializable subsets for Prompt / ai_tasks audit (minimal PII).
@@ -36,17 +42,20 @@ type AIContext struct {
 
 // ConversationOrderSummary is safe for admin detail (omit email/phone in AI prompt).
 type ConversationOrderSummary struct {
-	ID                   uuid.UUID      `json:"id"`
-	OrderNo              string         `json:"orderNo"`
-	Platform             string         `json:"platform"`
-	Status               string         `json:"status"`
-	PaymentStatus        string         `json:"paymentStatus"`
-	FulfillmentStatus    string         `json:"fulfillmentStatus"`
-	Currency             string         `json:"currency"`
-	TotalAmount          float64        `json:"totalAmount"`
-	OrderedAt            *time.Time     `json:"orderedAt,omitempty"`
-	LatestShipmentStatus string         `json:"latestShipmentStatus,omitempty"`
-	Shipments            []ShipmentCard `json:"shipments,omitempty"`
+	ID                    uuid.UUID      `json:"id"`
+	OrderNo               string         `json:"orderNo"`
+	Platform              string         `json:"platform"`
+	Status                string         `json:"status"`
+	PaymentStatus         string         `json:"paymentStatus"`
+	FulfillmentStatus     string         `json:"fulfillmentStatus"`
+	Currency              string         `json:"currency"`
+	TotalAmount           float64        `json:"totalAmount"`
+	ItemCount             int            `json:"itemCount"`
+	SkuMatchStatus        string         `json:"skuMatchStatus,omitempty"`
+	InventoryDeductStatus string         `json:"inventoryDeductStatus,omitempty"`
+	OrderedAt             *time.Time     `json:"orderedAt,omitempty"`
+	LatestShipmentStatus  string         `json:"latestShipmentStatus,omitempty"`
+	Shipments             []ShipmentCard `json:"shipments,omitempty"`
 }
 
 // ShipmentCard is a compact shipment row for UI + AI summaries.
@@ -61,36 +70,54 @@ type ShipmentCard struct {
 
 // ListQuery GET /orders
 type ListQuery struct {
-	Page              int
-	PageSize          int
-	Platform          string
-	ShopID            *uuid.UUID
-	OrderNo           string
-	CustomerName      string
-	Status            string
-	FulfillmentStatus string
-	Start             *time.Time
-	End               *time.Time
+	Page                  int
+	PageSize              int
+	Cursor                string
+	Limit                 int
+	UseCursor             bool
+	Platform              string
+	ShopID                *uuid.UUID
+	OrderNo               string
+	CustomerName          string
+	Keyword               string
+	Status                string
+	PaymentStatus         string
+	FulfillmentStatus     string
+	SkuMatchStatus        string
+	InventoryDeductStatus string
+	SyncStatus            string
+	HasException          bool
+	Start                 *time.Time
+	End                   *time.Time
 }
 
 // ListOrderRow is returned from list endpoint.
 type ListOrderRow struct {
-	ID                   uuid.UUID  `json:"id"`
-	Platform             string     `json:"platform"`
-	ShopID               *uuid.UUID `json:"shopId,omitempty"`
-	ShopName             string     `json:"shopName,omitempty"`
-	ShopPlatform         string     `json:"shopPlatform,omitempty"`
-	ExternalOrderID      string     `json:"externalOrderId,omitempty"`
-	OrderNo              string     `json:"orderNo"`
-	CustomerName         string     `json:"customerName"`
-	Status               string     `json:"status"`
-	PaymentStatus        string     `json:"paymentStatus"`
-	FulfillmentStatus    string     `json:"fulfillmentStatus"`
-	Currency             string     `json:"currency"`
-	TotalAmount          float64    `json:"totalAmount"`
-	OrderedAt            *time.Time `json:"orderedAt,omitempty"`
-	CreatedAt            time.Time  `json:"createdAt"`
-	LatestShipmentStatus string     `json:"latestShipmentStatus,omitempty"`
+	ID                    uuid.UUID  `json:"id"`
+	Platform              string     `json:"platform"`
+	ShopID                *uuid.UUID `json:"shopId,omitempty"`
+	ShopName              string     `json:"shopName,omitempty"`
+	ShopPlatform          string     `json:"shopPlatform,omitempty"`
+	ExternalOrderID       string     `json:"externalOrderId,omitempty"`
+	OrderNo               string     `json:"orderNo"`
+	CustomerName          string     `json:"customerName"`
+	Status                string     `json:"status"`
+	PaymentStatus         string     `json:"paymentStatus"`
+	FulfillmentStatus     string     `json:"fulfillmentStatus"`
+	Currency              string     `json:"currency"`
+	TotalAmount           float64    `json:"totalAmount"`
+	ItemCount             int        `json:"itemCount"`
+	SkuMatchStatus        string     `json:"skuMatchStatus,omitempty"`
+	SkuMatchedCount       int        `json:"skuMatchedCount"`
+	SkuTotalCount         int        `json:"skuTotalCount"`
+	InventoryDeductStatus string     `json:"inventoryDeductStatus,omitempty"`
+	SyncStatus            string     `json:"syncStatus,omitempty"`
+	OpenExceptionCount    int        `json:"openExceptionCount"`
+	DetailURL             string     `json:"detailUrl,omitempty"`
+	OrderedAt             *time.Time `json:"orderedAt,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+	LatestShipmentStatus  string     `json:"latestShipmentStatus,omitempty"`
 }
 
 // ListResult pagination bundle.
@@ -100,6 +127,9 @@ type ListResult struct {
 	Page       int
 	PageSize   int
 	TotalPages int
+	Limit      int
+	NextCursor string
+	HasMore    bool
 }
 
 func pagesOf(total int64, ps int) int {
@@ -114,6 +144,39 @@ func pagesOf(total int64, ps int) int {
 		pages = 1
 	}
 	return pages
+}
+
+func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) (string, string) {
+	shopScope := ""
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		shopScope = q.ShopID.String()
+	}
+	allowed := []string{}
+	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
+		for _, id := range p.AllowedStoreIDs() {
+			allowed = append(allowed, id.String())
+		}
+	}
+	sort.Strings(allowed)
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":              tenantID,
+		"shopId":                shopScope,
+		"allowedShopIds":        allowed,
+		"platform":              q.Platform,
+		"orderNo":               q.OrderNo,
+		"customerName":          q.CustomerName,
+		"keyword":               q.Keyword,
+		"status":                q.Status,
+		"paymentStatus":         q.PaymentStatus,
+		"fulfillmentStatus":     q.FulfillmentStatus,
+		"skuMatchStatus":        q.SkuMatchStatus,
+		"inventoryDeductStatus": q.InventoryDeductStatus,
+		"syncStatus":            q.SyncStatus,
+		"hasException":          q.HasException,
+		"start":                 q.Start,
+		"end":                   q.End,
+		"sort":                  "created_at_desc_id_desc",
+	}), shopScope
 }
 
 func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
@@ -385,17 +448,14 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
-	page := q.Page
-	if page < 1 {
-		page = 1
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
 	}
-	ps := q.PageSize
-	if ps < 1 {
-		ps = 20
+	paged, err := pagination.NormalizePage(q.Page, q.PageSize)
+	if err != nil {
+		return nil, err
 	}
-	if ps > 100 {
-		ps = 100
-	}
+	page, ps := paged.Page, paged.Limit
 	tx := s.DB.WithContext(c.Request.Context()).Model(&Order{})
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -409,8 +469,18 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if v := strings.TrimSpace(q.CustomerName); v != "" {
 		tx = tx.Where("customer_name ILIKE ?", "%"+v+"%")
 	}
+	if v := strings.TrimSpace(q.Keyword); v != "" {
+		like := "%" + v + "%"
+		tx = tx.Where(
+			"order_no ILIKE ? OR customer_name ILIKE ? OR external_order_id ILIKE ?",
+			like, like, like,
+		)
+	}
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
+	}
+	if v := strings.TrimSpace(q.PaymentStatus); v != "" {
+		tx = tx.Where("payment_status = ?", v)
 	}
 	if v := strings.TrimSpace(q.FulfillmentStatus); v != "" {
 		tx = tx.Where("fulfillment_status = ?", v)
@@ -421,14 +491,48 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if q.End != nil {
 		tx = tx.Where("created_at <= ?", *q.End)
 	}
+	var tenantID int64
+	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+		tenantID = tid
+	}
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+	scopeHash, cursorShopID := orderCursorScope(c, s.DB, q, tenantID)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, cursorShopID, scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
+	}
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
 	}
-	offset := (page - 1) * ps
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		query = query.Offset(paged.Offset)
+	}
 	var rows []Order
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
+	if err := query.Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	hasMore := q.UseCursor && len(rows) > ps
+	if hasMore {
+		rows = rows[:ps]
 	}
 	if len(rows) == 0 {
 		return &ListResult{
@@ -437,6 +541,7 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			Page:       page,
 			PageSize:   ps,
 			TotalPages: pagesOf(total, ps),
+			Limit:      ps,
 		}, nil
 	}
 	ids := make([]uuid.UUID, len(rows))
@@ -482,12 +587,30 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		}
 		out[i] = row
 	}
+	enrichListRows(c.Request.Context(), s.DB, rows, out)
+
+	if q.SkuMatchStatus != "" || q.InventoryDeductStatus != "" || q.HasException || q.SyncStatus != "" {
+		out = applyListPostFilters(out, q)
+		total = int64(len(out))
+	}
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, tenantID, cursorShopID, scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &ListResult{
 		Items:      out,
 		Total:      total,
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pagesOf(total, ps),
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -572,18 +695,34 @@ func (s *Service) ConversationSummary(c *gin.Context, orderID uuid.UUID) (*Conve
 		return nil, err
 	}
 	shList, lat := s.shipmentCards(c, o.ID)
+	var itemCount int64
+	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Count(&itemCount).Error
+
+	rows := []Order{o}
+	outRows := []ListOrderRow{{ID: o.ID}}
+	enrichListRows(c.Request.Context(), s.DB, rows, outRows)
+	skuSt := ""
+	invSt := ""
+	if len(outRows) > 0 {
+		skuSt = outRows[0].SkuMatchStatus
+		invSt = outRows[0].InventoryDeductStatus
+	}
+
 	return &ConversationOrderSummary{
-		ID:                   o.ID,
-		OrderNo:              o.OrderNo,
-		Platform:             o.Platform,
-		Status:               o.Status,
-		PaymentStatus:        o.PaymentStatus,
-		FulfillmentStatus:    o.FulfillmentStatus,
-		Currency:             o.Currency,
-		TotalAmount:          o.TotalAmount,
-		OrderedAt:            o.OrderedAt,
-		LatestShipmentStatus: lat,
-		Shipments:            shList,
+		ID:                    o.ID,
+		OrderNo:               o.OrderNo,
+		Platform:              o.Platform,
+		Status:                o.Status,
+		PaymentStatus:         o.PaymentStatus,
+		FulfillmentStatus:     o.FulfillmentStatus,
+		Currency:              o.Currency,
+		TotalAmount:           o.TotalAmount,
+		ItemCount:             int(itemCount),
+		SkuMatchStatus:        skuSt,
+		InventoryDeductStatus: invSt,
+		OrderedAt:             o.OrderedAt,
+		LatestShipmentStatus:  lat,
+		Shipments:             shList,
 	}, nil
 }
 
@@ -703,9 +842,18 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 }
 
 func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, error) {
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return nil, err
+	}
+	var o Order
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
+		return nil, err
+	}
+	if o.ShopID != nil {
+		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			return nil, err
+		}
 	}
 	var items []OrderItem
 	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Find(&items).Error
@@ -740,8 +888,12 @@ func (s *Service) PeekOrderBeforeUpdate(c *gin.Context, orderID uuid.UUID) (*Ord
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
 		return nil, err
 	}
 	return &o, nil
@@ -779,9 +931,18 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return nil, err
+	}
+	var o Order
+	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
+		return nil, err
+	}
+	if o.ShopID != nil {
+		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+			return nil, err
+		}
 	}
 
 	if strings.TrimSpace(body.CustomerName) != "" {
@@ -859,7 +1020,7 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 		o.DeliveredAt = nil
 	}
 
-	err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Save(&o).Error; err != nil {
 			return err
 		}
@@ -1043,6 +1204,9 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
 	var o Order
 	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
 		return nil, err
 	}
 	return &o, nil

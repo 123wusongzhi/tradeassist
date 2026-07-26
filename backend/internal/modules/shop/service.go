@@ -14,6 +14,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -189,6 +191,16 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 	tx := s.DB.WithContext(c.Request.Context()).Model(&Shop{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "id"); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
 	}
@@ -277,7 +289,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		authSt = AuthUnauthorized
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+
 	row := &Shop{
+		TenantID:        tid,
 		Platform:        platformID,
 		ShopName:        name,
 		ShopCode:        strings.TrimSpace(body.ShopCode),
@@ -322,8 +340,18 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if !adminperm.RequireStoreOperate(c, s.DB, id) {
+		return nil, gorm.ErrRecordNotFound
+	}
 	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
 		return nil, err
 	}
 	if v := strings.TrimSpace(body.ShopName); v != "" {
@@ -373,12 +401,16 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("shop: no db")
 	}
-	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(&row).Error; err != nil {
+	rows, err := repository.DeleteByID(c.Request.Context(), s.DB, &Shop{}, tid, id)
+	if err != nil {
 		return err
+	}
+	if rows == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -458,12 +490,19 @@ func (s *Service) GetDetail(c *gin.Context, id uuid.UUID) (*ShopDetailDTO, error
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, &id); err != nil {
 		return nil, err
 	}
 	var tok ShopAuthToken
-	err := s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", id).First(&tok).Error
+	err = s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", id).First(&tok).Error
 	var auth *AuthPublicDTO
 	if err == nil {
 		auth = s.buildAuthPublic(&tok)
@@ -478,8 +517,12 @@ func (s *Service) GetSummary(c *gin.Context, id uuid.UUID) (*SummaryDTO, error) 
 	if s == nil || s.DB == nil || id == uuid.Nil {
 		return nil, nil
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &row, tid, id); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}

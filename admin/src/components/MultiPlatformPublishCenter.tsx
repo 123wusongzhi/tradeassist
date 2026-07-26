@@ -18,6 +18,7 @@ import {
   Checkbox,
   Collapse,
   Descriptions,
+  Empty,
   Space,
   Spin,
   Tag,
@@ -59,17 +60,23 @@ export default function MultiPlatformPublishCenter({
   const [selected, setSelected] = useState<Record<string, SelectedTarget>>({});
   const [checking, setChecking] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
   const [checkResult, setCheckResult] = useState<PublishTargetsCheckResponse | null>(null);
   const [createResult, setCreateResult] = useState<PublishTargetsCreateDraftsResponse | null>(null);
   const [lastBatchId, setLastBatchId] = useState<string | null>(null);
 
   const reloadTargets = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const res = await fetchPublishTargets(productId);
       setPlatforms(res.platforms ?? []);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '加载刊登目标失败');
+      const msg = (e as Error)?.message || '加载刊登目标失败';
+      setPlatforms([]);
+      setLoadError(msg);
+      message.error(msg);
     } finally {
       setLoading(false);
     }
@@ -124,13 +131,16 @@ export default function MultiPlatformPublishCenter({
       return;
     }
     setChecking(true);
+    setActionError('');
     try {
       const res = await checkPublishTargets(productId, {
         targets: selectedList.map(({ platform, shopId }) => ({ platform, shopId })),
       });
       setCheckResult(res);
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '检查失败');
+      const msg = (e as Error)?.message || '检查失败';
+      setActionError(msg);
+      message.error(msg);
     } finally {
       setChecking(false);
     }
@@ -142,6 +152,7 @@ export default function MultiPlatformPublishCenter({
       return;
     }
     setCreating(true);
+    setActionError('');
     try {
       const res = await createPublishTargetDrafts(productId, {
         targets: selectedList.map(({ platform, shopId }) => ({ platform, shopId })),
@@ -158,7 +169,9 @@ export default function MultiPlatformPublishCenter({
       );
       await onDraftsCreated?.();
     } catch (e: unknown) {
-      message.error((e as Error)?.message || '创建刊登草稿失败');
+      const msg = (e as Error)?.message || '创建刊登草稿失败';
+      setActionError(msg);
+      message.error(msg);
     } finally {
       setCreating(false);
     }
@@ -215,9 +228,28 @@ export default function MultiPlatformPublishCenter({
           }
         />
 
+        {loadError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="刊登目标加载失败"
+            description={loadError}
+            action={<Button size="small" onClick={() => void reloadTargets()}>重新加载</Button>}
+          />
+        ) : null}
+        {actionError ? (
+          <Alert type="error" showIcon message="多平台草稿操作失败" description={actionError} />
+        ) : null}
+
         <Card size="small" title="一、刊登目标" variant="borderless">
-          <Typography.Paragraph type="secondary">选择要刊登的平台和店铺</Typography.Paragraph>
+          <Typography.Paragraph type="secondary">选择要刊登的平台和店铺；这里只创建刊登草稿或本地任务快照，不代表平台已经上线。</Typography.Paragraph>
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {!loadError && !loading && platforms.length === 0 ? (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="暂无可用刊登目标，请先完成平台接入、店铺授权和刊登能力配置。"
+              />
+            ) : null}
             {platforms.map((plat) => {
               const authorizedShops = plat.shops.filter((s) => s.authStatus === 'authorized' && s.enabled);
               const allSelected =
@@ -234,9 +266,9 @@ export default function MultiPlatformPublishCenter({
                       disabled={!authorizedShops.length}
                       onChange={(e) => togglePlatformShops(plat, e.target.checked)}
                     />
-                    <Space direction="vertical" size={4}>
-                      <Space wrap>
-                        <Typography.Text strong>{plat.platformLabel}</Typography.Text>
+                    <Space direction="vertical" size={4} style={{ minWidth: 0 }}>
+                      <Space wrap style={{ minWidth: 0 }}>
+                        <Typography.Text strong style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}>{plat.platformLabel}</Typography.Text>
                         <Tag color={plat.capability === 'real_draft_create' ? 'blue' : 'default'}>
                           {plat.capabilityLabel || publishCapabilityLabel(plat.capability)}
                         </Tag>
@@ -260,7 +292,7 @@ export default function MultiPlatformPublishCenter({
                                 toggleShop(plat, shop.shopId, shop.shopName, e.target.checked)
                               }
                             >
-                              {shop.shopName}
+                              <Typography.Text style={{ maxWidth: '100%', overflowWrap: 'anywhere' }}>{shop.shopName}</Typography.Text>
                               {shop.authStatus !== 'authorized' ? (
                                 <Typography.Text type="secondary">
                                   {' '}

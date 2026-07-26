@@ -1,0 +1,284 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-HOST-ISOLATION-V3",
+  "status": "passed",
+  "formalHostIsolationVersion": 3,
+  "lifecycleSchemaVersion": 2,
+  "lifecycleStepSequenceHash": "5801f923b53673f8d4e0ce0e4fb41d80e1b810fa9827b348325ed455df1607a8",
+  "lifecycleContract": {
+    "lifecycleSchemaVersion": 2,
+    "steps": [
+      "resource_precheck",
+      "database_prepare",
+      "dataset_build",
+      "dataset_barrier",
+      "application_start",
+      "restart_isolation",
+      "warmup",
+      "cooldown",
+      "quiet_window",
+      "predictive_stability_barrier",
+      "measurement",
+      "application_stop",
+      "connection_drain",
+      "snapshot_complete",
+      "completed"
+    ],
+    "symmetricForRoles": [
+      "baseline",
+      "current",
+      "diagnostic-baseline",
+      "diagnostic-current"
+    ],
+    "forbiddenAsymmetries": [
+      "baseline_direct_load_without_start_warmup_cooldown_quiet_window",
+      "current_extra_restart_or_extra_cooldown",
+      "baseline_warm_process_current_cold_process"
+    ]
+  },
+  "databasePostDatasetBarrier": {
+    "databasePostDatasetBarrierVersion": 1,
+    "requiredRows": 1900150,
+    "requiredChecks": [
+      "dataset_actual_rows_match",
+      "migration_schema_fingerprint_match",
+      "dataset_writer_exited",
+      "dataset_write_connections_drained",
+      "postgres_background_activity_within_contract"
+    ],
+    "fixedSleepSubstituteAllowed": false
+  },
+  "warmupManifest": {
+    "formalWarmupVersion": 1,
+    "branches": [
+      "webhook.normal_insert",
+      "webhook.duplicate_conflict",
+      "auth.unknown_account",
+      "auth.wrong_password",
+      "auth.locked_account"
+    ],
+    "requestCountPolicy": "frozen_low_sensitivity_subset",
+    "isolatedIdNamespace": "p7v2-warmup",
+    "excludedFromFormalMetrics": true,
+    "excludedFromRegressionSummary": true,
+    "warmupSequenceHash": "08f25c5bd1a7c7b3372b097428b1021b672415aaca6eac08a7c79771df50063e",
+    "warmupBranchMixFingerprint": "90f56e83052139c45009587d205d435e023dc31e892503f366da2fd7846721f0"
+  },
+  "cooldownContract": {
+    "formalCooldownVersion": 1,
+    "maxWaitSeconds": 120,
+    "requiredSignals": [
+      "activeRequestCount=0",
+      "dbPoolInUseStable=true",
+      "dbWaitingBackendCount=0",
+      "unknownConnectionCount=0"
+    ],
+    "observedSignals": [
+      "goGcActivity",
+      "postgresMaintenanceActivity",
+      "cpuIoState"
+    ],
+    "timeoutBlocksMeasurement": true
+  },
+  "hostQuietWindowContract": {
+    "hostQuietWindowVersion": 1,
+    "sampleIntervalMs": 1000,
+    "requiredConsecutiveSamples": 5,
+    "quietWindowDurationMs": 5000,
+    "thresholdSource": "harness_readiness_threshold_v1",
+    "readinessThresholds": {
+      "maxSystemLoad1mPerCpu": 0.8,
+      "maxIoWaitDelta": 2500,
+      "maxDiskWriteBytesDelta": 536870912,
+      "maxDiskReadBytesDelta": 536870912,
+      "maxPostgresWaitingConnections": 0,
+      "maxUnknownConnectionCount": 0,
+      "maxGoGcPauseDeltaMs": 200,
+      "maxDbPoolWaitDelta": 0
+    },
+    "requiredSampleFields": [
+      "systemLoad",
+      "cpuUser",
+      "cpuSystem",
+      "cpuIdle",
+      "ioWait",
+      "availableMemory",
+      "swapUsage",
+      "diskReadDelta",
+      "diskWriteDelta",
+      "postgresActiveConnections",
+      "postgresWaitingConnections",
+      "postgresAutovacuumActivity",
+      "postgresAnalyzeActivity",
+      "goGcPauseDelta",
+      "dbPoolWaitDelta"
+    ],
+    "deterministic": true,
+    "readinessThresholdHash": "a05b39c7454f7689c34b9d6dd6a03e2fd3297a5b2b85f9e67dec98ca33f8f076"
+  },
+  "predictiveHostStabilityBarrier": {
+    "predictiveHostStabilityBarrierVersion": 1,
+    "sampleIntervalMs": 1000,
+    "requiredObservationWindows": 3,
+    "blocksMeasurement": true,
+    "fixedSleepSubstituteAllowed": false,
+    "requiredTrendFields": [
+      "walDeltaTrend",
+      "dirtyBufferTrend",
+      "checkpointActivity",
+      "autovacuumActivity",
+      "diskWriteTrend",
+      "ioWaitTrend",
+      "cpuRunQueue"
+    ],
+    "stabilityThresholds": {
+      "maxWalBytesDeltaPerWindow": 67108864,
+      "maxDirtyMemoryBytes": 268435456,
+      "maxDiskWriteBytesDeltaPerWindow": 805306368,
+      "maxIoWaitTicksDeltaPerWindow": 5000,
+      "maxCpuRunQueue": 8,
+      "maxPostgresWaitingConnections": 0,
+      "maxAutovacuumDeltaPerWindow": 0,
+      "maxCheckpointDeltaPerWindow": 0
+    },
+    "requiredSignals": [
+      "wal_delta_not_accelerating",
+      "dirty_memory_below_threshold",
+      "checkpoint_inactive",
+      "autovacuum_inactive",
+      "disk_write_delta_below_threshold",
+      "io_wait_delta_below_threshold",
+      "cpu_run_queue_below_threshold"
+    ],
+    "predictiveReadinessThresholdHash": "90c8b57f05d5d3d61e629e63e9b86086fc5096b2fb1e30e61f40c7ffe60d4c04"
+  },
+  "postgresIsolationContract": {
+    "postgresIsolationContractVersion": 2,
+    "postgresIsolationMode": "dedicated_ephemeral_postgres_instance_per_run",
+    "selectedPath": "PG-2",
+    "reason": "binary-bound matrix shows shared PostgreSQL counters and pre-run waiting connections while same-binary material variance is present",
+    "perRunRequirements": [
+      "independent_data_directory",
+      "independent_postgres_process",
+      "independent_port",
+      "same_postgres_version",
+      "same_config_fingerprint",
+      "record_postgres_binary_version",
+      "record_postgres_data_directory_identity",
+      "record_postgres_port",
+      "record_postgres_process_pid",
+      "record_postgres_wal_directory_identity",
+      "block_if_previous_postgres_pid_alive",
+      "block_if_previous_postgres_port_bound"
+    ],
+    "forbiddenConfigChanges": [
+      "disable_autovacuum",
+      "disable_checkpoint",
+      "disable_fsync",
+      "disable_synchronous_commit"
+    ]
+  },
+  "evidenceWriterContract": {
+    "evidenceWriterContractVersion": 1,
+    "disallowedDuringMeasurement": [
+      "large_artifact_compression",
+      "git_operations",
+      "binary_build",
+      "pnpm_install",
+      "large_file_copy",
+      "historical_evidence_scan",
+      "database_dump"
+    ],
+    "evidenceWriterMode": "async_or_outside_measurement_window",
+    "evidenceWriterBackpressureCountRequired": true
+  },
+  "backgroundProcessGate": {
+    "requiredZeroFields": [
+      "activeGoBuildCount",
+      "activePnpmInstallCount",
+      "activeGitCompressionCount",
+      "activeDatabaseDumpCount",
+      "activeDiagnosticRunnerCount"
+    ],
+    "measurementStartBlockedOnAnyNonzero": true
+  },
+  "resourcePrecheck": {
+    "requiredZeroFields": [
+      "listener18080Count",
+      "unknownP7ProcessCount",
+      "activeP7DatabaseConnectionCount",
+      "activePriorRunConnectionCount",
+      "unexpectedGoProcessCount",
+      "unexpectedK6ProcessCount",
+      "unexpectedNodeHarnessProcessCount"
+    ],
+    "measurementStartBlockedOnAnyNonzero": true
+  },
+  "comparabilityVersion": 5,
+  "runtimeFreezeBindingFields": [
+    "formalHostIsolationVersion",
+    "lifecycleContractHash",
+    "databasePostDatasetBarrierHash",
+    "warmupManifestHash",
+    "cooldownContractHash",
+    "hostQuietWindowContractHash",
+    "predictiveHostStabilityBarrierHash",
+    "postgresIsolationContractHash",
+    "evidenceWriterContractHash"
+  ],
+  "lifecycleContractHash": "c931cd965899d0d9fa8a6d6cd2384968ba3fe2c0bfb7263ecc279049b95476ab",
+  "databasePostDatasetBarrierHash": "838b36ec0fd4371111206cb3574bef6d4128c909fb216a0e8a0a1ff3234084e9",
+  "warmupManifestHash": "3cd8745ab4821b2b62487a1ccd286e1870cba79017cc349317d258a3ea9de32f",
+  "cooldownContractHash": "8cf4bc5c6a7f7760e1f43c470ff798df104a1d691ec35a8df31d56ed735440c1",
+  "hostQuietWindowContractHash": "d0cb596e32be04e7641ac2918e41822b2ef2343a3e5599818a628f2352e51cb0",
+  "predictiveHostStabilityBarrierHash": "7f0197a15051d563cc4c1747f7ab016db80a5ec3cfc551a81d76cf6b9899f005",
+  "postgresIsolationContractHash": "c71c65c67d8844472d8dd07622a976eeaa615b2bd2b402ece3b1b2d88e0e676f",
+  "evidenceWriterContractHash": "fbc36f1ddee0236dff4843d1ceb4a68ecdbe76dcf29a780820736877271ea9e4",
+  "backgroundProcessGateHash": "5b08afe345c494bad8920f3bd562c69c987db880b82e9eed3bfd3b283b4e59e3",
+  "resourcePrecheckHash": "9692ab02940e15385d40b243a48ff5f4b8f0ff6fa2f9bd251932f3659fb7a8a7",
+  "hostIsolationContractHash": "3c903d375899070d86478d071a667e0c6ab6fc9c7e7c77134d9db4473bfc706b",
+  "primaryHarnessSubRootCause": "A6_multiple_harness_isolation_factors",
+  "secondaryHarnessSubRootCauses": [
+    "A2_postgres_checkpoint_autovacuum_or_shared_instance_bias",
+    "A3_cache_and_warmup_asymmetry",
+    "A4_host_scheduler_cpu_or_io_contention",
+    "A5_baseline_current_lifecycle_asymmetry"
+  ],
+  "confidence": "medium",
+  "supportingEvidence": {
+    "baselineSelfMaxRelativeDeltaPct": 298.2253076198441,
+    "currentSelfMaxRelativeDeltaPct": 32.38474024463447,
+    "baselineWebhookP95RelativeDeltaPct": 74.2029103890536,
+    "baselineAuthP95RelativeDeltaPct": 298.2253076198441,
+    "baselineAuthP99RelativeDeltaPct": 37.08307256424284,
+    "currentWebhookP99RelativeDeltaPct": -32.38474024463447,
+    "currentAuthP95RelativeDeltaPct": 31.894235280853582,
+    "sharedPostgresCountersMove": true,
+    "waitingConnectionsAtPrecheck": true,
+    "nearImmediateNextRun": true,
+    "interRunGapsMs": [
+      155,
+      157,
+      158
+    ],
+    "materialDiskReadSpread": true,
+    "lifecycleEvidenceMissing": true,
+    "warmupReadinessEvidenceMissing": true,
+    "sampleDeltas": {
+      "B1ToB2WebhookP95": 74.2029103890536
+    }
+  },
+  "repairMatchesEvidence": true,
+  "businessRuntimeChanged": false,
+  "thresholdChanged": false,
+  "sloChanged": false,
+  "materialityChanged": false,
+  "vusChanged": false,
+  "stagesChanged": false,
+  "durationChanged": false,
+  "datasetChanged": false,
+  "inputSequenceChanged": false,
+  "loadContractChanged": false,
+  "formalPairStarted": false,
+  "validationMatrixStarted": false,
+  "generatedAt": "2026-07-20T05:41:49.298Z"
+}

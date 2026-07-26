@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
-  <img alt="Go" src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white">
+  <img alt="Go" src="https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-18+-61DAFB?logo=react&logoColor=111">
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5+-3178C6?logo=typescript&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white">
@@ -26,8 +26,7 @@
   <a href="#screenshots">Screenshots</a> ·
   <a href="#core-capabilities">Core Capabilities</a> ·
   <a href="#architecture-and-stack">Architecture & Stack</a> ·
-  <a href="docs/README.md">Docs</a> ·
-  <a href="docs/roadmap.md">Roadmap</a>
+  <a href="docs/README.md">Docs</a>
 </p>
 
 <p align="center">
@@ -38,7 +37,20 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-> Current status: **MVP Demo Ready** (Phase R1 / R1.1 / R1.2, 2026-06-27). R1.2 build and smoke passed; **`v0.1.0-demo` tag still pending** until real pre-release HTTPS and backup checks. AI product operations and multi-platform publish drafts are demo-ready; Douyin Shop remains **Release Candidate** until real E2E credentials. See [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md), [`docs/DEPLOYMENT_PRECHECK.md`](docs/DEPLOYMENT_PRECHECK.md), [`docs/DEMO_RELEASE_UX_ACCEPTANCE.md`](docs/DEMO_RELEASE_UX_ACCEPTANCE.md), [`docs/DOUYIN_RELEASE_GATE.md`](docs/DOUYIN_RELEASE_GATE.md).
+## Release Status
+
+| Item | Status |
+| --- | --- |
+| Phase | Production Capability Development In Progress |
+| Demo | MVP Demo Ready |
+| Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
+| Backup / Release / DR | P6 fully closed; real production verification deferred |
+| Performance / Capacity | P7 Conditionally Closed; functional/development scope completed; capacity and repeatability deferred to P10 |
+| Tag | Tag deferred |
+| Production | Not Production Ready |
+| Douyin | Douyin Release Candidate |
+| Final acceptance | Final Production Acceptance Deferred to P10 |
+
 
 ## Positioning
 
@@ -93,7 +105,7 @@ The screenshots below come from the local development environment and show the m
 - Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center (single-product, multi-shop pre-check and batch draft creation), **multi-product batch publish wizard** (list multi-select → batches and sub-tasks; Phase A2.2 adds production-grade unified/override config UI, effective-config preview, and validation; A2.1 adds batch limits, explicit DB migration, idempotency tests, and production hardening), **batch AI title/description** (Phase A3.1: 4-step wizard → review workspace → conflict-safe apply and undo; **A3.1.1** failure task center integration and legacy entry cleanup; **A3.1.2** real Provider trial run and route smoke acceptance), **batch AI image processing** (Phase A3.2: 5-step wizard → image review workspace → apply/undo; quality check / white background / watermark removal; never auto-overwrites originals; **A3.2.1** real Provider trial, route smoke, apply/undo scripts — see `docs/BATCH_AI_IMAGE_UX_ACCEPTANCE.md`), **AI product operation workbench** (Phase A3.3: unified todos for AI text/image review, publish checks, listing batch issues, and failure tasks — see `docs/AI_OPERATION_WORKBENCH_DESIGN.md`), draft mapping, publish tasks, recovery paths, and manual correction; Douyin Shop supports real platform drafts; other platforms currently use local draft snapshots.
+- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
 ### Engineering and Extensibility
@@ -101,6 +113,7 @@ The screenshots below come from the local development environment and show the m
 - Provider abstractions for AI, storage, image, platform, and collector integrations.
 - Self-host-friendly setup with PostgreSQL + Redis and a full Docker Compose deployment path.
 - Monorepo structure for backend, admin, collector, and docs, making team collaboration easier.
+- Reliability foundation with unified idempotency on critical writes, AI apply/undo protection, Webhook fast ACK, and worker leases against stale writeback.
 
 ## Architecture and Stack
 
@@ -133,6 +146,11 @@ pnpm dev:admin
 pnpm dev:collector
 pnpm build:admin
 pnpm build:collector
+pnpm seed:demo-data
+pnpm seed:demo-permissions
+pnpm verify:demo-data
+pnpm verify:demo-permissions
+pnpm check:p4-r
 ```
 
 ### Docker Deployment
@@ -162,16 +180,6 @@ Further reading:
 - [docs/development.md](docs/development.md)
 - [docs/docker-deployment.md](docs/docker-deployment.md)
 - [docs/env.md](docs/env.md)
-
-## Current Priorities
-
-| Priority | Focus |
-| --- | --- |
-| Priority 1 | Strengthen the AI product-operations flow: collection, drafts, AI copy, image processing, and readiness checks. |
-| Priority 2 | Improve the cross-platform ERP MVP, with Douyin Shop as the first real platform loop. |
-| Not the current goal | Multi-warehouse, procurement, finance, heavy WMS / OMS, and complex BI are intentionally out of scope for now. |
-
-For more detail, see [docs/roadmap.md](docs/roadmap.md) and [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Documentation
 

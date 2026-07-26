@@ -1,0 +1,122 @@
+{
+  "phase": "P7-V2-R3A",
+  "status": "approved_exact_names",
+  "approvalRequired": true,
+  "approvalObtained": true,
+  "approvalMethod": "interactive exact-name confirmation",
+  "approvedAt": "2026-07-14T14:50:00.000Z",
+  "approvedDatabaseNames": [
+    "trademind_p7v2_p7v2_auth_stability_1",
+    "trademind_p7v2_p7v2_auth_stability_2",
+    "trademind_p7v2_p7v2_auth_stability_3",
+    "trademind_p7v2_p7v2_bootstrap_idempotency_2",
+    "trademind_p7v2_p7v2_env_20260714143459",
+    "trademind_p7v2_p7v2_r2_env_20260714164000",
+    "trademind_p7v2_p7v2_r3_baseline_20260714130414",
+    "trademind_p7v2_p7v2_baseline_r3a_20260714225500"
+  ],
+  "localEnvironment": {
+    "appEnv": "performance",
+    "performanceTestMode": true,
+    "production": false,
+    "hostClass": "wsl2_local_postgresql_socket"
+  },
+  "databases": [
+    {
+      "databaseName": "trademind_p7v2_p7v2_auth_stability_1",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_auth_stability_1",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_auth_stability_2",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_auth_stability_2",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_auth_stability_3",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_auth_stability_3",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_bootstrap_idempotency_2",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_bootstrap_idempotency_2",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_env_20260714143459",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_env_20260714143459",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_r2_env_20260714164000",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_r2_env_20260714164000",
+      "knownPhase": "P7-V2",
+      "connectionCount": 0,
+      "connectionPids": [],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    },
+    {
+      "databaseName": "trademind_p7v2_p7v2_r3_baseline_20260714130414",
+      "databasePrefixValid": true,
+      "knownRunId": "p7v2_r3_baseline_20260714130414",
+      "knownPhase": "P7-V2",
+      "connectionCount": 10,
+      "connectionPids": [
+        17353,
+        17379,
+        17404,
+        17411,
+        17507,
+        17568,
+        17695,
+        17698,
+        17755,
+        17924
+      ],
+      "applicationNames": [],
+      "localEnvironmentVerified": true,
+      "safeToDropCandidate": true,
+      "reason": "isolated P7-V2 runtime database; datallowconn=t"
+    }
+  ],
+  "approvalInstructions": "Approval must name every exact database to delete. No wildcard, prefix, or blanket approval is accepted."
+}

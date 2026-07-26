@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // CancelTask marks a pending/running publish task as cancelled.
@@ -57,6 +58,10 @@ func (s *Service) CancelTask(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUI
 			Message:     fmt.Sprintf("taskId=%s platform=%s", taskID, task.Platform),
 		})
 	}
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.GetDTO(c.Request.Context(), tid, taskID)
 	return &out, err
 }

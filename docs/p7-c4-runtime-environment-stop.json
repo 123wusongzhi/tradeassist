@@ -1,0 +1,41 @@
+{
+  "phase": "P7-C4-R",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:54:23.691Z",
+  "checkedAt": "2026-07-14T04:54:23.691Z",
+  "gitCommit": "4e55d8433e8627bb89239916e7dd634899234a6c",
+  "environmentFingerprint": "wsl2_local_postgresql_socket",
+  "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+  "databasePrefix": "trademind_p7c4_",
+  "queryExecuted": true,
+  "environment": {
+    "appEnv": "performance",
+    "hostClass": "local_or_wsl_isolated",
+    "production": false,
+    "dbHost": "/var/run/postgresql"
+  },
+  "cleanup": {
+    "currentRunDatabase": "trademind_p7c4_p7c4_20260714042622",
+    "currentRunDatabaseRemoved": true,
+    "legacyRunDatabase": "trademind_p7c4_p7c4_20260714042442",
+    "legacyDatabaseDropped": true,
+    "connectionsBefore": 0,
+    "connectionsTerminated": 0,
+    "remainingDatabases": [],
+    "remainingDatabasesWithPrefix": 0,
+    "processesRemaining": 0,
+    "portsRemaining": 0
+  },
+  "services": {
+    "postgresStopped": true,
+    "redisStoppedOrNotStarted": true,
+    "mockProviderStoppedOrNotStarted": true
+  },
+  "temporaryResources": {
+    "filesRemaining": 2,
+    "processesRemaining": 0,
+    "portsRemaining": 0
+  },
+  "steps": [],
+  "issues": []
+}

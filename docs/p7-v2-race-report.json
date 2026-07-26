@@ -1,0 +1,15 @@
+{
+  "phase": "P7-V2",
+  "status": "passed",
+  "strategy": "reuse_p7_c4_race_dirty_tree",
+  "reason": "Working tree dirty with harness-only changes; reusing P7-C4 race evidence without rerun",
+  "gitCommit": "5b558e07b5ec56030522cf1e786d63d1c30be4e2",
+  "gitDirty": true,
+  "c4GitCommit": "d8425521849aa4e8935942b0b4cbcd3be719a267",
+  "dataRaces": 0,
+  "deadlocks": 0,
+  "executedPackages": 13,
+  "failedPackages": 0,
+  "environment": "WSL2 Ubuntu",
+  "generatedAt": "2026-07-14T05:45:47.489Z"
+}

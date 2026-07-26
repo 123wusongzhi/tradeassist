@@ -1,0 +1,11 @@
+{
+  "runId": "p7v2-baseline-20260714181000",
+  "previousReportedStatus": "passed",
+  "committedParsedHttpRequests": 0,
+  "rawTrafficClaimed": true,
+  "rawArtifactCurrentlyVerifiable": false,
+  "validForRegression": false,
+  "preserved": true,
+  "superseded": true,
+  "reason": "zero parsed HTTP metrics cannot support performance verification"
+}

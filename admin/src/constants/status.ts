@@ -68,6 +68,25 @@ export const CUSTOMER_CONVERSATION_STATUS = {
   closed: { text: '已关闭', color: 'default' as const },
 };
 
+/** AI 回复建议状态 */
+export const CUSTOMER_SUGGESTION_STATUS = {
+  generated: { text: '待确认', color: 'processing' as const },
+  edited: { text: '已编辑', color: 'blue' as const },
+  accepted: { text: '已发送', color: 'success' as const },
+  discarded: { text: '已废弃', color: 'default' as const },
+  rejected: { text: '已拒绝', color: 'default' as const },
+  generate_failed: { text: '生成失败', color: 'error' as const },
+  send_failed: { text: '发送失败', color: 'error' as const },
+};
+
+/** 会话发送状态（列表汇总） */
+export const CUSTOMER_SEND_STATUS = {
+  none: { text: '—', color: 'default' as const },
+  pending_confirm: { text: '待确认', color: 'processing' as const },
+  sent: { text: '已发送', color: 'success' as const },
+  failed: { text: '发送失败', color: 'error' as const },
+};
+
 /** 手工订单 orders.status（与后端 order/constants 对齐） */
 export const ORDER_STATUS = {
   pending: { text: '待处理', color: 'default' as const },
@@ -152,6 +171,40 @@ export const ORDER_SYNC_TASK_STATUS = {
   success: { text: '成功', color: 'success' as const },
   failed: { text: '失败', color: 'error' as const },
   cancelled: { text: '已取消', color: 'default' as const },
+};
+
+/** 订单列表 SKU 匹配汇总 */
+export const ORDER_SKU_MATCH_SUMMARY = {
+  all_matched: { text: '已全部匹配', color: 'success' as const },
+  partial: { text: '部分匹配', color: 'processing' as const },
+  unmatched: { text: '未匹配', color: 'error' as const },
+  ambiguous: { text: '候选待确认', color: 'warning' as const },
+  none: { text: '无明细', color: 'default' as const },
+};
+
+/** 订单列表库存扣减汇总 */
+export const ORDER_INVENTORY_DEDUCT_SUMMARY = {
+  none: { text: '未扣减', color: 'default' as const },
+  success: { text: '已扣减', color: 'success' as const },
+  failed: { text: '扣减失败', color: 'error' as const },
+  partial: { text: '部分扣减', color: 'warning' as const },
+  blocked: { text: 'SKU 未就绪', color: 'warning' as const },
+};
+
+/** 订单来源/同步状态 */
+export const ORDER_SYNC_SUMMARY = {
+  manual: { text: '手工订单', color: 'default' as const },
+  synced: { text: '平台已同步', color: 'success' as const },
+  unknown: { text: '待确认', color: 'warning' as const },
+};
+
+/** 订单行 SKU 匹配状态 */
+export const ORDER_ITEM_SKU_MATCH_STATUS = {
+  matched: { text: '已匹配', color: 'success' as const },
+  manual_bound: { text: '人工绑定', color: 'processing' as const },
+  ambiguous: { text: '候选待确认', color: 'warning' as const },
+  unmatched: { text: '未匹配', color: 'error' as const },
+  skipped: { text: '已跳过', color: 'default' as const },
 };
 
 /** 客服消息同步任务 customer_message_sync_tasks.status（与订单同步任务状态语义一致） */

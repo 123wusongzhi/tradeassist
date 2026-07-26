@@ -25,7 +25,7 @@ export default [
       },
       {
         path: '/dashboard/product-operations',
-        name: '商品运营看板',
+        name: '运营总览',
         component: './Dashboard/ProductOperations',
       },
     ],
@@ -59,6 +59,36 @@ export default [
         name: '告警中心',
         icon: 'BellOutlined',
         component: './TaskCenter/Alerts',
+      },
+      {
+        path: '/ops/observability',
+        name: '可观测性中心',
+        icon: 'LineChartOutlined',
+        component: './Ops/Observability',
+      },
+      {
+        path: '/ops/backups',
+        name: '备份管理',
+        icon: 'DatabaseOutlined',
+        component: './Ops/Backups',
+      },
+      {
+        path: '/ops/restores',
+        name: '恢复验证',
+        icon: 'SafetyCertificateOutlined',
+        component: './Ops/Restores',
+      },
+      {
+        path: '/ops/releases',
+        name: '发布回滚',
+        icon: 'BranchesOutlined',
+        component: './Ops/Releases',
+      },
+      {
+        path: '/ops/disaster-recovery',
+        name: '灾备演练',
+        icon: 'DeploymentUnitOutlined',
+        component: './Ops/DisasterRecovery',
       },
       {
         path: '/ops/platform-runtime',
@@ -153,6 +183,11 @@ export default [
         hideInMenu: true,
       },
       {
+        path: '/product/ai-text-batches',
+        redirect: '/ai/text-batches',
+        hideInMenu: true,
+      },
+      {
         path: '/product/ai-text-batches/:id',
         name: 'AI 文案批次复核',
         component: './Product/AITextBatchDetail',
@@ -165,9 +200,19 @@ export default [
         hideInMenu: true,
       },
       {
+        path: '/product/ai-image-batches',
+        redirect: '/ai/image-batches',
+        hideInMenu: true,
+      },
+      {
         path: '/product/ai-image-batches/:id',
         name: 'AI 图片批次复核',
         component: './Product/AIImageBatchDetail',
+        hideInMenu: true,
+      },
+      {
+        path: '/product/publish-batches',
+        redirect: '/product/publish-tasks?tab=batches',
         hideInMenu: true,
       },
       {
@@ -258,6 +303,12 @@ export default [
         component: './Orders/index',
       },
       {
+        path: '/orders/:id',
+        name: '订单详情',
+        hideInMenu: true,
+        component: './Orders/Detail',
+      },
+      {
         path: '/orders/sync-tasks',
         name: '同步任务',
         component: './Orders/SyncTasks',
@@ -281,9 +332,19 @@ export default [
     component: '@/layouts/InventoryGroupLayout',
     routes: [
       {
+        path: '/inventory',
+        name: '库存中心',
+        component: './Inventory',
+      },
+      {
         path: '/inventory/alerts',
         name: '库存预警',
         component: './Inventory/Alerts',
+      },
+      {
+        path: '/inventory/deductions',
+        name: '库存扣减记录',
+        component: './Inventory/Deductions',
       },
       {
         path: '/inventory/sync-tasks',
@@ -297,8 +358,8 @@ export default [
       },
       {
         path: '/inventory/effects',
-        name: '订单库存影响',
-        component: './Inventory/Effects',
+        redirect: '/inventory/deductions',
+        hideInMenu: true,
       },
       {
         path: '/inventory/logs',
@@ -313,6 +374,15 @@ export default [
     icon: 'CustomerServiceOutlined',
     component: '@/layouts/CustomerGroupLayout',
     routes: [
+      {
+        path: '/customer',
+        redirect: '/customer/hub',
+      },
+      {
+        path: '/customer/hub',
+        name: '客服中心',
+        component: './Customer/Hub',
+      },
       {
         path: '/customer/conversations',
         name: '会话列表',
@@ -401,6 +471,16 @@ export default [
         path: '/settings/integrations',
         name: '第三方集成总览',
         component: './Settings/Integrations',
+      },
+      {
+        path: '/settings/config-status',
+        name: '配置状态中心',
+        component: './Settings/ConfigStatus',
+      },
+      {
+        path: '/settings/users',
+        name: '用户与权限',
+        component: './Settings/Users',
       },
     ],
   },

@@ -1,5 +1,6 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import {
   Button,
   Checkbox,
@@ -19,10 +20,30 @@ import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import { Link } from '@umijs/renderer-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { useKeywordSearchField } from '@/hooks/useKeywordSearchField';
+import KeywordSafetyHint from '@/components/common/KeywordSafetyHint';
+import { parsePositiveInt } from '@/utils/urlState';
+
+const ALERT_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'alertType',
+  'stockStatus',
+  'platform',
+  'shopId',
+  'source',
+] as const;
+import {
+  INVENTORY_SKU_AMBIGUOUS_MESSAGE,
+  INVENTORY_SKU_NOT_BOUND_MESSAGE,
+} from '@/constants/inventoryLabels';
 import {
   INVENTORY_SYNC_BATCHES_LABEL,
   INVENTORY_SYNC_TASKS_LABEL,
 } from '@/constants/userFriendly';
+import { confirmInventoryManualAdjust, confirmInventorySync } from '@/constants/sensitiveActions';
 import {
   adjustSkuStock,
   batchUpdateStockSettings,
@@ -30,23 +51,14 @@ import {
   previewBatchStockSettings,
   queryInventoryAlerts,
   syncPublicationSkuInventory,
+  type BatchStockSettingsPreviewPayload,
   type InventoryAlertRow,
 } from '@/services/inventory';
 import { updateProductSkuStockSettings } from '@/services/products';
 
 const BATCH_STOCK_DEFAULT_MAX = 500;
 
-function alertsStockBatchNeedsConfirmAll(p: {
-  productSkuIds?: string[];
-  productId?: string;
-  platform?: string;
-  shopId?: string;
-  keyword?: string;
-  stockStatus?: string;
-  onlyPublished?: boolean;
-  alertTypes?: string[];
-  includeNormal?: boolean;
-}): boolean {
+function alertsStockBatchNeedsConfirmAll(p: BatchStockSettingsPreviewPayload): boolean {
   if (p.productSkuIds?.length) return false;
   if ((p.productId ?? '').trim()) return false;
   if ((p.platform ?? '').trim()) return false;
@@ -88,8 +100,23 @@ function stockStatusTag(raw: string) {
 }
 
 export default function InventoryAlertsPage() {
+  const emptyLocale = useListEmptyLocale('inventoryAlerts', { permissionScoped: true });
   const actionRef = useRef<ActionType>();
   const searchFormRef = useRef<ProFormInstance>();
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof ALERT_QUERY_KEYS)[number], string | undefined>>(ALERT_QUERY_KEYS);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
+  const {
+    fieldProps: keywordFieldProps,
+    prepareKeyword,
+    showSensitiveHint,
+  } = useKeywordSearchField({
+    setUrlState,
+    formRef: searchFormRef,
+    actionRef,
+    setTablePage,
+  });
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkIncludeLocalAlerts, setBulkIncludeLocalAlerts] = useState(false);
@@ -108,7 +135,27 @@ export default function InventoryAlertsPage() {
   const [batchStockSubmitting, setBatchStockSubmitting] = useState(false);
   const [batchStockForm] = Form.useForm<{ warningStock: number; safetyStock: number }>();
 
-  const buildStockBatchPayload = () => {
+  useEffect(() => {
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    searchFormRef.current?.setFieldsValue?.({
+      keyword: urlState.keyword,
+      alertType: urlState.alertType,
+      stockStatus: urlState.stockStatus,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+    });
+  }, [
+    urlState.alertType,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+    urlState.stockStatus,
+  ]);
+
+  const buildStockBatchPayload = (): BatchStockSettingsPreviewPayload => {
     const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
     const alertType = typeof fv.alertType === 'string' ? fv.alertType.trim() : '';
     const alertTypes = alertType ? [alertType] : [];
@@ -157,7 +204,7 @@ export default function InventoryAlertsPage() {
         title: '关键词',
         dataIndex: 'keyword',
         hideInTable: true,
-        fieldProps: { placeholder: '标题 / 规格编码 / 名称' },
+        fieldProps: { placeholder: '标题 / 规格编码 / 名称', ...keywordFieldProps },
       },
       {
         title: '平台',
@@ -389,17 +436,18 @@ export default function InventoryAlertsPage() {
         ),
       },
     ],
-    [adjustForm, settingsForm],
+    [adjustForm, settingsForm, keywordFieldProps],
   );
 
   return (
     <TmPageContainer title="库存预警" subTitle="查看低库存、缺货与平台库存不一致等预警，可按需创建同步任务。">
+      <KeywordSafetyHint visible={showSensitiveHint} />
       <Typography.Paragraph type="secondary">
         仅查询与提醒，不自动改平台库存；推送仍走{' '}
         <Link to="/inventory/sync-tasks">{INVENTORY_SYNC_TASKS_LABEL}</Link>
         （可勾选规格行后批量创建{' '}
         <Link to="/inventory/sync-batches">{INVENTORY_SYNC_BATCHES_LABEL}</Link>
-        ）。抖店规格须先在商品详情完成规格绑定后再同步库存。
+        ）。{INVENTORY_SKU_NOT_BOUND_MESSAGE}
       </Typography.Paragraph>
       <ProTable<InventoryAlertRow>
         rowKey={(r) => r.productSkuId}
@@ -408,7 +456,24 @@ export default function InventoryAlertsPage() {
         columns={columns}
         scroll={{ x: 1500 }}
         search={{ labelWidth: 100 }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          clearUrlState(ALERT_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         rowSelection={{
           selectedRowKeys: selectedSkuIds,
           onChange: (keys) => setSelectedSkuIds(keys.map(String)),
@@ -463,18 +528,21 @@ export default function InventoryAlertsPage() {
                         type="link"
                         size="small"
                         disabled={!runnable}
-                        onClick={async () => {
+                        onClick={() => {
                           const stock = r.stock;
-                          try {
-                            await syncPublicationSkuInventory(p.publicationSkuId, {
-                              stock,
-                              fromInventoryAlert: true,
-                            });
-                            message.success('已创建同步任务');
-                            actionRef.current?.reload();
-                          } catch (e: unknown) {
-                            message.error((e as Error)?.message || '失败');
-                          }
+                          const targetLabel = `[${p.platform}] ${p.shopName || p.shopId}`;
+                          confirmInventorySync(targetLabel, runnable, async () => {
+                            try {
+                              await syncPublicationSkuInventory(p.publicationSkuId, {
+                                stock,
+                                fromInventoryAlert: true,
+                              });
+                              message.success('已创建同步任务');
+                              actionRef.current?.reload();
+                            } catch (e: unknown) {
+                              message.error((e as Error)?.message || '失败');
+                            }
+                          });
                         }}
                       >
                         同步库存
@@ -487,20 +555,43 @@ export default function InventoryAlertsPage() {
               <Typography.Text type="secondary">无刊登映射</Typography.Text>
             ),
         }}
+        locale={emptyLocale}
         request={async (params, sort, filter) => {
           void sort;
           void filter;
           try {
+            const qp = {
+              keyword: prepareKeyword(params.keyword),
+              platform: (params.platform as string | undefined)?.trim(),
+              shopId: (params.shopId as string | undefined)?.trim(),
+              alertType: (params.alertType as string | undefined)?.trim(),
+              stockStatus: (params.stockStatus as string | undefined)?.trim(),
+              page: params.current ?? tablePage,
+              pageSize: params.pageSize ?? tablePageSize,
+            };
+            setUrlState(
+              {
+                page: Number(qp.page) > 1 ? qp.page : undefined,
+                pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+                keyword: qp.keyword,
+                alertType: qp.alertType,
+                stockStatus: qp.stockStatus,
+                platform: qp.platform,
+                shopId: qp.shopId,
+                source: urlState.source,
+              },
+              { replace: true },
+            );
             const res = await queryInventoryAlerts({
-              keyword: (params.keyword as string) || undefined,
-              platform: (params.platform as string) || undefined,
-              shopId: (params.shopId as string) || undefined,
-              alertType: (params.alertType as string) || undefined,
-              stockStatus: (params.stockStatus as string) || undefined,
+              keyword: qp.keyword,
+              platform: qp.platform,
+              shopId: qp.shopId,
+              alertType: qp.alertType,
+              stockStatus: qp.stockStatus,
               onlyPublished: Boolean(params.onlyPublished),
               includeNormal: Boolean(params.includeNormal),
-              page: params.current,
-              pageSize: params.pageSize,
+              page: qp.page,
+              pageSize: qp.pageSize,
             });
             return {
               data: res.list ?? [],
@@ -520,41 +611,47 @@ export default function InventoryAlertsPage() {
         onCancel={() => setBulkOpen(false)}
         okText="创建批次"
         confirmLoading={bulkSubmitting}
-        onOk={async () => {
-          if (selectedSkuIds.length === 0) return;
-          const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
-          const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
-          const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
-          const alertTypes = bulkIncludeLocalAlerts
-            ? [
-                'platform_stock_mismatch',
-                'inventory_sync_failed',
-                'low_stock',
-                'out_of_stock',
-                'below_safety_stock',
-              ]
-            : ['platform_stock_mismatch', 'inventory_sync_failed'];
-          setBulkSubmitting(true);
-          try {
-            const batch = await createInventorySyncBatch({
-              source: 'inventory_alert',
-              platform: platformRaw || undefined,
-              shopId: shopRaw || undefined,
-              productSkuIds: selectedSkuIds,
-              onlyAlerts: true,
-              alertTypes,
-              onlyPublished: true,
+        onOk={() => {
+          if (selectedSkuIds.length === 0) return Promise.reject();
+          return new Promise<void>((resolve, reject) => {
+            confirmInventorySync(`选中的 ${selectedSkuIds.length} 个规格`, true, async () => {
+              const fv = searchFormRef.current?.getFieldsValue?.() ?? {};
+              const platformRaw = typeof fv.platform === 'string' ? fv.platform.trim().toLowerCase() : '';
+              const shopRaw = typeof fv.shopId === 'string' ? fv.shopId.trim() : '';
+              const alertTypes = bulkIncludeLocalAlerts
+                ? [
+                    'platform_stock_mismatch',
+                    'inventory_sync_failed',
+                    'low_stock',
+                    'out_of_stock',
+                    'below_safety_stock',
+                  ]
+                : ['platform_stock_mismatch', 'inventory_sync_failed'];
+              setBulkSubmitting(true);
+              try {
+                const batch = await createInventorySyncBatch({
+                  source: 'inventory_alert',
+                  platform: platformRaw || undefined,
+                  shopId: shopRaw || undefined,
+                  productSkuIds: selectedSkuIds,
+                  onlyAlerts: true,
+                  alertTypes,
+                  onlyPublished: true,
+                });
+                message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
+                setBulkOpen(false);
+                setSelectedSkuIds([]);
+                actionRef.current?.reload();
+                history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
+                resolve();
+              } catch (e: unknown) {
+                message.error((e as Error)?.message || '创建失败');
+                reject(e);
+              } finally {
+                setBulkSubmitting(false);
+              }
             });
-            message.success(`已创建批次 ${batch.batchNo}（跳过 ${batch.skippedCount}）`);
-            setBulkOpen(false);
-            setSelectedSkuIds([]);
-            actionRef.current?.reload();
-            history.push(`/inventory/sync-tasks?batchId=${encodeURIComponent(batch.id)}`);
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '创建失败');
-          } finally {
-            setBulkSubmitting(false);
-          }
+          });
         }}
       >
         <Typography.Paragraph>
@@ -574,24 +671,31 @@ export default function InventoryAlertsPage() {
         open={adjustOpen}
         onCancel={() => setAdjustOpen(false)}
         okButtonProps={{ loading: adjustSubmitting }}
-        onOk={async () => {
-          if (!active) return;
-          const v = await adjustForm.validateFields();
-          setAdjustSubmitting(true);
-          try {
-            await adjustSkuStock(active.productId, active.productSkuId, {
-              stock: v.stock,
-              reason: 'manual_adjust',
-              remark: 'from_inventory_alerts',
-            });
-            message.success('已更新');
-            setAdjustOpen(false);
-            actionRef.current?.reload();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '失败');
-          } finally {
-            setAdjustSubmitting(false);
-          }
+        onOk={() => {
+          if (!active) return Promise.reject();
+          return adjustForm.validateFields().then((v) =>
+            new Promise<void>((resolve, reject) => {
+              confirmInventoryManualAdjust(async () => {
+                setAdjustSubmitting(true);
+                try {
+                  await adjustSkuStock(active.productId, active.productSkuId, {
+                    stock: v.stock,
+                    reason: 'manual_adjust',
+                    remark: 'from_inventory_alerts',
+                  });
+                  message.success('已更新');
+                  setAdjustOpen(false);
+                  actionRef.current?.reload();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '失败');
+                  reject(e);
+                } finally {
+                  setAdjustSubmitting(false);
+                }
+              });
+            }),
+          );
         }}
       >
         <Form form={adjustForm} layout="vertical">
@@ -661,10 +765,7 @@ export default function InventoryAlertsPage() {
                 return Promise.reject(new Error('validation'));
               }
               const payload = buildStockBatchPayload();
-              const needAll = alertsStockBatchNeedsConfirmAll({
-                ...payload,
-                productSkuIds: payload.productSkuIds,
-              });
+              const needAll = alertsStockBatchNeedsConfirmAll(payload);
               return new Promise<void>((resolve, reject) => {
                 Modal.confirm({
                   title: '确认仅修改预警线？',

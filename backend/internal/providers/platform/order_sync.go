@@ -61,6 +61,8 @@ type PlatformOrder struct {
 	PaidAt            *time.Time
 	ShippedAt         *time.Time
 	DeliveredAt       *time.Time
+	PlatformUpdatedAt *time.Time
+	PlatformRevision  string
 	Items             []PlatformOrderItem
 	Shipments         []PlatformShipment
 	RawData           map[string]any

@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-07-13T09:30:18.065Z",
+  "phase": "P1",
+  "overall": "passed_with_warning",
+  "summary": {
+    "passed": 18,
+    "warnings": 1,
+    "failed": 0,
+    "total": 19
+  },
+  "checks": [
+    {
+      "id": "status-no-demo-tag",
+      "status": "passed",
+      "message": "README.md ok"
+    },
+    {
+      "id": "status-not-prod",
+      "status": "warning",
+      "message": "README.md missing 非 Production Ready"
+    },
+    {
+      "id": "status-p1",
+      "status": "passed",
+      "message": "README.md reflects P1"
+    },
+    {
+      "id": "status-no-demo-tag",
+      "status": "passed",
+      "message": "docs/PROGRESS.md ok"
+    },
+    {
+      "id": "status-p1",
+      "status": "passed",
+      "message": "docs/PROGRESS.md reflects P1"
+    },
+    {
+      "id": "demo-seed-guard",
+      "status": "passed",
+      "message": "Demo seed gated by EnableDemoSeed + !production"
+    },
+    {
+      "id": "config-demo-seed",
+      "status": "passed",
+      "message": "production validates ENABLE_DEMO_SEED"
+    },
+    {
+      "id": "config-insecure-default",
+      "status": "passed",
+      "message": "insecure default error code present"
+    },
+    {
+      "id": "storage-validate-failfast",
+      "status": "passed",
+      "message": "STORAGE_PROVIDER fail-fast in Validate()"
+    },
+    {
+      "id": "storage-local-boundary",
+      "status": "passed",
+      "message": "local storage production boundary"
+    },
+    {
+      "id": "public-base-validate",
+      "status": "passed",
+      "message": "ValidatePublicBase exists"
+    },
+    {
+      "id": "deploy-deploy/nginx/trademind.conf",
+      "status": "passed",
+      "message": "deploy/nginx/trademind.conf exists"
+    },
+    {
+      "id": "deploy-deploy/systemd/trademind-api.service",
+      "status": "passed",
+      "message": "deploy/systemd/trademind-api.service exists"
+    },
+    {
+      "id": "deploy-deploy/scripts/check-readiness.sh",
+      "status": "passed",
+      "message": "deploy/scripts/check-readiness.sh exists"
+    },
+    {
+      "id": "deploy-.env.production.example",
+      "status": "passed",
+      "message": ".env.production.example exists"
+    },
+    {
+      "id": "nginx-fallback",
+      "status": "passed",
+      "message": "Admin history fallback present"
+    },
+    {
+      "id": "health-live",
+      "status": "passed",
+      "message": "liveness route"
+    },
+    {
+      "id": "gitignore-env",
+      "status": "passed",
+      "message": ".gitignore covers production env"
+    },
+    {
+      "id": "admin-sourcemap",
+      "status": "passed",
+      "message": "admin build source map policy set"
+    }
+  ]
+}

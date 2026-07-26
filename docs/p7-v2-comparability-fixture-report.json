@@ -1,0 +1,11 @@
+{
+  "phase": "P7-V2-R3B-COMPARABILITY-FIXTURE",
+  "status": "passed",
+  "baselineCurrentPairIdMatch": true,
+  "runtimeFreezeIdMatch": true,
+  "artifactSha256Match": true,
+  "metricSchemaMatch": true,
+  "webhookMetricBindingMatch": true,
+  "mismatchProducesNotComparable": true,
+  "fixtureCases": 6
+}

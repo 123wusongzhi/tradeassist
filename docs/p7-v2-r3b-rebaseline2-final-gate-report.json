@@ -1,0 +1,41 @@
+{
+  "phase": "P7-V2-R3B-REBASELINE2",
+  "status": "blocked",
+  "failed": 4,
+  "checks": [
+    {
+      "id": "runtimeFreeze",
+      "status": "passed"
+    },
+    {
+      "id": "baseline",
+      "status": "failed"
+    },
+    {
+      "id": "current",
+      "status": "failed"
+    },
+    {
+      "id": "comparability",
+      "status": "failed"
+    },
+    {
+      "id": "regression",
+      "status": "failed"
+    }
+  ],
+  "next": {
+    "soak": "pending",
+    "demoRun1": "pending",
+    "demoRun2": "pending",
+    "finalGates": "pending"
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "autoListingTriggered": false,
+    "tagCreated": false,
+    "productionReady": false
+  }
+}

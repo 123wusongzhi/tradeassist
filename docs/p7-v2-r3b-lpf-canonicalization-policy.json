@@ -1,0 +1,33 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "version": 2,
+  "responsibility": [
+    "load intensity",
+    "load stages",
+    "scenario definitions",
+    "scenario ordering",
+    "request mix",
+    "credential mix",
+    "load script identity"
+  ],
+  "excludedAsSeparatelyFingerprinted": [
+    "runId",
+    "runKind",
+    "timestamps",
+    "databaseName",
+    "baseUrl",
+    "apiHost",
+    "apiPort",
+    "k6Version",
+    "runtime source tree",
+    "metric semantics",
+    "dataset",
+    "config",
+    "SLO",
+    "credential matrix"
+  ],
+  "unknownFieldPolicy": "ignore_with_report",
+  "durationUnit": "integer milliseconds",
+  "sourceArtifactsModified": false
+}

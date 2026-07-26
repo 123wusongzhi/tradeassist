@@ -33,6 +33,8 @@ func detailURL(taskType, id string) string {
 		return "/inventory/sync-tasks?id=" + url.QueryEscape(id)
 	case TaskTypeAIText:
 		return ""
+	case TaskTypeCustomerFailure:
+		return "/customer/conversations?id=" + url.QueryEscape(id)
 	default:
 		return ""
 	}
@@ -54,6 +56,8 @@ func retryActionFor(taskType string) string {
 		return "POST /api/v1/inventory-sync/tasks/:id/retry"
 	case TaskTypeAIText:
 		return "POST /api/v1/products/ai-text/items/:id/regenerate"
+	case TaskTypeCustomerFailure:
+		return "POST /api/v1/customer/conversations/:id/ai/generate-reply"
 	default:
 		return ""
 	}
@@ -115,6 +119,11 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	dto.NextRunAt = row.NextRetryAt
+	if row.Status == collect.StatusDeadLetter {
+		dto.DeadLetter = true
+	}
+	dto.SafeRetry = dto.Retryable && !dto.DeadLetter
 	if row.ResultProductID != nil {
 		pid := *row.ResultProductID
 		dto.RelatedResourceType = "product"
@@ -127,6 +136,7 @@ func mapCollectTask(row *collect.CollectTask, productTitles map[uuid.UUID]string
 		dto.RelatedResourceTitle = truncateRunes(row.SourceURL, 120)
 	}
 	applyMarks(&dto, TaskTypeCollect, row.ID.String(), marks)
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	return dto
 }
 
@@ -178,6 +188,7 @@ func mapImageTask(row *imagetask.ImageTask, productTitles map[uuid.UUID]string, 
 		dto.RelatedResourceTitle = truncateRunes(row.SourceImageURL, 120)
 	}
 	applyMarks(&dto, TaskTypeImage, row.ID.String(), marks)
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	return dto
 }
 
@@ -206,7 +217,7 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		RelatedResourceTitle: truncateRunes(shopNames[row.ShopID], 255),
 		Status:               row.Status,
 		NormalizedStatus:     norm,
-		Retryable:            norm == NormFailed,
+		Retryable:            norm == NormFailed || norm == NormPartialSuccess,
 		ErrorMessage:         truncateRunes(row.ErrorMessage, maxErrorMessageLen),
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
@@ -221,6 +232,8 @@ func mapOrderSyncTask(row *ordersync.OrderSyncTask, shopNames map[uuid.UUID]stri
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "order_sync"
 	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
 	applyMarks(&dto, TaskTypeOrderSync, row.ID.String(), marks)
 	return dto
@@ -266,6 +279,7 @@ func mapCustomerMessageSyncTask(row *customersync.CustomerMessageSyncTask, shopN
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
 	applyMarks(&dto, TaskTypeCustomerMessageSync, row.ID.String(), marks)
 	return dto
 }
@@ -319,7 +333,10 @@ func mapProductPublishTask(row *productpublish.ProductPublishTask, shopNames map
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "publish"
 	dto.RecoveryStatus = parseRecoveryStatusFromOutput(row.Output)
+	applyUnknownResult(&dto, row.ErrorCode)
 	applyMarks(&dto, TaskTypeProductPublish, row.ID.String(), marks)
 	return dto
 }
@@ -391,6 +408,8 @@ func mapInventorySyncTask(row *inventory.InventorySyncTask, shopNames map[uuid.U
 		dto.LockedBy = strings.TrimSpace(*row.LockedBy)
 	}
 	dto.LockedUntil = row.LockedUntil
+	applyLeaseMeta(&dto, taskLeaseMeta{HeartbeatAt: row.HeartbeatAt, ExecutionID: row.ExecutionID, LeaseVersion: row.LockVersion})
+	dto.IdempotencyScope = "inventory_push"
 	dto.RelatedResourceType = "product_sku"
 	if row.ProductSKUID != nil {
 		dto.RelatedResourceID = row.ProductSKUID.String()

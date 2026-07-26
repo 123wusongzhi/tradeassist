@@ -1,11 +1,13 @@
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import ReviewImageItemModal from '@/pages/Product/AIImageBatch/components/ReviewImageItemModal';
+import { confirmApplyAiImage, confirmUndoAiImage } from '@/constants/sensitiveActions';
 import {
   AI_IMAGE_APPLY_MODES,
   AI_IMAGE_REVIEW_FILTERS,
   aiImageBatchStatusTag,
   aiImageItemStatusTag,
 } from '@/constants/aiProductImage';
+import { aiImageWarningMessage, aiImageWarningSettingsUrl } from '@/constants/aiImageWarnings';
 import {
   applyAiProductImageSelected,
   fetchAiProductImageBatchDetail,
@@ -15,15 +17,15 @@ import {
   type AIProductImageItemRow,
 } from '@/services/aiProductImage';
 import { formatDateTime } from '@/utils/formatTime';
-import { Link, history, useParams, useSearchParams } from '@umijs/max';
+import { Link, history, useParams } from '@umijs/max';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { normalizeSource } from '@/utils/urlState';
 import {
   Alert,
   Button,
   Card,
   Descriptions,
   Image,
-  Modal,
-  Popconfirm,
   Segmented,
   Select,
   Space,
@@ -36,12 +38,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 export default function AIImageBatchDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [searchParams] = useSearchParams();
-  const focusItemId = (searchParams.get('itemId') || '').trim();
+  const { state: urlState, setState: setUrlState } = useUrlQueryState<{
+    itemId?: string;
+    tab?: string;
+    source?: string;
+    warningCode?: string;
+  }>(['itemId', 'tab', 'source', 'warningCode']);
+  const navSource = normalizeSource(urlState.source);
+  const focusItemId = (urlState.itemId || '').trim();
   const [detail, setDetail] = useState<AIProductImageBatchDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState(urlState.tab || urlState.warningCode || 'all');
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
   const [batchApplyMode, setBatchApplyMode] = useState('save_to_gallery');
   const [reviewItem, setReviewItem] = useState<AIProductImageItemRow | null>(null);
@@ -77,6 +85,23 @@ export default function AIImageBatchDetailPage() {
     setReviewOpen(true);
   }, [focusItemId, detail?.items]);
 
+  useEffect(() => {
+    if (urlState.tab) setStatusFilter(urlState.tab);
+    else if (urlState.warningCode) setStatusFilter('warning');
+  }, [urlState.tab, urlState.warningCode]);
+
+  const openReview = (row: AIProductImageItemRow) => {
+    setReviewItem(row);
+    setReviewOpen(true);
+    setUrlState({ itemId: row.id });
+  };
+
+  const closeReview = () => {
+    setReviewOpen(false);
+    setReviewItem(null);
+    setUrlState({ itemId: undefined }, { replace: true });
+  };
+
   const reviewableIds = useMemo(
     () =>
       (detail?.items ?? [])
@@ -90,23 +115,19 @@ export default function AIImageBatchDetailPage() {
       message.warning('请选择待复核结果');
       return;
     }
-    Modal.confirm({
-      title: '批量应用已选图片',
-      content:
-        '将把选中的 AI 图片结果应用到商品。原图不会被删除，替换操作可以在安全条件下撤销。',
-      onOk: async () => {
-        setActing(true);
-        try {
-          const res = await applyAiProductImageSelected(id, selectedKeys, batchApplyMode);
-          message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
-          setSelectedKeys([]);
-          await reload();
-        } catch (e: unknown) {
-          message.error((e as Error)?.message || '批量应用失败');
-        } finally {
-          setActing(false);
-        }
-      },
+    const mode = batchApplyMode === 'replace_image' ? 'replace' : 'append';
+    confirmApplyAiImage(mode, async () => {
+      setActing(true);
+      try {
+        const res = await applyAiProductImageSelected(id, selectedKeys, batchApplyMode);
+        message.success(`成功 ${res.successCount}，冲突 ${res.conflictCount}，失败 ${res.failedCount}`);
+        setSelectedKeys([]);
+        await reload();
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '批量应用失败');
+      } finally {
+        setActing(false);
+      }
     });
   };
 
@@ -128,12 +149,61 @@ export default function AIImageBatchDetailPage() {
               <Descriptions.Item label="商品数">{detail.productCount}</Descriptions.Item>
               <Descriptions.Item label="图片数">{detail.imageCount}</Descriptions.Item>
               <Descriptions.Item label="子项">
-                待复核 {detail.successCount} / 失败 {detail.failedCount} / 已应用 {detail.appliedCount}
+                待复核 {detail.overview?.successCount ?? detail.successCount} / 质量提醒{' '}
+                {detail.overview?.warningCount ?? 0} / 失败 {detail.failedCount} / 已应用{' '}
+                {detail.appliedCount}
+              </Descriptions.Item>
+              <Descriptions.Item label="可恢复">
+                {detail.overview?.recoverableCount ?? 0} / 不可恢复 {detail.overview?.nonRecoverableCount ?? 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="接入服务状态">
+                <Tag
+                  color={
+                    detail.overview?.providerReadiness?.status === 'ready'
+                      ? 'success'
+                      : detail.overview?.providerReadiness?.status === 'degraded'
+                        ? 'warning'
+                        : 'default'
+                  }
+                >
+                  {detail.overview?.providerReadiness?.statusLabel || '—'}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
+            {detail.overview?.summaryMessage ? (
+              <Alert
+                type={detail.failedCount > 0 ? 'warning' : 'info'}
+                showIcon
+                style={{ marginTop: 12 }}
+                message={detail.overview.summaryMessage}
+                description={
+                  detail.overview.nextActions?.length ? (
+                    <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+                      {detail.overview.nextActions.map((a) => (
+                        <li key={a}>{a}</li>
+                      ))}
+                    </ul>
+                  ) : undefined
+                }
+              />
+            ) : null}
             <Space wrap style={{ marginTop: 12 }}>
-              <Button onClick={() => history.push('/product/drafts')}>返回商品列表</Button>
+              <Button
+                onClick={() => {
+                  const back =
+                    navSource === 'config_status'
+                      ? '/settings/config-status'
+                      : navSource === 'taskcenter'
+                        ? '/ops/task-center/failures'
+                        : `/ai/image-batches${navSource ? `?source=${encodeURIComponent(navSource)}` : ''}${urlState.warningCode ? `${navSource ? '&' : '?'}warningCode=${encodeURIComponent(urlState.warningCode)}` : ''}`;
+                  history.push(back);
+                }}
+              >
+                返回列表
+              </Button>
+              <Button onClick={() => history.push('/settings/config-status')}>查看配置状态</Button>
+              <Button onClick={() => history.push('/settings/image')}>图片 AI 设置</Button>
               <Button
                 loading={acting}
                 disabled={detail.failedCount === 0}
@@ -162,25 +232,26 @@ export default function AIImageBatchDetailPage() {
               <Button type="primary" loading={acting} disabled={!selectedKeys.length} onClick={onApplySelected}>
                 批量应用已选图片
               </Button>
-              <Popconfirm
-                title="撤销本批次已应用结果？"
-                description="若商品图片后续被人工修改，对应项撤销会失败。"
-                onConfirm={async () => {
+              <Button
+                disabled={!detail.appliedCount}
+                onClick={() => {
                   if (!id) return;
-                  setActing(true);
-                  try {
-                    const res = await undoAiProductImageBatchApplied(id);
-                    message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
-                    await reload();
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '撤销失败');
-                  } finally {
-                    setActing(false);
-                  }
+                  confirmUndoAiImage(async () => {
+                    setActing(true);
+                    try {
+                      const res = await undoAiProductImageBatchApplied(id);
+                      message.success(`撤销成功 ${res.successCount}，冲突 ${res.conflictCount}`);
+                      await reload();
+                    } catch (e: unknown) {
+                      message.error((e as Error)?.message || '撤销失败');
+                    } finally {
+                      setActing(false);
+                    }
+                  });
                 }}
               >
-                <Button disabled={!detail.appliedCount}>批量撤销本批次应用</Button>
-              </Popconfirm>
+                批量撤销本批次应用
+              </Button>
             </Space>
           </Card>
 
@@ -191,7 +262,18 @@ export default function AIImageBatchDetailPage() {
           <Segmented
             options={AI_IMAGE_REVIEW_FILTERS.map((f) => ({ label: f.label, value: f.value }))}
             value={statusFilter}
-            onChange={(v) => setStatusFilter(String(v))}
+            onChange={(v) => {
+              const next = String(v);
+              setStatusFilter(next);
+              setUrlState(
+                {
+                  tab: next === 'all' ? undefined : next,
+                  warningCode: next === 'warning' ? urlState.warningCode : undefined,
+                  itemId: undefined,
+                },
+                { replace: true },
+              );
+            }}
             style={{ marginBottom: 12 }}
           />
 
@@ -235,24 +317,71 @@ export default function AIImageBatchDetailPage() {
                 width: 100,
                 render: (_, row) => {
                   const meta = aiImageItemStatusTag(row.status, row.statusLabel);
-                  return <Tag color={meta.color}>{meta.text}</Tag>;
+                  const isWarnOnly =
+                    row.status !== 'failed' && (row.qualityWarnings?.length ?? 0) > 0;
+                  return (
+                    <Space direction="vertical" size={0}>
+                      <Tag color={meta.color}>{meta.text}</Tag>
+                      {isWarnOnly ? <Tag color="gold">质量提醒</Tag> : null}
+                    </Space>
+                  );
                 },
               },
               {
-                title: '质量提醒',
-                width: 140,
-                render: (_, row) =>
-                  row.qualityWarnings?.length ? (
-                    <Typography.Text type="warning">{row.qualityWarnings[0].message}</Typography.Text>
-                  ) : (
-                    '—'
-                  ),
+                title: '原因 / 提醒',
+                width: 200,
+                render: (_, row) => {
+                  if (row.status === 'failed') {
+                    const code = row.warningCode || row.errorCode;
+                    return (
+                      <Space direction="vertical" size={0}>
+                        <Typography.Text type="danger">
+                          {row.warningMessage || row.errorMessage || aiImageWarningMessage(code)}
+                        </Typography.Text>
+                        {code ? (
+                          <TechnicalDetails label="内部码">
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                              {code}
+                            </Typography.Text>
+                          </TechnicalDetails>
+                        ) : null}
+                      </Space>
+                    );
+                  }
+                  if (row.qualityWarnings?.length) {
+                    return (
+                      <Typography.Text type="warning">{row.qualityWarnings[0].message}</Typography.Text>
+                    );
+                  }
+                  return '—';
+                },
+              },
+              {
+                title: '恢复',
+                width: 120,
+                render: (_, row) => {
+                  if (row.status !== 'failed') return '—';
+                  const code = row.warningCode || row.errorCode;
+                  const url = row.settingsUrl || aiImageWarningSettingsUrl(code);
+                  return (
+                    <Space direction="vertical" size={0}>
+                      <Typography.Text type="secondary">
+                        {row.needsConfig ? '需配置' : row.recoverable === false ? '不可重试' : '可重试'}
+                      </Typography.Text>
+                      {url ? (
+                        <Button type="link" size="small" onClick={() => history.push(url)}>
+                          去配置
+                        </Button>
+                      ) : null}
+                    </Space>
+                  );
+                },
               },
               {
                 title: '操作',
                 width: 120,
                 render: (_, row) => (
-                  <Button type="link" size="small" onClick={() => { setReviewItem(row); setReviewOpen(true); }}>
+                  <Button type="link" size="small" onClick={() => openReview(row)}>
                     查看对比
                   </Button>
                 ),
@@ -273,7 +402,7 @@ export default function AIImageBatchDetailPage() {
       <ReviewImageItemModal
         open={reviewOpen}
         item={reviewItem}
-        onClose={() => setReviewOpen(false)}
+        onClose={closeReview}
         onDone={() => void reload()}
       />
     </TmPageContainer>

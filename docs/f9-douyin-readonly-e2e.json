@@ -1,0 +1,20 @@
+{
+  "phase": "F9.4-readonly",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "blocked_by_real_credentials",
+  "checks": [
+    { "item": "App Key / App Secret", "status": "blocked_by_real_credentials" },
+    { "item": "OAuth authorized shop", "status": "blocked_by_real_credentials" },
+    { "item": "token refresh", "status": "blocked_by_real_credentials" },
+    { "item": "shop info sync", "status": "blocked_by_real_credentials" },
+    { "item": "category sync", "status": "blocked_by_real_credentials" },
+    { "item": "attribute sync", "status": "blocked_by_real_credentials" },
+    { "item": "order readonly pull", "status": "blocked_by_real_credentials" },
+    { "item": "product.detail readonly", "status": "blocked_by_real_credentials" }
+  ],
+  "scripts": [
+    "scripts/douyin-e2e-preflight.ps1",
+    "scripts/douyin-e2e-readonly.ps1"
+  ],
+  "note": "Config status center shows Douyin App Key not configured. Not faked as passed."
+}

@@ -22,26 +22,58 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/middleware"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
+	"github.com/trademind-ai/trademind/backend/internal/modules/alerting"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/douyinruntime"
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/observabilitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/ordersync"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
+	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/logging"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
+	securitypkg "github.com/trademind-ai/trademind/backend/internal/pkg/security"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tracing"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 )
 
 func loadDotEnv() {
-	paths := []string{".env", "../.env", "../../.env"}
-	for _, p := range paths {
-		if err := godotenv.Load(p); err == nil {
+	if config.NormalizeEnv(os.Getenv("APP_ENV")) == config.EnvPerformance && strings.EqualFold(strings.TrimSpace(os.Getenv("PERFORMANCE_TEST_MODE")), "true") {
+		return
+	}
+	env := config.NormalizeEnv(os.Getenv("APP_ENV"))
+	if env == config.EnvProduction {
+		if f := strings.TrimSpace(os.Getenv("APP_ENV_FILE")); f != "" {
+			_ = godotenv.Load(f)
 			return
+		}
+		for _, p := range []string{".env.production", "../.env.production", "../../.env.production"} {
+			if err := godotenv.Load(p); err == nil {
+				return
+			}
+		}
+		return
+	}
+	for _, p := range []string{".env", "../.env", "../../.env"} {
+		if err := godotenv.Load(p); err == nil {
+			break
+		}
+	}
+	env = config.NormalizeEnv(os.Getenv("APP_ENV"))
+	if env != "" && env != config.EnvDevelopment {
+		for _, p := range []string{".env." + env, "../.env." + env, "../../.env." + env} {
+			_ = godotenv.Load(p)
 		}
 	}
 }
@@ -56,6 +88,53 @@ func main() {
 	}
 
 	log := logger.Init(cfg.AppEnv)
+	obsCfg := cfg.Observability
+	obs, err := observability.Init(observability.Config{
+		Enabled:         obsCfg.Enabled,
+		Mode:            obsCfg.Mode,
+		Environment:     obsCfg.Environment,
+		MetricsEnabled:  obsCfg.MetricsEnabled,
+		MetricsPath:     obsCfg.MetricsPath,
+		MetricsInternal: obsCfg.MetricsInternalOnly,
+		TracingEnabled:  obsCfg.TracingEnabled,
+		AlertingEnabled: obsCfg.AlertingEnabled,
+		Logger: logging.Config{
+			Format:         obsCfg.LogFormat,
+			Level:          obsCfg.LogLevel,
+			IncludeSource:  obsCfg.LogIncludeSource,
+			MaxFieldLength: obsCfg.LogMaxFieldLength,
+			Service:        obsCfg.OTELServiceName,
+			Version:        obsCfg.OTELServiceVersion,
+			Environment:    obsCfg.Environment,
+			FailSafe:       true,
+		},
+		Tracer: tracing.Config{
+			Enabled:       obsCfg.TracingEnabled,
+			ServiceName:   obsCfg.OTELServiceName,
+			Version:       obsCfg.OTELServiceVersion,
+			Environment:   obsCfg.Environment,
+			SampleRatio:   obsCfg.OTELTraceSampleRatio,
+			ExportStdout:  cfg.AppEnv == "development" && obsCfg.TracingEnabled,
+			OTLPEndpoint:  obsCfg.OTELExporterOTLPEndpoint,
+			OTLPProtocol:  obsCfg.OTELExporterOTLPProtocol,
+			OTLPHeaders:   obsCfg.OTELExporterOTLPHeaders,
+			ExportTimeout: obsCfg.ExportTimeout(),
+			QueueSize:     obsCfg.OTELExportQueueSize,
+			BatchSize:     obsCfg.OTELExportBatchSize,
+			RetryMax:      obsCfg.OTELExportRetryMax,
+		},
+	})
+	if err != nil {
+		log.Error("observability_init_failed", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		shCtx, shCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shCancel()
+		_ = obs.Shutdown(shCtx)
+	}()
+
+	log.Info("config_loaded", "summary", cfg.RedactedSummary().String())
 	if cfg.AppEnv == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -66,8 +145,23 @@ func main() {
 		os.Exit(1)
 	}
 	defer func() { _ = database.Close(db) }()
+	if sqlDB, sqlErr := db.DB(); sqlErr == nil {
+		p7diag.BindSamplingDB(sqlDB)
+	}
+	defer func() {
+		shCtx, shCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shCancel()
+		p7diag.Shutdown(shCtx)
+	}()
 
-	if err := database.AutoMigrate(db); err != nil {
+	migrateCtx, migrateCancel := context.WithTimeout(context.Background(), time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second)
+	defer migrateCancel()
+	if cfg.MigrationRunOnStartup {
+		if err := database.RunMigrateWithLock(migrateCtx, db, time.Duration(cfg.MigrationLockTimeoutSeconds)*time.Second, database.AutoMigrate); err != nil {
+			log.Error("database_migrate_failed", "error", err)
+			os.Exit(1)
+		}
+	} else if err := database.AutoMigrate(db); err != nil {
 		log.Error("database_migrate_failed", "error", err)
 		os.Exit(1)
 	}
@@ -85,6 +179,22 @@ func main() {
 		log.Error("encrypt_init_failed", "error", err)
 		os.Exit(1)
 	}
+
+	alertSeedCtx, alertSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := alerting.EnsureDefaultRules(alertSeedCtx, db); err != nil {
+		alertSeedCancel()
+		log.Error("alert_rules_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	alertSeedCancel()
+
+	sloSeedCtx, sloSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := observabilitymod.EnsureDefaultSLOs(sloSeedCtx, db); err != nil {
+		sloSeedCancel()
+		log.Error("slo_seed_failed", "error", err)
+		os.Exit(1)
+	}
+	sloSeedCancel()
 
 	imgSeedCtx, imgSeedCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	if err := settings.EnsureImageDefaults(imgSeedCtx, db, enc); err != nil {
@@ -164,6 +274,18 @@ func main() {
 		log.Error("admin_bootstrap_failed", "error", err)
 		os.Exit(1)
 	}
+	if _, err := admin.EnsurePerformanceBootstrap(bootCtx, db, cfg, log); err != nil {
+		cancel()
+		log.Error("performance_bootstrap_failed", "error", err)
+		os.Exit(1)
+	}
+	if cfg.AppEnv == config.EnvPerformance && cfg.P7.PerformanceTestMode {
+		if ids, err := admin.PerformanceBootstrapUserIDs(bootCtx, db); err == nil {
+			for _, id := range ids {
+				adminperm.InvalidateUserPermissionCache(id)
+			}
+		}
+	}
 	cancel()
 
 	var redisClient *rdb.Client
@@ -176,15 +298,27 @@ func main() {
 
 	engine := gin.New()
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
-	engine.Use(middleware.RequestID(), middleware.Recovery(log), middleware.AccessLog(log))
+	engine.Use(
+		middleware.CORS(cfg),
+		middleware.RequestID(),
+		middleware.ContextCorrelation(),
+		middleware.ObservabilityHTTP(obs),
+		middleware.RateLimit(cfg),
+		middleware.Recovery(log),
+		middleware.AccessLog(log),
+		securitypkg.SecurityHeaders(cfg),
+		securitypkg.CSRFProtection(cfg),
+	)
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc := api.Register(engine, &api.Deps{
-		Config:    cfg,
-		DB:        db,
-		Redis:     redisClient,
-		Encrypter: enc,
-		OpLog:     opLogSvc,
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc := api.Register(engine, &api.Deps{
+		Config:          cfg,
+		DB:              db,
+		Redis:           redisClient,
+		Encrypter:       enc,
+		OpLog:           opLogSvc,
+		MigrationsReady: true,
+		Obs:             obs,
 	})
 
 	workerReg := worker.NewRegistryFromConfig(db, opLogSvc, cfg, log)
@@ -214,6 +348,12 @@ func main() {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
 
+	if sqlDB, err := db.DB(); err == nil {
+		observability.StartDBStatsCollector(workerCtx, &workerWG, log, sqlDB, obs.Catalog, "primary", 15*time.Second)
+	} else {
+		log.Warn("db_stats_collector_skipped", "error", err)
+	}
+
 	worker.StartStaleMarker(workerCtx, &workerWG, db, cfg, log)
 
 	taskreaper.Start(workerCtx, &workerWG, taskreaper.Deps{
@@ -230,6 +370,23 @@ func main() {
 
 	taskcenter.StartAlertScanWorker(workerCtx, &workerWG, log, tcSvc, workerReg, cfg)
 	douyinruntime.StartDouyinAlertScanWorker(workerCtx, &workerWG, log, douyinRuntimeSvc, workerReg, cfg)
+	metricSamples := func() map[string]float64 {
+		if obs == nil || obs.Metrics == nil {
+			return map[string]float64{}
+		}
+		return obs.Metrics.SnapshotValues()
+	}
+	if cfg.Observability.AlertingEnabled {
+		alertSvc := alerting.NewService(db, time.Duration(cfg.Observability.AlertDefaultCooldownSecs)*time.Second, cfg.Observability.AlertRecoveryEnabled)
+		alerting.StartEvaluatorWorker(workerCtx, &workerWG, log, alertSvc, time.Minute, metricSamples)
+		alerting.StartDeliveryWorker(workerCtx, &workerWG, log, alertSvc, 30*time.Second)
+	}
+	if cfg.Observability.Enabled && cfg.Observability.MetricsEnabled {
+		observabilitymod.StartSLOEvaluatorWorker(workerCtx, &workerWG, log, db, obs.Catalog, time.Minute, metricSamples)
+	}
+	if webhookSvc != nil {
+		webhook.StartWorker(workerCtx, &workerWG, log, webhookSvc, cfg, workerReg)
+	}
 
 	if cfg.CollectQueueEnabled && redisClient != nil && collectSvc != nil {
 		collect.StartWorker(workerCtx, &workerWG, log, collectSvc, cfg.CollectQueueName, workerConc, workerReg)
@@ -307,6 +464,15 @@ func main() {
 		log.Info("inventory_sync_worker_started", "concurrency", invWorkerConc, "queue", invQn)
 	} else if cfg.InventorySyncQueueEnabled && redisClient == nil {
 		log.Warn("inventory_sync_worker_skipped", "reason", "redis unavailable while INVENTORY_SYNC_QUEUE_ENABLED=true")
+	}
+
+	if redisClient != nil && fileSvc != nil {
+		files.StartScanWorker(workerCtx, &workerWG, log, fileSvc, cfg, workerReg)
+		log.Info("file_security_scan_worker_started")
+	}
+	if secSvc != nil {
+		securitymod.StartReencryptWorker(workerCtx, &workerWG, log, secSvc, workerReg)
+		log.Info("security_secret_reencrypt_worker_started")
 	}
 
 	srv := &http.Server{

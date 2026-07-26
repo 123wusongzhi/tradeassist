@@ -1,0 +1,155 @@
+{
+  "phase": "P7",
+  "gate": "P7-CONDITIONAL-DEVELOPMENT-CLOSURE",
+  "status": "passed",
+  "checkedAt": "2026-07-20T00:00:00.000Z",
+  "gitCommit": "recorded_in_final_response_after_commit",
+  "sourceDecision": "docs/p7-conditional-development-closure-and-engineering-waiver.json",
+  "taskStatus": "closed",
+  "functionalScopeStatus": "completed",
+  "developmentClosureStatus": "conditionally_accepted",
+  "capacityAcceptanceStatus": "deferred",
+  "performanceRepeatabilityStatus": "deferred_to_p10",
+  "dedicatedBenchmarkHostValidationStatus": "not_completed",
+  "engineeringWaiverApproved": true,
+  "knownRiskAccepted": true,
+  "historicalEvidencePreserved": true,
+  "historicalFailedResultsRewritten": false,
+  "p10BlockingRequirementCount": 11,
+  "readyForPhaseP8": true,
+  "productionReady": false,
+  "tagDeferred": true,
+  "finalProductionAcceptancePhase": "P10",
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "phase",
+      "status": "passed"
+    },
+    {
+      "id": "decision",
+      "status": "passed"
+    },
+    {
+      "id": "taskStatus",
+      "status": "passed"
+    },
+    {
+      "id": "functionalScopeStatus",
+      "status": "passed"
+    },
+    {
+      "id": "developmentClosureStatus",
+      "status": "passed"
+    },
+    {
+      "id": "capacityAcceptanceStatus",
+      "status": "passed"
+    },
+    {
+      "id": "performanceRepeatabilityStatus",
+      "status": "passed"
+    },
+    {
+      "id": "dedicatedBenchmarkHostValidationStatus",
+      "status": "passed"
+    },
+    {
+      "id": "engineeringWaiverApproved",
+      "status": "passed"
+    },
+    {
+      "id": "knownRiskAccepted",
+      "status": "passed"
+    },
+    {
+      "id": "readyForPhaseP8",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    },
+    {
+      "id": "historicalEvidencePreserved",
+      "status": "passed"
+    },
+    {
+      "id": "historicalFailedResultsRewritten",
+      "status": "passed"
+    },
+    {
+      "id": "historicalEvidenceLocked",
+      "status": "passed"
+    },
+    {
+      "id": "p10BlockingRequirementCount",
+      "status": "passed"
+    },
+    {
+      "id": "p10BlockingRequirementsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "p10DeferredRequirementContracts",
+      "status": "passed"
+    },
+    {
+      "id": "dedicatedHostDeferredRequirementPresent",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "materialityChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "durationChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    },
+    {
+      "id": "tagDeferred",
+      "status": "passed"
+    },
+    {
+      "id": "finalProductionAcceptancePhase",
+      "status": "passed"
+    },
+    {
+      "id": "p8EntryAllowed",
+      "status": "passed"
+    },
+    {
+      "id": "realProviderWriteEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "realDouyinCredentialE2EEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "autoListingEnabled",
+      "status": "passed"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 )
 
 func (s *Service) effectiveMaxRetries(task *CollectTask) int {
@@ -138,7 +139,7 @@ func collectorRejectExtras(err error) map[string]any {
 	return nil
 }
 
-func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg string, extras map[string]any) {
+func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg string, extras map[string]any, workerID string, claim *tasklease.ClaimResult) {
 	if s == nil || s.DB == nil || task == nil {
 		return
 	}
@@ -169,19 +170,25 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 		payload[k] = v
 	}
 
-	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
-		Where("id = ?", tid).
-		Updates(map[string]interface{}{
-			"status":            StatusRetrying,
-			"retry_count":       newRC,
-			"next_retry_at":     &next,
-			"error_message":     truncateRunes(strings.TrimSpace(msg), 8000),
-			"finished_at":       nil,
-			"retry_enqueued_at": nil,
-			"locked_by":         nil,
-			"locked_until":      nil,
-			"updated_at":        now,
-		}).Error
+	updates := map[string]interface{}{
+		"status":            StatusRetrying,
+		"retry_count":       newRC,
+		"next_retry_at":     &next,
+		"error_message":     truncateRunes(strings.TrimSpace(msg), 8000),
+		"finished_at":       nil,
+		"retry_enqueued_at": nil,
+		"locked_by":         nil,
+		"locked_until":      nil,
+		"updated_at":        now,
+	}
+	if claim != nil && strings.TrimSpace(workerID) != "" {
+		if err := s.finishCollectTask(ctx, tid, workerID, claim, updates); err != nil {
+			slog.Warn("collect_retry_schedule_lease_lost", "taskId", tid.String(), "error", err.Error())
+			return
+		}
+	} else {
+		_ = s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", tid).Updates(updates).Error
+	}
 
 	if task.BatchID != nil {
 		s.reconcileCollectBatch(ctx, task.BatchID)
@@ -218,7 +225,7 @@ func (s *Service) scheduleAutoRetry(ctx context.Context, task *CollectTask, msg 
 	}
 }
 
-func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, jobErr error) {
+func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, jobErr error, workerID string, claim *tasklease.ClaimResult) {
 	if s == nil || task == nil || jobErr == nil {
 		return
 	}
@@ -242,7 +249,7 @@ func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, 
 			extras = map[string]any{}
 		}
 		extras["retryable"] = false
-		s.failTask(ctx, task, StatusRunning, msg, extras)
+		s.failTask(ctx, task, StatusRunning, msg, extras, workerID, claim)
 		return
 	}
 
@@ -254,10 +261,10 @@ func (s *Service) handleCollectJobError(ctx context.Context, task *CollectTask, 
 	extras["retryable"] = true
 	extras["retryReason"] = collectorErrorCode(jobErr)
 	if task.RetryCount >= maxR {
-		s.failTaskRetryExhausted(ctx, task, msg, extras)
+		s.failTaskRetryExhausted(ctx, task, msg, extras, workerID, claim)
 		return
 	}
-	s.scheduleAutoRetry(ctx, task, msg, extras)
+	s.scheduleAutoRetry(ctx, task, msg, extras, workerID, claim)
 }
 
 // StartRetryScheduler periodically moves due retrying tasks back onto the Redis list.

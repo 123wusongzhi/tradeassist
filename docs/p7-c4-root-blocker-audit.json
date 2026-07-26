@@ -1,0 +1,39 @@
+{
+  "phase": "P7-C4",
+  "generatedAt": "2026-07-14T00:00:00Z",
+  "blockers": [
+    {
+      "id": "task_sql_keyset",
+      "classification": "root_blocker",
+      "description": "Task Center used in-memory merge pagination without per-source SQL keyset",
+      "resolved": true,
+      "resolution": "SQL keyset per source + bounded heap merge + signed merge cursor"
+    },
+    {
+      "id": "pagination_runtime",
+      "classification": "dependent_failure",
+      "parent": "task_sql_keyset",
+      "resolved": false
+    },
+    {
+      "id": "query_plan_runtime",
+      "classification": "dependent_failure",
+      "parent": "pagination_runtime",
+      "resolved": false
+    },
+    {
+      "id": "provider_wiring",
+      "classification": "root_blocker",
+      "description": "Provider limiter only wired on Douyin shared HTTP client",
+      "resolved": true,
+      "resolution": "Global registry + AI gateway + adaptive acquire enforcement"
+    },
+    {
+      "id": "permission_invalidation",
+      "classification": "root_blocker",
+      "description": "InvalidateUserPermissionCache had zero production call sites",
+      "resolved": true,
+      "resolution": "adminuser write paths + store grant fingerprint in cache key"
+    }
+  ]
+}

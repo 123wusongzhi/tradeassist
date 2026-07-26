@@ -1,7 +1,47 @@
 # TradeMind 演示验收清单（Demo Checklist）
 
 > 用于本地 / 预发环境快速验收核心 MVP 能力。按模块勾选。
-> **Release 状态（Phase R1）**：`MVP Demo Ready` — 见 [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md)
+> **Release 状态（H1）**：`Post-F9 Enhancement` · `MVP Demo Ready` · `Tag deferred` · **非 Production Ready** — 见 [`docs/POST_F9_ENHANCEMENT_PLAN.md`](docs/POST_F9_ENHANCEMENT_PLAN.md)
+> **开发策略**：**F1–F9 ✅** · **继续在 dev 完善低风险体验项** · 不进入真实预发 / 抖店真实 E2E / 生产灰度 / Production Ready
+
+## Phase F7 全项目 Demo 数据升级（2026-06-30）
+
+| 项 | 脚本 / 文档 | 状态 |
+| --- | --- | --- |
+| 全链路种子 | `scripts/seed-demo-data.ps1` | [x] 20 slot + 订单 / 库存 / 客服 / Dashboard |
+| 权限种子 | `scripts/seed-demo-permissions.ps1` | [x] demo_admin / operator / readonly |
+| 全项目索引 | `docs/demo-dataset.full-project.json` | [x] |
+| Dashboard smoke | `scripts/demo-dashboard-smoke.ps1` | [x] |
+| 订单 / 库存 / 客服 smoke | `scripts/demo-order-inventory-customer-smoke.ps1` | [x] |
+| RBAC smoke | `scripts/demo-rbac-smoke.ps1` | [x] |
+| 空状态扫描 | `scripts/demo-empty-state-scan.ps1` | [x] |
+| 敏感操作确认扫描 | `scripts/demo-sensitive-confirm-scan.ps1` | [x] |
+| F7 自动化总控 | `scripts/demo-auto-acceptance.ps1` | [x] Phase F7-Auto |
+| 种子指南 | `docs/DEMO_SEEDING_GUIDE.md` | [x] |
+| 自动化验收指南 | `docs/DEMO_AUTO_ACCEPTANCE_GUIDE.md` | [x] |
+| 全局状态文案复扫 | `check-ui-copy` + `global-status-copywriting-scan.json` | [x] passed |
+| go test / build / admin build | — | [x] |
+| 最终人工测试 | F9 报告 | [x] **passed_with_warning** |
+| 真实预发部署 | F9.2 | [ ] **blocked_by_environment** |
+| 抖店真实 E2E | F9.4 | [ ] **blocked_by_real_credentials** |
+| Git tag | H1 | [ ] **Tag deferred** |
+| Production Ready | — | [ ] **否** |
+
+## Phase F1 全项目功能缺口审计与路线规划（2026-06-29）
+
+| 项 | 文档 | 状态 |
+| --- | --- | --- |
+| 全项目功能地图（34 模块） | `docs/FULL_PROJECT_FUNCTION_MAP.md` | [x] |
+| MVP 主链路（16 步） | `docs/FULL_PROJECT_MVP_MAIN_FLOW.md` | [x] |
+| 后续开发计划 F2–F9 | `docs/FULL_PROJECT_DEVELOPMENT_PLAN.md` | [x] |
+| P0–P3 缺口审计 | `docs/FULL_PROJECT_MVP_GAP_AUDIT.md` | [x] |
+| go test / build / admin build | — | [x] |
+| 最终人工测试 | — | [ ] **未进入**（留 Phase F9） |
+| 真实预发部署 | — | [ ] **未进入**（留 Phase F9） |
+| 抖店真实 E2E | — | [ ] **未进入**（Release Candidate） |
+| 生产灰度 | — | [ ] **未进入** |
+| Git tag | H1 | [ ] **Tag deferred** |
+| Production Ready | — | [ ] **否** |
 
 ## Phase R1.3-Codex 模拟人工测试与体验问题扫描（2026-06-27）
 
@@ -14,7 +54,7 @@
 | P1 问题 | 旧入口跳转与深链定位、Admin build 类型风险 | [x] 已修 |
 | P2 问题 | 旧版入口文案、内部字段提示、多分辨率截图 | [x] 文案已修；截图 `manual_required` |
 | 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
-| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| Git tag | H1 | [ ] **Tag deferred** |
 
 ## Phase R1.2-Auto 自动化验收（2026-06-27）
 
@@ -32,7 +72,7 @@
 | 中文文案扫描 | `docs/COPYWRITING_AUDIT.auto.md` | [x] |
 | 权限安全 | `docs/SECURITY_RELEASE_CHECK.auto.md` | [x] |
 | 文档一致性 | `docs/DOCS_CONSISTENCY_CHECK.md` | [x] |
-| Git tag `v0.1.0-demo` | — | [ ] **Tag pending** |
+| Git tag | H1 | [ ] **Tag deferred** |
 | 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
 
 ## Phase R1.2 真实预发部署与 Demo Tag（2026-06-27）
@@ -50,7 +90,7 @@
 | UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
 | 备份与回滚 | `docs/DEPLOYMENT_PRECHECK.md` | [ ] 待真实预发机人工勾选 |
 | go test / build / 抖店回归 | — | [x] |
-| Git tag `v0.1.0-demo` | — | [ ] **Tag pending**（待真实预发 HTTPS） |
+| Git tag | H1 | [ ] **Tag deferred**（待恢复发布流程后重新确认命名） |
 | 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
 
 ## Phase R1.1 预发部署与人工走查（2026-06-27）
@@ -63,7 +103,7 @@
 | 12 步 Demo 走查 | `docs/DEMO_RELEASE_UX_ACCEPTANCE.md` | [x] 11 通过 / 1 警告 |
 | UI 多分辨率 | 1366 / 1024 浏览器 CDP | [x] |
 | go test / build（R1.1） | `go test ./...` / `pnpm build:admin` | [x] |
-| Git tag `v0.1.0-demo` | — | [ ] Tag pending（待预发 Nginx/HTTPS） |
+| Git tag | H1 | [ ] Tag deferred（待恢复发布流程后重新确认命名） |
 | 抖店真实 E2E | — | [ ] 未进入（Release Candidate） |
 
 ## Phase R1 Demo Release 自动化验收（2026-06-27）

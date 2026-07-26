@@ -217,6 +217,10 @@ func (s *Service) DouyinOAuthStart(c *gin.Context, shopID *uuid.UUID, adminID *u
 	if err := s.Redis.Set(ctx, douyinOAuthRedisPrefix+st, raw, 10*time.Minute).Err(); err != nil {
 		return nil, err
 	}
+	// P3: durable one-time state hash (DB) alongside Redis fast path.
+	if err := s.persistDouyinOAuthState(ctx, st, adminID, shopID, cfg.RedirectURI); err != nil {
+		return nil, err
+	}
 	s.douyinLog(c, adminID, shopID, "douyin.auth.start", "success", "", "state created")
 	return &DouyinAuthorizeURLResult{RedirectURL: u, AuthorizeURL: u, State: st}, nil
 }
@@ -224,13 +228,17 @@ func (s *Service) DouyinOAuthStart(c *gin.Context, shopID *uuid.UUID, adminID *u
 func (s *Service) DouyinOAuthCallback(c *gin.Context, q DouyinOAuthCallbackQuery) (*ShopDetailDTO, *DouyinAuthError) {
 	st := strings.TrimSpace(q.State)
 	if st == "" || s == nil || s.Redis == nil || s.Redis.Client == nil {
-		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), nil)
+		return nil, douyinErr(platformdouyin.CodeDouyinOAuthStateMissing, "抖店授权 state 缺失，请重新发起授权。", nil)
 	}
-	raw, err := s.Redis.Get(c.Request.Context(), douyinOAuthRedisPrefix+st).Result()
+	ctxCB := c.Request.Context()
+	if err := s.consumeDouyinOAuthState(ctxCB, st); err != nil {
+		return nil, asDouyinAuthError(err, DouyinOAuthStateInvalid)
+	}
+	raw, err := s.Redis.Get(ctxCB, douyinOAuthRedisPrefix+st).Result()
 	if err != nil || strings.TrimSpace(raw) == "" {
 		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
 	}
-	_ = s.Redis.Del(c.Request.Context(), douyinOAuthRedisPrefix+st)
+	_ = s.Redis.Del(ctxCB, douyinOAuthRedisPrefix+st)
 	payload, err := decodeDouyinStatePayload(raw)
 	if err != nil {
 		return nil, douyinErr(DouyinOAuthStateInvalid, douyinFriendlyMessage(DouyinOAuthStateInvalid), err)
@@ -426,6 +434,7 @@ func (s *Service) douyinClientForShop(c *gin.Context, ctx context.Context, shopI
 		RefreshTokenValue:     auth.RefreshToken,
 		AccessTokenExpiresAt:  auth.AccessTokenExpiresAt,
 		RefreshTokenExpiresAt: auth.RefreshTokenExpiresAt,
+		TokenVersion:          tok.TokenVersion,
 		PersistRefreshedToken: func(ctx context.Context, bundle *platformdouyin.TokenBundle) error {
 			if bundle == nil {
 				return nil

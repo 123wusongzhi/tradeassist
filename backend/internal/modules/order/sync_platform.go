@@ -15,6 +15,7 @@ import (
 
 // SyncedOrderPayload is provider-neutral input produced by ordersync (maps from platform.PlatformOrder).
 type SyncedOrderPayload struct {
+	TenantID          int64
 	ExternalOrderID   string
 	OrderNo           string
 	CustomerName      string
@@ -27,6 +28,8 @@ type SyncedOrderPayload struct {
 	PaidAt            *time.Time
 	ShippedAt         *time.Time
 	DeliveredAt       *time.Time
+	PlatformUpdatedAt *time.Time
+	PlatformRevision  string
 	Items             []SyncedOrderItemPayload
 	Shipments         []SyncedShipmentPayload
 	RawSummary        map[string]any
@@ -145,11 +148,12 @@ func extSkuPtrFromPayload(it SyncedOrderItemPayload) *string {
 	return &s
 }
 
-func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, src map[string]any) datatypes.JSON {
+func compactRawSummary(platformKey string, shopID uuid.UUID, extID string, tenantID int64, src map[string]any) datatypes.JSON {
 	m := map[string]any{
 		"source":          "platform_order_sync",
 		"platform":        platformKey,
 		"shopId":          shopID.String(),
+		"tenantId":        tenantID,
 		"externalOrderId": extID,
 		"syncedAt":        time.Now().UTC().Format(time.RFC3339),
 		"providerSummary": src,
@@ -172,114 +176,138 @@ func (s *Service) UpsertSyncedOrders(ctx context.Context, shopID uuid.UUID, shop
 		return nil, 0, 0, 0, 0, fmt.Errorf("platform is required")
 	}
 	for _, p := range payloads {
+		if p.TenantID == 0 {
+			p.TenantID = s.resolveTenantIDForShop(ctx, shopID)
+		}
 		ext := strings.TrimSpace(p.ExternalOrderID)
 		if ext == "" {
 			failed++
 			continue
 		}
 
-		var upsertedID uuid.UUID
-		isCreate := false
-		txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-			st := normalizeSyncedOrderStatus(p.Status)
-			ps := normalizeSyncedPaymentStatus(p.PaymentStatus)
-			fs := normalizeSyncedFulfillmentStatus(p.FulfillmentStatus)
-			if !validOrderStatus(st) || !validPaymentStatus(ps) || !validFulfillmentStatus(fs) {
-				return fmt.Errorf("invalid normalized status")
-			}
-
-			name := strings.TrimSpace(p.CustomerName)
-			if name == "" {
-				name = "Unknown customer"
-			}
-			cur := strings.TrimSpace(p.Currency)
-			if cur == "" {
-				cur = "USD"
-			}
-			cur = strings.ToUpper(cur)
-
-			on := strings.TrimSpace(p.OrderNo)
-			if on == "" {
-				on = fmt.Sprintf("SYNC-%s", ext)
-			}
-
-			raw := compactRawSummary(platformKey, shopID, ext, p.RawSummary)
-
-			var existing Order
-			q := tx.Where("shop_id = ? AND platform = ? AND external_order_id = ?", shopID, platformKey, ext)
-			findErr := q.First(&existing).Error
-			if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
-				return findErr
-			}
-
-			sid := shopID
-			extCopy := ext
-
-			if errors.Is(findErr, gorm.ErrRecordNotFound) {
-				isCreate = true
-				o := &Order{
-					Platform:          platformKey,
-					ShopID:            &sid,
-					ExternalOrderID:   &extCopy,
-					OrderNo:           on,
-					CustomerName:      name,
-					Status:            st,
-					PaymentStatus:     ps,
-					FulfillmentStatus: fs,
-					Currency:          cur,
-					TotalAmount:       p.TotalAmount,
-					PaidAt:            p.PaidAt,
-					OrderedAt:         p.OrderedAt,
-					ShippedAt:         p.ShippedAt,
-					DeliveredAt:       p.DeliveredAt,
-					RawData:           raw,
-				}
-				if err := tx.Create(o).Error; err != nil {
-					return err
-				}
-				upsertedID = o.ID
-				return replaceSyncedChildren(tx, o.ID, p)
-			}
-
-			existing.Platform = platformKey
-			existing.ShopID = &sid
-			existing.ExternalOrderID = &extCopy
-			existing.OrderNo = on
-			existing.CustomerName = name
-			existing.Status = st
-			existing.PaymentStatus = ps
-			existing.FulfillmentStatus = fs
-			existing.Currency = cur
-			existing.TotalAmount = p.TotalAmount
-			existing.PaidAt = p.PaidAt
-			existing.OrderedAt = p.OrderedAt
-			existing.ShippedAt = p.ShippedAt
-			existing.DeliveredAt = p.DeliveredAt
-			existing.RawData = raw
-			// Remark intentionally preserved (manual ops).
-
-			if err := tx.Save(&existing).Error; err != nil {
-				return err
-			}
-			upsertedID = existing.ID
-			return replaceSyncedChildren(tx, existing.ID, p)
-		})
-
-		if txErr != nil {
+		outcome, impErr := s.importSyncedOrderWithIdempotencyLegacy(ctx, shopID, platformKey, p)
+		if impErr != nil {
 			failed++
 			continue
 		}
 		success++
-		if isCreate {
+		if outcome.isCreate {
 			created++
-		} else {
+		} else if !outcome.replayed && !outcome.staleIgnored {
 			updated++
 		}
-		if upsertedID != uuid.Nil {
-			orderIDs = append(orderIDs, upsertedID)
+		if outcome.orderID != uuid.Nil {
+			orderIDs = append(orderIDs, outcome.orderID)
 		}
 	}
 	return orderIDs, success, failed, created, updated, nil
+}
+
+// upsertSingleSyncedOrder runs one transactional upsert without idempotency acquire.
+func (s *Service) upsertSingleSyncedOrder(ctx context.Context, shopID uuid.UUID, platformKey string, p SyncedOrderPayload) (upsertedID uuid.UUID, isCreate bool, err error) {
+	ext := strings.TrimSpace(p.ExternalOrderID)
+	if ext == "" {
+		return uuid.Nil, false, fmt.Errorf("external order id is required")
+	}
+
+	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		st := normalizeSyncedOrderStatus(p.Status)
+		ps := normalizeSyncedPaymentStatus(p.PaymentStatus)
+		fs := normalizeSyncedFulfillmentStatus(p.FulfillmentStatus)
+		if !validOrderStatus(st) || !validPaymentStatus(ps) || !validFulfillmentStatus(fs) {
+			return fmt.Errorf("invalid normalized status")
+		}
+
+		name := strings.TrimSpace(p.CustomerName)
+		if name == "" {
+			name = "Unknown customer"
+		}
+		cur := strings.TrimSpace(p.Currency)
+		if cur == "" {
+			cur = "USD"
+		}
+		cur = strings.ToUpper(cur)
+
+		on := strings.TrimSpace(p.OrderNo)
+		if on == "" {
+			on = fmt.Sprintf("SYNC-%s", ext)
+		}
+
+		raw := compactRawSummary(platformKey, shopID, ext, p.TenantID, p.RawSummary)
+
+		var existing Order
+		q := tx.Where("tenant_id = ? AND shop_id = ? AND platform = ? AND external_order_id = ?", p.TenantID, shopID, platformKey, ext)
+		findErr := q.First(&existing).Error
+		if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
+
+		sid := shopID
+		extCopy := ext
+
+		if errors.Is(findErr, gorm.ErrRecordNotFound) {
+			isCreate = true
+			o := &Order{
+				TenantID:          p.TenantID,
+				Platform:          platformKey,
+				ShopID:            &sid,
+				ExternalOrderID:   &extCopy,
+				OrderNo:           on,
+				CustomerName:      name,
+				Status:            st,
+				PaymentStatus:     ps,
+				FulfillmentStatus: fs,
+				Currency:          cur,
+				TotalAmount:       p.TotalAmount,
+				PaidAt:            p.PaidAt,
+				OrderedAt:         p.OrderedAt,
+				ShippedAt:         p.ShippedAt,
+				DeliveredAt:       p.DeliveredAt,
+				PlatformUpdatedAt: p.PlatformUpdatedAt,
+				PlatformRevision:  strings.TrimSpace(p.PlatformRevision),
+				RawData:           raw,
+			}
+			if err := tx.Create(o).Error; err != nil {
+				return err
+			}
+			upsertedID = o.ID
+			return replaceSyncedChildren(tx, o.ID, p)
+		}
+
+		existing.Platform = platformKey
+		existing.TenantID = p.TenantID
+		existing.ShopID = &sid
+		existing.ExternalOrderID = &extCopy
+		existing.OrderNo = on
+		existing.CustomerName = name
+		existing.Status = st
+		existing.PaymentStatus = ps
+		existing.FulfillmentStatus = fs
+		existing.Currency = cur
+		existing.TotalAmount = p.TotalAmount
+		existing.PaidAt = p.PaidAt
+		existing.OrderedAt = p.OrderedAt
+		existing.ShippedAt = p.ShippedAt
+		existing.DeliveredAt = p.DeliveredAt
+		if p.PlatformUpdatedAt != nil {
+			existing.PlatformUpdatedAt = p.PlatformUpdatedAt
+		}
+		if rev := strings.TrimSpace(p.PlatformRevision); rev != "" {
+			existing.PlatformRevision = rev
+		}
+		existing.RawData = raw
+		// Remark intentionally preserved (manual ops).
+
+		if err := tx.Save(&existing).Error; err != nil {
+			return err
+		}
+		upsertedID = existing.ID
+		return replaceSyncedChildren(tx, existing.ID, p)
+	})
+	if txErr != nil {
+		return uuid.Nil, false, txErr
+	}
+	return upsertedID, isCreate, nil
 }
 
 func replaceSyncedChildren(tx *gorm.DB, orderID uuid.UUID, p SyncedOrderPayload) error {

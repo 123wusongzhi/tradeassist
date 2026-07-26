@@ -14,7 +14,7 @@ type OrderInventoryEffect struct {
 	OrderID      uuid.UUID  `gorm:"type:char(36);index;not null" json:"orderId"`
 	OrderItemID  uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_oie_item_sku_effect" json:"orderItemId"`
 	ProductID    *uuid.UUID `gorm:"type:char(36);index" json:"productId,omitempty"`
-	ProductSKUID uuid.UUID  `gorm:"type:char(36);not null;uniqueIndex:ux_oie_item_sku_effect" json:"productSkuId"` // NilInventorySKUUID when SKU missing
+	ProductSKUID uuid.UUID  `gorm:"column:product_sku_id;type:char(36);not null;uniqueIndex:ux_oie_item_sku_effect" json:"productSkuId"` // NilInventorySKUUID when SKU missing
 	EffectType   string     `gorm:"size:16;not null;uniqueIndex:ux_oie_item_sku_effect" json:"effectType"`
 	Quantity     int        `gorm:"not null" json:"quantity"`
 	Status       string     `gorm:"size:16;index;not null" json:"status"`

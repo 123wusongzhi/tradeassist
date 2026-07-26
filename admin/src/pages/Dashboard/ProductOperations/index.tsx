@@ -16,14 +16,14 @@ import {
   WarningOutlined,
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
-import { TmPageContainer } from '@/components/ui';
+import { MetricCard, OperationToolbar, TmPageContainer, type MetricCardIntent } from '@/components/ui';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { formatDateTime } from '@/utils/formatTime';
 import { history } from '@umijs/max';
 import {
   Button,
   Col,
   DatePicker,
-  Empty,
   Result,
   Row,
   Select,
@@ -62,6 +62,8 @@ import {
   type ProductOperationDashboard,
 } from '@/services/dashboard';
 import { queryShops, type ShopListRow } from '@/services/shops';
+import { useUrlQueryState } from '@/hooks/useUrlState';
+import { appendSourceToUrl, resolveProductSourceFromQuery } from '@/utils/urlState';
 
 const { RangePicker } = DatePicker;
 
@@ -113,9 +115,9 @@ function RecentActivityRow({
     <div
       role="button"
       tabIndex={0}
-      onClick={() => history.push(item.link)}
+      onClick={() => history.push(appendSourceToUrl(item.link))}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') history.push(item.link);
+        if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(item.link));
       }}
       style={{
         display: 'flex',
@@ -185,7 +187,7 @@ function RecentActivityRow({
         icon={<ArrowRightOutlined />}
         onClick={(e) => {
           e.stopPropagation();
-          history.push(item.link);
+          history.push(appendSourceToUrl(item.link));
         }}
       >
         查看
@@ -227,27 +229,49 @@ type FilterState = {
   source?: string;
 };
 
-function KpiCard(props: {
-  title: string;
-  value: number;
-  tone?: string;
-  onClick?: () => void;
-}) {
+const DASHBOARD_QUERY_KEYS = ['start', 'end', 'platform', 'shopId', 'productSource', 'source'] as const;
+
+function buildDashboardFiltersFromUrl(
+  urlState: Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>,
+): FilterState {
+  return {
+    range: parseRange(urlState.start, urlState.end),
+    platform: urlState.platform,
+    shopId: urlState.shopId,
+    source: resolveProductSourceFromQuery(urlState.productSource, urlState.source),
+  };
+}
+
+function dashboardFiltersToUrlPatch(filters: FilterState) {
+  const [start, end] = filters.range ?? [];
+  return {
+    start: start ? start.startOf('day').toISOString() : undefined,
+    end: end ? end.endOf('day').toISOString() : undefined,
+    platform: filters.platform,
+    shopId: filters.shopId,
+    productSource: filters.source,
+  };
+}
+
+function sameDashboardUrlPatch(
+  a: ReturnType<typeof dashboardFiltersToUrlPatch>,
+  urlState: Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>,
+) {
   return (
-    <ProCard
-      variant="outlined"
-      hoverable={!!props.onClick}
-      bodyStyle={{ padding: '14px 16px', cursor: props.onClick ? 'pointer' : 'default' }}
-      onClick={props.onClick}
-    >
-      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-        {props.title}
-      </Typography.Text>
-      <div style={{ fontSize: 28, fontWeight: 600, color: props.tone ?? '#111827', lineHeight: 1.2, marginTop: 4 }}>
-        {props.value ?? 0}
-      </div>
-    </ProCard>
+    (a.start || undefined) === (urlState.start || undefined) &&
+    (a.end || undefined) === (urlState.end || undefined) &&
+    (a.platform || undefined) === (urlState.platform || undefined) &&
+    (a.shopId || undefined) === (urlState.shopId || undefined) &&
+    (a.productSource || undefined) === (urlState.productSource || undefined)
   );
+}
+
+function parseRange(start?: string, end?: string): [Dayjs, Dayjs] | undefined {
+  if (!start || !end) return undefined;
+  const s = dayjs(start);
+  const e = dayjs(end);
+  if (!s.isValid() || !e.isValid()) return undefined;
+  return [s, e];
 }
 
 function TodoCardItem({ item }: { item: DashboardTodo }) {
@@ -266,7 +290,7 @@ function TodoCardItem({ item }: { item: DashboardTodo }) {
             {item.count ?? 0}
           </Typography.Title>
         </Space>
-        <Button type="primary" block onClick={() => history.push(item.link)}>
+        <Button type="primary" block onClick={() => history.push(appendSourceToUrl(item.link))}>
           {actionLabel}
         </Button>
       </Space>
@@ -281,7 +305,7 @@ function ExceptionRow({ item }: { item: DashboardException }) {
       bodyStyle={{ padding: '16px 18px' }}
       style={{ margin: 0 }}
       hoverable
-      onClick={() => history.push(item.link)}
+      onClick={() => history.push(appendSourceToUrl(item.link))}
     >
       <Row align="middle" gutter={16} wrap={false}>
         <Col flex="auto">
@@ -360,9 +384,9 @@ function QuickLinkCard(props: { title: string; link: string }) {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => history.push(props.link)}
+      onClick={() => history.push(appendSourceToUrl(props.link))}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') history.push(props.link);
+        if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(props.link));
       }}
       style={{
         display: 'flex',
@@ -450,72 +474,87 @@ function buildKpiCards(summary: DashboardSummary): {
   title: string;
   value: number;
   link: string;
-  tone?: string;
+  intent?: MetricCardIntent;
+  emptyHint?: string;
 }[] {
   return [
     {
-      title: '商品草稿总数',
+      title: '今日采集任务',
+      value: summary.collectFailedCount ?? 0,
+      link: '/collect/tasks',
+      intent: 'data',
+      emptyHint: '暂无采集任务',
+    },
+    {
+      title: '商品草稿',
       value: summary.draftTotal ?? summary.draftProducts + summary.readyProducts,
       link: '/product/drafts',
+      emptyHint: '还没有商品草稿',
     },
     {
-      title: '今日新增商品',
-      value: summary.todayNewProducts ?? 0,
-      link: '/product/drafts',
-      tone: '#2563eb',
+      title: 'AI 待复核',
+      value: (summary.aiPendingProducts ?? 0) + (summary.aiReplySuggestionPendingCount ?? 0),
+      link: '/ai/operation-workbench',
+      intent: 'ai',
+      emptyHint: '暂无待复核项',
     },
     {
-      title: '待补 AI 标题',
-      value: summary.missingAiTitle ?? summary.missingAiTitleCount ?? 0,
-      link: '/product/drafts?missingAiTitle=1',
-      tone: '#7c3aed',
-    },
-    {
-      title: '待补 AI 描述',
-      value: summary.missingAiDescription ?? summary.missingAiDescriptionCount ?? 0,
-      link: '/product/drafts?missingAiDescription=1',
-      tone: '#7c3aed',
-    },
-    {
-      title: 'AI 图片待处理',
-      value: summary.imageTaskPending ?? 0,
-      link: '/ai/image-tasks',
-      tone: '#0891b2',
-    },
-    {
-      title: '发布检查未通过',
+      title: '发布检查问题',
       value: summary.readinessBlocked ?? summary.readinessBlockedProducts ?? 0,
       link: '/product/drafts?readiness=blocked',
-      tone: '#ea580c',
+      intent: 'warning',
+      emptyHint: '发布检查均通过',
     },
     {
-      title: '可发布商品',
-      value: summary.publishable ?? 0,
-      link: '/product/drafts?publishable=1',
-      tone: '#059669',
+      title: '刊登任务异常',
+      value: summary.publishFailedTasks ?? 0,
+      link: '/product/publish-tasks?status=failed',
+      intent: 'danger',
+      emptyHint: '暂无刊登异常',
     },
     {
-      title: '已刊登商品',
-      value: summary.published ?? summary.publishedProducts ?? 0,
-      link: '/product/drafts?status=published',
-      tone: '#0d9488',
+      title: '订单异常',
+      value: summary.orderExceptions ?? summary.orderExceptionTotal ?? 0,
+      link: '/orders/exceptions',
+      intent: 'danger',
+      emptyHint: '暂无订单异常',
     },
     {
-      title: '库存预警',
-      value: summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus,
+      title: '库存异常',
+      value:
+        (summary.inventoryAlerts ?? summary.lowStockSkus + summary.outOfStockSkus) +
+        (summary.inventorySyncFailedCount ?? 0),
       link: '/inventory/alerts',
-      tone: '#dc2626',
+      intent: 'danger',
+      emptyHint: '库存状态正常',
+    },
+    {
+      title: '客服待回复',
+      value: summary.customerPendingReplyCount ?? summary.customerPendingConversations ?? 0,
+      link: '/customer/conversations?status=pending_reply',
+      intent: 'data',
+      emptyHint: '暂无待回复会话',
     },
     {
       title: '失败任务',
       value: summary.failedTaskTotal ?? summary.failedTasks ?? 0,
       link: '/ops/task-center/failures',
-      tone: '#b91c1c',
+      intent: 'danger',
+      emptyHint: '暂无失败任务',
+    },
+    {
+      title: '配置风险',
+      value: summary.configRiskCount ?? 0,
+      link: '/settings/config-status',
+      intent: 'warning',
+      emptyHint: '核心配置已完成',
     },
   ];
 }
 
-function mergeRecentItems(recent: ProductOperationDashboard['recent']): (DashboardRecentItem & { bucket: string })[] {
+function mergeRecentItems(
+  recent: ProductOperationDashboard['recent'] | undefined,
+): (DashboardRecentItem & { bucket: string })[] {
   if (!recent) return [];
   const buckets: { items: DashboardRecentItem[]; label: string }[] = [
     { items: recent.collectedProducts ?? [], label: '采集' },
@@ -602,9 +641,9 @@ function FunnelSteps({ steps }: { steps: DashboardFunnelStep[] }) {
             <div
               role="button"
               tabIndex={0}
-              onClick={() => history.push(step.link)}
+              onClick={() => history.push(appendSourceToUrl(step.link))}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') history.push(step.link);
+                if (e.key === 'Enter' || e.key === ' ') history.push(appendSourceToUrl(step.link));
               }}
               style={{
                 flex: 1,
@@ -703,7 +742,12 @@ function DashboardSkeleton() {
 }
 
 export default function ProductOperationsDashboardPage() {
-  const [filters, setFilters] = useState<FilterState>({});
+  const dashboardEmptyLocale = useListEmptyLocale('dashboard');
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof DASHBOARD_QUERY_KEYS)[number], string | undefined>>(
+      DASHBOARD_QUERY_KEYS,
+    );
+  const [filters, setFilters] = useState<FilterState>(() => buildDashboardFiltersFromUrl(urlState));
   const [shops, setShops] = useState<ShopListRow[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [board, setBoard] = useState<ProductOperationDashboard | null>(null);
@@ -715,6 +759,23 @@ export default function ProductOperationsDashboardPage() {
       .then((res) => setShops(res?.list ?? []))
       .catch(() => setShops([]));
   }, []);
+
+  useEffect(() => {
+    setFilters(buildDashboardFiltersFromUrl(urlState));
+  }, [
+    urlState.end,
+    urlState.platform,
+    urlState.productSource,
+    urlState.shopId,
+    urlState.source,
+    urlState.start,
+  ]);
+
+  useEffect(() => {
+    const next = dashboardFiltersToUrlPatch(filters);
+    if (sameDashboardUrlPatch(next, urlState)) return;
+    setUrlState(next, { replace: true });
+  }, [filters, setUrlState, urlState]);
 
   const queryParams = useMemo(() => {
     const [start, end] = filters.range ?? [];
@@ -780,7 +841,7 @@ export default function ProductOperationsDashboardPage() {
       subTitle={PAGE_COPY.dashboard.description}
       contentMaxWidth={layoutTokens.dashboardMaxWidth}
       extra={
-        <Space>
+        <OperationToolbar>
           <Button
             type={autoRefresh ? 'primary' : 'default'}
             ghost={autoRefresh}
@@ -792,7 +853,7 @@ export default function ProductOperationsDashboardPage() {
           <Button icon={<ReloadOutlined />} onClick={doRefresh} loading={loading}>
             重新加载
           </Button>
-        </Space>
+        </OperationToolbar>
       }
     >
       {/* 筛选 */}
@@ -819,7 +880,7 @@ export default function ProductOperationsDashboardPage() {
             showSearch
             optionFilterProp="label"
             options={shops.map((s) => ({
-              label: s.name || s.id,
+              label: s.shopName || s.id,
               value: s.id,
             }))}
             value={filters.shopId}
@@ -834,14 +895,15 @@ export default function ProductOperationsDashboardPage() {
             onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
           />
           <Button
-            onClick={() =>
+            onClick={() => {
               setFilters({
                 range: undefined,
                 platform: undefined,
                 shopId: undefined,
                 source: undefined,
-              })
-            }
+              });
+              clearUrlState(DASHBOARD_QUERY_KEYS, { replace: true });
+            }}
           >
             重置筛选
           </Button>
@@ -872,23 +934,24 @@ export default function ProductOperationsDashboardPage() {
                 </Typography.Title>
               </Col>
               <Col>
-                <Space wrap>
+                <OperationToolbar>
                   {welcomeActions.map((a) => (
-                    <Button key={a.link} icon={a.icon} onClick={() => history.push(a.link)}>
+                    <Button key={a.link} icon={a.icon} onClick={() => history.push(appendSourceToUrl(a.link))}>
                       {a.label}
                     </Button>
                   ))}
-                </Space>
+                </OperationToolbar>
               </Col>
             </Row>
             <Row gutter={[12, 12]}>
               {kpiCards.map((card) => (
                 <Col xs={12} sm={8} md={6} lg={4} xl={4} key={card.title}>
-                  <KpiCard
+                  <MetricCard
                     title={card.title}
                     value={card.value}
-                    tone={card.tone}
-                    onClick={() => history.push(card.link)}
+                    description={card.value > 0 ? undefined : card.emptyHint}
+                    intent={card.intent}
+                    onClick={() => history.push(appendSourceToUrl(card.link))}
                   />
                 </Col>
               ))}
@@ -939,14 +1002,7 @@ export default function ProductOperationsDashboardPage() {
                 ))}
               </div>
             ) : (
-              <Empty description="暂无最近动态">
-                <Space>
-                  <Button type="primary" onClick={() => history.push('/collect/hub')}>
-                    去采集商品
-                  </Button>
-                  <Button onClick={() => history.push('/ai/image-tasks')}>去创建 AI 图片任务</Button>
-                </Space>
-              </Empty>
+              dashboardEmptyLocale.emptyText
             )}
           </ProCard>
 

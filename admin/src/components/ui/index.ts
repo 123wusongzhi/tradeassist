@@ -10,3 +10,7 @@ export { default as TaskJsonBlock, formatTaskJson } from './TaskJsonBlock';
 export { default as ActionBar } from './ActionBar';
 export { default as TmProTable } from './TmProTable';
 export type { TmProTableProps } from './TmProTable';
+export { default as MetricCard } from './MetricCard';
+export type { MetricCardIntent, MetricCardProps } from './MetricCard';
+export { default as OperationToolbar } from './OperationToolbar';
+export type { OperationToolbarProps } from './OperationToolbar';

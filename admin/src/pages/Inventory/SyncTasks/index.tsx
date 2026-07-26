@@ -1,13 +1,21 @@
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
-import { Button, Drawer, Modal, Popconfirm, Space, Tag, Typography, Alert, message } from 'antd';
+import { Button, Drawer, Space, Tag, Typography, Alert, message } from 'antd';
+import { confirmFailureTaskRetry } from '@/constants/sensitiveActions';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
-import { useLocation } from '@umijs/max';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
+import {
+  INVENTORY_SKU_AMBIGUOUS_MESSAGE,
+  INVENTORY_SKU_NOT_BOUND_MESSAGE,
+} from '@/constants/inventoryLabels';
 import { PAGE_COPY } from '@/constants/copywriting';
+import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
+import { useUrlQueryState } from '@/hooks/useUrlState';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { platformLabel } from '@/constants/userFriendly';
+import { parsePositiveInt } from '@/utils/urlState';
 import {
   getInventorySyncTask,
   queryInventorySyncTasks,
@@ -15,6 +23,21 @@ import {
   retryInventorySyncTasksBatch,
   type InventorySyncTaskDTO,
 } from '@/services/inventory';
+
+const SYNC_TASK_QUERY_KEYS = [
+  'page',
+  'pageSize',
+  'keyword',
+  'status',
+  'syncStatus',
+  'platform',
+  'shopId',
+  'productSkuId',
+  'batchId',
+  'drawer',
+  'id',
+  'source',
+] as const;
 
 function tagFromStatus(raw: string) {
   const c = COLLECT_TASK_STATUS[raw as keyof typeof COLLECT_TASK_STATUS];
@@ -25,40 +48,77 @@ function tagFromStatus(raw: string) {
 const BATCH_RETRY_LIMIT = 100;
 
 export default function InventorySyncTasksPage() {
-  const location = useLocation();
+  const emptyLocale = useListEmptyLocale('inventorySyncTasks', { permissionScoped: true });
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
+    useUrlQueryState<Record<(typeof SYNC_TASK_QUERY_KEYS)[number], string | undefined>>(
+      SYNC_TASK_QUERY_KEYS,
+    );
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
-  const batchIdFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('batchId')?.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [location.search]);
+  const [tablePage, setTablePage] = useState(1);
+  const [tablePageSize, setTablePageSize] = useState(20);
 
-  const statusFromUrl = useMemo(() => {
-    try {
-      return new URLSearchParams(location.search || '').get('status')?.trim() || undefined;
-    } catch {
-      return undefined;
-    }
-  }, [location.search]);
+  const batchIdFromUrl = urlState.batchId;
+  const taskIdFromUrl = urlState.id;
+  const skuIdFromUrl = urlState.productSkuId;
+  const statusFromUrl = urlState.status || urlState.syncStatus;
 
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<InventorySyncTaskDTO | null>(null);
   const [failedSelectedIds, setFailedSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (!batchIdFromUrl) return;
-    formRef.current?.setFieldsValue?.({ batchId: batchIdFromUrl });
-    actionRef.current?.reload?.();
-  }, [batchIdFromUrl]);
+    setTablePage(parsePositiveInt(urlState.page, 1));
+    setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
+    formRef.current?.setFieldsValue?.({
+      batchId: batchIdFromUrl,
+      status: statusFromUrl,
+      productSkuId: skuIdFromUrl,
+      platform: urlState.platform,
+      shopId: urlState.shopId,
+      keyword: urlState.keyword,
+    });
+  }, [
+    batchIdFromUrl,
+    skuIdFromUrl,
+    statusFromUrl,
+    urlState.keyword,
+    urlState.page,
+    urlState.pageSize,
+    urlState.platform,
+    urlState.shopId,
+  ]);
 
   useEffect(() => {
-    if (!statusFromUrl) return;
-    formRef.current?.setFieldsValue?.({ status: statusFromUrl });
+    if (!batchIdFromUrl && !statusFromUrl && !skuIdFromUrl) return;
     actionRef.current?.reload?.();
-  }, [statusFromUrl]);
+  }, [batchIdFromUrl, skuIdFromUrl, statusFromUrl]);
+
+  useEffect(() => {
+    if (!taskIdFromUrl) return;
+    void (async () => {
+      try {
+        const d = await getInventorySyncTask(taskIdFromUrl);
+        setDetail(d);
+        setDetailOpen(true);
+      } catch {
+        /* ignore invalid id */
+      }
+    })();
+  }, [taskIdFromUrl]);
+
+  const openTaskDetail = async (taskId: string) => {
+    const d = await getInventorySyncTask(taskId);
+    setDetail(d);
+    setDetailOpen(true);
+    setUrlState({ drawer: 'task', id: taskId });
+  };
+
+  const closeTaskDetail = () => {
+    setDetailOpen(false);
+    setDetail(null);
+    setUrlState({ drawer: undefined, id: undefined }, { replace: true });
+  };
 
   const columns: ProColumns<InventorySyncTaskDTO>[] = useMemo(
     () => [
@@ -181,27 +241,27 @@ export default function InventorySyncTasksPage() {
         render: (_, r) => (
           <Space>
             <a
-              onClick={async () => {
-                const d = await getInventorySyncTask(r.id);
-                setDetail(d);
-                setDetailOpen(true);
+              onClick={() => {
+                void openTaskDetail(r.id);
               }}
             >
               查看
             </a>
-            {r.status === 'failed' ? (
-              <Popconfirm
-                title="确认重试该库存同步任务？"
-                onConfirm={async () => {
-                  await retryInventorySyncTask(r.id);
-                  message.success('已提交重试');
-                  actionRef.current?.reload();
-                }}
+            {r.status === 'failed' || r.status === 'partial_success' ? (
+              <Button
+                type="link"
+                size="small"
+                style={{ padding: 0 }}
+                onClick={() =>
+                  confirmFailureTaskRetry(1, async () => {
+                    await retryInventorySyncTask(r.id);
+                    message.success('已提交重试');
+                    actionRef.current?.reload();
+                  })
+                }
               >
-                <Button type="link" size="small" style={{ padding: 0 }}>
-                  重试
-                </Button>
-              </Popconfirm>
+                重试
+              </Button>
             ) : null}
           </Space>
         ),
@@ -212,12 +272,18 @@ export default function InventorySyncTasksPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.inventorySyncTasks.title} subTitle={PAGE_COPY.inventorySyncTasks.description}>
+      <InventorySyncDisabledBanner />
       <Alert
         showIcon
         type="info"
         style={{ marginBottom: 16 }}
-        message="抖店库存同步说明"
-        description="须开启「启用库存同步」、商品已创建抖店平台草稿且全部规格已绑定抖店规格 ID（存在歧义 / 未匹配时会阻止同步）。可在商品详情 → 库存 Tab 或库存预警页发起同步；失败任务支持重试。"
+        message="库存同步前置条件"
+        description={
+          <>
+            {INVENTORY_SKU_NOT_BOUND_MESSAGE} {INVENTORY_SKU_AMBIGUOUS_MESSAGE}
+            须开启「启用库存同步」后，可在商品详情 → 库存 Tab 或库存预警页人工发起同步；失败任务支持重试。
+          </>
+        }
       />
       <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
         TikTok Shop、Shopee、Lazada、抖店已支持库存同步（测试中）；Amazon 仍在规划中。模拟店铺仍走模拟库存同步。
@@ -228,7 +294,25 @@ export default function InventorySyncTasksPage() {
         formRef={formRef}
         columns={columns}
         search={{ labelWidth: 'auto', defaultCollapsed: false }}
-        pagination={{ pageSize: 20, showSizeChanger: true }}
+        onReset={() => {
+          setTablePage(1);
+          setTablePageSize(20);
+          closeTaskDetail();
+          clearUrlState(SYNC_TASK_QUERY_KEYS, { replace: true });
+        }}
+        pagination={{
+          current: tablePage,
+          pageSize: tablePageSize,
+          showSizeChanger: true,
+          onChange: (page, pageSize) => {
+            setTablePage(page);
+            setTablePageSize(pageSize);
+            setUrlState({
+              page: page > 1 ? page : undefined,
+              pageSize: pageSize !== 20 ? pageSize : undefined,
+            });
+          },
+        }}
         headerTitle="任务列表"
         rowSelection={{
           selectedRowKeys: failedSelectedIds,
@@ -238,6 +322,7 @@ export default function InventorySyncTasksPage() {
           }),
         }}
         tableAlertRender={false}
+        locale={emptyLocale}
         toolBarRender={() => [
           <Button
             key="batch-retry"
@@ -247,20 +332,16 @@ export default function InventorySyncTasksPage() {
                 message.warning(`单次最多选择 ${BATCH_RETRY_LIMIT} 条失败任务`);
                 return;
               }
-              Modal.confirm({
-                title: `将 ${failedSelectedIds.length} 条失败任务归入新批次并重试？`,
-                okText: '提交',
-                onOk: async () => {
-                  try {
-                    const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
-                    message.success(`已创建批次 ${batch.batchNo}`);
-                    setFailedSelectedIds([]);
-                    actionRef.current?.reload();
-                  } catch (e: unknown) {
-                    message.error((e as Error)?.message || '批量重试失败');
-                    throw e;
-                  }
-                },
+              confirmFailureTaskRetry(failedSelectedIds.length, async () => {
+                try {
+                  const batch = await retryInventorySyncTasksBatch(failedSelectedIds);
+                  message.success(`已创建批次 ${batch.batchNo}`);
+                  setFailedSelectedIds([]);
+                  actionRef.current?.reload();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '批量重试失败');
+                  throw e;
+                }
               });
             }}
           >
@@ -272,17 +353,47 @@ export default function InventorySyncTasksPage() {
             typeof params.batchId === 'string' && params.batchId.trim()
               ? params.batchId.trim()
               : batchIdFromUrl;
-          const res = await queryInventorySyncTasks({
-            page: params.current,
-            pageSize: params.pageSize,
+          const qp = {
+            page: params.current ?? tablePage,
+            pageSize: params.pageSize ?? tablePageSize,
             batchId: bid,
-            shopId: params.shopId as string | undefined,
-            productId: params.productId as string | undefined,
-            productSkuId: params.productSkuId as string | undefined,
-            platform: params.platform as string | undefined,
-            status: params.status as string | undefined,
+            shopId: (params.shopId as string | undefined)?.trim(),
+            productId: (params.productId as string | undefined)?.trim(),
+            productSkuId:
+              (params.productSkuId as string | undefined)?.trim() || skuIdFromUrl,
+            platform: (params.platform as string | undefined)?.trim(),
+            status:
+              (params.status as string | undefined)?.trim() || statusFromUrl,
             start: typeof params.start === 'string' ? params.start : undefined,
             end: typeof params.end === 'string' ? params.end : undefined,
+          };
+          setUrlState(
+            {
+              page: Number(qp.page) > 1 ? qp.page : undefined,
+              pageSize: Number(qp.pageSize) !== 20 ? qp.pageSize : undefined,
+              batchId: qp.batchId,
+              shopId: qp.shopId,
+              productSkuId: qp.productSkuId,
+              platform: qp.platform,
+              status: qp.status,
+              syncStatus: qp.status,
+              source: urlState.source,
+              drawer: urlState.drawer,
+              id: urlState.id,
+            },
+            { replace: true },
+          );
+          const res = await queryInventorySyncTasks({
+            page: qp.page,
+            pageSize: qp.pageSize,
+            batchId: qp.batchId,
+            shopId: qp.shopId,
+            productId: qp.productId,
+            productSkuId: qp.productSkuId,
+            platform: qp.platform,
+            status: qp.status,
+            start: qp.start,
+            end: qp.end,
           });
           return { data: res.list, total: res.pagination.total, success: true };
         }}
@@ -293,10 +404,7 @@ export default function InventorySyncTasksPage() {
         title={detail ? `库存同步 ${detail.id}` : '详情'}
         open={detailOpen}
         destroyOnHidden
-        onClose={() => {
-          setDetailOpen(false);
-          setDetail(null);
-        }}
+        onClose={closeTaskDetail}
       >
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">

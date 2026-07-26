@@ -38,6 +38,7 @@ func (s *Service) appendChange(ctx context.Context, productID uuid.UUID, skuID u
 
 // ProcessQueuedTask executes one outbound sync with DB leases + changelog side effects.
 func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("inventory: no db")
 	}
@@ -47,7 +48,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		}
 	}()
 	lease := s.inventoryLeaseTTL()
-	taskRow, ok, err := s.tryClaimInventorySyncTask(ctx, taskID, workerID, lease)
+	taskRow, claim, ok, err := s.tryClaimInventorySyncTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return err
 	}
 	s.InventoryRateObserveStarted(ctx, taskRow.Platform)
-	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, lease)
+	stop := s.startInventoryLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stop()
 
 	if s.OpLog != nil {
@@ -84,15 +85,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": clampStr(msg, 4000),
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
-			}).Error
+		_ = s.finishInventorySyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": clampStr(msg, 4000),
+			"finished_at":   &fin,
+		})
 		if taskRow.ProductSKUID != nil && *taskRow.ProductSKUID != uuid.Nil {
 			pskuSnap := snapshotPublicationSKUStock(ctx, s, taskRow)
 			beforePL := derefStock(pskuSnap.stockPtr)
@@ -131,6 +128,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		if strings.TrimSpace(strings.ToLower(taskRow.Platform)) == "douyin_shop" {
 			douyinmetrics.RecordInventorySync("failed")
 		}
+		s.ObserveInventory(taskRow.Platform, "push", "push_failure", "failure", classifyInventoryError(msg), 1, time.Since(start))
 		s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 		return fmt.Errorf("%s", msg)
 	}
@@ -210,6 +208,9 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		Options:           options,
 	})
 	if err != nil {
+		if isInventoryTimeout(err.Error()) {
+			s.ObserveInventory(taskRow.Platform, "push", "unknown_result", "unknown_result", "provider_timeout", 1, time.Since(start))
+		}
 		return fail(err.Error())
 	}
 	beforeMirror := derefStock(psku.Stock)
@@ -243,16 +244,12 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 	outJSON, _ := json.Marshal(payload)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        StatusSuccess,
-			"finished_at":   &fin,
-			"output":        datatypes.JSON(outJSON),
-			"error_message": "",
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	_ = s.finishInventorySyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        StatusSuccess,
+		"finished_at":   &fin,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	})
 
 	delta := stockOut - beforeMirror
 	s.appendChange(ctx, taskRow.ProductID, skuUUID, ChangeSyncSuccess, beforeMirror, stockOut, delta, "inventory_sync_success", fmt.Sprintf("task=%s platform=%s", taskID.String(), pl), taskRow.CreatedBy)
@@ -280,6 +277,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			douyinmetrics.RecordInventorySync("success")
 		}
 	}
+	s.ObserveInventory(taskRow.Platform, "push", "push", "success", "", 1, time.Since(start))
 	s.maybeReconcileInventoryBatch(ctx, taskRow.BatchID)
 	return nil
 }

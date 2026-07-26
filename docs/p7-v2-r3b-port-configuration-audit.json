@@ -1,0 +1,1053 @@
+{
+  "phase": "P7-V2-R3B-PORT-R2",
+  "status": "passed",
+  "hitCount": 174,
+  "remainingExecutionLiterals": [],
+  "hits": [
+    {
+      "file": "tests\\load\\webhook-burst.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\task-backlog.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\provider-429.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": ".env.example",
+      "line": 29,
+      "text": "APP_HTTP_ADDR=:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": ".env.example",
+      "line": 33,
+      "text": "# P7_BASE_URL=http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": ".env.example",
+      "line": 407,
+      "text": "COLLECTOR_MAIN_SERVICE_URL=http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\lib\\guards.js",
+      "line": 10,
+      "text": "  return __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\inventory-contention.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\export-stream.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\auth-rate-limit.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\load\\api-read.js",
+      "line": 4,
+      "text": "const base = __ENV.BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-text-trial-run.run2.json",
+      "line": 35,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-text-trial-run.run1.json",
+      "line": 35,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-text-trial-run.auto.json",
+      "line": 35,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-text-route-smoke.auto.json",
+      "line": 9,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-operation-workbench-perf.auto.json",
+      "line": 50,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\BATCH_AI_TEXT_UX_ACCEPTANCE.md",
+      "line": 10,
+      "text": "| 404 / 旧进程 | **passed** | 停止旧 `go run` 进程，以 `tmp/server.exe`（含 `aiproducttext` 路由）重启 `:8080` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\BATCH_AI_TEXT_UX_ACCEPTANCE.md",
+      "line": 28,
+      "text": "| 现象 | A3.1.1 阶段 `:8080` 为旧 `go-build` 二进制或未含 `aiproducttext` 的进程，`/api/v1/products/ai-text/*` 曾返回 404 |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-dataset.auto.json",
+      "line": 24,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-image-route-smoke.auto.json",
+      "line": 18,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\AI_OPERATION_WORKBENCH_PERF_REPORT.md",
+      "line": 6,
+      "text": ".\\scripts\\ai-operation-workbench-perf.ps1 -ApiBase http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\ai-image-trial-run.json",
+      "line": 15,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\gates\\p7-v2\\port-config.mjs",
+      "line": 8,
+      "text": "  appHttpAddr: '127.0.0.1:8080',",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\gates\\p7-v2\\port-config.mjs",
+      "line": 9,
+      "text": "  baseUrl: 'http://127.0.0.1:8080',",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "tests\\gates\\p7-v2\\port-config.mjs",
+      "line": 10,
+      "text": "  env: { P7_V2_API_HOST: '127.0.0.1', P7_V2_API_PORT: '8080', APP_HTTP_ADDR: '127.0.0.1:8080', P7_BASE_URL: 'http://127.0.0.1:8080' },",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-auto-acceptance.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-auto-acceptance.full-project.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-preflight.ps1",
+      "line": 5,
+      "text": "$ApiBase = if ($env:TRADEMIND_API_BASE) { $env:TRADEMIND_API_BASE.TrimEnd(\"/\") } else { \"http://127.0.0.1:8080\" }",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\development.md",
+      "line": 63,
+      "text": "| backend | `http://127.0.0.1:8080` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\development.md",
+      "line": 64,
+      "text": "| backend health | `http://127.0.0.1:8080/health` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\development.md",
+      "line": 90,
+      "text": "- `APP_HTTP_ADDR=:8080`",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-auto-acceptance.run2.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-auto-acceptance.run1.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-route-smoke.json",
+      "line": 4,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-route-smoke.auto.json",
+      "line": 4,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 8,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/orders?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 13,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/orders/exceptions?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 18,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/inventory?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 23,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/inventory-sync/tasks?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 28,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/customer/conversations?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-order-inventory-customer-smoke.auto.json",
+      "line": 33,
+      "text": "                        \"url\":  \"http://127.0.0.1:8080/api/v1/task-center/failures?page=1\\u0026pageSize=5\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_REPORT_RUN_2.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-registry.json",
+      "line": 9,
+      "text": "      \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-registry.json",
+      "line": 232,
+      "text": "      \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-registry.json",
+      "line": 455,
+      "text": "      \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\docker-deployment.md",
+      "line": 34,
+      "text": "| Backend Health | `http://127.0.0.1:8080/health` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_REPORT_RUN_1.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\demo-dataset.json",
+      "line": 24,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-r3-baseline-20260714133131.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_REPORT.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-r3-baseline-20260714130414.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_FULL_PROJECT_REPORT.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_GUIDE.md",
+      "line": 9,
+      "text": ".\\scripts\\demo-auto-acceptance.ps1 -ApiBase http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_AUTO_ACCEPTANCE_GUIDE.md",
+      "line": 20,
+      "text": "| `-ApiBase` | 后端地址，默认 `http://127.0.0.1:8080` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-baseline-r3b-recovery-20260714-1719.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-baseline-r3b-20260714163000.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-baseline-r3a-20260714225500.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-baseline-20260714181000.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\baselines\\p7-v2-baseline-p7v2-baseline-20260714180000.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_DATASET.md",
+      "line": 12,
+      "text": ".\\scripts\\seed-demo-data.ps1 -ApiBase http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_DATASET.md",
+      "line": 13,
+      "text": ".\\scripts\\seed-demo-permissions.ps1 -ApiBase http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\F9_MANUAL_ACCEPTANCE_REPORT.md",
+      "line": 4,
+      "text": "> **环境**：http://localhost:8000 + http://127.0.0.1:8080  ",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-trial-run.sh",
+      "line": 5,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-trial-run.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\ai-text-trial-run.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/ai-text-trial-run.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-trial-run.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-route-smoke.sh",
+      "line": 7,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-route-smoke.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\ai-text-route-smoke.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/ai-text-route-smoke.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-text-route-smoke.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-operation-workbench-perf.sh",
+      "line": 5,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_SEEDING_GUIDE.md",
+      "line": 9,
+      "text": "2. 后端 API 可访问（默认 `http://127.0.0.1:8080`）",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_SEEDING_GUIDE.md",
+      "line": 17,
+      "text": ".\\scripts\\seed-demo-data.ps1 -ApiBase http://127.0.0.1:8080 -OutFile docs/demo-dataset.json",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_SEEDING_GUIDE.md",
+      "line": 18,
+      "text": ".\\scripts\\seed-demo-permissions.ps1 -ApiBase http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEPLOYMENT_PRECHECK.md",
+      "line": 108,
+      "text": "| Nginx / HTTPS | ⏭️ | 本轮为本地 dev（`:8080` API + `:8000` Admin）；预发需人工 |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEPLOYMENT_PRECHECK.md",
+      "line": 130,
+      "text": "| 路由 smoke | ✅ | `docs/demo-route-smoke.preprod.json` passed=true（apiBase=`http://127.0.0.1:8080`） |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_RELEASE_UX_ACCEPTANCE.md",
+      "line": 52,
+      "text": "环境：`http://localhost:8000`（Admin dev）+ `http://127.0.0.1:8080`（API）；验收人：Cursor Agent 自动化 + 浏览器快照。",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_RELEASE_UX_ACCEPTANCE.md",
+      "line": 79,
+      "text": "环境：`http://localhost:8000`（Admin dev）+ `http://127.0.0.1:8080`（API）；**非真实预发 HTTPS**。Docker 模拟预发不可用（本机未安装 Docker）。验收人：Cursor Agent 浏览器复验。",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\DEMO_SCRIPT.md",
+      "line": 53,
+      "text": "当前 `docs/demo-route-smoke.preprod.json` / `docs/demo-dataset.preprod.json` 为 **本地 dev 等价复跑**（apiBase=`http://127.0.0.1:8080`），待真实预发 HTTPS 域名替换后重新生成。",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-operation-workbench-perf.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\ai-operation-workbench-perf.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/ai-operation-workbench-perf.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-operation-workbench-perf.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\f9-preprod-deployment.json",
+      "line": 6,
+      "text": "    \"apiBase\": \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\f9-manual-acceptance.json",
+      "line": 6,
+      "text": "    \"apiBase\": \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\f9-final-acceptance.json",
+      "line": 6,
+      "text": "    \"apiBase\": \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\dev-backend.ts",
+      "line": 11,
+      "text": "  const httpAddr = envFile ? (readEnvKey(envFile, 'APP_HTTP_ADDR') ?? ':8080') : ':8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\dev-backend.ts",
+      "line": 39,
+      "text": "    console.error('  4) 端口是否被占用（见 APP_HTTP_ADDR）\\n');",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-trial-run.sh",
+      "line": 7,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\dev-all.ts",
+      "line": 76,
+      "text": "  const backendAddr = readEnvKey(envPath, 'APP_HTTP_ADDR') ?? ':8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\h1-5-live-browser-acceptance.json",
+      "line": 7,
+      "text": "    \"apiUrl\": \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-trial-run.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\ai-image-trial-run.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/ai-image-trial-run.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-trial-run.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-route-smoke.sh",
+      "line": 7,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-route-smoke.sh",
+      "line": 7,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-route-smoke.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\demo-route-smoke.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/demo-route-smoke.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-route-smoke.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\H1_5_LIVE_BROWSER_ACCEPTANCE.md",
+      "line": 25,
+      "text": "| API URL | `http://127.0.0.1:8080` |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-route-smoke.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\ai-image-route-smoke.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/ai-image-route-smoke.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-route-smoke.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-rbac-smoke.ps1",
+      "line": 3,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\env.md",
+      "line": 38,
+      "text": "| `APP_HTTP_ADDR` | `:8080` | backend | 否 | Go API 监听地址。 |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\env.md",
+      "line": 41,
+      "text": "| `P7_BASE_URL` | 派生自前两项 | P7-V2 harness | 否 | 必须等于 `http://${P7_V2_API_HOST}:${P7_V2_API_PORT}`，供 k6 与探针统一使用。 |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\env.md",
+      "line": 117,
+      "text": "| `COLLECTOR_MAIN_SERVICE_URL` | `http://127.0.0.1:8080` | collector | 否 | Collector 回调或访问后端的基础地址预留。 |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-order-inventory-customer-smoke.ps1",
+      "line": 3,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\ai-image-apply-undo-verify.ps1",
+      "line": 3,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-dashboard-smoke.ps1",
+      "line": 3,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\a1-prepare-samples.ps1",
+      "line": 3,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-auto-acceptance.sh",
+      "line": 6,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\a1-acceptance-run.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\a1-acceptance-run.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/a1-acceptance-run.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\a1-acceptance-run.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-auto-acceptance.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\demo-auto-acceptance.ps1 [-ApiBase http://127.0.0.1:8080] [-SkipBuild] [-SkipApiTests]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\demo-auto-acceptance.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "backend\\internal\\config\\config.go",
+      "line": 389,
+      "text": "\tif v := strings.TrimSpace(os.Getenv(\"APP_HTTP_ADDR\")); v != \"\" {",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "backend\\internal\\config\\config.go",
+      "line": 406,
+      "text": "\treturn \":8080\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\h1-5-secondary-url-browser-check.mjs",
+      "line": 8,
+      "text": "const API = process.env.TRADEMIND_API_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-write.sh",
+      "line": 6,
+      "text": "API_BASE=\"${TRADEMIND_API_BASE:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\h1-5-live-browser-acceptance.mjs",
+      "line": 15,
+      "text": "const API = process.env.TRADEMIND_API_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-write.ps1",
+      "line": 4,
+      "text": "$ApiBase = if ($env:TRADEMIND_API_BASE) { $env:TRADEMIND_API_BASE.TrimEnd(\"/\") } else { \"http://127.0.0.1:8080\" }",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-readonly.sh",
+      "line": 6,
+      "text": "API_BASE=\"${TRADEMIND_API_BASE:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\h1-4-url-keyword-responsive-check.mjs",
+      "line": 8,
+      "text": "const API = process.env.TRADEMIND_API_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-preflight.sh",
+      "line": 6,
+      "text": "API_BASE=\"${TRADEMIND_API_BASE:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\h1-2-url-state-browser-check.mjs",
+      "line": 9,
+      "text": "const API = process.env.TRADEMIND_API_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\douyin-e2e-readonly.ps1",
+      "line": 4,
+      "text": "$ApiBase = if ($env:TRADEMIND_API_BASE) { $env:TRADEMIND_API_BASE.TrimEnd(\"/\") } else { \"http://127.0.0.1:8080\" }",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\utils\\port-cleanup.ts",
+      "line": 83,
+      "text": "  const backend = parsePortFromAddr(envPath ? readEnvKey(envPath, 'APP_HTTP_ADDR') : undefined, 8080);",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-port-configuration-audit.mjs",
+      "line": 5,
+      "text": "  '127\\\\.0\\\\.0\\\\.1:8080|localhost:8080|:8080\\\\b|P7_BASE_URL|APP_HTTP_ADDR',",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-port-configuration-audit.mjs",
+      "line": 23,
+      "text": "const remainingExecutionLiterals = hits.filter((item) => item.classification === 'must_parameterize' && /127\\.0\\.0\\.1:8080|localhost:8080|:8080\\b/.test(item.text));",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\utils\\env-file.ts",
+      "line": 36,
+      "text": "/** Turn \":8080\" or \"127.0.0.1:8080\" into a browser-friendly http URL (defaults host localhost). */",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v-run-soak-test.mjs",
+      "line": 8,
+      "text": "const baseUrl = valueOf('--base-url') || process.env.P7_BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v-run-load-tests.mjs",
+      "line": 10,
+      "text": "const baseUrl = valueOf('--base-url') || process.env.P7_BASE_URL || 'http://127.0.0.1:8080';",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-product-list-perf.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\seed-product-list-perf.ps1 -Count 1000 [-ApiBase http://127.0.0.1:8080]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-product-list-perf.ps1",
+      "line": 6,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-demo-permissions.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\seed-demo-permissions.ps1 [-ApiBase http://127.0.0.1:8080]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-demo-permissions.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-lib.mjs",
+      "line": 19,
+      "text": "  const appAddr = String(env.APP_HTTP_ADDR || '').trim();",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-lib.mjs",
+      "line": 26,
+      "text": "  const suppliedBaseUrl = String(env.P7_BASE_URL || '').trim();",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-lib.mjs",
+      "line": 28,
+      "text": "    throw new Error('P7_BASE_URL must match P7_V2_API_HOST and P7_V2_API_PORT');",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-lib.mjs",
+      "line": 38,
+      "text": "      APP_HTTP_ADDR: `${host}:${port}`,",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\p7-v2-lib.mjs",
+      "line": 39,
+      "text": "      P7_BASE_URL: baseUrl,",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p4-r-run-2-report.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-demo-data.sh",
+      "line": 5,
+      "text": "API_BASE=\"${1:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p4-r-run-3-report.json",
+      "line": 289,
+      "text": "                            \"apiBase\":  \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-demo-data.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\seed-demo-data.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/demo-dataset.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\seed-demo-data.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\publish-batch-perf.ps1",
+      "line": 2,
+      "text": "# Usage: .\\scripts\\publish-batch-perf.ps1 [-ApiBase http://127.0.0.1:8080] [-OutFile docs/publish-batch-perf.json]",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\publish-batch-perf.ps1",
+      "line": 5,
+      "text": "    [string]$ApiBase = \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "scripts\\publish-batch-perf.sh",
+      "line": 6,
+      "text": "API_BASE=\"${TRADEMIND_API_BASE:-http://127.0.0.1:8080}\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P4_R_RUN_3_REPORT.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P4_R_RUN_2_REPORT.md",
+      "line": 4,
+      "text": "> API: http://127.0.0.1:8080 | Backend: reachable",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P5_V_DEVELOPMENT_ACCEPTANCE_RUN_1.md",
+      "line": 14,
+      "text": "- API: `http://127.0.0.1:8080`",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P5_V_DEVELOPMENT_ACCEPTANCE_RUN_2.md",
+      "line": 14,
+      "text": "- API: `http://127.0.0.1:8080`",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-load-test-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v-current-load-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-current-load-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v-soak-test-report.json",
+      "line": 5,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-baseline-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-preflight-audit.json",
+      "line": 85,
+      "text": "    \"baseUrl\": \"http://127.0.0.1:8080\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-load-test-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-load-host-guard-report.json",
+      "line": 10,
+      "text": "      \"url\": \"http://localhost:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-load-host-guard-report.json",
+      "line": 17,
+      "text": "      \"url\": \"http://127.0.0.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-load-host-guard-report.json",
+      "line": 24,
+      "text": "      \"url\": \"http://172.22.144.1:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-load-host-guard-report.json",
+      "line": 41,
+      "text": "      \"url\": \"http://8.8.8.8:8080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-r2-diagnostic-load-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-r3-baseline-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-r3a-baseline-freeze-report.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-r3a-final-report.json",
+      "line": 20,
+      "text": "    \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-r3b-port-owner-audit.json",
+      "line": 11,
+      "text": "      \"LISTEN 0      4096       127.0.0.1:8080      0.0.0.0:*    users:((\\\"server\\\",pid=1100,fd=19))\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-runtime-environment.json",
+      "line": 50,
+      "text": "    \"APP_HTTP_ADDR\": \"127.0.0.1:18080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\p7-v2-runtime-environment.json",
+      "line": 51,
+      "text": "    \"P7_BASE_URL\": \"http://127.0.0.1:18080\",",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P7_V2_LOAD_HOST_GUARD_REPORT.md",
+      "line": 5,
+      "text": "- [passed] localhost-allowed: http://localhost:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P7_V2_LOAD_HOST_GUARD_REPORT.md",
+      "line": 6,
+      "text": "- [passed] 127-allowed: http://127.0.0.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P7_V2_LOAD_HOST_GUARD_REPORT.md",
+      "line": 7,
+      "text": "- [passed] wsl-controlled-allowed: http://172.22.144.1:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P7_V2_LOAD_HOST_GUARD_REPORT.md",
+      "line": 9,
+      "text": "- [passed] public-ip-rejected: http://8.8.8.8:8080",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\P7_V_CURRENT_LOAD_REPORT.md",
+      "line": 8,
+      "text": "| Base URL | http://127.0.0.1:8080/ |",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\PROGRESS.md",
+      "line": 571,
+      "text": "13. **Admin 与 Backend / Collector**：本地需 **Go :8080 + Collector + Postgres**；admin dev 代理 **`/api`** → `8080`。",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\PUBLISH_BATCH_PERF_REPORT.md",
+      "line": 7,
+      "text": ".\\scripts\\publish-batch-perf.ps1 -ApiBase http://127.0.0.1:8080 -OutFile docs/publish-batch-perf.json",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\publish-batch-perf.auto.json",
+      "line": 68,
+      "text": "    \"apiBase\":  \"http://127.0.0.1:8080\"",
+      "classification": "documentation_example"
+    },
+    {
+      "file": "docs\\runs\\p7-v2-current-p7v2-current-r3b-20260714164500.json",
+      "line": 6,
+      "text": "  \"baseUrl\": \"http://127.0.0.1:8080/\",",
+      "classification": "documentation_example"
+    }
+  ],
+  "generatedAt": "2026-07-15T05:04:27.442Z"
+}

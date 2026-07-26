@@ -1,0 +1,20 @@
+{
+  "phase": "P7-C3",
+  "status": "partial",
+  "lists": {
+    "product": {"status": "implemented", "sort": "created_at DESC, id DESC", "cursor": true, "tenantSqlScope": true, "shopScope": "product RBAC scope hash"},
+    "order": {"status": "implemented", "sort": "created_at DESC, id DESC", "cursor": true, "tenantSqlScope": true, "shopScope": "shop_id filter or allowed shop fingerprint"},
+    "inventory": {"status": "implemented", "sort": "sk.updated_at DESC, sk.id DESC", "cursor": true, "tenantSqlScope": true, "shopScope": "explicit shop filter"},
+    "task": {"status": "partial", "sort": "SortKey DESC, ID DESC", "cursor": true, "tenantSqlScope": "source dependent", "gap": "cross-table merge is still not pure SQL keyset"},
+    "webhook": {"status": "implemented", "sort": "created_at DESC, id DESC", "cursor": true, "tenantSqlScope": true, "shopScope": "internal_shop_id filter"},
+    "operationLog": {"status": "implemented", "sort": "created_at DESC, id DESC", "cursor": true, "tenantSqlScope": true, "shopScope": "shop_id filter or allowed shop fingerprint"}
+  },
+  "legacyOffsetGuard": "pagination_offset_too_deep",
+  "cursorErrors": [
+    "pagination_cursor_scope_mismatch",
+    "pagination_cursor_filter_mismatch",
+    "pagination_cursor_signature_invalid",
+    "pagination_cursor_version_unsupported"
+  ]
+}
+

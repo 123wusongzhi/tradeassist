@@ -396,6 +396,73 @@ var rules = []rule{
 		reason:  "抖店商品或规格尚未完成平台绑定。",
 		suggest: "请先在商品详情完成抖店刊登草稿创建，并确认规格映射已写入平台规格编号。",
 	},
+	// P3.1 Douyin closure categories
+	{
+		id: "sub:douyin_webhook_shop_not_resolved", substrs: []string{"DOUYIN_WEBHOOK_SHOP_NOT_RESOLVED", "DOUYIN_WEBHOOK_UNTRUSTED_SHOP_IDENTIFIER"},
+		category: "douyin_webhook_shop_not_resolved", severity: SeverityHigh,
+		reason:  "Webhook 未能解析到可信店铺绑定。",
+		suggest: "请检查抖店店铺授权、平台店铺 ID 与 Webhook 推送内容；不要使用隐式单店铺兜底。",
+	},
+	{
+		id: "sub:douyin_webhook_shop_ambiguous", substrs: []string{"DOUYIN_WEBHOOK_SHOP_AMBIGUOUS"},
+		category: "douyin_webhook_shop_ambiguous", severity: SeverityHigh,
+		reason:  "Webhook 匹配到多个有效店铺绑定，系统已拒绝自动选择。",
+		suggest: "请清理重复绑定或补全 appKey / platformShopId / binding 归属后重新处理。",
+	},
+	{
+		id: "sub:douyin_webhook_binding_mismatch", substrs: []string{"DOUYIN_WEBHOOK_SHOP_BINDING_MISMATCH", "DOUYIN_WEBHOOK_APP_BINDING_MISMATCH"},
+		category: "douyin_webhook_binding_mismatch", severity: SeverityHigh,
+		reason:  "Webhook 声明的 App、Secret 或店铺绑定不一致。",
+		suggest: "请检查抖店应用配置、店铺授权记录与 Webhook 密钥归属。",
+	},
+	{
+		id: "sub:douyin_webhook_tenant_mismatch", substrs: []string{"DOUYIN_WEBHOOK_TENANT_MISMATCH", "tenant_mismatch"},
+		category: "douyin_webhook_tenant_mismatch", severity: SeverityCritical,
+		reason:  "Webhook 归属租户与业务写入租户不一致，系统已阻断处理。",
+		suggest: "请检查店铺绑定租户边界和历史授权数据，确认后再人工处理。",
+	},
+	{
+		id: "sub:douyin_webhook_auth_expired", substrs: []string{"DOUYIN_WEBHOOK_AUTHORIZATION_EXPIRED"},
+		category: "douyin_webhook_authorization_expired", severity: SeverityHigh,
+		reason:  "Webhook 对应店铺授权已过期。",
+		suggest: "请重新连接抖店店铺并完成授权。",
+	},
+	{
+		id: "sub:douyin_webhook_binding_revoked", substrs: []string{"DOUYIN_WEBHOOK_BINDING_REVOKED"},
+		category: "douyin_webhook_binding_revoked", severity: SeverityHigh,
+		reason:  "Webhook 对应店铺绑定已撤销、禁用或失效。",
+		suggest: "请检查店铺绑定状态，必要时重新授权。",
+	},
+	{
+		id: "sub:douyin_order_event_contract", substrs: []string{"DOUYIN_ORDER_EVENT_CONTRACT_MISMATCH", "DOUYIN_ORDER_EVENT_INVALID"},
+		category: "douyin_order_event_contract_mismatch", severity: SeverityMedium,
+		reason:  "订单事件结构与当前适配版本不一致",
+		suggest: "请确认平台权限、方法路径和字段版本",
+	},
+	{
+		id: "sub:douyin_order_event_stale", substrs: []string{"ORDER_STALE_UPDATE_IGNORED"},
+		category: "douyin_order_event_stale", severity: SeverityLow,
+		reason:  "该订单事件早于当前订单状态，已安全忽略",
+		suggest: "无需处理；如频繁出现请检查 Webhook 与轮询时序",
+	},
+	{
+		id: "sub:douyin_im_contract", substrs: []string{"DOUYIN_CONTRACT_VERIFICATION_REQUIRED", "blocked_by_contract_verification"},
+		category: "douyin_im_contract_verification_required", severity: SeverityLow,
+		reason:  "客服接口仍等待平台契约确认",
+		suggest: "适配代码已完成，等待平台契约确认后再启用",
+	},
+	{
+		id: "sub:douyin_brand_contract", substrs: []string{"DOUYIN_BRAND", "brand.list"},
+		category: "douyin_brand_contract_verification_required", severity: SeverityLow,
+		reason:  "品牌接口仍等待平台契约确认",
+		suggest: "可手工填写品牌 ID，或等待平台契约确认",
+	},
+	{
+		id: "sub:ai_apply_reconcile", substrs: []string{"AI_APPLY_RECONCILIATION_CONFLICT"},
+		category: "ai_apply_reconciliation_conflict", severity: SeverityMedium,
+		reason:  "商品已被人工修改，无法自动恢复",
+		suggest: "请人工核对商品内容与 AI 应用记录",
+	},
 	{
 		id: "sub:douyin_inventory_stock", substrs: []string{"DOUYIN_STOCK_INVALID", "stock must be >= 0"},
 		category: CategoryValidationError, severity: SeverityMedium,

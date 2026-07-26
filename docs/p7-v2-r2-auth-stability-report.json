@@ -1,0 +1,32 @@
+{
+  "phase": "P7-V2-R2",
+  "component": "auth-stability",
+  "status": "passed",
+  "cycles": 3,
+  "passedCycles": 3,
+  "failedCycles": 0,
+  "results": [
+    {
+      "cycle": 1,
+      "startExit": 0,
+      "authProbeStatus": "passed",
+      "positiveScenariosFailed": 0,
+      "passed": true
+    },
+    {
+      "cycle": 2,
+      "startExit": 0,
+      "authProbeStatus": "passed",
+      "positiveScenariosFailed": 0,
+      "passed": true
+    },
+    {
+      "cycle": 3,
+      "startExit": 0,
+      "authProbeStatus": "passed",
+      "positiveScenariosFailed": 0,
+      "passed": true
+    }
+  ],
+  "generatedAt": "2026-07-14T09:39:55.848Z"
+}

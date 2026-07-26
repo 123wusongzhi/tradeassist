@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "description": "Synthetic OAuth state fixture — not a real credential",
+  "state": "test-state-abc123",
+  "platform": "douyin_shop",
+  "admin_id": "00000000-0000-0000-0000-000000000001",
+  "created": 1700000000
+}

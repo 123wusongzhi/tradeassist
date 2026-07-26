@@ -15,14 +15,20 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-const defaultBatchMax = 100
+const (
+	defaultBatchMax           = 100
+	errAITextBatchInProgress  = "AI_TEXT_BATCH_IN_PROGRESS"
+	errAITextBatchKeyConflict = "AI_TEXT_BATCH_KEY_CONFLICT"
+)
 
 // detachedGinContext returns a gin copy whose request context survives after the HTTP handler returns.
 func detachedGinContext(c *gin.Context) *gin.Context {
@@ -36,10 +42,12 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 
 // Service orchestrates AI product text batch operations with human review.
 type Service struct {
-	DB       *gorm.DB
-	Settings *settings.Service
-	Products *product.Service
-	OpLog    *operationlog.Service
+	DB          *gorm.DB
+	Settings    *settings.Service
+	Products    *product.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 }
 
 func (s *Service) batchMaxSize(ctx context.Context) int {
@@ -291,6 +299,104 @@ func (s *Service) nextBatchNo(ctx context.Context) (string, error) {
 	return prefix + fmt.Sprintf("%04d", x+1), nil
 }
 
+func batchRequestHashPayload(req CreateBatchRequest, adminID *uuid.UUID, ids []uuid.UUID, ops []string) []byte {
+	idStrs := make([]string, len(ids))
+	for i, id := range ids {
+		idStrs[i] = id.String()
+	}
+	sort.Strings(idStrs)
+	payload := map[string]any{
+		"productIds":     idStrs,
+		"operationTypes": ops,
+		"options":        req.Options,
+	}
+	if adminID != nil {
+		payload["adminId"] = adminID.String()
+	}
+	if k := strings.TrimSpace(req.IdempotencyKey); k != "" {
+		payload["idempotencyKey"] = k
+	}
+	b, _ := json.Marshal(payload)
+	return b
+}
+
+type textBatchAcquire struct {
+	RecordID uuid.UUID
+	Owner    string
+}
+
+func (s *Service) acquireTextBatch(c *gin.Context, ctx context.Context, idemKey string, reqHash []byte) (*textBatchAcquire, *idempotency.AcquireResult, error) {
+	if s == nil || s.Idempotency == nil || idemKey == "" {
+		return nil, nil, nil
+	}
+	owner := "ai-text-batch-create"
+	if c != nil {
+		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
+	}
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIText, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	decision, rec, _ := idempotency.Classify(res, err)
+	switch decision {
+	case idempotency.DecisionAlreadySucceeded:
+		return nil, res, nil
+	case idempotency.DecisionInProgress:
+		return nil, res, fmt.Errorf("%s", errAITextBatchInProgress)
+	case idempotency.DecisionKeyConflict, idempotency.DecisionPermanentFailure:
+		return nil, res, fmt.Errorf("%s", errAITextBatchKeyConflict)
+	case idempotency.DecisionAcquired, idempotency.DecisionRetryAllowed:
+		if rec == nil && res != nil {
+			rec = res.Record
+		}
+		if rec == nil {
+			return nil, res, fmt.Errorf("idempotency: missing record")
+		}
+		return &textBatchAcquire{RecordID: rec.ID, Owner: owner}, res, nil
+	default:
+		return nil, res, err
+	}
+}
+
+func (s *Service) completeTextBatchCreate(ctx context.Context, job *textBatchAcquire, batchID uuid.UUID) error {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return nil
+	}
+	summary, _ := json.Marshal(map[string]string{"batchId": batchID.String()})
+	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
+		ResponseCode:    "AI_TEXT_BATCH_CREATED",
+		ResponseSummary: string(summary),
+		ResourceType:    "ai_product_text_batch",
+		ResourceID:      batchID.String(),
+	})
+}
+
+func (s *Service) failTextBatchCreate(ctx context.Context, job *textBatchAcquire, code string, retryable bool) {
+	if s == nil || s.Idempotency == nil || job == nil {
+		return
+	}
+	_ = s.Idempotency.Fail(ctx, job.RecordID, job.Owner, code, retryable)
+}
+
+func (s *Service) resolveExistingTextBatch(ctx context.Context, res *idempotency.AcquireResult, idemKey string) (*AIProductTextBatch, error) {
+	rid := ""
+	if res != nil {
+		rid = res.ResourceID
+		if rid == "" && res.Record != nil {
+			rid = res.Record.ResourceID
+		}
+	}
+	if rid != "" {
+		if bid, err := uuid.Parse(rid); err == nil {
+			if batch, err := s.GetBatchByID(ctx, bid); err == nil {
+				return batch, nil
+			}
+		}
+	}
+	var existing AIProductTextBatch
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+		return &existing, nil
+	}
+	return nil, fmt.Errorf("%s", errAITextBatchInProgress)
+}
+
 func summarizeInput(ops []string, opts TextGenerationOptions) map[string]any {
 	return map[string]any{
 		"batchType":      BatchTypeAIText,
@@ -348,6 +454,7 @@ func sourceHashForProduct(p *product.Product, op string) string {
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductTextBatch, error) {
 	ctx := c.Request.Context()
 	if !s.aiConfigured() {
+		s.ObserveAIText("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 服务未配置")
 	}
 	ids, err := parseProductIDs(req.ProductIDs)
@@ -369,6 +476,14 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	if idemKey == "" {
 		idemKey = buildIdempotencyKey(adminID, ids, ops, req.Options)
 	}
+	reqHash := batchRequestHashPayload(req, adminID, ids, ops)
+	idemJob, replayRes, acqErr := s.acquireTextBatch(c, ctx, idemKey, reqHash)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if idemJob == nil && replayRes != nil {
+		return s.resolveExistingTextBatch(ctx, replayRes, idemKey)
+	}
 	var existing AIProductTextBatch
 	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
 		return &existing, nil
@@ -378,6 +493,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 
 	batchNo, err := s.nextBatchNo(ctx)
 	if err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
 		return nil, err
 	}
 	inJSON, _ := json.Marshal(summarizeInput(ops, req.Options))
@@ -395,6 +511,8 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		StartedAt:      &now,
 	}
 	if err := s.DB.WithContext(ctx).Create(batch).Error; err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
+		s.ObserveAIText("internal", "batch_create", "batch", "failure", "database", 0)
 		return nil, err
 	}
 
@@ -419,6 +537,11 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		}
 	}
 	if err := s.DB.WithContext(ctx).CreateInBatches(&items, 50).Error; err != nil {
+		s.failTextBatchCreate(ctx, idemJob, "AI_TEXT_BATCH_CREATE_FAILED", true)
+		return nil, err
+	}
+
+	if err := s.completeTextBatchCreate(ctx, idemJob, batch.ID); err != nil {
 		return nil, err
 	}
 
@@ -433,6 +556,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		})
 	}
 
+	s.ObserveAIText("internal", "batch_create", "batch", "success", "", 0)
 	go s.runGeneration(detachedGinContext(c), batch.ID, ids, ops, req.Options, adminID)
 	return batch, nil
 }
@@ -474,6 +598,7 @@ func (s *Service) runGeneration(c *gin.Context, batchID uuid.UUID, ids []uuid.UU
 
 func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op string, titleBody product.OptimizeTitleBody, descBody product.GenerateDescriptionBody, opts TextGenerationOptions, adminID *uuid.UUID) {
 	ctx := c.Request.Context()
+	start := time.Now()
 	var item AIProductTextItem
 	if err := s.DB.WithContext(ctx).
 		Where("batch_id = ? AND product_id = ? AND operation_type = ?", batchID, productID, op).
@@ -520,7 +645,13 @@ func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op st
 		updates["status"] = ItemFailed
 		updates["error_message"] = truncateMsg(runErr.Error(), 500)
 		updates["error_code"] = "generation_failed"
+		if isAITextTimeout(runErr.Error()) {
+			s.ObserveAIText("configured", op, "timeout", "timeout", "provider_timeout", time.Since(start))
+		} else {
+			s.ObserveAIText("configured", op, "failure", "failure", classifyAITextError(runErr.Error()), time.Since(start))
+		}
 	} else {
+		s.ObserveAIText("configured", op, "request", "success", "", time.Since(start))
 		var p product.Product
 		_ = s.DB.WithContext(ctx).Select("title").First(&p, "id = ?", productID).Error
 		warnings := checkTitleQuality(generatedText, opts, opts.ForbiddenWords)
@@ -537,7 +668,7 @@ func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op st
 			}
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).Where("id = ?", item.ID).Updates(updates).Error
+	_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
 }
 
 func truncateMsg(s string, max int) string {
@@ -903,13 +1034,15 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		ItemID:    item.ID.String(),
 		ProductID: item.ProductID.String(),
 	}
-	if item.Status == ItemApplied {
+	ctx := c.Request.Context()
+	allowReplay := item.Status == ItemApplied && s.Idempotency != nil
+	if item.Status == ItemApplied && !allowReplay {
 		result.Status = ItemConflict
 		result.StatusLabel = itemStatusLabel(ItemConflict)
 		result.ErrorMessage = "该结果已应用，不能重复应用"
 		return result
 	}
-	if item.Status != ItemPendingReview && item.Status != ItemSuccess {
+	if !allowReplay && item.Status != ItemPendingReview && item.Status != ItemSuccess {
 		result.Status = "failed"
 		result.StatusLabel = "失败"
 		result.ErrorMessage = "当前状态不可应用"
@@ -934,10 +1067,85 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		result.ErrorMessage = "缺少 AI 任务关联"
 		return result
 	}
-	expectedAt := ""
-	if item.ProductUpdatedAt != nil {
-		expectedAt = item.ProductUpdatedAt.UTC().Format(time.RFC3339Nano)
+
+	var prod product.Product
+	if err := s.DB.WithContext(ctx).First(&prod, "id = ?", item.ProductID).Error; err != nil {
+		result.Status = "failed"
+		result.StatusLabel = "失败"
+		result.ErrorMessage = err.Error()
+		return result
 	}
+	currentVersion := prod.UpdatedAt.UTC().Format(time.RFC3339Nano)
+	targetVersion := currentVersion
+	if item.ProductUpdatedAt != nil {
+		targetVersion = item.ProductUpdatedAt.UTC().Format(time.RFC3339Nano)
+		if !allowReplay && !textVersionMatches(*item.ProductUpdatedAt, prod.UpdatedAt) {
+			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
+			result.Status = ItemConflict
+			result.StatusLabel = itemStatusLabel(ItemConflict)
+			result.ErrorCode = ErrCodeTargetVersionConflict
+			result.ErrorMessage = ErrCodeTargetVersionConflict + ": " + ConflictUserMessage
+			return result
+		}
+	}
+
+	resultHash := contentHash(applyText)
+	owner := applyIdempotencyOwner(c, "ai-text-apply")
+	idemJob, replayRes, acqErr := s.acquireTextApply(ctx, owner, item.BatchID.String(), item.ID.String(), item.ProductID.String(), targetVersion, item.OperationType, resultHash)
+	if acqErr != nil {
+		code := acqErr.Error()
+		if code == idempotency.ErrCodeInProgress {
+			result.Status = ItemProcessing
+			result.StatusLabel = "处理中"
+			result.ErrorCode = idempotency.ErrCodeInProgress
+			result.ErrorMessage = idempotency.ErrCodeInProgress
+			return result
+		}
+		if code == idempotency.ErrCodeKeyConflict {
+			result.Status = ItemConflict
+			result.StatusLabel = itemStatusLabel(ItemConflict)
+			result.ErrorCode = idempotency.ErrCodeKeyConflict
+			result.ErrorMessage = idempotency.ErrCodeKeyConflict
+			return result
+		}
+		result.Status = "failed"
+		result.StatusLabel = "失败"
+		result.ErrorMessage = code
+		return result
+	}
+	if idemJob != nil {
+		ok, reconcileErr := s.ReconcileTextApply(ctx, idemJob, item)
+		if ok {
+			result.Status = ItemApplied
+			result.StatusLabel = itemStatusLabel(ItemApplied)
+			s.ObserveAIText("internal", item.OperationType, "reconcile", "success", "", 0)
+			return result
+		}
+		if reconcileErr != nil && strings.Contains(reconcileErr.Error(), product.CodeAIApplyReconciliationConflict) {
+			s.ObserveAIText("internal", item.OperationType, "reconcile", "failure", "conflict", 0)
+			result.Status = ItemConflict
+			result.StatusLabel = itemStatusLabel(ItemConflict)
+			result.ErrorCode = product.CodeAIApplyReconciliationConflict
+			result.ErrorMessage = reconcileErr.Error()
+			return result
+		}
+	}
+	if idemJob == nil && replayRes != nil {
+		var refreshed AIProductTextItem
+		_ = s.DB.WithContext(ctx).First(&refreshed, "id = ?", item.ID).Error
+		result.Status = ItemApplied
+		result.StatusLabel = itemStatusLabel(ItemApplied)
+		if refreshed.Status == ItemApplied {
+			return result
+		}
+		// Replay of a completed apply even if item row is stale.
+		result.Status = ItemApplied
+		result.StatusLabel = itemStatusLabel(ItemApplied)
+		return result
+	}
+
+	expectedAt := currentVersion
 	var err error
 	switch item.OperationType {
 	case OpTitle:
@@ -960,19 +1168,24 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 	if err != nil {
 		msg := err.Error()
 		if strings.Contains(msg, "content conflict") {
-			_ = s.DB.WithContext(c.Request.Context()).Model(item).Update("status", ItemConflict).Error
+			s.failTextApply(ctx, idemJob, ErrCodeTargetVersionConflict, false)
+			_ = s.DB.WithContext(ctx).Model(item).Update("status", ItemConflict).Error
+			s.ObserveAIText("internal", item.OperationType, "apply_conflict", "failure", ErrCodeTargetVersionConflict, 0)
 			result.Status = ItemConflict
 			result.StatusLabel = itemStatusLabel(ItemConflict)
-			result.ErrorMessage = ConflictUserMessage
+			result.ErrorCode = ErrCodeTargetVersionConflict
+			result.ErrorMessage = ErrCodeTargetVersionConflict + ": " + ConflictUserMessage
 			return result
 		}
+		s.failTextApply(ctx, idemJob, "AI_TEXT_APPLY_FAILED", true)
+		s.ObserveAIText("internal", item.OperationType, "apply", "failure", "apply_failed", 0)
 		result.Status = "failed"
 		result.StatusLabel = "失败"
 		result.ErrorMessage = msg
 		return result
 	}
 	var app product.ProductAIContentApplication
-	_ = s.DB.WithContext(c.Request.Context()).
+	_ = s.DB.WithContext(ctx).
 		Where("product_id = ? AND ai_task_id = ? AND status = ?", item.ProductID, item.AITaskID, product.AIContentApplyStatusApplied).
 		Order("applied_at DESC").First(&app).Error
 	now := time.Now().UTC()
@@ -981,13 +1194,43 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		"applied_at": &now,
 		"applied_by": adminID,
 	}
+	appID := ""
 	if app.ID != uuid.Nil {
 		updates["application_id"] = app.ID
+		appID = app.ID.String()
 	}
-	_ = s.DB.WithContext(c.Request.Context()).Model(item).Updates(updates).Error
+	_ = s.DB.WithContext(ctx).Model(item).Updates(updates).Error
+
+	var after product.Product
+	_ = s.DB.WithContext(ctx).Select("updated_at").First(&after, "id = ?", item.ProductID).Error
+	summary := map[string]string{
+		"batchId":       item.BatchID.String(),
+		"itemId":        item.ID.String(),
+		"productId":     item.ProductID.String(),
+		"beforeVersion": targetVersion,
+		"afterVersion":  after.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		"applicationId": appID,
+	}
+	_ = s.completeTextApply(ctx, idemJob, summary, appID)
+
 	result.Status = ItemApplied
 	result.StatusLabel = itemStatusLabel(ItemApplied)
+	s.ObserveAIText("internal", item.OperationType, "apply", "success", "", 0)
 	return result
+}
+
+func textVersionMatches(expected, current time.Time) bool {
+	// Same truncated second: rejects post-apply / post-edit bumps while tolerating DB rounding.
+	return expected.UTC().Truncate(time.Second).Equal(current.UTC().Truncate(time.Second))
+}
+
+func applyIdempotencyOwner(c *gin.Context, prefix string) string {
+	if c != nil {
+		if rid := strings.TrimSpace(c.GetString("requestId")); rid != "" {
+			return rid
+		}
+	}
+	return prefix + ":" + uuid.New().String()
 }
 
 // ApplyItem applies one reviewed item with conflict protection.
@@ -1060,41 +1303,121 @@ func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	}
 	summary := &UndoAppliedSummary{Items: []ApplyItemResult{}}
 	for _, item := range items {
+		owner := applyIdempotencyOwner(c, "ai-text-undo")
 		fieldType := product.AIContentFieldTitle
 		if item.OperationType == OpDescription {
 			fieldType = product.AIContentFieldDescription
-		}
-		expectedAt := ""
-		if item.ProductUpdatedAt != nil {
-			expectedAt = item.ProductUpdatedAt.UTC().Format(time.RFC3339Nano)
 		}
 		appID := ""
 		if item.ApplicationID != nil {
 			appID = item.ApplicationID.String()
 		}
-		_, err := s.Products.UndoAIContent(c, item.ProductID, fieldType, product.UndoAIContentBody{
-			ApplicationID:     appID,
-			ExpectedUpdatedAt: expectedAt,
-		}, adminID)
 		r := ApplyItemResult{
 			ItemID:    item.ID.String(),
 			ProductID: item.ProductID.String(),
 		}
+		if appID == "" {
+			r.Status = "failed"
+			r.StatusLabel = "失败"
+			r.ErrorMessage = "缺少应用记录"
+			summary.FailedCount++
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+
+		var prod product.Product
+		if err := s.DB.WithContext(ctx).First(&prod, "id = ?", item.ProductID).Error; err != nil {
+			r.Status = "failed"
+			r.StatusLabel = "失败"
+			r.ErrorMessage = err.Error()
+			summary.FailedCount++
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+		var app product.ProductAIContentApplication
+		if err := s.DB.WithContext(ctx).First(&app, "id = ?", *item.ApplicationID).Error; err != nil {
+			r.Status = "failed"
+			r.StatusLabel = "失败"
+			r.ErrorMessage = err.Error()
+			summary.FailedCount++
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+		curVal := ""
+		switch fieldType {
+		case product.AIContentFieldTitle:
+			curVal = strings.TrimSpace(prod.AITitle)
+		case product.AIContentFieldDescription:
+			curVal = strings.TrimSpace(prod.AIDescription)
+		}
+		if curVal != strings.TrimSpace(app.AppliedValue) {
+			_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemConflict).Error
+			r.Status = ItemConflict
+			r.StatusLabel = itemStatusLabel(ItemConflict)
+			r.ErrorCode = ErrCodeUndoVersionConflict
+			r.ErrorMessage = ErrCodeUndoVersionConflict + ": 商品内容已变化，无法撤销"
+			summary.ConflictCount++
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+
+		targetVersion := prod.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		idemJob, replayRes, acqErr := s.acquireTextUndo(ctx, owner, appID, targetVersion)
+		if acqErr != nil {
+			code := acqErr.Error()
+			if code == idempotency.ErrCodeInProgress {
+				r.Status = ItemProcessing
+				r.StatusLabel = "处理中"
+				r.ErrorCode = idempotency.ErrCodeInProgress
+				r.ErrorMessage = idempotency.ErrCodeInProgress
+				summary.FailedCount++
+			} else if code == idempotency.ErrCodeKeyConflict {
+				r.Status = ItemConflict
+				r.StatusLabel = itemStatusLabel(ItemConflict)
+				r.ErrorCode = idempotency.ErrCodeKeyConflict
+				r.ErrorMessage = idempotency.ErrCodeKeyConflict
+				summary.ConflictCount++
+			} else {
+				r.Status = "failed"
+				r.StatusLabel = "失败"
+				r.ErrorMessage = code
+				summary.FailedCount++
+			}
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+		if idemJob == nil && replayRes != nil {
+			r.Status = "undone"
+			r.StatusLabel = "已撤销"
+			summary.SuccessCount++
+			summary.Items = append(summary.Items, r)
+			continue
+		}
+
+		_, err := s.Products.UndoAIContent(c, item.ProductID, fieldType, product.UndoAIContentBody{
+			ApplicationID: appID,
+			// Empty ExpectedUpdatedAt: UndoAIContent already verifies AppliedValue match.
+			ExpectedUpdatedAt: "",
+		}, adminID)
 		if err != nil {
 			msg := err.Error()
-			if strings.Contains(msg, "content conflict") {
+			if strings.Contains(msg, "content conflict") || strings.Contains(msg, "AI field changed") {
+				s.failTextUndo(ctx, idemJob, ErrCodeUndoVersionConflict, false)
 				_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemConflict).Error
 				r.Status = ItemConflict
 				r.StatusLabel = itemStatusLabel(ItemConflict)
-				r.ErrorMessage = "商品内容已变化，无法撤销"
+				r.ErrorCode = ErrCodeUndoVersionConflict
+				r.ErrorMessage = ErrCodeUndoVersionConflict + ": 商品内容已变化，无法撤销"
 				summary.ConflictCount++
 			} else {
+				s.failTextUndo(ctx, idemJob, "AI_TEXT_UNDO_FAILED", true)
 				r.Status = "failed"
 				r.StatusLabel = "失败"
 				r.ErrorMessage = msg
 				summary.FailedCount++
 			}
 		} else {
+			_ = s.completeTextUndo(ctx, idemJob, appID)
 			_ = s.DB.WithContext(ctx).Model(&item).Updates(map[string]any{
 				"status": ItemPendingReview, "application_id": nil, "applied_at": nil, "applied_by": nil,
 			}).Error

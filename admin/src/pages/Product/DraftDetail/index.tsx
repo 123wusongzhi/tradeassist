@@ -1,16 +1,29 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, Key, ReactNode } from 'react';
 import type { UploadRequestOption } from 'rc-upload/lib/interface';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
-import { SectionCard, TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
+import {
+  OperationToolbar,
+  EmptyState,
+  ErrorAlert,
+  MetricCard,
+  SectionCard,
+  StatusTag,
+  TmPageContainer,
+  TechnicalDetails,
+  TaskJsonBlock,
+  TmProTable as ProTable,
+} from '@/components/ui';
 import { commonStatusLabel, publishModeLabel, readinessLevelLabel } from '@/constants/copywriting';
 import { formatUserErrorMessage } from '@/constants/errorMessages';
+import { layoutTokens } from '@/constants/layoutTokens';
 import MultiPlatformPublishCenter from '@/components/MultiPlatformPublishCenter';
 import {
   localizeCollectWarningCode,
   localizePublishCheckItem,
   readinessStatusLabel,
 } from '@/constants/productOperationLabels';
+import { aiPromptCodeLabel, aiTaskTypeLabel, aiTextProviderLabel } from '@/constants/aiPrompts';
 import { platformDisplayLabel } from '@/constants/platformLabels';
 import { getProductReadinessAction } from '@/constants/productReadinessActions';
 import { EditableProTable, ModalForm, ProForm, ProFormDigit, ProFormSelect, ProFormText, ProFormTextArea } from '@ant-design/pro-components';
@@ -27,6 +40,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Popover,
   Radio,
   Row,
   Select,
@@ -55,11 +69,18 @@ import {
   CloudUploadOutlined,
   ReloadOutlined,
   EyeOutlined,
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  FileTextOutlined,
+  UndoOutlined,
+  EditOutlined,
+  MoreOutlined,
+  TranslationOutlined,
 } from '@ant-design/icons';
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
 import { isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import {
   PRODUCT_IMAGE_OBJECT_KEY_LABEL,
@@ -153,6 +174,19 @@ import {
   type InventoryChangeLogRow,
   type PublicationSkuListingRow,
 } from '@/services/inventory';
+import InventorySyncDisabledBanner from '@/components/inventory/InventorySyncDisabledBanner';
+import { usePermission } from '@/hooks/usePermission';
+import {
+  confirmApplyAiText,
+  confirmCreatePlatformDraft,
+  confirmInventoryManualAdjust,
+  confirmInventorySync,
+  confirmPlatformPublishConfigSave,
+  confirmSkuManualBind,
+  confirmSkuUnbind,
+  confirmUndoAiText,
+} from '@/constants/sensitiveActions';
+import './index.less';
 
 function inventorySyncRunnable(cap?: string): boolean {
   const c = (cap || '').trim().toLowerCase();
@@ -332,6 +366,30 @@ function formatInventorySyncTaskCreateError(e: unknown): string {
 }
 type SKUEditable = ProductSKURow & { attrsText?: string };
 
+function skuTextCell(value?: string | null, fallback = '—'): ReactNode {
+  const text = String(value ?? '').trim();
+  if (!text) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
+  return (
+    <Tooltip title={text}>
+      <Typography.Text className="product-draft-skus__text-cell">{text}</Typography.Text>
+    </Tooltip>
+  );
+}
+
+function skuPriceCell(value?: number | null): ReactNode {
+  return typeof value === 'number' ? value.toFixed(2) : <Typography.Text type="secondary">—</Typography.Text>;
+}
+
+function skuAttrsCell(value?: string | null): ReactNode {
+  const text = String(value ?? '').trim();
+  if (!text) return <Typography.Text type="secondary">未填写</Typography.Text>;
+  return (
+    <Tooltip title={text}>
+      <Typography.Paragraph className="product-draft-skus__attrs-cell">{text}</Typography.Paragraph>
+    </Tooltip>
+  );
+}
+
 const PRODUCT_STATUS_OPTIONS = Object.entries(PRODUCT_STATUS).map(([value, v]) => ({
   label: v.text,
   value,
@@ -342,6 +400,41 @@ const IMAGE_TYPE_OPTIONS = [
   { label: '详情图', value: 'detail' },
   { label: '规格图', value: 'sku' },
 ];
+
+function isAiTaskFailed(row?: AITaskRow | null): boolean {
+  return String(row?.status || '').toLowerCase() === 'failed';
+}
+
+function aiTaskNextStep(row?: AITaskRow | null): string {
+  const raw = String(row?.errorMessage || '').trim();
+  const text = raw.toLowerCase();
+  if (!row) return '暂无需要处理的失败任务。';
+  if (/quota|credit|balance|billing|insufficient|limit|rate/.test(text)) {
+    return '请检查 AI 设置中的模型额度、限流或计费状态，确认后重新生成。';
+  }
+  if (/timeout|network|connection|connect|econn|gateway|502|503|504/.test(text)) {
+    return '请检查 AI 服务连接状态，稍后重新生成。';
+  }
+  if (/api key|apikey|unauthorized|401|403|permission|forbidden/.test(text)) {
+    return '请检查 AI API Key、Base URL 和模型权限后重新生成。';
+  }
+  if (/parse|json|format|schema/.test(text)) {
+    return '模型返回格式不符合预期，建议重新生成；若反复出现，请检查默认 Prompt 模板。';
+  }
+  return '请根据失败原因检查 AI 设置或商品内容，确认后重新生成。';
+}
+
+function aiTaskCostText(row: AITaskRow): string {
+  const input = row.tokenInput ?? 0;
+  const output = row.tokenOutput ?? 0;
+  return `${input}/${output}`;
+}
+
+function aiTextPreview(text?: string | null, fallback = '暂无内容'): ReactNode {
+  const value = String(text || '').trim();
+  if (!value) return <Typography.Text type="secondary">{fallback}</Typography.Text>;
+  return <Typography.Paragraph className="product-draft-ai__preview-text">{value}</Typography.Paragraph>;
+}
 
 function attrsToText(attrs?: Record<string, unknown>): string {
   if (!attrs || typeof attrs !== 'object') return '';
@@ -361,6 +454,22 @@ function imageTypeLabel(t: string): string {
   return t;
 }
 
+function productImageUrl(row: ProductImageRow): string {
+  return (row.publicUrl || row.originUrl || '').trim();
+}
+
+function isMainProductImage(row: ProductImageRow): boolean {
+  return row.imageType === 'main';
+}
+
+function isDetailProductImage(row: ProductImageRow): boolean {
+  return row.imageType === 'detail' || row.imageType === 'description';
+}
+
+function isSyncedProductImage(row: ProductImageRow): boolean {
+  return !!String(row.objectKey || row.storageKey || '').trim();
+}
+
 const IMAGE_META_TAG_STYLE: CSSProperties = {
   margin: 0,
   fontSize: 12,
@@ -369,8 +478,49 @@ const IMAGE_META_TAG_STYLE: CSSProperties = {
   borderRadius: 4,
 };
 
+function ProductImagePreviewCell({ row }: { row: ProductImageRow }) {
+  const [failed, setFailed] = useState(false);
+  const url = productImageUrl(row);
+
+  if (!url || failed) {
+    return (
+      <div className="product-draft-images__thumb product-draft-images__thumb--empty">
+        <PictureOutlined />
+        <Typography.Text type="secondary">{url ? '加载失败' : '无图片'}</Typography.Text>
+      </div>
+    );
+  }
+
+  return (
+    <div className="product-draft-images__thumb-wrap" onClick={(event) => event.stopPropagation()}>
+      <Image
+        src={url}
+        width={64}
+        height={64}
+        preview={{ src: url }}
+        className="product-draft-images__thumb-image"
+        onError={() => setFailed(true)}
+      />
+    </div>
+  );
+}
+
 function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
   const tags: ReactNode[] = [];
+  if (isMainProductImage(row)) {
+    tags.push(
+      <Tag key="main" color="blue" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        主图
+      </Tag>,
+    );
+  }
+  if (isDetailProductImage(row)) {
+    tags.push(
+      <Tag key="detail" color="cyan" bordered={false} style={IMAGE_META_TAG_STYLE}>
+        详情图
+      </Tag>,
+    );
+  }
   if (row.isBestMain) {
     tags.push(
       <Tag key="best" color="gold" bordered={false} style={IMAGE_META_TAG_STYLE}>
@@ -407,11 +557,38 @@ function ProductImageMetaTags({ row }: { row: ProductImageRow }) {
 
 function ProductImageTypeCell({ row }: { row: ProductImageRow }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0' }}>
-      <Typography.Text strong style={{ fontSize: 13, lineHeight: '20px' }}>
+    <div className="product-draft-images__type-cell">
+      <Typography.Text strong className="product-draft-images__type-title">
         {imageTypeLabel(String(row.imageType ?? ''))}
       </Typography.Text>
       <ProductImageMetaTags row={row} />
+    </div>
+  );
+}
+
+function ProductImageSourceCell({ row }: { row: ProductImageRow }) {
+  const synced = isSyncedProductImage(row);
+  const source = String(row.source || '').trim();
+  const sourceLabel = source === 'ai' ? 'AI 处理图' : source === 'upload' ? '手动上传' : source === 'collect' ? '采集来源' : source || '来源未记录';
+  const storageKey = String(row.objectKey || row.storageKey || '').trim();
+
+  return (
+    <div className="product-draft-images__source-cell">
+      <Space size={[6, 4]} wrap>
+        <Tag bordered={false}>{sourceLabel}</Tag>
+        <Tag color={synced ? 'success' : 'default'} bordered={false}>
+          {synced ? '已同步' : '未同步'}
+        </Tag>
+      </Space>
+      {storageKey ? (
+        <Typography.Text type="secondary" className="product-draft-images__source-key" title={storageKey}>
+          {storageKey}
+        </Typography.Text>
+      ) : (
+        <Typography.Text type="secondary" className="product-draft-images__source-key">
+          暂无存储标识
+        </Typography.Text>
+      )}
     </div>
   );
 }
@@ -432,6 +609,7 @@ function draftStockStatusTag(raw?: string) {
 /** When stock_status 尚未落库，用阈值在前端推导展示（与后端 CalculateSKUStockStatus 一致）。 */
 function effectiveStockStatus(r: ProductSKURow): string {
   if (r.stockStatus) return r.stockStatus;
+  if (typeof r.stock !== 'number') return '';
   const stock = typeof r.stock === 'number' ? r.stock : 0;
   const warn = typeof r.warningStock === 'number' ? r.warningStock : 5;
   const safe = typeof r.safetyStock === 'number' ? r.safetyStock : 0;
@@ -498,6 +676,15 @@ function readinessCheckList(items: ReadinessCheckItem[], limit?: number) {
 }
 
 const PRODUCT_DRAFT_TABS = new Set(['basic', 'ai', 'images', 'skus', 'inventory', 'readiness', 'publish']);
+const PRODUCT_DRAFT_TAB_LABELS: Record<string, string> = {
+  basic: '基础信息',
+  ai: 'AI',
+  images: '图片管理',
+  skus: '商品规格',
+  inventory: '库存',
+  readiness: '发布检查',
+  publish: '刊登',
+};
 
 function tabFromOperationUrl(raw?: string): string | null {
   if (!raw) return null;
@@ -544,7 +731,13 @@ function OperationProgressPanel({
     return (
       <SectionCard
         title="商品运营进度"
-        headerExtra={<Button icon={<ReloadOutlined />} onClick={onReload}>重新加载</Button>}
+        description="商品内容仍可以正常编辑。"
+        className="product-draft-progress product-draft-progress--error"
+        headerExtra={
+          <Button icon={<ReloadOutlined />} onClick={onReload}>
+            重新加载
+          </Button>
+        }
       >
         <Alert
           type="warning"
@@ -558,9 +751,16 @@ function OperationProgressPanel({
 
   if (!progress) {
     return (
-      <SectionCard title="商品运营进度">
+      <SectionCard
+        title="商品运营进度"
+        description="根据商品内容、图片、价格和发布检查实时计算。"
+        className="product-draft-progress product-draft-progress--loading"
+      >
         <Spin spinning={loading}>
-          <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+          <div className="product-draft-progress__loading">
+            <Progress percent={0} showInfo={false} />
+            <Typography.Text type="secondary">正在计算商品运营进度...</Typography.Text>
+          </div>
         </Spin>
       </SectionCard>
     );
@@ -575,44 +775,78 @@ function OperationProgressPanel({
       severity: 'warning' as const,
     })),
   ].slice(0, 5);
+  const blockerCount = progress.blockerCount ?? progress.blockers?.length ?? 0;
+  const warningCount = progress.warningCount ?? progress.warnings?.length ?? 0;
+  const priorityTone = blockerCount > 0 ? 'danger' : warningCount > 0 ? 'warning' : progress.publishReady ? 'ready' : 'default';
 
   return (
     <SectionCard
-      title="商品运营进度"
+      title={
+        <div className="product-draft-progress__title">
+          <span>商品运营进度</span>
+          <Tag color={blockerCount > 0 ? 'red' : warningCount > 0 ? 'orange' : progress.publishReady ? 'green' : 'blue'}>
+            {blockerCount > 0 ? '存在阻断' : warningCount > 0 ? '建议检查' : progress.publishReady ? '可进入刊登' : '继续完善'}
+          </Tag>
+        </div>
+      }
+      description="用来判断当前商品能否进入发布检查和刊登。"
+      className={`product-draft-progress product-draft-progress--${priorityTone}`}
       headerExtra={
-        <Space wrap>
+        <OperationToolbar>
           <Button icon={<ReloadOutlined />} onClick={onReload} loading={loading}>
             刷新
           </Button>
           <Button type="primary" onClick={() => onAction(progress.nextActionUrl)}>
             {progress.nextActionLabel || '继续完善'}
           </Button>
-        </Space>
+        </OperationToolbar>
       }
     >
       <Spin spinning={loading}>
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={7}>
-            <Progress percent={progress.completionPercent ?? 0} status={progress.publishReady ? 'success' : 'active'} />
+        <div className="product-draft-progress__priority">
+          <div>
+            <Typography.Text type="secondary">下一步</Typography.Text>
+            <Typography.Text strong>{progress.nextActionLabel || progress.currentStepLabel || '继续完善'}</Typography.Text>
+          </div>
+          <Button type="link" className="product-draft-progress__priority-action" onClick={() => onAction(progress.nextActionUrl)}>
+            进入处理位置
+          </Button>
+        </div>
+        <div className="product-draft-progress__grid">
+          <div className="product-draft-progress__meter">
+            <div className="product-draft-progress__meter-head">
+              <Typography.Text type="secondary">运营完成度</Typography.Text>
+              <Typography.Text strong>{progress.completionPercent ?? 0}%</Typography.Text>
+            </div>
+            <Progress
+              percent={progress.completionPercent ?? 0}
+              status={progress.publishReady ? 'success' : 'active'}
+              showInfo={false}
+            />
             <Typography.Text type="secondary">完成度由商品内容、图片、价格和发布检查实时计算。</Typography.Text>
-          </Col>
-          <Col xs={24} md={17}>
-            <Descriptions size="small" column={{ xs: 1, md: 3 }} bordered>
-              <Descriptions.Item label="当前需要">
-                <Tag color={operationStepColor(progress.currentStep)}>{progress.currentStepLabel || '继续完善'}</Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="阻断问题">{progress.blockerCount ?? progress.blockers?.length ?? 0}</Descriptions.Item>
-              <Descriptions.Item label="建议检查">{progress.warningCount ?? progress.warnings?.length ?? 0}</Descriptions.Item>
-            </Descriptions>
-          </Col>
-        </Row>
+          </div>
+          <div className="product-draft-progress__summary" aria-label="商品运营状态概览">
+            <div className="product-draft-progress__metric">
+              <span>当前需要</span>
+              <Tag color={operationStepColor(progress.currentStep)}>{progress.currentStepLabel || '继续完善'}</Tag>
+            </div>
+            <div className="product-draft-progress__metric">
+              <span>阻断问题</span>
+              <strong>{blockerCount}</strong>
+            </div>
+            <div className="product-draft-progress__metric">
+              <span>建议检查</span>
+              <strong>{warningCount}</strong>
+            </div>
+          </div>
+        </div>
         {issues.length ? (
-          <div style={{ marginTop: 16 }}>
+          <div className="product-draft-progress__issues">
             <Typography.Text strong>还需处理</Typography.Text>
-            <Space direction="vertical" style={{ width: '100%', marginTop: 8 }} size={6}>
-              {issues.map((x) => (
+            <Space direction="vertical" style={{ width: '100%' }} size={6}>
+              {issues.map((x, index) => (
                 <Alert
-                  key={`${x.code}-${x.title}`}
+                  key={`${x.code}-${x.title}-${x.severity}-${index}`}
                   type={x.severity === 'failed' ? 'error' : 'warning'}
                   showIcon
                   message={x.title}
@@ -620,7 +854,12 @@ function OperationProgressPanel({
                     <Space direction="vertical" size={4}>
                       <Typography.Text>{x.message}</Typography.Text>
                       {x.actionUrl ? (
-                        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => onAction(x.actionUrl)}>
+                        <Button
+                          type="link"
+                          size="small"
+                          className="product-draft-progress__issue-action"
+                          onClick={() => onAction(x.actionUrl)}
+                        >
                           {x.actionLabel || '去处理'}
                         </Button>
                       ) : null}
@@ -699,10 +938,10 @@ function douyinBindStatusTag(status?: string) {
 function douyinBindStatusHint(status?: string): string {
   const st = String(status || '').toLowerCase();
   if (st === 'bound' || st === 'skipped') return '已绑定，可同步库存。';
-  if (st === 'unmatched') return '未匹配到抖店规格，请手动绑定后再同步库存。';
-  if (st === 'ambiguous') return '找到多个可能的抖店规格，请人工确认。';
-  if (st === 'failed') return '校准失败，请稍后重试或手动绑定。';
-  return '尚未校准，请先执行校准或手动绑定。';
+  if (st === 'unmatched') return '未匹配到抖店规格，请到刊登 Tab 管理绑定后再同步库存。';
+  if (st === 'ambiguous') return '找到多个可能的抖店规格，请到刊登 Tab 确认绑定。';
+  if (st === 'failed') return '校准失败，请到刊登 Tab 重新校准或管理绑定。';
+  return '尚未校准，请先到刊登 Tab 执行校准或管理绑定。';
 }
 
 function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
@@ -712,6 +951,23 @@ function douyinSkuSyncBlocked(row: PublicationSkuListingRow): boolean {
   const hasBinding = Boolean((row.externalProductId || '').trim()) && Boolean((row.externalSkuId || '').trim());
   if (!hasBinding) return true;
   return st === 'ambiguous' || st === 'unmatched' || st === 'failed';
+}
+
+function platformSkuValue(value?: string | null, fallback = '—'): ReactNode {
+  const text = String(value || fallback).trim() || fallback;
+  return (
+    <Tooltip title={text}>
+      <Typography.Text className="product-draft-platform-sku__id">{text}</Typography.Text>
+    </Tooltip>
+  );
+}
+
+function platformSkuCandidateStatusTag(row: DouyinPlatformSkuCandidate, currentPublicationSkuId?: string) {
+  if (row.boundToPublicationSkuId && row.boundToPublicationSkuId !== currentPublicationSkuId) {
+    return <Tag color="orange">已绑定其他本地规格</Tag>;
+  }
+  if (row.boundToPublicationSkuId) return <Tag color="blue">已绑定本地规格</Tag>;
+  return <Tag>未绑定</Tag>;
 }
 
 function douyinImageStatusTag(img: DouyinDraftImage) {
@@ -791,6 +1047,7 @@ function InventorySyncPlatformHint({ platform }: { platform?: string }) {
 
 export default function ProductDraftDetailPage() {
   const id = decodeURIComponent(window.location.pathname.split('/').filter(Boolean).pop() ?? '');
+  const { readonly } = usePermission();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ProductDetail | null>(null);
   const [err, setErr] = useState<string>();
@@ -810,9 +1067,12 @@ export default function ProductDraftDetailPage() {
   const [operationProgressError, setOperationProgressError] = useState('');
   const [pendingSection, setPendingSection] = useState<string>('');
   const [skuRows, setSkuRows] = useState<SKUEditable[]>([]);
+  const [skuEditableKeys, setSkuEditableKeys] = useState<Key[]>([]);
   const [imgModalOpen, setImgModalOpen] = useState(false);
   const [imgEdit, setImgEdit] = useState<ProductImageRow | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
+  const [imageSyncingScope, setImageSyncingScope] = useState<'' | 'order' | 'all' | 'main' | 'detail'>('');
+  const [imageSyncError, setImageSyncError] = useState('');
   const [lastUpload, setLastUpload] = useState<{ id: string; url: string; objectKey: string } | null>(null);
   const [createImageOpen, setCreateImageOpen] = useState(false);
   const [createImagePrefill, setCreateImagePrefill] = useState<CreateImageTaskPrefill>({});
@@ -822,6 +1082,7 @@ export default function ProductDraftDetailPage() {
 
   const [pubRows, setPubRows] = useState<ProductPublicationRow[]>([]);
   const [pubCtxLoading, setPubCtxLoading] = useState(false);
+  const [pubCtxError, setPubCtxError] = useState('');
   const [platformsMeta, setPlatformsMeta] = useState<PlatformProviderMeta[]>([]);
   const [shopsList, setShopsList] = useState<ShopListRow[]>([]);
   const [publishForm] = Form.useForm();
@@ -829,6 +1090,12 @@ export default function ProductDraftDetailPage() {
   const [douyinMappingForm] = Form.useForm();
   const [publishSubmitting, setPublishSubmitting] = useState(false);
   const [douyinSaving, setDouyinSaving] = useState(false);
+  const [douyinConfirmingAction, setDouyinConfirmingActionState] = useState<'' | 'config' | 'mapping' | 'create'>('');
+  const douyinConfirmingActionRef = useRef<'' | 'config' | 'mapping' | 'create'>('');
+  const setDouyinConfirmingAction = useCallback((next: '' | 'config' | 'mapping' | 'create') => {
+    douyinConfirmingActionRef.current = next;
+    setDouyinConfirmingActionState(next);
+  }, []);
   const [douyinMapping, setDouyinMapping] = useState<DouyinDraftMapping | null>(null);
   const [douyinMappingLoading, setDouyinMappingLoading] = useState(false);
   const [douyinMappingSaving, setDouyinMappingSaving] = useState(false);
@@ -838,8 +1105,10 @@ export default function ProductDraftDetailPage() {
   const [douyinDraftCreating, setDouyinDraftCreating] = useState(false);
   const [douyinPublishTasks, setDouyinPublishTasks] = useState<ProductPublishTaskDTO[]>([]);
   const [douyinPublishTasksLoading, setDouyinPublishTasksLoading] = useState(false);
+  const [douyinPublishTasksError, setDouyinPublishTasksError] = useState('');
   const [douyinSkuBinding, setDouyinSkuBinding] = useState<DouyinSkuBindingSummary | null>(null);
   const [douyinSkuBindingLoading, setDouyinSkuBindingLoading] = useState(false);
+  const [douyinSkuBindingError, setDouyinSkuBindingError] = useState('');
   const [douyinSkuBindingSyncing, setDouyinSkuBindingSyncing] = useState(false);
   const [douyinSkuBindOpen, setDouyinSkuBindOpen] = useState(false);
   const [douyinSkuBindTarget, setDouyinSkuBindTarget] = useState<DouyinSkuBindingRow | null>(null);
@@ -862,6 +1131,7 @@ export default function ProductDraftDetailPage() {
   const [readinessShopId, setReadinessShopId] = useState<string>('');
   const [readinessResult, setReadinessResult] = useState<ProductReadinessResult | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [readinessError, setReadinessError] = useState('');
   const [publishReadiness, setPublishReadiness] = useState<ProductReadinessResult | null>(null);
   const [publishReadinessLoading, setPublishReadinessLoading] = useState(false);
 
@@ -907,6 +1177,16 @@ export default function ProductDraftDetailPage() {
     [data?.collectWarnings, data?.rawData],
   );
 
+  const collectedAttrRows = useMemo(
+    () => Object.entries(collectedAttrs).map(([key, value]) => ({ key, value })),
+    [collectedAttrs],
+  );
+
+  const hasSourceCollectQualityPanel = useMemo(
+    () => isPinduoduoProduct(data) || isTaobaoTmallProduct(data),
+    [data],
+  );
+
   const imageSyncSummary = useMemo(() => {
     const rows = data?.images ?? [];
     const external = rows.filter((img) => {
@@ -936,6 +1216,21 @@ export default function ProductDraftDetailPage() {
   );
 
   const showCustomIncompleteHint = useMemo(() => isCustomCollectIncomplete(data), [data]);
+
+  const missingBasicFields = useMemo(() => {
+    if (!data) return [];
+    return [
+      ['来源平台', data.source],
+      ['来源链接', data.sourceUrl],
+      ['原始标题', data.originalTitle],
+      ['主标题', data.title],
+      ['主描述', data.description],
+      ['币种', data.currency],
+      ['状态', data.status],
+    ]
+      .filter(([, value]) => !String(value ?? '').trim())
+      .map(([label]) => String(label));
+  }, [data]);
 
   const openCreateImageTask = useCallback(
     (prefill: CreateImageTaskPrefill) => {
@@ -1002,12 +1297,13 @@ export default function ProductDraftDetailPage() {
     if (!id) return;
     const d = await fetchProductDetail(id);
     setData(d);
-    setSkuRows(
-      (d.skus ?? []).map((s) => ({
-        ...s,
-        attrsText: attrsToText(s.attrs),
-      })),
-    );
+        setSkuRows(
+          (d.skus ?? []).map((s) => ({
+            ...s,
+            attrsText: attrsToText(s.attrs),
+          })),
+        );
+        setSkuEditableKeys([]);
     await reloadOperationProgress();
   }, [id, reloadOperationProgress]);
 
@@ -1022,8 +1318,9 @@ export default function ProductDraftDetailPage() {
   }, [id]);
 
   const reloadPublishContext = useCallback(async () => {
-    if (!id) return;
+    if (!id) return [];
     setPubCtxLoading(true);
+    setPubCtxError('');
     try {
       const [pubs, prov, shops, douyinCfg, douyinCats] = await Promise.all([
         listProductPublications(id),
@@ -1032,7 +1329,8 @@ export default function ProductDraftDetailPage() {
         getProductPlatformPublishConfig(id, 'douyin_shop').catch(() => undefined),
         queryDouyinCategories({ onlyLeaf: true }).catch(() => undefined),
       ]);
-      setPubRows(Array.isArray(pubs.list) ? pubs.list : []);
+      const rows = Array.isArray(pubs.list) ? pubs.list : [];
+      setPubRows(rows);
       setPlatformsMeta(Array.isArray(prov.list) ? prov.list : []);
       setShopsList(Array.isArray(shops.list) ? shops.list : []);
       if (douyinCats?.flat) setDouyinCategoryFlat(douyinCats.flat);
@@ -1046,34 +1344,22 @@ export default function ProductDraftDetailPage() {
           categoryPath: douyinCfg.categoryPath,
           platformAttributes: attrs,
         });
-        douyinForm.setFieldsValue({
-          shopId: douyinCfg.shopId,
-          categoryId: douyinCfg.categoryId,
-          platformAttributes: attrs,
-        });
         if (douyinCfg.mapping) {
           setDouyinMapping(douyinCfg.mapping);
-          douyinMappingForm.setFieldsValue({
-            title: douyinCfg.mapping.title,
-            description: douyinCfg.mapping.description,
-          });
         } else {
           const mapped = await getDouyinDraftMapping(id).catch(() => undefined);
           setDouyinMapping(mapped ?? null);
-          if (mapped) {
-            douyinMappingForm.setFieldsValue({
-              title: mapped.title,
-              description: mapped.description,
-            });
-          }
         }
         if (douyinCfg.categoryId) {
           const ar = await queryDouyinCategoryAttributes(douyinCfg.categoryId).catch(() => undefined);
           setDouyinAttrs(ar?.list ?? []);
         }
       }
-    } catch {
+      return rows;
+    } catch (e: unknown) {
       setPubRows([]);
+      setPubCtxError((e as Error)?.message || '刊登上下文加载失败');
+      return [];
     } finally {
       setPubCtxLoading(false);
     }
@@ -1170,7 +1456,7 @@ export default function ProductDraftDetailPage() {
     };
   }, [douyinAttrs, douyinConfig, douyinForm, douyinMapping, douyinMappingForm, id, selectedDouyinCategory?.path]);
 
-  const handleBuildDouyinMapping = useCallback(async () => {
+  const runBuildDouyinMapping = useCallback(async () => {
     setDouyinMappingLoading(true);
     try {
       const vals = await douyinForm.validateFields();
@@ -1197,6 +1483,23 @@ export default function ProductDraftDetailPage() {
       setDouyinMappingLoading(false);
     }
   }, [douyinCategoryFlat, douyinConfig.categoryPath, douyinForm, douyinMappingForm, id]);
+
+  const handleBuildDouyinMapping = useCallback(() => {
+    if (readonly) {
+      message.error('只读账号不可执行写操作');
+      return;
+    }
+    if (douyinConfirmingActionRef.current || douyinMappingLoading) return;
+    setDouyinConfirmingAction('mapping');
+    window.setTimeout(() => douyinConfirmingActionRef.current === 'mapping' ? setDouyinConfirmingAction('') : undefined, 800);
+    confirmPlatformPublishConfigSave(async () => {
+      try {
+        await runBuildDouyinMapping();
+      } finally {
+        setDouyinConfirmingAction('');
+      }
+    });
+  }, [douyinMappingLoading, readonly, runBuildDouyinMapping, setDouyinConfirmingAction]);
 
   const handleSaveDouyinMapping = useCallback(async () => {
     if (!douyinMapping) {
@@ -1294,6 +1597,38 @@ export default function ProductDraftDetailPage() {
     if (!pf) return pubSkuRows;
     return pubSkuRows.filter((r) => (r.platform || '').toLowerCase() === pf);
   }, [pubSkuRows, pubSkuBulkPlatformFilter]);
+
+  const platformSkuMappingSummary = useMemo(() => {
+    const rows = filteredPubSkuRowsForBulk;
+    const platforms = Array.from(new Set(rows.map((r) => platformDisplayName(r.platform)).filter(Boolean)));
+    const shops = Array.from(new Set(rows.map((r) => r.shopName || r.shopId).filter(Boolean)));
+    const withProduct = rows.filter((r) => String(r.externalProductId ?? '').trim()).length;
+    const withSku = rows.filter((r) => String(r.externalSkuId ?? '').trim()).length;
+    const blocked = rows.filter((r) => douyinSkuSyncBlocked(r) || !inventorySyncRunnable(r.inventorySyncCapability)).length;
+    return {
+      total: rows.length,
+      platforms,
+      shops,
+      withProduct,
+      withSku,
+      blocked,
+    };
+  }, [filteredPubSkuRowsForBulk]);
+
+  const localInventoryRows = useMemo(
+    () => (data?.skus ?? []).filter((s) => !String(s.id).startsWith('new_')),
+    [data?.skus],
+  );
+
+  const localInventorySummary = useMemo(() => {
+    const rows = localInventoryRows;
+    return {
+      total: rows.length,
+      warningSet: rows.filter((s) => typeof s.warningStock === 'number' || typeof s.safetyStock === 'number').length,
+      low: rows.filter((s) => ['low_stock', 'below_safety_stock', 'out_of_stock'].includes(effectiveStockStatus(s))).length,
+      missingStock: rows.filter((s) => typeof s.stock !== 'number').length,
+    };
+  }, [localInventoryRows]);
 
   const buildSkuStockPayload = useCallback(() => {
     const base: { productId: string; includeNormal: boolean; productSkuIds?: string[] } = {
@@ -1424,6 +1759,8 @@ export default function ProductDraftDetailPage() {
           document.getElementById('publish-check') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
         'publish-config':
           document.getElementById('publish-config') || document.querySelector('.ant-tabs-tabpane-active .ant-card'),
+        'douyin-sku-bindings':
+          document.getElementById('douyin-sku-bindings') || document.querySelector('.product-draft-douyin-bind__card'),
       } as Record<string, Element | null | undefined>)[target] ||
       null;
     if (!el) return false;
@@ -1490,6 +1827,64 @@ export default function ProductDraftDetailPage() {
     return list;
   }, [data?.images]);
 
+  const aiImageSource = useMemo(
+    () => sortedImages.find((image) => (image.publicUrl || image.originUrl || '').trim()),
+    [sortedImages],
+  );
+
+  const imageOverview = useMemo(() => {
+    const rows = data?.images ?? [];
+    return {
+      total: rows.length,
+      main: rows.filter(isMainProductImage).length,
+      detail: rows.filter(isDetailProductImage).length,
+      best: rows.filter((img) => !!img.isBestMain).length,
+      synced: rows.filter(isSyncedProductImage).length,
+    };
+  }, [data?.images]);
+
+  const handleReorderProductImages = useCallback(async () => {
+    setImageSyncError('');
+    setImageSyncingScope('order');
+    try {
+      const ordered = [...sortedImages].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
+      message.success('已同步');
+      await reloadDetail();
+    } catch (e: unknown) {
+      const msg = (e as Error)?.message || '排序失败';
+      setImageSyncError(msg);
+      message.error(msg);
+    } finally {
+      setImageSyncingScope('');
+    }
+  }, [id, reloadDetail, sortedImages]);
+
+  const handleSyncProductImages = useCallback(
+    async (scope: 'all' | 'main' | 'detail') => {
+      setImageSyncError('');
+      setImageSyncingScope(scope);
+      try {
+        const res = await syncProductImages(id, { scope });
+        if (scope === 'main') {
+          message.success(`已同步 ${res.synced} 张主图`);
+        } else if (scope === 'detail') {
+          message.success(`已同步 ${res.synced} 张详情图`);
+        } else {
+          message.success(`已同步 ${res.synced} 张图片到平台存储`);
+        }
+        await reloadDetail();
+      } catch (e: unknown) {
+        const msg = (e as Error)?.message || '同步失败';
+        setImageSyncError(msg);
+        message.error(msg);
+      } finally {
+        setImageSyncingScope('');
+      }
+    },
+    [id, reloadDetail],
+  );
+
   const eligibleShopsForPublish = useMemo(() => {
     return shopsList.filter((s) => {
       const m = platformsMeta.find((x) => x.platform === s.platform);
@@ -1506,11 +1901,13 @@ export default function ProductDraftDetailPage() {
   const reloadDouyinPublishTasks = useCallback(async () => {
     if (!id) return;
     setDouyinPublishTasksLoading(true);
+    setDouyinPublishTasksError('');
     try {
       const res = await listDouyinPublishTasks(id, { page: 1, pageSize: 10 });
       setDouyinPublishTasks(res.list ?? []);
-    } catch {
+    } catch (e: unknown) {
       setDouyinPublishTasks([]);
+      setDouyinPublishTasksError((e as Error)?.message || '抖店刊登任务加载失败');
     } finally {
       setDouyinPublishTasksLoading(false);
     }
@@ -1525,21 +1922,28 @@ export default function ProductDraftDetailPage() {
     [pubRows],
   );
 
-  const reloadDouyinSkuBindings = useCallback(async () => {
-    if (!douyinPublication?.id) {
+  const reloadDouyinSkuBindingsForPublication = useCallback(async (publicationId?: string) => {
+    if (!publicationId) {
       setDouyinSkuBinding(null);
+      setDouyinSkuBindingError('');
       return;
     }
     setDouyinSkuBindingLoading(true);
+    setDouyinSkuBindingError('');
     try {
-      const res = await getDouyinSkuBindings(douyinPublication.id);
+      const res = await getDouyinSkuBindings(publicationId);
       setDouyinSkuBinding(res);
-    } catch {
+    } catch (e: unknown) {
       setDouyinSkuBinding(null);
+      setDouyinSkuBindingError((e as Error)?.message || '抖店规格绑定加载失败');
     } finally {
       setDouyinSkuBindingLoading(false);
     }
-  }, [douyinPublication?.id]);
+  }, []);
+
+  const reloadDouyinSkuBindings = useCallback(async () => {
+    await reloadDouyinSkuBindingsForPublication(douyinPublication?.id);
+  }, [douyinPublication?.id, reloadDouyinSkuBindingsForPublication]);
 
   const handleSyncDouyinSkuBindings = useCallback(async () => {
     if (!douyinPublication?.id) {
@@ -1571,52 +1975,34 @@ export default function ProductDraftDetailPage() {
     return false;
   }, [douyinConfig.categoryId, douyinConfig.shopId, douyinMapping, douyinShops, publishReadiness]);
 
-  const handleCreateDouyinDraft = useCallback(async () => {
+  const handleCreateDouyinDraft = useCallback(() => {
     const shopId = String(douyinForm.getFieldValue('shopId') || douyinConfig.shopId || '').trim();
     if (!shopId) {
       message.error('请选择抖店店铺');
       return;
     }
-    if (publishReadiness && (publishReadiness.warningCount ?? 0) > 0) {
-      await new Promise<void>((resolve, reject) => {
-        Modal.confirm({
-          title: '当前商品存在需要人工确认的信息，是否继续创建抖店商品草稿？',
-          width: 640,
-          okText: '继续创建抖店商品草稿',
-          cancelText: '返回处理',
-          content: (
-            <div>
-              {(publishReadiness.checks || [])
-                .filter((c) => c.level !== 'error')
-                .slice(0, 10)
-                .map((c, i) => (
-                  <div key={`${c.code}-${i}`} style={{ marginBottom: 6 }}>
-                    {readinessLevelTag(c.level)} {c.message}
-                  </div>
-                ))}
-            </div>
-          ),
-          onOk: () => resolve(),
-          onCancel: () => reject(new Error('cancelled')),
-        });
-      });
-    }
-    setDouyinDraftCreating(true);
-    try {
-      const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
-      message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
-      await reloadDouyinPublishTasks();
-      await reloadPublicationSkus();
-      await reloadDouyinSkuBindings();
-      if (task.platformProductId) {
-        message.info(`抖店商品 ID：${task.platformProductId}`);
+    if (douyinConfirmingActionRef.current || douyinDraftCreating) return;
+    setDouyinConfirmingAction('create');
+    window.setTimeout(() => douyinConfirmingActionRef.current === 'create' ? setDouyinConfirmingAction('') : undefined, 800);
+    confirmCreatePlatformDraft(false, async () => {
+      setDouyinDraftCreating(true);
+      try {
+        const task = await createDouyinProductDraft(id, { shopId, publishMode: 'save_as_platform_draft' });
+        message.success('已创建抖店商品草稿，请到抖店后台确认后上架。');
+        await reloadDouyinPublishTasks();
+        await reloadPublicationSkus();
+        await reloadDouyinSkuBindings();
+        if (task.platformProductId) {
+          message.info(`抖店商品 ID：${task.platformProductId}`);
+        }
+      } catch (e: unknown) {
+        message.error((e as Error)?.message || '创建抖店商品草稿失败');
+      } finally {
+        setDouyinDraftCreating(false);
+        setDouyinConfirmingAction('');
       }
-    } catch (e: unknown) {
-      message.error((e as Error)?.message || '创建抖店商品草稿失败');
-    } finally {
-      setDouyinDraftCreating(false);
-    }
-  }, [douyinConfig.shopId, douyinForm, id, publishReadiness, reloadDouyinPublishTasks, reloadPublicationSkus, reloadDouyinSkuBindings]);
+    });
+  }, [douyinConfig.shopId, douyinDraftCreating, douyinForm, id, reloadDouyinPublishTasks, reloadPublicationSkus, reloadDouyinSkuBindings, setDouyinConfirmingAction]);
 
   const shopsForReadinessPlat = useMemo(() => {
     const p = readinessPlat.trim().toLowerCase();
@@ -1626,6 +2012,7 @@ export default function ProductDraftDetailPage() {
   const runReadinessForTab = useCallback(async () => {
     if (!id) return;
     setReadinessLoading(true);
+    setReadinessError('');
     try {
       const r = await getProductReadiness(id, {
         platform: readinessPlat,
@@ -1634,8 +2021,10 @@ export default function ProductDraftDetailPage() {
       });
       setReadinessResult(r);
     } catch (e: unknown) {
+      const msg = (e as Error)?.message || '检查失败';
       setReadinessResult(null);
-      message.error((e as Error)?.message || '检查失败');
+      setReadinessError(msg);
+      message.error(msg);
     } finally {
       setReadinessLoading(false);
     }
@@ -1670,6 +2059,21 @@ export default function ProductDraftDetailPage() {
   );
 
   useEffect(() => {
+    if (draftTabKey !== 'publish') return;
+    douyinForm.setFieldsValue({
+      shopId: douyinConfig.shopId,
+      categoryId: douyinConfig.categoryId,
+      platformAttributes: douyinConfig.platformAttributes ?? {},
+    });
+    if (douyinMapping) {
+      douyinMappingForm.setFieldsValue({
+        title: douyinMapping.title,
+        description: douyinMapping.description,
+      });
+    }
+  }, [douyinConfig, douyinForm, douyinMapping, douyinMappingForm, draftTabKey]);
+
+  useEffect(() => {
     if (draftTabKey !== 'publish' || !id) return;
     const sid = publishForm.getFieldValue('shopId') as string | undefined;
     if (sid) void refreshPublishReadiness(String(sid));
@@ -1677,26 +2081,160 @@ export default function ProductDraftDetailPage() {
     void reloadDouyinSkuBindings();
   }, [draftTabKey, id, publishForm, refreshPublishReadiness, reloadDouyinPublishTasks, reloadDouyinSkuBindings]);
 
+  const progressBlockerCount = operationProgress?.blockerCount ?? operationProgress?.blockers?.length ?? 0;
+  const progressWarningCount = operationProgress?.warningCount ?? operationProgress?.warnings?.length ?? 0;
+  const readinessChecks = readinessResult?.checks ?? [];
+  const readinessErrorItems = readinessChecks.filter((c) => (c.level || '').toLowerCase() === 'error');
+  const readinessWarningItems = readinessChecks.filter((c) => (c.level || '').toLowerCase() === 'warning');
+  const readinessSuggestionItems = readinessChecks.filter((c) => {
+    const level = (c.level || '').toLowerCase();
+    return level !== 'error' && level !== 'warning';
+  });
+  const readinessGroups = Array.from(new Set(readinessChecks.map((c) => c.group || 'other')));
+  const readinessDefaultActiveKeys = readinessGroups.filter((g) =>
+    readinessChecks.some((c) => (c.group || 'other') === g && (c.level || '').toLowerCase() === 'error'),
+  );
+  const productTitle = data?.title?.trim() || '商品详情';
+  const productUpdatedAt = data?.updatedAt ? formatDateTime(data.updatedAt) : '';
+  const currentSkuCount = skuRows.length;
+  const platformPublishAvailableCount = platformsMeta.filter((x) => {
+    const status = x.capabilityStatus?.product_publish;
+    return status === 'available' || status === 'beta';
+  }).length;
+  const publishReadinessErrors = publishReadiness?.checks.filter((c) => (c.level || '').toLowerCase() === 'error') ?? [];
+  const publishReadinessWarnings = publishReadiness?.checks.filter((c) => (c.level || '').toLowerCase() === 'warning') ?? [];
+  const douyinRequiredAttrs = douyinAttrs.filter((x) => x.required);
+  const douyinMissingRequiredAttrs = douyinRequiredAttrs.filter((x) => {
+    const value = douyinConfig.platformAttributes?.[x.attrId] ?? douyinConfig.platformAttributes?.[x.name];
+    return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+  });
+  const douyinMainImages = douyinMapping?.mainImages ?? [];
+  const douyinUploadedMainImages = douyinMainImages.filter((img) => img.uploadStatus === 'uploaded').length;
+  const douyinDetailImages = douyinMapping?.detailImages ?? [];
+  const douyinUploadedDetailImages = douyinDetailImages.filter((img) => img.uploadStatus === 'uploaded').length;
+  const douyinMappingErrorCount = douyinMapping?.errors?.length ?? 0;
+  const douyinMappingWarningCount = douyinMapping?.warnings?.length ?? 0;
+  const failedDouyinTasks = douyinPublishTasks.filter((task) => task.status === 'failed');
+  const selectedDouyinShop = douyinShops.find((shop) => shop.id === douyinConfig.shopId);
+  const latestDouyinTask = douyinPublishTasks[0];
+  const douyinSkuBindingReady = douyinSkuBinding
+    ? (douyinSkuBinding.unmatched ?? 0) === 0 && (douyinSkuBinding.ambiguous ?? 0) === 0 && (douyinSkuBinding.failed ?? 0) === 0
+    : false;
+  const douyinDraftPrerequisiteItems = [
+    {
+      label: '店铺',
+      status: douyinConfig.shopId ? '已选择' : pubCtxError ? '加载失败' : '未选择',
+      tone: douyinConfig.shopId ? 'success' : pubCtxError ? 'error' : 'warning',
+      detail: selectedDouyinShop?.shopName || douyinConfig.shopId || (douyinShops.length ? '请选择已授权抖店店铺' : '暂无已授权抖店店铺'),
+    },
+    {
+      label: '配置',
+      status: douyinConfig.shopId || douyinConfig.categoryId ? '有配置上下文' : '未配置',
+      tone: douyinConfig.shopId || douyinConfig.categoryId ? 'processing' : 'warning',
+      detail: '保存配置只写入店铺、类目和属性，不会创建抖店商品草稿。',
+    },
+    {
+      label: '类目',
+      status: douyinConfig.categoryId ? '已选择' : douyinCategoryLoading ? '加载中' : '未选择',
+      tone: douyinConfig.categoryId ? 'success' : 'warning',
+      detail: douyinConfig.categoryPath || selectedDouyinCategory?.path || '需要选择抖店叶子类目。',
+    },
+    {
+      label: '类目属性',
+      status: douyinAttrs.length ? `${douyinAttrs.length} 项已加载` : douyinConfig.categoryId ? '未加载或无属性' : '待选择类目',
+      tone: douyinMissingRequiredAttrs.length ? 'warning' : douyinAttrs.length ? 'success' : 'default',
+      detail: `必填 ${douyinRequiredAttrs.length} 项 · 未填写 ${douyinMissingRequiredAttrs.length} 项`,
+    },
+    {
+      label: '属性映射',
+      status: douyinMapping ? '已有映射' : '未生成',
+      tone: douyinMapping ? 'processing' : 'warning',
+      detail: douyinMapping ? `错误 ${douyinMappingErrorCount} · 警告 ${douyinMappingWarningCount}` : '生成映射不会代表已经通过校验。',
+    },
+    {
+      label: '图片',
+      status: douyinUploadedMainImages > 0 ? '主图已上传' : douyinMapping ? '待上传主图' : '待生成映射',
+      tone: douyinUploadedMainImages > 0 ? 'success' : 'warning',
+      detail: `主图 ${douyinUploadedMainImages}/${douyinMainImages.length} · 详情图 ${douyinUploadedDetailImages}/${douyinDetailImages.length}`,
+    },
+    {
+      label: '规格绑定',
+      status: douyinSkuBindingReady ? '已完成' : douyinSkuBinding ? '待确认' : douyinPublication?.id ? '未加载' : '待创建草稿',
+      tone: douyinSkuBindingReady ? 'success' : douyinSkuBinding ? 'warning' : 'default',
+      detail: `已绑定 ${douyinSkuBinding?.bound ?? '—'} · 未绑定 ${douyinSkuBinding?.unmatched ?? '—'} · 待确认 ${douyinSkuBinding?.ambiguous ?? '—'}`,
+    },
+    {
+      label: '创建草稿',
+      status: douyinCreateDraftDisabled ? '暂不可创建' : '可以手动创建',
+      tone: douyinCreateDraftDisabled ? 'warning' : 'success',
+      detail: '创建抖店商品草稿不等于正式发布或上架。',
+    },
+    {
+      label: '最近任务',
+      status: latestDouyinTask ? commonStatusLabel(latestDouyinTask.status) : douyinPublishTasksLoading ? '加载中' : '暂无任务',
+      tone: latestDouyinTask?.status === 'failed' ? 'error' : latestDouyinTask ? 'processing' : 'default',
+      detail: latestDouyinTask ? `${publishModeLabel(latestDouyinTask.publishMode)} · ${formatDateTime(latestDouyinTask.createdAt)}` : '创建草稿后会出现任务记录。',
+    },
+  ];
+  const latestFailedAiTask = useMemo(
+    () => aiTasks.find((task) => isAiTaskFailed(task)) ?? null,
+    [aiTasks],
+  );
+  const originalTitleText = data?.title?.trim() || data?.originalTitle?.trim() || '';
+  const appliedAiTitleText = data?.aiTitle?.trim() || '';
+  const originalDescriptionText = data?.description?.trim() || '';
+  const appliedAiDescriptionText = data?.aiDescription?.trim() || '';
+
+  const renderDraftTabLabel = (
+    label: string,
+    options: {
+      count?: number;
+      tone?: 'default' | 'warning' | 'danger';
+      icon?: ReactNode;
+      hint?: string;
+    } = {},
+  ) => {
+    const { count, tone = 'default', icon, hint } = options;
+    return (
+      <span className="product-draft-tabs__label">
+        {icon ? <span className="product-draft-tabs__icon">{icon}</span> : null}
+        <span className="product-draft-tabs__text">
+          <span>{label}</span>
+          {hint ? <span>{hint}</span> : null}
+        </span>
+        {typeof count === 'number' && count > 0 ? (
+          <span className={`product-draft-tabs__count product-draft-tabs__count--${tone}`}>{count}</span>
+        ) : null}
+      </span>
+    );
+  };
+
+  const tabLabels: Record<string, ReactNode> = {
+    basic: renderDraftTabLabel('基础信息', { icon: <FileTextOutlined />, hint: '内容' }),
+    ai: renderDraftTabLabel('AI', { count: aiTasks.length, icon: <RobotOutlined />, hint: '文案' }),
+    images: renderDraftTabLabel('图片管理', { count: sortedImages.length, icon: <PictureOutlined />, hint: '素材' }),
+    skus: renderDraftTabLabel('商品规格', { count: data?.skus?.length ?? 0, icon: <UnorderedListOutlined />, hint: '价格' }),
+    inventory: renderDraftTabLabel('库存', { count: pubSkuRows.length, icon: <CloudUploadOutlined />, hint: '同步' }),
+    readiness: renderDraftTabLabel('发布检查', {
+      count: progressBlockerCount || progressWarningCount,
+      tone: progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'default',
+      icon: <CheckCircleOutlined />,
+      hint: '问题',
+    }),
+    publish: renderDraftTabLabel('刊登', { count: pubRows.length, icon: <SyncOutlined />, hint: '平台' }),
+  };
+
   const imageColumns: ProColumns<ProductImageRow>[] = useMemo(
     () => [
       {
         title: '预览',
-        width: 96,
-        render: (_, r) => (
-          <div style={{ padding: '4px 0' }}>
-            <Image
-              src={r.publicUrl || r.originUrl}
-              width={56}
-              height={56}
-              style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid var(--ant-color-border-secondary)' }}
-            />
-          </div>
-        ),
+        width: 92,
+        render: (_, r) => <ProductImagePreviewCell row={r} />,
       },
       {
-        title: '类型',
+        title: '类型与标记',
         dataIndex: 'imageType',
-        width: 132,
+        width: 160,
         render: (_, r) => <ProductImageTypeCell row={r} />,
       },
       {
@@ -1711,173 +2249,264 @@ export default function ProductDraftDetailPage() {
         width: 92,
       },
       {
+        title: '来源与状态',
+        dataIndex: 'source',
+        width: 180,
+        render: (_, r) => <ProductImageSourceCell row={r} />,
+      },
+      {
         title: PRODUCT_IMAGE_URL_LABEL,
+        width: 260,
         ellipsis: true,
         render: (_, r) => (
-          <Typography.Link href={r.publicUrl || r.originUrl} target="_blank" rel="noreferrer">
-            {(r.publicUrl || r.originUrl || '').slice(0, 64)}
-            {(r.publicUrl || r.originUrl || '').length > 64 ? '…' : ''}
-          </Typography.Link>
+          productImageUrl(r) ? (
+            <Typography.Link
+              className="product-draft-images__url"
+              href={productImageUrl(r)}
+              target="_blank"
+              rel="noreferrer"
+              title={productImageUrl(r)}
+            >
+              {productImageUrl(r)}
+            </Typography.Link>
+          ) : (
+            <Typography.Text type="secondary">未提供图片地址</Typography.Text>
+          )
         ),
       },
       {
         title: '操作',
-        width: 520,
-        render: (_, r) => (
-          <Space wrap size={[8, 4]} style={{ padding: '4px 0' }}>
-            <Button type="link" size="small" onClick={() => openTranslateImageText(r)}>
-              AI 翻译图片文字
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_watermark')}>
-              AI 去水印
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_logo')}>
-              AI 去 Logo
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'remove_background')}>
-              AI 去背景
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'generate_marketing')}>
-              AI 营销图
-            </Button>
-            <Button type="link" size="small" onClick={() => openQuickImageTask(r, 'score_image')}>
-              AI 评分
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={() =>
-                openCreateImageTask({
-                  taskType: 'select_best_main',
-                  imageSourceMode: 'product',
-                  sourceImageId: r.id,
-                  sourceImageUrl: (r.publicUrl || r.originUrl || '').trim(),
-                })
-              }
-            >
-              设为最佳主图
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={async () => {
-                try {
-                  await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
-                  message.success('已设为主图');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '操作失败');
-                }
-              }}
-            >
-              设为主图
-            </Button>
-            <Button
-              type="link"
-              size="small"
-              onClick={async () => {
-                try {
-                  await updateProductImage(id, r.id, { imageType: 'detail' });
-                  message.success('已设为详情图');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '操作失败');
-                }
-              }}
-            >
-              设为详情图
-            </Button>
-            <Button type="link" size="small" onClick={() => setImgEdit(r)}>
-              编辑
-            </Button>
-            <Popconfirm
-              title="删除该关联？"
-              description="仅从商品移除关联"
-              onConfirm={async () => {
-                try {
-                  await deleteProductImage(id, r.id);
-                  message.success('已删除');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
-                }
-              }}
-            >
-              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-                删除
+        width: 248,
+        fixed: 'right',
+        render: (_, r) => {
+          const imageUrl = productImageUrl(r);
+          const moreContent = (
+            <div className="product-draft-images__action-menu" onClick={(event) => event.stopPropagation()}>
+              <Typography.Text className="product-draft-images__action-group">AI 任务</Typography.Text>
+              <Button type="text" size="small" block onClick={() => openTranslateImageText(r)}>
+                翻译图片文字
               </Button>
-            </Popconfirm>
-          </Space>
-        ),
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_watermark')}>
+                去除水印
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_logo')}>
+                去除 Logo
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'remove_background')}>
+                移除背景
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'generate_marketing')}>
+                生成营销图
+              </Button>
+              <Button type="text" size="small" block onClick={() => openQuickImageTask(r, 'score_image')}>
+                图片评分
+              </Button>
+              <div className="product-draft-images__action-divider" />
+              <Typography.Text className="product-draft-images__action-group">图片标记</Typography.Text>
+              <Button
+                type="text"
+                size="small"
+                block
+                onClick={() =>
+                  openCreateImageTask({
+                    taskType: 'select_best_main',
+                    imageSourceMode: 'product',
+                    sourceImageId: r.id,
+                    sourceImageUrl: imageUrl,
+                  })
+                }
+              >
+                设为最佳主图
+              </Button>
+              <Button
+                type="text"
+                size="small"
+                block
+                onClick={async () => {
+                  try {
+                    await updateProductImage(id, r.id, { imageType: 'detail' });
+                    message.success('已设为详情图');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '操作失败');
+                  }
+                }}
+              >
+                设为详情图
+              </Button>
+              <div className="product-draft-images__action-divider" />
+              <Popconfirm
+                title="删除该关联？"
+                description="仅从商品移除关联"
+                onConfirm={async () => {
+                  try {
+                    await deleteProductImage(id, r.id);
+                    message.success('已删除');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                }}
+              >
+                <Button type="text" size="small" block danger icon={<DeleteOutlined />}>
+                  删除图片
+                </Button>
+              </Popconfirm>
+            </div>
+          );
+
+          return (
+            <Space size={4} className="product-draft-images__actions">
+              <Button type="link" size="small" icon={<EditOutlined />} onClick={() => setImgEdit(r)}>
+                编辑
+              </Button>
+              <Button
+                type="link"
+                size="small"
+                onClick={async () => {
+                  try {
+                    await updateProductImage(id, r.id, { imageType: 'main', isBestMain: true, sortOrder: 0 });
+                    message.success('已设为主图');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '操作失败');
+                  }
+                }}
+              >
+                设为主图
+              </Button>
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                content={moreContent}
+                overlayClassName="product-draft-images__action-popover"
+                getPopupContainer={(triggerNode) =>
+                  (triggerNode.closest('.tm-product-draft-detail') as HTMLElement) || document.body
+                }
+              >
+                <Button type="link" size="small" icon={<MoreOutlined />}>
+                  更多
+                </Button>
+              </Popover>
+            </Space>
+          );
+        },
       },
     ],
     [id, reloadDetail, openQuickImageTask, openCreateImageTask, openTranslateImageText],
   );
 
-  const skuColumns = useMemo(
+  const skuColumns = useMemo<ProColumns<SKUEditable>[]>(
     () => [
-      { title: '编码', dataIndex: 'skuCode', width: 140, ellipsis: true, formItemProps: { rules: [] } },
-      { title: '名称', dataIndex: 'skuName', width: 180, ellipsis: true, formItemProps: { rules: [{ required: true }] } },
+      {
+        title: '编码',
+        dataIndex: 'skuCode',
+        width: 160,
+        ellipsis: true,
+        className: 'product-draft-skus__code-col',
+        formItemProps: { rules: [] },
+        render: (_, record) => skuTextCell(record.skuCode, '未填写'),
+      },
+      {
+        title: '名称',
+        dataIndex: 'skuName',
+        width: 200,
+        ellipsis: true,
+        className: 'product-draft-skus__name-col',
+        formItemProps: { rules: [{ required: true }] },
+        render: (_, record) => skuTextCell(record.skuName, '未填写'),
+      },
       {
         title: '成本价',
         dataIndex: 'costPrice',
-        width: 100,
+        width: 112,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0, precision: 2 },
+        fieldProps: { min: 0, precision: 2, className: 'product-draft-skus__number-input' },
         readonly: true,
+        render: (_, record) => skuPriceCell(record.costPrice),
       },
       {
         title: '销售价',
         dataIndex: 'price',
-        width: 100,
+        width: 112,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0, precision: 2 },
+        fieldProps: { min: 0, precision: 2, className: 'product-draft-skus__number-input' },
+        render: (_, record) => skuPriceCell(record.price),
       },
       {
         title: '库存',
         dataIndex: 'stock',
-        width: 92,
+        width: 96,
+        align: 'right' as const,
+        className: 'product-draft-skus__number-col',
         valueType: 'digit' as const,
-        fieldProps: { min: 0 },
+        fieldProps: { min: 0, className: 'product-draft-skus__number-input' },
+        render: (_, record) => (typeof record.stock === 'number' ? record.stock : <Typography.Text type="secondary">—</Typography.Text>),
       },
       {
         title: '图片 URL',
         dataIndex: 'imageUrl',
-        width: 160,
+        width: 190,
         ellipsis: true,
+        className: 'product-draft-skus__url-col',
+        render: (_, record) => skuTextCell(record.imageUrl, '未填写'),
       },
       {
         title: '规格属性（高级）',
         dataIndex: 'attrsText',
         valueType: 'textarea' as const,
+        width: 260,
         ellipsis: true,
-        fieldProps: { rows: 2 },
+        className: 'product-draft-skus__attrs-col',
+        fieldProps: { rows: 2, className: 'product-draft-skus__attrs-input' },
+        render: (_, record) => skuAttrsCell(record.attrsText),
       },
       {
         title: '操作',
         valueType: 'option' as const,
-        width: 140,
+        width: 132,
+        fixed: 'right' as const,
+        className: 'product-draft-skus__action-col',
         render: (_: unknown, record: SKUEditable) => (
-          <Popconfirm
-            title="删除该商品规格？"
-            onConfirm={async () => {
-              if (!record?.id?.startsWith('new_')) {
-                try {
-                  await deleteProductSku(id, record.id);
-                  message.success('已删除');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
+          <Space size={4} className="product-draft-skus__row-actions">
+            {!record?.id?.startsWith('new_') ? (
+              <Button
+                type="link"
+                size="small"
+                icon={<EditOutlined />}
+                className="product-draft-skus__edit-action"
+                onClick={() => {
+                  setSkuEditableKeys((keys) => Array.from(new Set([...keys, record.id])));
+                }}
+              >
+                编辑
+              </Button>
+            ) : null}
+            <Popconfirm
+              title="删除该商品规格？"
+              onConfirm={async () => {
+                if (!record?.id?.startsWith('new_')) {
+                  try {
+                    await deleteProductSku(id, record.id);
+                    message.success('已删除');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                } else {
+                  setSkuRows((rows) => rows.filter((r) => r.id !== record.id));
                 }
-              } else {
-                setSkuRows((rows) => rows.filter((r) => r.id !== record.id));
-              }
-            }}
-          >
-            <Button type="link" danger size="small">
-              删除
-            </Button>
-          </Popconfirm>
+              }}
+            >
+              <Button type="link" danger size="small" className="product-draft-skus__danger-action">
+                删除
+              </Button>
+            </Popconfirm>
+          </Space>
         ),
       },
     ],
@@ -1894,64 +2523,134 @@ export default function ProductDraftDetailPage() {
 
   return (
     <TmPageContainer
-      title={data?.title || '商品详情'}
+      className="tm-product-draft-detail product-draft-detail-page"
+      contentMaxWidth={layoutTokens.dashboardMaxWidth}
+      title={
+        <div className="product-draft-header">
+          <div className="product-draft-header__locator">
+            <Link to="/product/drafts" className="product-draft-header__back">
+              <ArrowLeftOutlined />
+              返回商品草稿
+            </Link>
+            <span className="product-draft-header__eyebrow">商品运营详情</span>
+          </div>
+          <div className="product-draft-header__main">
+            <div className="product-draft-header__identity">
+              <Typography.Title level={3} className="product-draft-header__title" title={productTitle}>
+                {productTitle}
+              </Typography.Title>
+              {data ? <StatusTag status={data.status} /> : null}
+            </div>
+            {data ? (
+              <div className="product-draft-header__meta" aria-label="商品摘要信息">
+                <div className="product-draft-header__meta-item">
+                  <span>来源平台</span>
+                  <strong>{data.source ? platformDisplayName(data.source) : '未记录'}</strong>
+                </div>
+                <div className="product-draft-header__meta-item product-draft-header__meta-item--source">
+                  <span>来源商品</span>
+                  {data.sourceUrl ? (
+                    <Typography.Link href={data.sourceUrl} target="_blank" rel="noreferrer" title={data.sourceUrl}>
+                      打开原商品
+                    </Typography.Link>
+                  ) : (
+                    <strong>未提供</strong>
+                  )}
+                </div>
+                <div className="product-draft-header__meta-item">
+                  <span>更新时间</span>
+                  <strong>{productUpdatedAt || '未记录'}</strong>
+                </div>
+                <div className="product-draft-header__meta-item product-draft-header__meta-item--id">
+                  <span>草稿 ID</span>
+                  <Typography.Text copyable={{ text: id }}>{id}</Typography.Text>
+                </div>
+                <div className={`product-draft-header__meta-item product-draft-header__meta-item--severity product-draft-header__meta-item--${progressBlockerCount > 0 ? 'danger' : progressWarningCount > 0 ? 'warning' : 'ready'}`}>
+                  <span>发布检查</span>
+                  <strong>
+                    {progressBlockerCount > 0
+                      ? `阻断 ${progressBlockerCount}`
+                      : progressWarningCount > 0
+                        ? `建议检查 ${progressWarningCount}`
+                        : '暂无阻断'}
+                  </strong>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      }
       loading={loading}
       extra={
         data ? (
-          <Space wrap>
-            <Button
-              onClick={async () => {
-                try {
-                  await updateProduct(id, { status: 'ready' });
-                  message.success('已设为「可用」');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
-              }}
-            >
-              标记为可用
-            </Button>
-            <Button
-              onClick={async () => {
-                try {
-                  await updateProduct(id, { status: 'archived' });
-                  message.success('已归档');
-                  await reloadDetail();
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '失败');
-                }
-              }}
-            >
-              归档
-            </Button>
-            <Popconfirm
-              title="确定删除草稿？"
-              description="软删除，列表不可见"
-              onConfirm={async () => {
-                try {
-                  await deleteProduct(id);
-                  message.success('已删除');
-                  window.location.href = '/product/drafts';
-                } catch (e: unknown) {
-                  message.error((e as Error)?.message || '删除失败');
-                }
-              }}
-            >
-              <Button danger icon={<DeleteOutlined />}>
-                删除草稿
+          <div className="product-draft-header__actions">
+            <div className="product-draft-header__action-group">
+              <span>状态操作</span>
+              <Button
+                onClick={async () => {
+                  try {
+                    await updateProduct(id, { status: 'ready' });
+                    message.success('已设为「可用」');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                }}
+              >
+                标记为可用
               </Button>
-            </Popconfirm>
-          </Space>
+              <Button
+                onClick={async () => {
+                  try {
+                    await updateProduct(id, { status: 'archived' });
+                    message.success('已归档');
+                    await reloadDetail();
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '失败');
+                  }
+                }}
+              >
+                归档
+              </Button>
+            </div>
+            <div className="product-draft-header__action-group product-draft-header__action-group--danger">
+              <span>危险操作</span>
+              <Popconfirm
+                title="确定删除草稿？"
+                description="软删除，列表不可见"
+                onConfirm={async () => {
+                  try {
+                    await deleteProduct(id);
+                    message.success('已删除');
+                    window.location.href = '/product/drafts';
+                  } catch (e: unknown) {
+                    message.error((e as Error)?.message || '删除失败');
+                  }
+                }}
+              >
+                <Button danger type="text" icon={<DeleteOutlined />}>
+                  删除草稿
+                </Button>
+              </Popconfirm>
+            </div>
+          </div>
         ) : null
       }
     >
       {loading ? (
-        <Spin />
+        <div className="product-draft-page-state">
+          <Spin />
+        </div>
       ) : err ? (
-        <Typography.Text type="danger">{err}</Typography.Text>
+        <Alert
+          type="error"
+          showIcon
+          message="商品详情加载失败"
+          description={err}
+          className="product-draft-page-state"
+        />
       ) : data ? (
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Space direction="vertical" className="product-draft-detail-shell" size="middle">
           <OperationProgressPanel
             progress={operationProgress}
             loading={operationProgressLoading}
@@ -1959,184 +2658,561 @@ export default function ProductDraftDetailPage() {
             onReload={() => void reloadOperationProgress()}
             onAction={openOperationAction}
           />
-          <Tabs
-          activeKey={draftTabKey}
-          onChange={(k) => {
-            setDraftTabKey(k);
-            setPendingSection('');
-            const q = new URLSearchParams(window.location.search);
-            q.set('tab', k);
-            q.delete('section');
-            window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
-            if (k === 'inventory') void reloadPublicationSkus();
-          }}
-          items={[
+          <div className="product-draft-tabs-frame">
+            <div className="product-draft-tabs-frame__head">
+              <div>
+                <Typography.Text type="secondary">当前模块</Typography.Text>
+                <Typography.Text strong>{PRODUCT_DRAFT_TAB_LABELS[draftTabKey] || PRODUCT_DRAFT_TAB_LABELS.basic}</Typography.Text>
+              </div>
+              <div className="product-draft-tabs-frame__status" aria-label="当前商品发布检查摘要">
+                {progressBlockerCount > 0 ? <Tag color="red">阻断 {progressBlockerCount}</Tag> : null}
+                {progressWarningCount > 0 ? <Tag color="orange">建议检查 {progressWarningCount}</Tag> : null}
+                {progressBlockerCount === 0 && progressWarningCount === 0 ? <Tag color="green">暂无阻断</Tag> : null}
+              </div>
+            </div>
+            <Tabs
+              className="product-draft-tabs"
+              activeKey={draftTabKey}
+              onChange={(k) => {
+                setDraftTabKey(k);
+                setPendingSection('');
+                const q = new URLSearchParams(window.location.search);
+                q.set('tab', k);
+                q.delete('section');
+                window.history.replaceState(null, '', `${window.location.pathname}?${q.toString()}`);
+                if (k === 'inventory') void reloadPublicationSkus();
+              }}
+              items={[
             {
               key: 'basic',
-              label: '基础信息',
+              label: tabLabels.basic,
               children: (
-                <Card variant="borderless">
-                  <div id="collect-review" />
-                  {(isPinduoduoProduct(data) || isTaobaoTmallProduct(data)) ? (
-                    <ProductCollectQualityAlert product={data} />
-                  ) : null}
-                  {showCustomIncompleteHint ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
-                    />
-                  ) : null}
-                  {collectQualityWarnings.length > 0 ? (
-                    <Alert
-                      type="warning"
-                      showIcon
-                      style={{ marginBottom: 16 }}
-                      message="采集质量提示"
-                      description={
-                        <ul style={{ margin: 0, paddingLeft: 20 }}>
-                          {collectQualityWarnings.map((w) => (
-                            <li key={w}>{w}</li>
-                          ))}
-                        </ul>
-                      }
-                    />
-                  ) : null}
-                  <Descriptions column={2} bordered size="small" style={{ marginBottom: 16 }}>
-                    <Descriptions.Item label="来源">{data.source}</Descriptions.Item>
-                    <Descriptions.Item label="币种（展示）">{data.currency}</Descriptions.Item>
-                    <Descriptions.Item label="来源链接" span={2}>
-                      <Typography.Link href={data.sourceUrl || undefined} target="_blank" rel="noreferrer">
-                        {data.sourceUrl || '—'}
-                      </Typography.Link>
-                    </Descriptions.Item>
-                  </Descriptions>
+                <Space direction="vertical" className="product-draft-basic" size="middle">
+                  <SectionCard
+                    title="采集质量"
+                    description="先看采集结果是否需要人工复核，再进入字段补充。"
+                    className="product-draft-basic__section product-draft-basic__quality"
+                  >
+                    <div id="collect-review" />
+                    <Space direction="vertical" className="product-draft-basic__stack" size="middle">
+                      {hasSourceCollectQualityPanel ? (
+                        <ProductCollectQualityAlert product={data} />
+                      ) : (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="当前来源没有独立采集质量规则"
+                          description="请继续检查来源链接、标题、描述、图片和规格。发布前的阻断项会在发布检查中再次提示。"
+                        />
+                      )}
+                      {showCustomIncompleteHint ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="自定义链接采集需要人工复核"
+                          description="该商品来自自定义链接采集，部分字段可能需要人工补充。建议检查标题、价格、图片和规格后再发布。"
+                        />
+                      ) : null}
+                      {collectQualityWarnings.length > 0 ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="采集质量提示"
+                          description={
+                            <ul className="product-draft-basic__warning-list">
+                              {collectQualityWarnings.map((w, index) => (
+                                <li key={`${w}-${index}`}>{w}</li>
+                              ))}
+                            </ul>
+                          }
+                        />
+                      ) : !showCustomIncompleteHint && !hasSourceCollectQualityPanel ? (
+                        <Alert
+                          type="success"
+                          showIcon
+                          message="未返回采集质量问题"
+                          description="当前商品详情没有携带采集质量提示。仍建议在保存前检查核心字段是否完整。"
+                        />
+                      ) : null}
+                    </Space>
+                  </SectionCard>
 
-                  {Object.keys(collectedAttrs).length > 0 ? (
-                    <>
+                  <SectionCard
+                    title="商品来源与采集信息"
+                    description="这些信息用于追溯采集入口；来源链接和采集原始数据不在本页编辑。"
+                    className="product-draft-basic__section product-draft-basic__source"
+                  >
+                    <div className="product-draft-basic__source-title-block">
+                      <Typography.Text type="secondary" className="product-draft-basic__source-title-label">
+                        来源商品标题
+                      </Typography.Text>
+                      {data.originalTitle ? (
+                        <Tooltip title={data.originalTitle}>
+                          <Typography.Text strong className="product-draft-basic__source-title">
+                            {data.originalTitle}
+                          </Typography.Text>
+                        </Tooltip>
+                      ) : (
+                        <Typography.Text type="secondary">未记录</Typography.Text>
+                      )}
+                    </div>
+                    <Descriptions
+                      column={{ xs: 1, sm: 1, md: 2, xl: 3 }}
+                      size="small"
+                      className="product-draft-basic__descriptions"
+                    >
+                      <Descriptions.Item label="来源平台">
+                        {data.source ? <Tag>{platformDisplayName(data.source)}</Tag> : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="币种（展示）">
+                        {data.currency || <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="本地商品 ID">
+                        <Typography.Text type="secondary" copyable={{ text: data.id }}>
+                          {data.id}
+                        </Typography.Text>
+                      </Descriptions.Item>
+                      <Descriptions.Item label="采集 / 创建时间">
+                        {data.createdAt ? formatDateTime(data.createdAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="最近更新时间">
+                        {data.updatedAt ? formatDateTime(data.updatedAt) : <Typography.Text type="secondary">未记录</Typography.Text>}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="当前状态">
+                        <StatusTag status={data.status} />
+                      </Descriptions.Item>
+                    </Descriptions>
+                    <div className="product-draft-basic__source-link-row">
+                      <Typography.Text type="secondary" className="product-draft-basic__source-link-label">
+                        来源链接
+                      </Typography.Text>
+                      {data.sourceUrl ? (
+                        <Typography.Link
+                          className="product-draft-basic__source-url"
+                          href={data.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={data.sourceUrl}
+                        >
+                          {data.sourceUrl}
+                        </Typography.Link>
+                      ) : (
+                        <Typography.Text type="secondary">未提供来源链接</Typography.Text>
+                      )}
+                    </div>
+                    {!data.sourceUrl ? (
+                      <Alert
+                        className="product-draft-basic__inline-alert"
+                        type="info"
+                        showIcon
+                        message="来源链接缺失"
+                        description="无法直接回到原商品页面核对信息。请优先检查标题、描述、图片和规格是否完整。"
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="商品核心信息"
+                    description="保存会提交本表单当前字段；图片、SKU、库存和刊登配置仍在对应 Tab 处理。"
+                    className="product-draft-basic__section product-draft-basic__form-section"
+                  >
+                    {missingBasicFields.length > 0 ? (
+                      <Alert
+                        className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
+                        type="warning"
+                        showIcon
+                        message="基础信息仍有缺失"
+                        description={`建议补充：${missingBasicFields.join('、')}。`}
+                      />
+                    ) : (
+                      <Alert
+                        className="product-draft-basic__inline-alert product-draft-basic__inline-alert--top"
+                        type="success"
+                        showIcon
+                        message="基础字段已具备主要内容"
+                        description="保存前仍可继续调整标题、描述、币种和状态。"
+                      />
+                    )}
+                    <ProForm
+                      key={`basic-${data.id}-${data.updatedAt}`}
+                      className="product-draft-basic__form"
+                      submitter={{
+                        searchConfig: { submitText: '保存基础信息' },
+                        submitButtonProps: { type: 'primary' },
+                        resetButtonProps: false,
+                        render: (_, dom) => (
+                          <div className="product-draft-basic__save-area">
+                            <div className="product-draft-basic__save-copy">
+                              <Typography.Text strong>保存范围</Typography.Text>
+                              <Typography.Text type="secondary">
+                                提交标题、原始标题、AI 标题、描述、AI 描述、币种和状态；不会自动执行发布检查、刊登或图片 / SKU / 库存操作。
+                              </Typography.Text>
+                            </div>
+                            <div className="product-draft-basic__save-actions">{dom}</div>
+                          </div>
+                        ),
+                      }}
+                      onFinish={async (vals: Record<string, unknown>) => {
+                        try {
+                          await updateProduct(id, {
+                            title: String(vals.title ?? ''),
+                            originalTitle: String(vals.originalTitle ?? ''),
+                            aiTitle: String(vals.aiTitle ?? ''),
+                            description: String(vals.description ?? ''),
+                            aiDescription: String(vals.aiDescription ?? ''),
+                            currency: String(vals.currency ?? ''),
+                            status: String(vals.status ?? ''),
+                          });
+                          message.success('已保存');
+                          await reloadDetail();
+                          return true;
+                        } catch (e: unknown) {
+                          message.error((e as Error)?.message || '保存失败');
+                          return false;
+                        }
+                      }}
+                      layout="vertical"
+                      grid
+                      initialValues={{
+                        title: data.title,
+                        originalTitle: data.originalTitle,
+                        aiTitle: data.aiTitle ?? '',
+                        description: data.description ?? '',
+                        aiDescription: data.aiDescription ?? '',
+                        currency: data.currency || 'CNY',
+                        status: data.status,
+                      }}
+                      colProps={{ xs: 24, md: 12 }}
+                    >
+                      <div id="title" className="product-draft-basic__anchor" />
+                      <div className="product-draft-basic__form-group-title">商品识别信息</div>
+                      <ProFormText
+                        name="title"
+                        label="主标题"
+                        rules={[{ required: true, message: '必填' }]}
+                        colProps={{ xs: 24 }}
+                        extra="发布和运营默认使用的商品标题。"
+                      />
+                      <ProFormTextArea
+                        name="originalTitle"
+                        label="原始标题"
+                        fieldProps={{ rows: 2 }}
+                        extra="采集时带回的原始标题，用于对照来源内容。"
+                      />
+                      <ProFormTextArea
+                        name="aiTitle"
+                        label="AI 标题"
+                        fieldProps={{ rows: 2 }}
+                        extra="AI 生成结果应用后会写入这里；本页保存只保存当前字段值。"
+                      />
+                      <div id="description" className="product-draft-basic__anchor" />
+                      <div className="product-draft-basic__form-group-title">标题与描述</div>
+                      <ProFormTextArea
+                        name="description"
+                        label="主描述"
+                        fieldProps={{ rows: 5 }}
+                        colProps={{ xs: 24, lg: 12 }}
+                        extra="发布前建议保留完整卖点、材质、尺寸和注意事项。"
+                      />
+                      <ProFormTextArea
+                        name="aiDescription"
+                        label="AI 描述"
+                        fieldProps={{ rows: 5 }}
+                        colProps={{ xs: 24, lg: 12 }}
+                        extra="AI 生成结果应用后会写入这里，可与主描述对照。"
+                      />
+                      <div className="product-draft-basic__form-group-title">流转属性</div>
+                      <ProFormText name="currency" label="币种" extra="仅保存商品基础币种展示，不会重新计算 SKU 价格。" />
+                      <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} extra="状态值保持原有枚举，用于草稿流转。" />
+                    </ProForm>
+                  </SectionCard>
+
+                  <SectionCard
+                    title="采集扩展属性"
+                    description="从采集原始数据中提取，仅用于核对和后续平台映射参考。"
+                    className="product-draft-basic__section product-draft-basic__attributes"
+                  >
                     <div id="attributes" />
-                    <Card title="采集属性" size="small" style={{ marginBottom: 16 }}>
+                    {collectedAttrRows.length > 0 ? (
                       <Table
                         size="small"
-                        pagination={false}
+                        pagination={collectedAttrRows.length > 12 ? { pageSize: 12, size: 'small' } : false}
                         rowKey="key"
-                        dataSource={Object.entries(collectedAttrs).map(([key, value]) => ({ key, value }))}
+                        dataSource={collectedAttrRows}
+                        className="product-draft-basic__attr-table"
                         columns={[
-                          { title: '属性', dataIndex: 'key', width: 180 },
-                          { title: '值', dataIndex: 'value', ellipsis: true },
+                          {
+                            title: '属性',
+                            dataIndex: 'key',
+                            width: 220,
+                            render: (value) => (
+                              <Typography.Text strong className="product-draft-basic__attr-key" title={String(value ?? '')}>
+                                {String(value ?? '') || '—'}
+                              </Typography.Text>
+                            ),
+                          },
+                          {
+                            title: '采集值',
+                            dataIndex: 'value',
+                            render: (value) => {
+                              const text = String(value ?? '');
+                              return (
+                                <Tooltip title={text}>
+                                  <Typography.Text className="product-draft-basic__attr-value">
+                                    {text || '—'}
+                                  </Typography.Text>
+                                </Tooltip>
+                              );
+                            },
+                          },
                         ]}
                       />
-                    </Card>
-                    </>
-                  ) : null}
-
-                  <ProForm
-                    key={`basic-${data.id}-${data.updatedAt}`}
-                    submitter={{
-                      searchConfig: { submitText: '保存基础信息' },
-                      submitButtonProps: { type: 'primary' },
-                      resetButtonProps: false,
-                    }}
-                    onFinish={async (vals: Record<string, unknown>) => {
-                      try {
-                        await updateProduct(id, {
-                          title: String(vals.title ?? ''),
-                          originalTitle: String(vals.originalTitle ?? ''),
-                          aiTitle: String(vals.aiTitle ?? ''),
-                          description: String(vals.description ?? ''),
-                          aiDescription: String(vals.aiDescription ?? ''),
-                          currency: String(vals.currency ?? ''),
-                          status: String(vals.status ?? ''),
-                        });
-                        message.success('已保存');
-                        await reloadDetail();
-                        return true;
-                      } catch (e: unknown) {
-                        message.error((e as Error)?.message || '保存失败');
-                        return false;
-                      }
-                    }}
-                    layout="vertical"
-                    grid
-                    initialValues={{
-                      title: data.title,
-                      originalTitle: data.originalTitle,
-                      aiTitle: data.aiTitle ?? '',
-                      description: data.description ?? '',
-                      aiDescription: data.aiDescription ?? '',
-                      currency: data.currency || 'CNY',
-                      status: data.status,
-                    }}
-                    colProps={{ span: 12 }}
-                  >
-                    <div id="title" />
-                    <ProFormText name="title" label="主标题" rules={[{ required: true, message: '必填' }]} />
-                    <ProFormTextArea name="originalTitle" label="原始标题" fieldProps={{ rows: 2 }} />
-                    <ProFormTextArea name="aiTitle" label="AI 标题" fieldProps={{ rows: 2 }} />
-                    <ProFormTextArea name="description" label="主描述" fieldProps={{ rows: 5 }} />
-                    <ProFormTextArea name="aiDescription" label="AI 描述" fieldProps={{ rows: 5 }} />
-                    <ProFormText name="currency" label="币种" />
-                    <ProFormSelect name="status" label="状态" options={PRODUCT_STATUS_OPTIONS} />
-                  </ProForm>
-                </Card>
+                    ) : (
+                      <EmptyState
+                        compact
+                        title="暂无采集扩展属性"
+                        description="当前商品详情没有返回可展示的采集属性。若发布检查提示平台属性缺失，请到发布检查或刊登配置中补齐。"
+                      />
+                    )}
+                  </SectionCard>
+                </Space>
               ),
             },
             {
               key: 'ai',
-              label: 'AI',
+              label: tabLabels.ai,
               children: (
-                <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                  <Card variant="borderless" styles={{ body: { paddingBottom: 12 } }}>
-                    <Space wrap size="middle">
-                      <Button
-                        type="primary"
-                        onClick={() => {
-                          setAiResult(null);
-                          setAiPreparedTitle('');
-                          aiForm.resetFields();
-                          aiForm.setFieldsValue({ language: 'en', platform: 'TikTok Shop', maxLength: 120 });
-                          setAiOpen(true);
-                        }}
-                      >
-                        标题优化
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={() => {
-                          setDescResult(null);
-                          setDescPreparedText('');
-                          descForm.resetFields();
-                          descForm.setFieldsValue({
-                            language: 'en',
-                            platform: 'TikTok Shop',
-                            tone: 'professional',
-                          });
-                          setDescOpen(true);
-                        }}
-                      >
-                        描述生成
-                      </Button>
-                    </Space>
-                  </Card>
+                <Space direction="vertical" className="product-draft-ai" size="middle">
+                  <SectionCard
+                    title="AI 文案工作台"
+                    description="先生成建议，再人工确认应用。生成不会保存到商品字段，应用才会写入 AI 标题或 AI 描述。"
+                    className="product-draft-ai__workbench"
+                    headerExtra={
+                      <Space wrap className="product-draft-ai__actions">
+                        <Button
+                          icon={<ThunderboltOutlined />}
+                          onClick={() => {
+                            setAiResult(null);
+                            setAiPreparedTitle('');
+                            aiForm.resetFields();
+                            aiForm.setFieldsValue({ language: 'en', platform: 'TikTok Shop', maxLength: 120 });
+                            setAiOpen(true);
+                          }}
+                        >
+                          生成标题建议
+                        </Button>
+                        <Button
+                          icon={<FileTextOutlined />}
+                          onClick={() => {
+                            setDescResult(null);
+                            setDescPreparedText('');
+                            descForm.resetFields();
+                            descForm.setFieldsValue({
+                              language: 'en',
+                              platform: 'TikTok Shop',
+                              tone: 'professional',
+                            });
+                            setDescOpen(true);
+                          }}
+                        >
+                          生成描述建议
+                        </Button>
+                      </Space>
+                    }
+                  >
+                    <div className="product-draft-ai__status-strip" aria-label="AI 文案状态">
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">当前草稿</Typography.Text>
+                        <Typography.Text strong>{originalTitleText || originalDescriptionText ? '已有人工内容' : '待补充内容'}</Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">AI 字段</Typography.Text>
+                        <Typography.Text strong>
+                          {appliedAiTitleText || appliedAiDescriptionText ? '已有已应用内容' : '暂无已应用内容'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__status-item">
+                        <Typography.Text type="secondary">最近任务</Typography.Text>
+                        <Typography.Text strong>
+                          {aiTasks.length ? `${aiTasks.length} 条记录` : '暂无记录'}
+                        </Typography.Text>
+                      </div>
+                    </div>
+                    <Alert
+                      className="product-draft-ai__action-note"
+                      type="info"
+                      showIcon
+                      message="生成只是创建候选文案"
+                      description="应用或撤销才会写入商品草稿；如果商品内容在生成后变化，系统会按现有冲突保护阻止静默覆盖。"
+                    />
+                    <div className="product-draft-ai__guide">
+                      <div className="product-draft-ai__guide-item">
+                        <RobotOutlined />
+                        <div>
+                          <Typography.Text strong>生成建议</Typography.Text>
+                          <Typography.Text type="secondary">创建 AI 结果，可能消耗模型额度。</Typography.Text>
+                        </div>
+                      </div>
+                      <div className="product-draft-ai__guide-item">
+                        <CheckCircleOutlined />
+                        <div>
+                          <Typography.Text strong>应用文案</Typography.Text>
+                          <Typography.Text type="secondary">人工确认后写入商品草稿的 AI 字段。</Typography.Text>
+                        </div>
+                      </div>
+                      <div className="product-draft-ai__guide-item">
+                        <UndoOutlined />
+                        <div>
+                          <Typography.Text strong>撤销应用</Typography.Text>
+                          <Typography.Text type="secondary">恢复最近一次应用前的 AI 字段内容。</Typography.Text>
+                        </div>
+                      </div>
+                    </div>
 
-                  <Card title="最近任务">
+                    <div className="product-draft-ai__copy-grid">
+                      <div className="product-draft-ai__copy-panel">
+                        <div className="product-draft-ai__copy-head">
+                          <div>
+                            <Typography.Text strong>标题</Typography.Text>
+                            <Typography.Paragraph type="secondary">用于刊登标题候选，不覆盖主标题。</Typography.Paragraph>
+                          </div>
+                          <Tag color={appliedAiTitleText ? 'success' : 'default'}>
+                            {appliedAiTitleText ? '已应用 AI 标题' : '未应用 AI 标题'}
+                          </Tag>
+                        </div>
+                        <div className="product-draft-ai__text-stack">
+                          <div className="product-draft-ai__text-box">
+                            <span>当前原文</span>
+                            {aiTextPreview(originalTitleText, '暂无标题')}
+                          </div>
+                          <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
+                            <span>已应用 AI 标题</span>
+                            {aiTextPreview(appliedAiTitleText, '还没有应用 AI 标题')}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="product-draft-ai__copy-panel">
+                        <div className="product-draft-ai__copy-head">
+                          <div>
+                            <Typography.Text strong>描述</Typography.Text>
+                            <Typography.Paragraph type="secondary">用于刊登描述候选，不覆盖主描述。</Typography.Paragraph>
+                          </div>
+                          <Tag color={appliedAiDescriptionText ? 'success' : 'default'}>
+                            {appliedAiDescriptionText ? '已应用 AI 描述' : '未应用 AI 描述'}
+                          </Tag>
+                        </div>
+                        <div className="product-draft-ai__text-stack">
+                          <div className="product-draft-ai__text-box">
+                            <span>当前原文</span>
+                            {aiTextPreview(originalDescriptionText, '暂无描述')}
+                          </div>
+                          <div className="product-draft-ai__text-box product-draft-ai__text-box--ai">
+                            <span>已应用 AI 描述</span>
+                            {aiTextPreview(appliedAiDescriptionText, '还没有应用 AI 描述')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {latestFailedAiTask ? (
+                      <ErrorAlert
+                        className="product-draft-ai__failure"
+                        title={`最近 AI 文案任务失败：${aiTaskTypeLabel(latestFailedAiTask.taskType)}`}
+                        actionHint={
+                          <Space direction="vertical" size={2}>
+                            <Typography.Text>{latestFailedAiTask.errorMessage || '任务未返回具体失败原因。'}</Typography.Text>
+                            <Typography.Text>{aiTaskNextStep(latestFailedAiTask)}</Typography.Text>
+                          </Space>
+                        }
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="最近 AI 文案任务"
+                    description="任务状态只表示 AI 生成过程；成功生成后仍需人工应用到商品。"
+                    className="product-draft-ai__task-section"
+                  >
                     <ProTable<AITaskRow>
                       rowKey="id"
                       search={false}
                       options={false}
                       pagination={false}
                       dataSource={aiTasks}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无 AI 文案任务"
+                            description="可以先生成标题建议或描述建议。"
+                          />
+                        ),
+                      }}
                       columns={[
-                        { title: '类型', dataIndex: 'taskType', width: 200 },
-                        { title: '状态', dataIndex: 'status', width: 100 },
-                        { title: '模型', dataIndex: 'model', ellipsis: true },
                         {
-                          title: 'AI 消耗量',
-                          width: 100,
-                          render: (_: unknown, row: AITaskRow) => `${row.tokenInput ?? 0}/${row.tokenOutput ?? 0}`,
+                          title: '类型',
+                          dataIndex: 'taskType',
+                          width: 176,
+                          render: (_, row) => (
+                            <Tooltip title={row.taskType}>
+                              <Typography.Text>{aiTaskTypeLabel(row.taskType)}</Typography.Text>
+                            </Tooltip>
+                          ),
                         },
-                        { title: '技能模板', dataIndex: 'promptCode', width: 160, ellipsis: true },
+                        {
+                          title: '状态',
+                          dataIndex: 'status',
+                          width: 112,
+                          render: (_, row) => <StatusTag status={row.status} />,
+                        },
+                        {
+                          title: '模型',
+                          dataIndex: 'model',
+                          ellipsis: true,
+                          render: (_, row) => (
+                            <Space size={4} wrap>
+                              {row.provider ? <Tag>{aiTextProviderLabel(row.provider) || row.provider}</Tag> : null}
+                              <Typography.Text ellipsis>{row.model || '—'}</Typography.Text>
+                            </Space>
+                          ),
+                        },
+                        {
+                          title: '模型额度',
+                          width: 120,
+                          render: (_: unknown, row: AITaskRow) => (
+                            <Tooltip title="输入 / 输出 token，仅作模型额度参考">
+                              <Typography.Text>{aiTaskCostText(row)}</Typography.Text>
+                            </Tooltip>
+                          ),
+                        },
+                        {
+                          title: '失败原因和下一步',
+                          dataIndex: 'errorMessage',
+                          ellipsis: true,
+                          render: (_, row) =>
+                            isAiTaskFailed(row) ? (
+                              <Space direction="vertical" size={0}>
+                                <Typography.Text type="danger" className="product-draft-ai__task-error">
+                                  {row.errorMessage || '任务失败，未返回具体原因'}
+                                </Typography.Text>
+                                <Typography.Text type="secondary">{aiTaskNextStep(row)}</Typography.Text>
+                              </Space>
+                            ) : (
+                              <Typography.Text type="secondary">—</Typography.Text>
+                            ),
+                        },
+                        {
+                          title: '技能模板',
+                          dataIndex: 'promptCode',
+                          width: 160,
+                          ellipsis: true,
+                          render: (_, row) => (
+                            <Tooltip title={row.promptCode}>
+                              <Typography.Text>{aiPromptCodeLabel(row.promptCode)}</Typography.Text>
+                            </Tooltip>
+                          ),
+                        },
                         {
                           title: '时间',
                           dataIndex: 'createdAt',
@@ -2146,10 +3222,112 @@ export default function ProductDraftDetailPage() {
                       ]}
                       size="small"
                     />
-                  </Card>
+                  </SectionCard>
+
+                  <SectionCard
+                    title="AI 图片任务"
+                    description="面向商品图片的后台处理入口；创建任务不会直接覆盖原图，结果去向在弹窗或任务内确认。"
+                    className="product-draft-ai__image-workbench"
+                    headerExtra={
+                      <Link to={`/ai/image-tasks?productId=${encodeURIComponent(id)}`}>
+                        <Button icon={<UnorderedListOutlined />}>查看图片任务</Button>
+                      </Link>
+                    }
+                  >
+                    <div className="product-draft-ai__image-status" aria-label="AI 图片任务状态">
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">当前图片</Typography.Text>
+                        <Typography.Text strong>{imageOverview.total ? `${imageOverview.total} 张` : '暂无图片'}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {imageOverview.main ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">可翻译源图</Typography.Text>
+                        <Typography.Text strong>{aiImageSource ? '已找到' : '缺少可用图片'}</Typography.Text>
+                        <Typography.Text type="secondary">
+                          {aiImageSource ? '默认使用当前排序第一张有地址的图片' : '请先在图片管理中添加图片'}
+                        </Typography.Text>
+                      </div>
+                      <div className="product-draft-ai__image-status-item">
+                        <Typography.Text type="secondary">结果去向</Typography.Text>
+                        <Typography.Text strong>后台任务处理</Typography.Text>
+                        <Typography.Text type="secondary">自动保存、设主图或设详情图需显式选择。</Typography.Text>
+                      </div>
+                    </div>
+
+                    <div className="product-draft-ai__image-grid">
+                      <div className="product-draft-ai__image-card product-draft-ai__image-card--primary">
+                        <div className="product-draft-ai__image-card-head">
+                          <RobotOutlined />
+                          <div>
+                            <Typography.Text strong>AI 图片生成与处理</Typography.Text>
+                            <Typography.Paragraph type="secondary">
+                              新建去水印、去背景、营销图、主图优选等图片任务，处理过程在后台执行。
+                            </Typography.Paragraph>
+                          </div>
+                        </div>
+                        <Space wrap size={[8, 8]}>
+                          <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                            新建图片任务
+                          </Button>
+                          <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                            推荐最佳主图
+                          </Button>
+                          <Button
+                            type="primary"
+                            ghost
+                            icon={<ThunderboltOutlined />}
+                            onClick={() => void runSelectBestMain('auto_set')}
+                          >
+                            自动设为主图
+                          </Button>
+                        </Space>
+                      </div>
+
+                      <div className="product-draft-ai__image-card">
+                        <div className="product-draft-ai__image-card-head">
+                          <TranslationOutlined />
+                          <div>
+                            <Typography.Text strong>图片文字翻译</Typography.Text>
+                            <Typography.Paragraph type="secondary">
+                              选择当前商品图片创建翻译任务，原图不覆盖；译后图片可保存为商品图片或详情图。
+                            </Typography.Paragraph>
+                          </div>
+                        </div>
+                        <Space direction="vertical" size={8} className="product-draft-ai__image-action-stack">
+                          <Space wrap size={[8, 8]}>
+                            <Button
+                              icon={<TranslationOutlined />}
+                              disabled={!aiImageSource}
+                              onClick={() => {
+                                if (aiImageSource) openTranslateImageText(aiImageSource);
+                              }}
+                            >
+                              翻译当前第一张可用图片
+                            </Button>
+                            <Button icon={<PictureOutlined />} onClick={() => openDraftLocation('images')}>
+                              前往图片管理
+                            </Button>
+                          </Space>
+                          <Typography.Text type="secondary" className="product-draft-ai__image-note">
+                            需要指定其他源图时，可在图片管理列表中对单张图片发起翻译。
+                          </Typography.Text>
+                        </Space>
+                      </div>
+                    </div>
+
+                    <Alert
+                      className="product-draft-ai__image-note-alert"
+                      type="info"
+                      showIcon
+                      message="图片任务是异步处理"
+                      description="任务提交后不会立即替换页面图片；结果、失败原因和后续保存动作以 AI 图片任务列表和弹窗内配置为准。"
+                    />
+                  </SectionCard>
 
                   {data.rawData != null ? (
-                    <TechnicalDetails label="采集原始信息">
+                    <TechnicalDetails label="原始采集 JSON（技术参考）" className="product-draft-ai__raw">
                       <TaskJsonBlock title="原始信息" value={data.rawData} maxHeight={360} last />
                     </TechnicalDetails>
                   ) : null}
@@ -2158,14 +3336,13 @@ export default function ProductDraftDetailPage() {
             },
             {
               key: 'images',
-              label: '图片管理',
+              label: tabLabels.images,
               children: (
-                <Card variant="borderless">
+                <Space direction="vertical" className="product-draft-images" size="middle">
                   {isPinduoduoProduct(data) ? (
                     <Alert
                       type="info"
                       showIcon
-                      style={{ marginBottom: 16 }}
                       message="拼多多图片已按页面区域自动分类，请发布前检查主图和详情图是否正确。"
                     />
                   ) : null}
@@ -2173,274 +3350,397 @@ export default function ProductDraftDetailPage() {
                     <Alert
                       type="info"
                       showIcon
-                      style={{ marginBottom: 16 }}
                       message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
                     />
                   ) : null}
-                  <Card
-                    size="small"
-                    style={{
-                      marginBottom: 16,
-                      background: 'var(--ant-color-fill-alter)',
-                      border: '1px solid var(--ant-color-border-secondary)',
-                    }}
-                    styles={{ body: { padding: '16px 20px' } }}
+                  <SectionCard
+                    title="图片概览"
+                    description="基于当前商品详情已加载的图片数据展示，不额外请求接口。"
+                    className="product-draft-images__overview-section"
                   >
-                    <Flex vertical gap={16}>
-                      <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 13, lineHeight: '22px' }}>
-                        在下方每张图片旁可一键发起 AI 处理；也可新建任务并选择图片。结果会自动保存到当前存储设置，可在{' '}
-                        <Link to="/ai/image-tasks">AI 图片任务</Link> 查看进度。
-                      </Typography.Paragraph>
-                      <Flex wrap="wrap" gap={16} align="stretch">
-                        <Flex
-                          vertical
-                          gap={10}
-                          style={{
-                            flex: '1 1 240px',
-                            minWidth: 240,
-                            paddingRight: 16,
-                            borderRight: '1px solid var(--ant-color-border-secondary)',
-                          }}
-                        >
-                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
-                            <PictureOutlined style={{ marginRight: 6 }} />
-                            图片管理
-                          </Typography.Text>
+                    <div className="product-draft-images__overview-grid">
+                      <MetricCard
+                        title="图片总数"
+                        value={imageOverview.total}
+                        description={imageOverview.total > 0 ? '当前商品图片记录' : '暂无商品图片'}
+                        icon={<PictureOutlined />}
+                        intent="data"
+                      />
+                      <MetricCard
+                        title="主图状态"
+                        value={imageOverview.main > 0 ? '已设置' : '缺少'}
+                        description={imageOverview.main > 0 ? `${imageOverview.main} 张主图` : '发布前建议补齐主图'}
+                        icon={<CheckCircleOutlined />}
+                        intent={imageOverview.main > 0 ? 'success' : 'warning'}
+                      />
+                      <MetricCard
+                        title="详情图状态"
+                        value={imageOverview.detail > 0 ? `${imageOverview.detail} 张` : '缺少'}
+                        description={imageOverview.detail > 0 ? '已识别详情图' : '可将图片设为详情图'}
+                        icon={<FileTextOutlined />}
+                        intent={imageOverview.detail > 0 ? 'success' : 'warning'}
+                      />
+                      <MetricCard
+                        title="同步状态"
+                        value={`${imageOverview.synced} / ${imageOverview.total}`}
+                        description={imageOverview.best > 0 ? `含 ${imageOverview.best} 张最佳主图标记` : '暂无最佳主图标记'}
+                        icon={<CloudUploadOutlined />}
+                        intent={imageOverview.synced === imageOverview.total && imageOverview.total > 0 ? 'success' : 'default'}
+                      />
+                    </div>
+                    {imageOverview.total > 0 && imageOverview.main === 0 ? (
+                      <Alert
+                        className="product-draft-images__inline-alert"
+                        type="warning"
+                        showIcon
+                        message="当前商品没有主图"
+                        description="可在图片列表中选择一张图片设为主图。"
+                      />
+                    ) : null}
+                    {imageOverview.total > 0 && imageOverview.detail === 0 ? (
+                      <Alert
+                        className="product-draft-images__inline-alert"
+                        type="info"
+                        showIcon
+                        message="当前商品没有详情图"
+                        description="可在图片列表中选择图片设为详情图，或继续保留现有业务分类。"
+                      />
+                    ) : null}
+                  </SectionCard>
+
+                  <SectionCard
+                    title="页面操作"
+                    description="添加、排序和同步都需要手动触发，不会在页面加载时自动写入。"
+                    className="product-draft-images__operations-section"
+                  >
+                    {imageSyncError ? (
+                      <Alert
+                        className="product-draft-images__inline-alert product-draft-images__inline-alert--top"
+                        type="error"
+                        showIcon
+                        message="图片同步失败"
+                        description={imageSyncError}
+                      />
+                    ) : null}
+                    <div className="product-draft-images__operation-grid">
+                      <div className="product-draft-images__operation-panel">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <PictureOutlined />
+                          图片管理
+                        </Typography.Text>
+                        <Space wrap size={[8, 8]}>
+                          <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => {
+                              setLastUpload(null);
+                              setImgEdit(null);
+                              setImgModalOpen(true);
+                            }}
+                          >
+                            添加图片
+                          </Button>
+                          <Tooltip title="按当前列表顺序提交全部图片 ID">
+                            <Button
+                              icon={<SyncOutlined />}
+                              loading={imageSyncingScope === 'order'}
+                              onClick={() => void handleReorderProductImages()}
+                            >
+                              同步顺序
+                            </Button>
+                          </Tooltip>
+                        </Space>
+                      </div>
+                      <div className="product-draft-images__operation-panel">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <CloudUploadOutlined />
+                          图片同步
+                        </Typography.Text>
+                        {isTaobaoTmallProduct(data) ? (
                           <Space wrap size={[8, 8]}>
                             <Button
-                              type="primary"
-                              icon={<PlusOutlined />}
-                              onClick={() => {
-                                setLastUpload(null);
-                                setImgEdit(null);
-                                setImgModalOpen(true);
-                              }}
+                              loading={imageSyncingScope === 'all'}
+                              onClick={() => void handleSyncProductImages('all')}
                             >
-                              添加图片
-                            </Button>
-                            <Tooltip title="按当前列表顺序提交全部图片 ID">
-                              <Button
-                                icon={<SyncOutlined />}
-                                onClick={async () => {
-                                  try {
-                                    const ordered = [...sortedImages].sort(
-                                      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
-                                    );
-                                    await reorderProductImages(id, { imageIds: ordered.map((i) => i.id) });
-                                    message.success('已同步');
-                                    await reloadDetail();
-                                  } catch (e: unknown) {
-                                    message.error((e as Error)?.message || '排序失败');
-                                  }
-                                }}
-                              >
-                                同步顺序
-                              </Button>
-                            </Tooltip>
-                            {isTaobaoTmallProduct(data) ? (
-                              <>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'all' });
-                                      message.success(`已同步 ${res.synced} 张图片到平台存储`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  同步图片到平台存储
-                                </Button>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'main' });
-                                      message.success(`已同步 ${res.synced} 张主图`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  批量同步主图
-                                </Button>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      const res = await syncProductImages(id, { scope: 'detail' });
-                                      message.success(`已同步 ${res.synced} 张详情图`);
-                                      await reloadDetail();
-                                    } catch (e: unknown) {
-                                      message.error((e as Error)?.message || '同步失败');
-                                    }
-                                  }}
-                                >
-                                  批量同步详情图
-                                </Button>
-                              </>
-                            ) : null}
-                          </Space>
-                        </Flex>
-                        <Flex vertical gap={10} style={{ flex: '2 1 320px', minWidth: 280 }}>
-                          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 500 }}>
-                            <RobotOutlined style={{ marginRight: 6 }} />
-                            AI 处理
-                          </Typography.Text>
-                          <Space wrap size={[8, 8]}>
-                            <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
-                              新建图片任务
-                            </Button>
-                            <Link to="/ai/image-tasks">
-                              <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
-                            </Link>
-                            <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
-                              设为最佳主图
+                              同步图片到平台存储
                             </Button>
                             <Button
-                              type="primary"
-                              ghost
-                              icon={<ThunderboltOutlined />}
-                              onClick={() => void runSelectBestMain('auto_set')}
+                              loading={imageSyncingScope === 'main'}
+                              onClick={() => void handleSyncProductImages('main')}
                             >
-                              自动设为主图
+                              批量同步主图
+                            </Button>
+                            <Button
+                              loading={imageSyncingScope === 'detail'}
+                              onClick={() => void handleSyncProductImages('detail')}
+                            >
+                              批量同步详情图
                             </Button>
                           </Space>
-                        </Flex>
-                      </Flex>
-                    </Flex>
-                  </Card>
-                  <ProTable<ProductImageRow>
-                    rowKey="id"
-                    search={false}
-                    options={false}
-                    pagination={false}
-                    headerTitle="图片列表"
-                    toolBarRender={false}
-                    dataSource={sortedImages}
-                    columns={imageColumns}
-                    size="small"
-                  />
-                </Card>
+                        ) : (
+                          <Typography.Text type="secondary">
+                            当前来源未启用该同步入口；可继续添加、编辑和标记商品图片。
+                          </Typography.Text>
+                        )}
+                      </div>
+                      <div className="product-draft-images__operation-panel product-draft-images__operation-panel--ai">
+                        <Typography.Text type="secondary" className="product-draft-images__operation-title">
+                          <RobotOutlined />
+                          AI 图片任务
+                        </Typography.Text>
+                        <Space wrap size={[8, 8]}>
+                          <Button type="primary" icon={<RobotOutlined />} onClick={() => openCreateImageTask({})}>
+                            新建图片任务
+                          </Button>
+                          <Link to="/ai/image-tasks">
+                            <Button icon={<UnorderedListOutlined />}>查看任务列表</Button>
+                          </Link>
+                          <Button icon={<StarOutlined />} onClick={() => void runSelectBestMain('recommend')}>
+                            设为最佳主图
+                          </Button>
+                          <Button
+                            type="primary"
+                            ghost
+                            icon={<ThunderboltOutlined />}
+                            onClick={() => void runSelectBestMain('auto_set')}
+                          >
+                            自动设为主图
+                          </Button>
+                        </Space>
+                        <Typography.Text type="secondary" className="product-draft-images__operation-note">
+                          图片服务可用性在任务弹窗内检查；处理结果以后台任务状态为准。
+                        </Typography.Text>
+                      </div>
+                    </div>
+                  </SectionCard>
+
+                  <SectionCard
+                    title="图片列表"
+                    description="每行操作只作用于当前图片，更多菜单中保留低频和危险操作。"
+                    className="product-draft-images__list-section"
+                  >
+                    <ProTable<ProductImageRow>
+                      rowKey="id"
+                      search={false}
+                      options={false}
+                      pagination={false}
+                      headerTitle={false}
+                      toolBarRender={false}
+                      dataSource={sortedImages}
+                      columns={imageColumns}
+                      size="small"
+                      scroll={{ x: 1120 }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无商品图片"
+                            description="可以手动添加图片，或从采集结果补充后再回到这里管理。"
+                            actionLabel="添加图片"
+                            onAction={() => {
+                              setLastUpload(null);
+                              setImgEdit(null);
+                              setImgModalOpen(true);
+                            }}
+                          />
+                        ),
+                      }}
+                    />
+                  </SectionCard>
+                </Space>
               ),
             },
             {
               key: 'skus',
-              label: '商品规格',
+              label: tabLabels.skus,
               children: (
-                <Card variant="borderless">
-                  {(data.source === 'custom' || isPinduoduoProduct(data)) &&
-                  (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      style={{ marginBottom: 12 }}
-                      message={
-                        isPinduoduoProduct(data)
-                          ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
-                          : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
-                      }
-                    />
-                  ) : null}
-                  <Space style={{ marginBottom: 12 }}>
-                    <Button type="primary" onClick={() => setPricingOpen(true)}>
-                      应用定价规则
-                    </Button>
-                    <Typography.Text type="secondary">
-                      按成本价/当前价加价并更新本地销售价，不会自动刊登
-                    </Typography.Text>
-                  </Space>
-                  <EditableProTable<SKUEditable>
-                    rowKey="id"
-                    headerTitle={false}
-                    search={false}
-                    options={false}
-                    pagination={false}
-                    value={skuRows}
-                    onChange={(value) => setSkuRows([...value])}
-                    recordCreatorProps={{
-                      record: (): SKUEditable => ({
-                        id: `new_${Date.now()}`,
-                        productId: id,
-                        skuCode: '',
-                        skuName: '新规格',
-                        attrsText: '{}',
-                      }),
-                      style: {
-                        marginBottom: 16,
-                      },
-                      creatorButtonText: '新增规格',
-                    }}
-                    editable={{
-                      type: 'multiple',
-                      onSave: async (_key, row) => {
-                        const attrsStr = row.attrsText?.trim() ?? '';
-                        let attrs: string | Record<string, unknown> | undefined = attrsStr;
-                        if (!attrsStr) attrs = '{}';
-                        if (String(row.id).startsWith('new_')) {
-                          await createProductSku(id, {
-                            skuCode: row.skuCode ?? '',
-                            skuName: row.skuName,
-                            attrs,
-                            price: row.price,
-                            stock: row.stock,
-                            imageUrl: row.imageUrl,
-                          });
-                          message.success('商品规格已创建');
-                        } else {
-                          await updateProductSku(id, row.id, {
-                            skuCode: row.skuCode,
-                            skuName: row.skuName,
-                            attrs,
-                            price: row.price,
-                            stock: row.stock,
-                            imageUrl: row.imageUrl,
-                          });
-                          message.success('商品规格已更新');
+                <Space direction="vertical" className="product-draft-skus" size="middle">
+                  <SectionCard
+                    title="规格与价格"
+                    description="维护当前商品的 SKU 编码、规格名称、价格和本地库存；定价只更新本地销售价，不会自动刊登。"
+                    className="product-draft-skus__section"
+                    headerExtra={<Tag color="blue">当前商品 {currentSkuCount} 个 SKU</Tag>}
+                  >
+                    <div id="pricing" />
+                    {(data.source === 'custom' || isPinduoduoProduct(data)) &&
+                    (data.skus ?? []).filter((s) => !String(s.id).startsWith('new_')).length === 0 ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        className="product-draft-skus__alert"
+                        message={
+                          isPinduoduoProduct(data)
+                            ? '当前采集结果没有完整商品规格。你可以手动新增规格，或等待后续版本增强拼多多规格采集。'
+                            : '当前采集结果没有商品规格。部分网站的规格和库存需要专用采集器才能完整获取，你也可以手动新增规格。'
                         }
-                        await reloadDetail();
-                      },
-                    }}
-                    columns={skuColumns}
-                    scroll={{ x: 1100 }}
-                  />
-                </Card>
+                      />
+                    ) : null}
+                    {readonly ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="product-draft-skus__alert"
+                        message="当前账号处于只读模式"
+                        description="本区仅强化只读提示，不改变现有新增、编辑、保存、删除或定价按钮的可用规则。"
+                      />
+                    ) : null}
+                    <div className="product-draft-skus__summary" aria-label="当前商品规格摘要">
+                      <div className="product-draft-skus__summary-item">
+                        <span>SKU 数量</span>
+                        <strong>{currentSkuCount}</strong>
+                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                      </div>
+                      <div className="product-draft-skus__summary-item">
+                        <span>编辑方式</span>
+                        <strong>行内编辑</strong>
+                        <Typography.Text type="secondary">新增行保存后写入接口</Typography.Text>
+                      </div>
+                      <div className="product-draft-skus__summary-item">
+                        <span>定价范围</span>
+                        <strong>本商品 SKU</strong>
+                        <Typography.Text type="secondary">试算确认后更新销售价</Typography.Text>
+                      </div>
+                    </div>
+                    <OperationToolbar
+                      className="product-draft-skus__toolbar"
+                      extra={<Typography.Text type="secondary">新增 SKU 使用表格内真实入口；保存和删除仍按行处理。</Typography.Text>}
+                    >
+                      <Button icon={<ThunderboltOutlined />} onClick={() => setPricingOpen(true)}>
+                        应用定价规则
+                      </Button>
+                    </OperationToolbar>
+                    {currentSkuCount === 0 ? (
+                      <EmptyState
+                        compact
+                        title="还没有商品规格"
+                        description="使用下方「新增 SKU」添加一行规格，保存后才会创建本地 SKU。"
+                        className="product-draft-skus__empty"
+                      />
+                    ) : null}
+                    <div id="local-skus" className="product-draft-skus__table-anchor" />
+                    <EditableProTable<SKUEditable>
+                      rowKey="id"
+                      className="product-draft-skus__table"
+                      headerTitle={false}
+                      search={false}
+                      options={false}
+                      pagination={false}
+                      value={skuRows}
+                      onChange={(value) => setSkuRows([...value])}
+                      recordCreatorProps={{
+                        record: (): SKUEditable => ({
+                          id: `new_${Date.now()}`,
+                          productId: id,
+                          skuCode: '',
+                          skuName: '新规格',
+                          attrsText: '{}',
+                        }),
+                        style: {
+                          marginBottom: 12,
+                        },
+                        creatorButtonText: '新增 SKU',
+                      }}
+                      editable={{
+                        type: 'multiple',
+                        editableKeys: skuEditableKeys,
+                        onChange: setSkuEditableKeys,
+                        onSave: async (_key, row) => {
+                          const attrsStr = row.attrsText?.trim() ?? '';
+                          let attrs: string | Record<string, unknown> | undefined = attrsStr;
+                          if (!attrsStr) attrs = '{}';
+                          if (String(row.id).startsWith('new_')) {
+                            await createProductSku(id, {
+                              skuCode: row.skuCode ?? '',
+                              skuName: row.skuName,
+                              attrs,
+                              price: row.price,
+                              stock: row.stock,
+                              imageUrl: row.imageUrl,
+                            });
+                            message.success('商品规格已创建');
+                          } else {
+                            await updateProductSku(id, row.id, {
+                              skuCode: row.skuCode,
+                              skuName: row.skuName,
+                              attrs,
+                              price: row.price,
+                              stock: row.stock,
+                              imageUrl: row.imageUrl,
+                            });
+                            message.success('商品规格已更新');
+                          }
+                          await reloadDetail();
+                        },
+                      }}
+                      columns={skuColumns}
+                      scroll={{ x: 1260 }}
+                    />
+                  </SectionCard>
+                </Space>
               ),
             },
             {
               key: 'inventory',
-              label: '库存',
+              label: tabLabels.inventory,
               children: (
-                <Card variant="borderless">
-                  <Alert
-                    type="info"
-                    showIcon
-                    style={{ marginBottom: 24 }}
-                    message="库存说明"
-                    description={
-                      <>
-                        <Typography.Paragraph style={{ marginBottom: 8 }}>
-                          在此调整本地规格库存与预警线；已刊登到各平台的规格可在下方同步到店铺。
-                          仅当平台已开放「库存同步」且映射完整时可发起同步（抖店、TikTok、Shopee、Lazada、Amazon 已支持）。
-                        </Typography.Paragraph>
-                        <Typography.Paragraph style={{ marginBottom: 0 }}>
-                          相关入口：
-                          <Link to="/inventory/alerts">库存预警</Link>
-                          {' · '}
-                          <Link to="/inventory/sync-tasks">同步任务</Link>
-                          {' · '}
-                          <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
-                          {' · '}
-                          <Link to="/inventory/effects">订单扣减</Link>
-                        </Typography.Paragraph>
-                      </>
+                <Space direction="vertical" className="product-draft-inventory" size="middle">
+                  <div className="product-draft-inventory__banner">
+                    <InventorySyncDisabledBanner />
+                  </div>
+                  <SectionCard
+                    title="库存状态说明"
+                    description="本页只处理本地 SKU 库存、预警线和库存同步任务；平台规格映射仍按原区域展示。"
+                    className="product-draft-inventory__overview"
+                    headerExtra={
+                      readonly ? <Tag color="warning">只读模式</Tag> : <Tag color="blue">本地库存</Tag>
                     }
-                  />
+                  >
+                    {readonly ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="product-draft-inventory__alert"
+                        message="当前账号处于只读模式"
+                        description="本轮不改变现有库存按钮的可用条件；如后端拒绝写操作，会按原提示展示失败原因。"
+                      />
+                    ) : null}
+                    <div className="product-draft-inventory__summary" aria-label="当前商品库存摘要">
+                      <div className="product-draft-inventory__summary-item">
+                        <span>本地 SKU</span>
+                        <strong>{localInventorySummary.total}</strong>
+                        <Typography.Text type="secondary">来自当前商品规格列表</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item">
+                        <span>已设置预警线</span>
+                        <strong>{localInventorySummary.warningSet}</strong>
+                        <Typography.Text type="secondary">预警线或安全线已填写</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item product-draft-inventory__summary-item--warning">
+                        <span>需关注</span>
+                        <strong>{localInventorySummary.low}</strong>
+                        <Typography.Text type="secondary">低库存、低于安全线或售罄</Typography.Text>
+                      </div>
+                      <div className="product-draft-inventory__summary-item">
+                        <span>库存未记录</span>
+                        <strong>{localInventorySummary.missingStock}</strong>
+                        <Typography.Text type="secondary">不按 0 展示</Typography.Text>
+                      </div>
+                    </div>
+                    <div className="product-draft-inventory__links" aria-label="库存相关入口">
+                      <Link to="/inventory/alerts">库存预警</Link>
+                      <Link to="/inventory/sync-tasks">同步任务</Link>
+                      <Link to={`/inventory/logs?productId=${data.id}`}>变更记录</Link>
+                      <Link to="/inventory/effects">订单扣减</Link>
+                    </div>
+                  </SectionCard>
 
-                  <Space align="center" style={{ marginBottom: 12 }} wrap>
-                    <Typography.Title level={5} style={{ margin: 0 }}>
-                      本地规格
-                    </Typography.Title>
+                  <SectionCard
+                    title="本地 SKU 库存"
+                    description="库存调整会写入本地规格库存；预警线只影响预警规则，不修改实际库存。"
+                    className="product-draft-stock__section"
+                    headerExtra={
+                      <Space wrap className="product-draft-stock__section-actions">
+                        <Typography.Text type="secondary">已选 {skuBatchSelKeys.length} 个 SKU</Typography.Text>
                     <Button
                       size="small"
                       onClick={() => {
@@ -2451,37 +3751,96 @@ export default function ProductDraftDetailPage() {
                     >
                       批量设置预警线
                     </Button>
-                  </Space>
+                      </Space>
+                    }
+                  >
+                  {localInventoryRows.length === 0 ? (
+                    <EmptyState
+                      compact
+                      title="还没有本地 SKU"
+                      description="请先在「商品规格」中新增 SKU，保存后才能调整库存和预警线。"
+                      className="product-draft-stock__empty"
+                    />
+                  ) : null}
                   <Table<ProductSKURow>
                     loading={loading}
                     size="small"
+                    className="product-draft-stock__table"
                     pagination={false}
                     rowKey="id"
-                    dataSource={(data.skus ?? []).filter((s) => !String(s.id).startsWith('new_'))}
+                    dataSource={localInventoryRows}
+                    scroll={{ x: 1080 }}
                     rowSelection={{
                       selectedRowKeys: skuBatchSelKeys,
                       onChange: (keys) => setSkuBatchSelKeys(keys.map(String)),
                     }}
                     columns={[
-                      { title: '编码', dataIndex: 'skuCode', width: 120, ellipsis: true },
-                      { title: '名称', dataIndex: 'skuName', ellipsis: true },
+                      {
+                        title: '编码',
+                        dataIndex: 'skuCode',
+                        width: 168,
+                        ellipsis: true,
+                        render: (v: string | undefined, r) => (
+                          <Tooltip title={v || r.id}>
+                            <Typography.Text className="product-draft-stock__code">{v || r.id}</Typography.Text>
+                          </Tooltip>
+                        ),
+                      },
+                      {
+                        title: '规格',
+                        dataIndex: 'skuName',
+                        width: 240,
+                        render: (_v, r) => (
+                          <Space direction="vertical" size={2} className="product-draft-stock__sku">
+                            <Typography.Text strong className="product-draft-stock__sku-name">
+                              {r.skuName || '未填写规格名称'}
+                            </Typography.Text>
+                            {r.attrs ? (
+                              <Typography.Text type="secondary" className="product-draft-stock__attrs">
+                                {attrsToText(r.attrs)}
+                              </Typography.Text>
+                            ) : null}
+                          </Space>
+                        ),
+                      },
                       {
                         title: '库存',
                         dataIndex: 'stock',
-                        width: 72,
-                        render: (_v, r) => (typeof r.stock === 'number' ? r.stock : '—'),
+                        width: 96,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.stock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.stock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未记录</Typography.Text>
+                          ),
                       },
                       {
                         title: '预警',
                         dataIndex: 'warningStock',
-                        width: 64,
-                        render: (_v, r) => (typeof r.warningStock === 'number' ? r.warningStock : '—'),
+                        width: 88,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.warningStock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.warningStock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未设置</Typography.Text>
+                          ),
                       },
                       {
                         title: '安全',
                         dataIndex: 'safetyStock',
-                        width: 64,
-                        render: (_v, r) => (typeof r.safetyStock === 'number' ? r.safetyStock : '—'),
+                        width: 88,
+                        align: 'right' as const,
+                        className: 'product-draft-stock__number-col',
+                        render: (_v, r) =>
+                          typeof r.safetyStock === 'number' ? (
+                            <Typography.Text className="product-draft-stock__number">{r.safetyStock}</Typography.Text>
+                          ) : (
+                            <Typography.Text type="secondary">未设置</Typography.Text>
+                          ),
                       },
                       {
                         title: '状态',
@@ -2492,13 +3851,15 @@ export default function ProductDraftDetailPage() {
                       {
                         title: '操作',
                         key: 'op',
-                        width: 280,
+                        width: 236,
+                        fixed: 'right' as const,
+                        className: 'product-draft-stock__action-col',
                         render: (_x, r) => (
-                          <Space wrap size="small">
+                          <Space wrap size={4} className="product-draft-stock__row-actions">
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action product-draft-stock__action--primary"
                               onClick={() => {
                                 setAdjustTarget(r);
                                 adjustForm.setFieldsValue({
@@ -2514,7 +3875,7 @@ export default function ProductDraftDetailPage() {
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action"
                               onClick={() => {
                                 setStockSettingsTarget(r);
                                 stockSettingsForm.setFieldsValue({
@@ -2529,7 +3890,7 @@ export default function ProductDraftDetailPage() {
                             <Button
                               type="link"
                               size="small"
-                              style={{ padding: 0 }}
+                              className="product-draft-stock__action product-draft-stock__action--muted"
                               onClick={async () => {
                                 setLogsSku(r);
                                 setLogsOpen(true);
@@ -2551,10 +3912,15 @@ export default function ProductDraftDetailPage() {
                       },
                     ]}
                   />
+                  </SectionCard>
 
                   <Modal
                     title="批量设置预警线（本商品）"
                     open={skuBatchStockOpen}
+                    forceRender
+                    width={640}
+                    rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+                    className="product-draft-inventory__modal"
                     onCancel={() => {
                       setSkuBatchStockOpen(false);
                       setSkuBatchMatched(null);
@@ -2608,7 +3974,7 @@ export default function ProductDraftDetailPage() {
                         });
                     }}
                   >
-                    <Typography.Paragraph type="secondary" style={{ fontSize: 12 }}>
+                    <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
                       匹配数：{skuBatchPreviewLoading ? '计算中…' : skuBatchMatched !== null ? `${skuBatchMatched} 个规格` : '—'}
                     </Typography.Paragraph>
                     <Form form={skuBatchStockForm} layout="vertical" initialValues={{ warningStock: 10, safetyStock: 2 }}>
@@ -2635,14 +4001,52 @@ export default function ProductDraftDetailPage() {
                     </Form>
                   </Modal>
 
-                  <Typography.Title level={5} style={{ marginTop: 24 }}>
-                    已刊登规格映射
-                  </Typography.Title>
-                  <Space wrap style={{ marginBottom: 12 }}>
+                  <SectionCard
+                    title="库存同步任务"
+                    description="已刊登规格映射只用于识别要同步的本地 SKU 与平台 SKU；创建任务不代表平台库存已经同步完成。"
+                    className="product-draft-inventory-sync__section"
+                  >
+                  <div className="product-draft-platform-sku__brief" aria-label="平台 SKU 映射上下文">
+                    <div className="product-draft-platform-sku__brief-main">
+                      <Typography.Text strong>映射范围</Typography.Text>
+                      <Typography.Paragraph type="secondary">
+                        当前表格来自已刊登规格列表，按平台和店铺保留独立映射。缺少平台商品 ID、平台规格编码，或抖店规格处于待确认/未匹配状态时，不能创建该行的库存同步任务。
+                      </Typography.Paragraph>
+                    </div>
+                    <div className="product-draft-platform-sku__metrics">
+                      <div className="product-draft-platform-sku__metric">
+                        <span>已刊登规格</span>
+                        <strong>{platformSkuMappingSummary.total}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric">
+                        <span>平台商品 ID</span>
+                        <strong>{platformSkuMappingSummary.withProduct}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric">
+                        <span>平台 SKU</span>
+                        <strong>{platformSkuMappingSummary.withSku}</strong>
+                      </div>
+                      <div className="product-draft-platform-sku__metric product-draft-platform-sku__metric--muted">
+                        <span>不可同步</span>
+                        <strong>{platformSkuMappingSummary.blocked}</strong>
+                      </div>
+                    </div>
+                    <div className="product-draft-platform-sku__scope">
+                      <Typography.Text type="secondary">
+                        平台：{platformSkuMappingSummary.platforms.slice(0, 3).join(' / ') || '—'}
+                        {platformSkuMappingSummary.platforms.length > 3 ? ` 等 ${platformSkuMappingSummary.platforms.length} 个` : ''}
+                      </Typography.Text>
+                      <Typography.Text type="secondary">
+                        店铺：{platformSkuMappingSummary.shops.slice(0, 2).join(' / ') || '—'}
+                        {platformSkuMappingSummary.shops.length > 2 ? ` 等 ${platformSkuMappingSummary.shops.length} 个` : ''}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                  <Space wrap className="product-draft-inventory-sync__toolbar">
                     <Select
                       allowClear
                       placeholder="按平台筛选（批量同步）"
-                      style={{ minWidth: 200 }}
+                      className="product-draft-inventory-sync__platform-filter"
                       value={pubSkuBulkPlatformFilter || undefined}
                       onChange={(v) => setPubSkuBulkPlatformFilter((v as string | undefined) ?? '')}
                       options={[
@@ -2654,14 +4058,12 @@ export default function ProductDraftDetailPage() {
                       ]}
                     />
                     <Button
-                      type="primary"
                       disabled={pubSkuSelectedKeys.length === 0}
                       onClick={() => {
-                        Modal.confirm({
-                          title: '批量同步选中刊登规格？',
-                          content: `将为选中的 ${pubSkuSelectedKeys.length} 条映射创建库存同步任务。缺少平台映射或未开放库存同步能力的条目将自动跳过。`,
-                          okText: '创建批次',
-                          onOk: async () => {
+                        confirmInventorySync(
+                          `选中的 ${pubSkuSelectedKeys.length} 条刊登规格`,
+                          true,
+                          async () => {
                             try {
                               const batch = await createInventorySyncBatch({
                                 source: 'product_detail',
@@ -2680,21 +4082,23 @@ export default function ProductDraftDetailPage() {
                               throw e;
                             }
                           },
-                        });
+                        );
                       }}
                     >
                       批量同步到平台
                     </Button>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    <Typography.Text type="secondary" className="product-draft-inventory-sync__hint">
                       勾选左侧可选行；不可选项表示缺少平台映射或未开放库存同步。
                     </Typography.Text>
                   </Space>
                   <Spin spinning={pubSkuLoading}>
                     <Table<PublicationSkuListingRow>
                       size="small"
-                      rowKey="publicationSkuId"
+                      className="product-draft-inventory-sync__table"
+                      rowKey={(r) => r.publicationSkuId || `${r.publicationId || 'publication'}-${r.productSkuId || 'sku'}-${r.externalSkuId || 'external'}`}
                       pagination={false}
                       dataSource={filteredPubSkuRowsForBulk}
+                      scroll={{ x: 1180 }}
                       rowSelection={{
                         selectedRowKeys: pubSkuSelectedKeys,
                         onChange: (keys) => setPubSkuSelectedKeys(keys.map(String)),
@@ -2705,37 +4109,61 @@ export default function ProductDraftDetailPage() {
                           return { disabled: missing || douyinSkuSyncBlocked(r) || !ok };
                         },
                       }}
+                      locale={{
+                        emptyText: (
+                          <EmptyState
+                            compact
+                            title="暂无已刊登规格"
+                            description="创建平台商品草稿或完成刊登后，这里会显示可用于库存同步的 SKU 映射。"
+                          />
+                        ),
+                      }}
                       columns={[
                         {
                           title: '店铺',
-                          ellipsis: true,
-                          render: (_, r) => r.shopName || '—',
+                          width: 152,
+                          render: (_, r) => platformSkuValue(r.shopName || r.shopId),
                         },
                         { title: '平台', dataIndex: 'platform', width: 108, render: (v: string) => platformDisplayName(v) },
                         {
                           title: '本地商品规格',
-                          ellipsis: true,
-                          render: (_, r) => r.skuCode || r.productSkuId || '—',
+                          width: 190,
+                          render: (_, r) => (
+                            <Space direction="vertical" size={2} className="product-draft-platform-sku__local">
+                              <Typography.Text strong className="product-draft-platform-sku__name">
+                                {r.skuCode || '未填写规格编码'}
+                              </Typography.Text>
+                              <span className="product-draft-platform-sku__sub-id">
+                                {platformSkuValue(r.productSkuId)}
+                              </span>
+                            </Space>
+                          ),
                         },
                         {
                           title: '外部商品 ID',
                           dataIndex: 'externalProductId',
-                          ellipsis: true,
-                          render: (t: string | undefined) => t || '—',
+                          width: 160,
+                          render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
                           title: '平台规格编码',
                           dataIndex: 'externalSkuId',
-                          ellipsis: true,
-                          render: (t: string | undefined) => t || '—',
+                          width: 160,
+                          render: (t: string | undefined) => platformSkuValue(t),
                         },
                         {
                           title: '规格绑定',
-                          width: 108,
-                          render: (_x, r) =>
-                            (r.platform || '').toLowerCase() === 'douyin_shop'
-                              ? douyinBindStatusTag(r.bindStatus || (r.externalSkuId ? 'bound' : 'unmatched'))
-                              : '—',
+                          width: 128,
+                          render: (_x, r) => {
+                            if ((r.platform || '').toLowerCase() !== 'douyin_shop') return '—';
+                            const status = r.bindStatus || (r.externalSkuId ? 'bound' : 'unmatched');
+                            return (
+                              <Space direction="vertical" size={2} className="product-draft-platform-sku__status">
+                                {douyinBindStatusTag(status)}
+                                <Typography.Text type="secondary">{douyinBindStatusHint(status)}</Typography.Text>
+                              </Space>
+                            );
+                          },
                         },
                         {
                           title: '平台库存快照',
@@ -2787,17 +4215,18 @@ export default function ProductDraftDetailPage() {
                             const suggested =
                               typeof r.platformStock === 'number' ? r.platformStock : fallback;
                             const st = String(r.bindStatus || '').toLowerCase();
+                            const shouldManageBinding = isDouyin && (blocked || !hasBinding);
                             const disableReason = isDouyin && st === 'ambiguous'
-                              ? '找到多个可能的抖店规格，请人工确认绑定后再同步库存。'
+                              ? '找到多个可能的抖店规格，请到刊登 Tab 确认绑定后再同步库存。'
                               : isDouyin && (st === 'unmatched' || st === 'failed' || !hasBinding)
-                                ? '该规格还没有绑定抖店规格，请先完成绑定后再同步库存。'
+                                ? '该规格还没有绑定抖店规格，请到刊登 Tab 管理绑定后再同步库存。'
                                 : '当前平台未开放库存同步、店铺未授权，或该映射行不可用';
                             const btn = (
                               <Button
                                 type="link"
                                 size="small"
                                 disabled={!canSync}
-                                style={{ padding: 0 }}
+                                className="product-draft-inventory-sync__action"
                                 onClick={() => {
                                   if (!canSync) return;
                                   setSyncRow(r);
@@ -2808,137 +4237,459 @@ export default function ProductDraftDetailPage() {
                                 同步库存
                               </Button>
                             );
-                            return canSync ? btn : (
+                            const syncAction = canSync ? btn : (
                               <Tooltip title={disableReason}>
                                 <span>{btn}</span>
                               </Tooltip>
                             );
+                            return shouldManageBinding ? (
+                              <Space direction="vertical" size={2}>
+                                {syncAction}
+                                <Button
+                                  type="link"
+                                  size="small"
+                                  className="product-draft-inventory-sync__action"
+                                  onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}
+                                >
+                                  管理绑定
+                                </Button>
+                              </Space>
+                            ) : syncAction;
                           },
                         },
                       ]}
                     />
                   </Spin>
-                </Card>
+                  </SectionCard>
+                </Space>
               ),
             },
             {
               key: 'readiness',
-              label: '发布检查',
+              label: tabLabels.readiness,
               children: (
-                <Card id="publish-check" variant="borderless">
-                  <Space direction="vertical" style={{ width: '100%' }} size="large">
-                    <Space wrap align="center">
-                      <Typography.Text strong>目标平台</Typography.Text>
-                      <Select
-                        style={{ minWidth: 160 }}
-                        value={readinessPlat}
-                        onChange={(v) => setReadinessPlat(v)}
-                        options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
-                          label: platformDisplayLabel(p),
-                          value: p,
-                        }))}
-                      />
-                      <Typography.Text strong>店铺</Typography.Text>
-                      <Select
-                        style={{ minWidth: 240 }}
-                        placeholder="选择已授权店铺"
-                        allowClear
-                        showSearch
-                        optionFilterProp="label"
-                        value={readinessShopId || undefined}
-                        onChange={(v) => setReadinessShopId(v ? String(v) : '')}
-                        options={shopsForReadinessPlat.map((s) => ({
-                          label: `${s.shopName} (${platformDisplayLabel(s.platform)})`,
-                          value: s.id,
-                        }))}
-                      />
-                      <Button type="primary" loading={readinessLoading} onClick={() => void runReadinessForTab()}>
+                <SectionCard
+                  title="发布检查"
+                  description="检查当前草稿在所选平台下的完整性。检查通过不代表已经刊登，重新检查也不会自动修复商品字段。"
+                  id="publish-check"
+                  className="product-draft-readiness publish-check"
+                  headerExtra={
+                    <OperationToolbar>
+                      <Button type="primary" icon={<ReloadOutlined />} loading={readinessLoading} onClick={() => void runReadinessForTab()}>
                         重新检查
                       </Button>
-                    </Space>
-                    {readinessResult ? (
-                      <>
-                        <Descriptions bordered size="small" column={2}>
-                          <Descriptions.Item label="总状态">{readinessStatusTag(readinessResult)}</Descriptions.Item>
-                          <Descriptions.Item label="分数">{readinessResult.score}</Descriptions.Item>
-                          <Descriptions.Item label="错误数">{readinessResult.errorCount}</Descriptions.Item>
-                          <Descriptions.Item label="警告数">{readinessResult.warningCount}</Descriptions.Item>
-                        </Descriptions>
-                        <Collapse
-                          defaultActiveKey={['product', 'sku', 'image', 'inventory', 'collect', 'platform']}
-                          items={['product', 'sku', 'image', 'inventory', 'collect', 'platform'].map((g) => ({
-                            key: g,
-                            label: READINESS_GROUP_LABEL[g] || g,
-                            children: (
-                              <Table
-                                size="small"
-                                pagination={false}
-                                rowKey={(_, i) => `${g}-${i}`}
-                                dataSource={readinessResult.checks.filter((c) => c.group === g)}
-                                columns={[
-                                  {
-                                    title: '级别',
-                                    width: 88,
-                                    render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
-                                  },
-                                  { title: '说明', dataIndex: 'message', ellipsis: true },
-                                  {
-                                    title: '建议 / 操作',
-                                    width: 220,
-                                    render: (_: unknown, row: ReadinessCheckItem) => {
-                                      const fx = getProductReadinessAction(row.code);
-                                      return (
-                                        <Space direction="vertical" size={4}>
-                                          <Typography.Text type="secondary">{row.suggestion}</Typography.Text>
-                                          {fx ? (
-                                            fx.tab ? (
-                                              <Button
-                                                type="link"
-                                                size="small"
-                                                style={{ padding: 0 }}
-                                                onClick={() => openDraftLocation(fx.tab!, fx.section)}
-                                              >
-                                                {fx.label}
-                                              </Button>
-                                            ) : (
-                                              <Link to={fx.href!}>{fx.label}</Link>
-                                            )
-                                          ) : null}
-                                        </Space>
-                                      );
-                                    },
-                                  },
-                                ]}
-                              />
-                            ),
+                    </OperationToolbar>
+                  }
+                >
+                  <Space direction="vertical" className="product-draft-readiness__stack" size="large">
+                    <div className="product-draft-readiness__control-strip" aria-label="发布检查范围">
+                      <div className="product-draft-readiness__mode-copy">
+                        <Typography.Text strong>草稿完整性检查</Typography.Text>
+                        <Typography.Text type="secondary">
+                          当前页面固定使用 draft 模式；未选店铺时只校验商品、规格、图片等草稿内容，选定店铺后会把平台和店铺条件一并纳入检查。
+                        </Typography.Text>
+                      </div>
+                      <Space wrap align="center" className="product-draft-readiness__controls">
+                        <Typography.Text strong>目标平台</Typography.Text>
+                        <Select
+                          className="product-draft-readiness__platform-select"
+                          value={readinessPlat}
+                          onChange={(v) => setReadinessPlat(v)}
+                          options={['douyin_shop', 'tiktok', 'shopee', 'lazada', 'amazon', 'mock'].map((p) => ({
+                            label: platformDisplayLabel(p),
+                            value: p,
                           }))}
                         />
-                        <TechnicalDetails label="检查项技术详情">
-                          <TaskJsonBlock title="完整检查结果" value={readinessResult.checks} last />
+                        <Typography.Text strong>店铺</Typography.Text>
+                        <Select
+                          className="product-draft-readiness__shop-select"
+                          placeholder="选择已授权店铺"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          value={readinessShopId || undefined}
+                          onChange={(v) => setReadinessShopId(v ? String(v) : '')}
+                          options={shopsForReadinessPlat.map((s) => ({
+                            label: `${s.shopName} (${platformDisplayLabel(s.platform)})`,
+                            value: s.id,
+                          }))}
+                        />
+                      </Space>
+                    </div>
+                    {readinessLoading && !readinessResult ? (
+                      <div className="product-draft-readiness__loading">
+                        <Spin />
+                        <Typography.Text type="secondary">正在请求发布检查结果。</Typography.Text>
+                      </div>
+                    ) : readinessResult ? (
+                      <>
+                        <div className="product-draft-readiness__summary" aria-label="发布检查摘要">
+                          <MetricCard
+                            title="总状态"
+                            value={readinessStatusTag(readinessResult)}
+                            description={`平台 ${platformDisplayLabel(readinessResult.platform || readinessPlat)} · ${readinessResult.shopId || readinessShopId ? '包含店铺条件' : '未选择店铺'}`}
+                            intent={readinessResult.errorCount > 0 ? 'danger' : readinessResult.warningCount > 0 ? 'warning' : 'success'}
+                          />
+                          <MetricCard
+                            title="阻断项"
+                            value={readinessResult.errorCount}
+                            description={readinessResult.errorCount > 0 ? '需要先处理后再进入下一步。' : '当前检查范围内没有阻断项。'}
+                            intent={readinessResult.errorCount > 0 ? 'danger' : 'default'}
+                          />
+                          <MetricCard
+                            title="警告项"
+                            value={readinessResult.warningCount}
+                            description={readinessResult.warningCount > 0 ? '建议发布前人工确认。' : '当前检查范围内没有警告项。'}
+                            intent={readinessResult.warningCount > 0 ? 'warning' : 'default'}
+                          />
+                          <MetricCard
+                            title="下一步"
+                            value={readinessResult.canPublish ? '可继续' : '需处理'}
+                            description="来自检查接口返回的 canPublish，不代表已刊登。"
+                            intent={readinessResult.canPublish ? 'success' : 'default'}
+                          />
+                        </div>
+                        {readinessResult.errorCount === 0 && readinessResult.warningCount === 0 && readinessChecks.length === 0 ? (
+                          <Alert
+                            type="success"
+                            showIcon
+                            message="当前检查范围内没有发现问题"
+                            description="这只表示草稿检查未返回阻断或警告，不会自动创建刊登草稿，也不代表商品已经发布。"
+                          />
+                        ) : null}
+                        {readinessChecks.length === 0 && (readinessResult.errorCount > 0 || readinessResult.warningCount > 0) ? (
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="检查返回了汇总状态，但没有返回检查项列表"
+                            description="请根据总状态处理，或点击重新检查再次获取明细。"
+                          />
+                        ) : null}
+                        {readinessErrorItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--danger">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>阻断项</Typography.Text>
+                              <Tag color="red">{readinessErrorItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessErrorItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessWarningItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--warning">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>警告项</Typography.Text>
+                              <Tag color="orange">{readinessWarningItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessWarningItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessSuggestionItems.length > 0 ? (
+                          <div className="product-draft-readiness__issue-band product-draft-readiness__issue-band--muted">
+                            <div className="product-draft-readiness__issue-band-head">
+                              <Typography.Text strong>建议项</Typography.Text>
+                              <Tag>{readinessSuggestionItems.length}</Tag>
+                            </div>
+                            {readinessCheckList(readinessSuggestionItems, 4)}
+                          </div>
+                        ) : null}
+                        {readinessGroups.length > 0 ? (
+                          <Collapse
+                            className="product-draft-readiness__groups"
+                            defaultActiveKey={readinessDefaultActiveKeys.length > 0 ? readinessDefaultActiveKeys : readinessGroups.slice(0, 1)}
+                            items={readinessGroups.map((g) => {
+                              const rows = readinessChecks.filter((c) => (c.group || 'other') === g);
+                              const groupErrors = rows.filter((c) => (c.level || '').toLowerCase() === 'error').length;
+                              const groupWarnings = rows.filter((c) => (c.level || '').toLowerCase() === 'warning').length;
+                              return {
+                                key: g,
+                                label: (
+                                  <div className="product-draft-readiness__group-label">
+                                    <Typography.Text strong>{READINESS_GROUP_LABEL[g] || g}</Typography.Text>
+                                    <Space size={4} wrap>
+                                      {groupErrors > 0 ? <Tag color="red">阻断 {groupErrors}</Tag> : null}
+                                      {groupWarnings > 0 ? <Tag color="orange">警告 {groupWarnings}</Tag> : null}
+                                      {groupErrors === 0 && groupWarnings === 0 ? <Tag>检查项 {rows.length}</Tag> : null}
+                                    </Space>
+                                  </div>
+                                ),
+                                children: rows.length > 0 ? (
+                                  <Table
+                                    className="product-draft-readiness__table"
+                                    size="small"
+                                    pagination={false}
+                                    rowKey={(row) => `${g}-${row.code}-${row.relatedResourceType || ''}-${row.relatedResourceId || ''}-${row.message}`}
+                                    dataSource={rows}
+                                    columns={[
+                                      {
+                                        title: '级别',
+                                        width: 96,
+                                        render: (_: unknown, row: ReadinessCheckItem) => readinessLevelTag(row.level),
+                                      },
+                                      {
+                                        title: '检查项',
+                                        render: (_: unknown, row: ReadinessCheckItem) => {
+                                          const loc = localizePublishCheckItem(row);
+                                          return (
+                                            <Space direction="vertical" size={2} className="product-draft-readiness__check-copy">
+                                              <Typography.Text strong>{loc.title}</Typography.Text>
+                                              <Typography.Text type="secondary">{loc.message}</Typography.Text>
+                                              {row.code ? <Typography.Text type="secondary">编号：{row.code}</Typography.Text> : null}
+                                            </Space>
+                                          );
+                                        },
+                                      },
+                                      {
+                                        title: '建议 / 操作',
+                                        width: 260,
+                                        render: (_: unknown, row: ReadinessCheckItem) => {
+                                          const fx = getProductReadinessAction(row.code);
+                                          return (
+                                            <Space direction="vertical" size={4} className="product-draft-readiness__action-cell">
+                                              {row.suggestion ? <Typography.Text type="secondary">{row.suggestion}</Typography.Text> : null}
+                                              {fx ? (
+                                                fx.tab ? (
+                                                  <Button
+                                                    type="link"
+                                                    size="small"
+                                                    className="product-draft-readiness__action"
+                                                    onClick={() => openDraftLocation(fx.tab!, fx.section)}
+                                                  >
+                                                    {fx.label}
+                                                    {fx.section ? ` · ${PRODUCT_DRAFT_TAB_LABELS[fx.tab!] || fx.tab}` : ''}
+                                                  </Button>
+                                                ) : (
+                                                  <Link className="product-draft-readiness__action" to={fx.href!}>{fx.label}</Link>
+                                                )
+                                              ) : (
+                                                <Typography.Text type="secondary">查看检查项说明后手动处理</Typography.Text>
+                                              )}
+                                              {row.technicalDetails ? (
+                                                <TechnicalDetails label="技术信息">
+                                                  <TaskJsonBlock title="检查项技术信息" value={row.technicalDetails} last />
+                                                </TechnicalDetails>
+                                              ) : null}
+                                            </Space>
+                                          );
+                                        },
+                                      },
+                                    ]}
+                                  />
+                                ) : (
+                                  <EmptyState compact title="当前分组没有检查项" description="保留分组顺序，等待检查接口返回明细。" />
+                                ),
+                              };
+                            })}
+                          />
+                        ) : null}
+                        <TechnicalDetails label="完整检查结果">
+                          <TaskJsonBlock title="检查结果" value={readinessResult} last />
                         </TechnicalDetails>
                       </>
+                    ) : readinessError ? (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message="发布检查请求失败"
+                        description={
+                          <Space direction="vertical" size={8} className="product-draft-readiness__error-copy">
+                            <Typography.Text>{readinessError}</Typography.Text>
+                            <Typography.Text type="secondary">请保留当前商品内容，稍后点击「重新检查」重试。</Typography.Text>
+                            <TechnicalDetails label="检查失败技术信息">
+                              <TaskJsonBlock title="错误信息" value={{ message: readinessError }} last />
+                            </TechnicalDetails>
+                          </Space>
+                        }
+                      />
                     ) : (
-                      <Typography.Text type="secondary">选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片（不校验店铺与平台配置）。</Typography.Text>
+                      <EmptyState
+                        compact
+                        title="尚未执行发布检查"
+                        description="选择平台与店铺后点击「重新检查」。未选店铺时仅校验商品 / 规格 / 图片，不校验店铺与平台配置。"
+                      />
                     )}
                   </Space>
-                </Card>
+                </SectionCard>
               ),
             },
             {
               key: 'publish',
-              label: '刊登',
+              label: tabLabels.publish,
               children: (
                 <Spin spinning={pubCtxLoading || publishReadinessLoading}>
-                  <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                    <MultiPlatformPublishCenter
-                      productId={id}
-                      onDraftsCreated={async () => {
-                        await reloadPublishContext();
-                        await reloadDouyinPublishTasks();
-                        await reloadPublicationSkus();
-                      }}
-                    />
-                    <Card variant="borderless">
+                  <Space direction="vertical" className="product-draft-publish" size="middle">
+                    <SectionCard
+                      title="刊登流程说明"
+                      description="先确认商品内容、图片、规格、类目和平台能力，再选择合适的刊登入口。"
+                      className="product-draft-publish__intro"
+                    >
+                      <div className="product-draft-publish__flow">
+                        <div>
+                          <Typography.Text strong>创建刊登草稿</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            多平台中心和抖店专项流程会先创建可继续编辑或确认的草稿，不代表商品已经正式提交到平台。
+                          </Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>提交刊登</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台刊登任务。
+                          </Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>发布检查</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            检查通过只说明当前资料满足规则，仍需要选择路径并手动触发草稿创建或刊登提交。
+                          </Typography.Paragraph>
+                        </div>
+                      </div>
+                    </SectionCard>
+                    <SectionCard
+                      title="当前刊登条件摘要"
+                      description="仅展示当前页面已经加载到的店铺、平台、图片、规格、抖店配置和发布检查状态。"
+                      className="product-draft-publish__summary-card"
+                      headerExtra={<Button onClick={() => void reloadPublishContext()}>刷新快照</Button>}
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                        {pubCtxError ? (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="刊登上下文加载失败"
+                            description={pubCtxError}
+                            action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                          />
+                        ) : null}
+                        {readonly ? (
+                          <Alert
+                            type="info"
+                            showIcon
+                            message="当前账号为只读模式"
+                            description="可查看配置、任务和刊登记录；请勿触发草稿创建、配置保存、图片上传、SKU 绑定或传统提交刊登等写操作。"
+                          />
+                        ) : null}
+                        <div className="product-draft-publish__condition-grid">
+                          <div className="product-draft-publish__condition">
+                            <span>店铺上下文</span>
+                            <strong>{shopsList.length ? `${shopsList.length} 个已授权店铺` : '无已授权店铺'}</strong>
+                            <Typography.Text type="secondary">
+                              {eligibleShopsForPublish.length ? `${eligibleShopsForPublish.length} 个店铺支持传统刊登或 beta` : pubCtxError ? '店铺数据加载失败' : '传统刊登暂无可用店铺'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>平台能力</span>
+                            <strong>{platformPublishAvailableCount ? `${platformPublishAvailableCount} 个平台可刊登` : '未发现可用能力'}</strong>
+                            <Typography.Text type="secondary">
+                              {platformsMeta.length ? '来自平台接入服务的商品刊登能力' : pubCtxError ? '平台能力加载失败' : '暂无平台能力数据'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>发布检查</span>
+                            <strong>{publishReadiness ? readinessStatusTag(publishReadiness) : '未选择传统刊登店铺'}</strong>
+                            <Typography.Text type="secondary">
+                              {publishReadiness ? `错误 ${publishReadiness.errorCount} · 警告 ${publishReadiness.warningCount}` : '选择店铺后会加载 publish 模式检查'}
+                            </Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>图片准备</span>
+                            <strong>{imageSyncSummary.synced} / {imageSyncSummary.total} 已同步</strong>
+                            <Typography.Text type="secondary">外链 {imageSyncSummary.external} · 主图 {imageSyncSummary.externalMain} · 详情图 {imageSyncSummary.externalDetail}</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>本地规格与库存</span>
+                            <strong>{data.skus?.length ?? 0} 个规格</strong>
+                            <Typography.Text type="secondary">刊登前需要确认规格编码、价格和库存。</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>平台 SKU 映射</span>
+                            <strong>{pubSkuRows.length ? `${pubSkuRows.length} 条映射记录` : '暂无映射记录'}</strong>
+                            <Typography.Text type="secondary">抖店已绑定 {douyinSkuBinding?.bound ?? '—'} · 未绑定 {douyinSkuBinding?.unmatched ?? '—'}</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>抖店类目与属性</span>
+                            <strong>{douyinConfig.categoryId ? '已选择类目' : '未选择类目'}</strong>
+                            <Typography.Text type="secondary">必填属性 {douyinRequiredAttrs.length} 项 · 未填写 {douyinMissingRequiredAttrs.length} 项</Typography.Text>
+                          </div>
+                          <div className="product-draft-publish__condition">
+                            <span>抖店草稿映射</span>
+                            <strong>{douyinMapping ? '已有草稿映射' : '未生成草稿映射'}</strong>
+                            <Typography.Text type="secondary">错误 {douyinMappingErrorCount} · 警告 {douyinMappingWarningCount} · 已上传主图 {douyinUploadedMainImages}/{douyinMainImages.length}</Typography.Text>
+                          </div>
+                        </div>
+                      </Space>
+                    </SectionCard>
+                    <SectionCard
+                      title="阻断项和待完善项"
+                      description="阻断项需要先处理；待确认项不会被本页自动修复。"
+                      className="product-draft-publish__issues-card"
+                    >
+                      <Space direction="vertical" style={{ width: '100%' }} size="small">
+                        {!pubCtxError && shopsList.length === 0 ? <Alert type="warning" showIcon message="暂无已授权店铺" description="请先完成店铺授权后再选择刊登路径。" /> : null}
+                        {!pubCtxError && shopsList.length > 0 && eligibleShopsForPublish.length === 0 ? <Alert type="warning" showIcon message="暂无支持传统刊登的店铺" description="平台接入服务未返回可用或测试中的商品刊登能力。" /> : null}
+                        {publishReadinessErrors.length ? <Alert type="error" showIcon message="发布检查存在阻断" description={readinessCheckList(publishReadinessErrors, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>去发布检查</Button>} /> : null}
+                        {publishReadinessWarnings.length ? <Alert type="warning" showIcon message="发布检查有待确认项" description={readinessCheckList(publishReadinessWarnings, 5)} action={<Button size="small" onClick={() => openDraftLocation('readiness', 'publish-check')}>查看明细</Button>} /> : null}
+                        {imageSyncSummary.external > 0 ? <Alert type="warning" showIcon message="仍有图片未同步到平台存储" description="抖店创建商品草稿前还需要把需要使用的图片上传到抖店。" action={<Button size="small" onClick={() => openDraftLocation('images', 'image-list')}>去图片管理</Button>} /> : null}
+                        {currentSkuCount === 0 ? <Alert type="warning" showIcon message="暂无本地 SKU" description="刊登和库存同步都依赖本地规格、价格和库存数据。" action={<Button size="small" onClick={() => openDraftLocation('skus', 'local-skus')}>去 SKU</Button>} /> : null}
+                        {!douyinConfig.categoryId ? <Alert type="warning" showIcon message="抖店未选择类目" description="抖店专项流程需要先选择叶子类目。" /> : null}
+                        {douyinMissingRequiredAttrs.length ? <Alert type="warning" showIcon message="抖店必填属性未完整填写" description={`仍有 ${douyinMissingRequiredAttrs.length} 项必填属性未填写。`} /> : null}
+                        {douyinMapping && douyinMappingErrorCount > 0 ? <Alert type="error" showIcon message="抖店草稿映射存在错误" description={douyinIssueList(douyinMapping.errors)} /> : null}
+                        {douyinMapping && douyinMainImages.length > 0 && douyinUploadedMainImages === 0 ? <Alert type="warning" showIcon message="抖店主图尚未上传成功" description="至少需要一张主图上传到抖店后，才能创建抖店商品草稿。" /> : null}
+                        {!pubCtxError && shopsList.length > 0 && !publishReadinessErrors.length && !publishReadinessWarnings.length && !imageSyncSummary.external && currentSkuCount > 0 ? <Alert type="success" showIcon message="当前摘要未发现通用阻断" description="仍需根据所选路径完成对应平台配置、草稿创建或提交刊登确认。" /> : null}
+                      </Space>
+                    </SectionCard>
+                    <SectionCard
+                      title="刊登路径选择"
+                      description="三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。"
+                      className="product-draft-publish__paths"
+                    >
+                      <div className="product-draft-publish__path-grid">
+                        <div className="product-draft-publish__path product-draft-publish__path--primary">
+                          <Typography.Text strong>多平台刊登中心</Typography.Text>
+                          <Tag color="blue">主推路径</Tag>
+                          <Typography.Text type="secondary">通过中心化流程创建多平台刊登草稿，创建后刷新刊登上下文、抖店任务和平台 SKU 映射。</Typography.Text>
+                        </div>
+                        <div className="product-draft-publish__path">
+                          <Typography.Text strong>抖店专项流程</Typography.Text>
+                          <Tag>草稿和配置</Tag>
+                          <Typography.Text type="secondary">处理抖店店铺、类目、属性、图片上传、草稿映射和抖店商品草稿创建；创建后仍需到抖店后台确认上架。</Typography.Text>
+                        </div>
+                        <div className="product-draft-publish__path product-draft-publish__path--compat">
+                          <Typography.Text strong>传统提交刊登</Typography.Text>
+                          <Tag color="orange">兼容入口</Tag>
+                          <Typography.Text type="secondary">执行 publish 模式发布检查后提交刊登任务，是可能触发真实平台写操作的入口。</Typography.Text>
+                        </div>
+                      </div>
+                    </SectionCard>
+                    <SectionCard title="多平台刊登中心" description="创建多平台刊登草稿，不等同于已经正式提交到平台。" className="product-draft-publish__multi-platform">
+                      <div className="product-draft-publish__multi-platform-brief">
+                        <div>
+                          <Typography.Text strong>当前商品</Typography.Text>
+                          <Typography.Paragraph type="secondary">{productTitle}</Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>创建后的下一步</Typography.Text>
+                          <Typography.Paragraph type="secondary">创建结果会刷新刊登上下文、抖店任务和平台 SKU 映射；请继续查看任务或进入对应平台配置。</Typography.Paragraph>
+                        </div>
+                        <div>
+                          <Typography.Text strong>只读状态</Typography.Text>
+                          <Typography.Paragraph type="secondary">{readonly ? '当前账号只应查看状态，不应触发检查或创建草稿。' : '需要手动选择平台和店铺，本页不会自动选择或自动提交。'}</Typography.Paragraph>
+                        </div>
+                      </div>
+                      <MultiPlatformPublishCenter
+                        productId={id}
+                        onDraftsCreated={async () => {
+                          const rows = await reloadPublishContext();
+                          await reloadDouyinPublishTasks();
+                          await reloadPublicationSkus();
+                          const douyinRow = rows.find(
+                            (p) =>
+                              (p.platform || '').toLowerCase() === 'douyin_shop' &&
+                              String(p.externalProductId || '').trim() !== '',
+                          );
+                          await reloadDouyinSkuBindingsForPublication(douyinRow?.id);
+                        }}
+                      />
+                    </SectionCard>
+                    <Card variant="borderless" className="product-draft-publish__legacy-stack">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       <Alert
                         type="info"
@@ -3012,8 +4763,6 @@ export default function ProductDraftDetailPage() {
                           同步详情图到平台存储
                         </Button>
                         <Button
-                          type="primary"
-                          ghost
                           onClick={async () => {
                             try {
                               const res = await syncProductImages(id, { scope: 'all' });
@@ -3024,7 +4773,7 @@ export default function ProductDraftDetailPage() {
                             }
                           }}
                         >
-                          一键同步全部图片
+                          同步全部图片
                         </Button>
                         <Button onClick={() => setPricingOpen(true)}>应用定价规则</Button>
                       </Space>
@@ -3040,591 +4789,682 @@ export default function ProductDraftDetailPage() {
                           { title: '库存', dataIndex: 'stock', width: 80, render: (v) => (v != null ? v : '—') },
                         ]}
                       />
-                      <Card id="publish-config" size="small" title="抖店类目与属性" variant="borderless">
-                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                          {douyinCategoryFlat.length === 0 ? (
-                            <Alert
-                              type="warning"
-                              showIcon
-                              message="暂无抖店类目数据，请先点击「刷新类目」。"
-                            />
-                          ) : null}
-                          <Form
-                            form={douyinForm}
-                            layout="vertical"
-                            onValuesChange={(changed, all) => {
-                              if (Object.prototype.hasOwnProperty.call(changed, 'categoryId')) {
-                                const cat = douyinCategoryFlat.find((x) => x.categoryId === all.categoryId);
-                                setDouyinConfig((cur) => ({
-                                  ...cur,
-                                  categoryId: all.categoryId,
-                                  categoryPath: cat?.path,
-                                  platformAttributes: {},
-                                }));
-                                douyinForm.setFieldValue('platformAttributes', {});
-                                void reloadDouyinAttrs(all.categoryId, all.shopId, false);
-                              } else {
-                                setDouyinConfig((cur) => ({
-                                  ...cur,
-                                  shopId: all.shopId,
-                                  categoryId: all.categoryId,
-                                  categoryPath: selectedDouyinCategory?.path || cur.categoryPath,
-                                  platformAttributes: all.platformAttributes ?? cur.platformAttributes ?? {},
-                                }));
-                              }
-                            }}
-                            onFinish={async (vals) => {
-                              const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
-                              if (vals.categoryId && !cat?.isLeaf) {
-                                message.error('只能选择抖店叶子类目');
-                                return;
-                              }
-                              setDouyinSaving(true);
-                              try {
-                                const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
-                                  shopId: vals.shopId,
-                                  categoryId: vals.categoryId,
-                                  categoryPath: cat?.path || douyinConfig.categoryPath,
-                                  platformAttributes: vals.platformAttributes ?? {},
-                                });
-                                setDouyinConfig({
-                                  shopId: saved.shopId,
-                                  categoryId: saved.categoryId,
-                                  categoryPath: saved.categoryPath,
-                                  platformAttributes: saved.platformAttributes ?? {},
-                                });
-                                message.success('抖店刊登配置已保存');
-                                if (readinessPlat === 'douyin_shop') {
-                                  void runReadinessForTab();
-                                }
-                              } catch (e: unknown) {
-                                message.error((e as Error)?.message || '保存失败');
-                              } finally {
-                                setDouyinSaving(false);
-                              }
-                            }}
-                          >
-                            <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>
-                              <Select
-                                placeholder="选择已授权抖店店铺"
-                                allowClear
-                                showSearch
-                                optionFilterProp="label"
-                                options={douyinShops.map((s) => ({ label: s.shopName, value: s.id }))}
-                              />
-                            </Form.Item>
-                            <Space wrap style={{ marginBottom: 12 }}>
-                              <Button
-                                icon={<SyncOutlined />}
-                                loading={douyinCategoryLoading}
-                                onClick={() => void reloadDouyinCategories(douyinForm.getFieldValue('shopId'), true)}
-                              >
-                                刷新类目
-                              </Button>
-                              <Button
-                                loading={douyinAttrLoading}
-                                disabled={!douyinForm.getFieldValue('categoryId')}
-                                onClick={() =>
-                                  void reloadDouyinAttrs(
-                                    douyinForm.getFieldValue('categoryId'),
-                                    douyinForm.getFieldValue('shopId'),
-                                    true,
-                                  )
-                                }
-                              >
-                                刷新属性
-                              </Button>
-                            </Space>
-                            <Form.Item
-                              name="categoryId"
-                              label="抖店类目"
-                              rules={[{ required: true, message: '请先选择抖店商品类目' }]}
-                              extra={selectedDouyinCategory?.path}
-                            >
-                              <Select
-                                placeholder="搜索并选择叶子类目"
-                                loading={douyinCategoryLoading}
-                                showSearch
-                                allowClear
-                                optionFilterProp="label"
-                                options={douyinCategoryFlat
-                                  .filter((c) => c.isLeaf)
-                                  .map((c) => ({
-                                    label: `${c.path || c.name} (${c.categoryId})`,
-                                    value: c.categoryId,
-                                  }))}
-                              />
-                            </Form.Item>
-                            {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
-                              <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
-                            ) : null}
-                            {douyinAttrs.length > 0 ? (
-                              <Spin spinning={douyinAttrLoading}>
-                                <Descriptions bordered size="small" column={1}>
-                                  <Descriptions.Item label="必填属性">
-                                    {douyinAttrs.filter((a) => a.required).length || 0} 项
-                                  </Descriptions.Item>
-                                  <Descriptions.Item label="可选属性">
-                                    {douyinAttrs.filter((a) => !a.required).length || 0} 项
-                                  </Descriptions.Item>
-                                </Descriptions>
-                                <Row gutter={16} style={{ marginTop: 12 }}>
-                                  {douyinAttrs.map((attr) => {
-                                    const opts = Array.isArray(attr.options) ? attr.options : [];
-                                    return (
-                                      <Col xs={24} md={12} key={attr.attrId}>
-                                        <Form.Item
-                                          name={['platformAttributes', attr.attrId]}
-                                          label={
-                                            <Space size={4}>
-                                              <span>{attr.name || attr.attrId}</span>
-                                              {attr.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>}
-                                            </Space>
-                                          }
-                                          rules={
-                                            attr.required
-                                              ? [{ required: true, message: `请填写${attr.name || attr.attrId}` }]
-                                              : undefined
-                                          }
-                                        >
-                                          {opts.length > 0 ? (
-                                            <Select
-                                              allowClear={!attr.required}
-                                              showSearch
-                                              optionFilterProp="label"
-                                              options={opts.map((o) => ({
-                                                label: o.name || o.id || '',
-                                                value: o.id || o.name,
-                                              }))}
-                                            />
-                                          ) : (
-                                            <Input placeholder={attr.valueType || '填写属性值'} />
-                                          )}
-                                        </Form.Item>
-                                      </Col>
-                                    );
-                                  })}
-                                </Row>
-                              </Spin>
-                            ) : null}
-                            <Form.Item>
-                              <Space wrap>
-                                <Button type="primary" htmlType="submit" loading={douyinSaving}>
-                                  保存抖店配置
-                                </Button>
-                                <Button
-                                  onClick={() => {
-                                    setReadinessPlat('douyin_shop');
-                                    setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
-                                    setDraftTabKey('readiness');
-                                  }}
-                                >
-                                  查看抖店发布检查
-                                </Button>
-                              </Space>
-                            </Form.Item>
-                          </Form>
-                        </Space>
-                      </Card>
-                      <Card size="small" title="抖店刊登草稿预览" variant="borderless">
+                      <div className="product-draft-douyin-flow">
+                        <div className="product-draft-douyin-flow__title-block">
+                          <Typography.Title level={4}>抖店专项配置与创建商品草稿</Typography.Title>
+                          <Typography.Paragraph type="secondary">
+                            按抖店草稿创建的真实顺序处理店铺、类目、属性、映射、图片、规格绑定和创建任务；本区域不会自动正式发布。
+                          </Typography.Paragraph>
+                        </div>
                         <Space direction="vertical" style={{ width: '100%' }} size="middle">
                           <Alert
                             type="info"
                             showIcon
-                            message="系统会根据商品标题、AI 文案、图片、规格、定价和抖店要求填写的信息生成刊登草稿，发布前仍可人工修改。"
+                            message="抖店草稿流程说明"
+                            description="配置保存只保存店铺、类目和属性；生成映射只生成待编辑草稿；保存映射不等于校验通过；图片上传只是上传到抖店图片存储；创建抖店商品草稿不等于正式发布或商品上线。"
                           />
-                          <Space wrap>
-                            <Button type="primary" loading={douyinMappingLoading} onClick={() => void handleBuildDouyinMapping()}>
-                              生成抖店刊登草稿
-                            </Button>
-                            <Button disabled={!douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
-                              保存刊登草稿
-                            </Button>
-                            <Button loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
-                              校验刊登草稿
-                            </Button>
-                            <Button
-                              icon={<CloudUploadOutlined />}
-                              disabled={!douyinMapping}
-                              loading={douyinImageUploading}
-                              onClick={() => void handleUploadDouyinImages(false)}
-                            >
-                              上传图片到抖店
-                            </Button>
-                            <Button
-                              icon={<ReloadOutlined />}
-                              disabled={!douyinMapping}
-                              loading={douyinImageUploading}
-                              onClick={() => void handleUploadDouyinImages(true)}
-                            >
-                              重新上传全部图片
-                            </Button>
-                            <Button
-                              type="primary"
-                              disabled={douyinCreateDraftDisabled}
-                              loading={douyinDraftCreating}
-                              onClick={() => void handleCreateDouyinDraft()}
-                            >
-                              创建抖店商品草稿
-                            </Button>
-                            {douyinMapping?.lastMappedAt ? (
-                              <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
-                            ) : null}
-                          </Space>
-                          {!douyinMapping ? (
-                            <Typography.Text type="secondary">还没有抖店刊登草稿，请先生成。</Typography.Text>
-                          ) : (
-                            <>
-                              {douyinMapping.errors?.length ? (
-                                <Alert
-                                  type="error"
-                                  showIcon
-                                  message="这些信息不完整，暂时不能创建抖店商品"
-                                  description={douyinIssueList(douyinMapping.errors)}
-                                />
-                              ) : null}
-                              {douyinMapping.warnings?.length ? (
+                          <div className="product-draft-douyin-flow__status-grid" aria-label="抖店草稿创建前置条件摘要">
+                            {douyinDraftPrerequisiteItems.map((item) => (
+                              <div key={item.label} className={`product-draft-douyin-flow__status-item product-draft-douyin-flow__status-item--${item.tone}`}>
+                                <div className="product-draft-douyin-flow__status-head">
+                                  <span>{item.label}</span>
+                                  <Tag color={item.tone === 'success' ? 'green' : item.tone === 'error' ? 'red' : item.tone === 'warning' ? 'orange' : item.tone === 'processing' ? 'blue' : undefined}>{item.status}</Tag>
+                                </div>
+                                <Typography.Text type="secondary">{item.detail}</Typography.Text>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="product-draft-douyin-flow__context-panel">
+                            <div>
+                              <Typography.Text strong>当前抖店上下文</Typography.Text>
+                              <Typography.Paragraph type="secondary">
+                                店铺来自已授权店铺列表，类目和属性来自抖店类目缓存；请求失败会保留错误提示，不会被显示成未配置。
+                              </Typography.Paragraph>
+                            </div>
+                            <Descriptions size="small" column={{ xs: 1, md: 2, xl: 4 }} className="product-draft-douyin-flow__context-descriptions">
+                              <Descriptions.Item label="已授权抖店店铺">{douyinShops.length}</Descriptions.Item>
+                              <Descriptions.Item label="当前店铺">{selectedDouyinShop?.shopName || douyinConfig.shopId || '未选择'}</Descriptions.Item>
+                              <Descriptions.Item label="当前类目">{douyinConfig.categoryPath || douyinConfig.categoryId || '未选择'}</Descriptions.Item>
+                              <Descriptions.Item label="最近任务">{latestDouyinTask ? tagFromPublishStatus(latestDouyinTask.status) : '暂无'}</Descriptions.Item>
+                            </Descriptions>
+                          </div>
+                          <div id="publish-config" className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--config">
+                            <div className="product-draft-douyin-flow__panel-head">
+                              <div>
+                                <Typography.Text strong>1. 店铺、类目与属性配置</Typography.Text>
+                                <Typography.Paragraph type="secondary">
+                                  保存配置会写入店铺、类目路径和当前属性值，不会生成映射，也不会创建抖店商品草稿。
+                                </Typography.Paragraph>
+                              </div>
+                              <Space wrap className="product-draft-douyin-flow__panel-actions">
+                                <Button
+                                  icon={<SyncOutlined />}
+                                  loading={douyinCategoryLoading}
+                                  onClick={() => void reloadDouyinCategories(douyinForm.getFieldValue('shopId'), true)}
+                                >
+                                  刷新类目
+                                </Button>
+                                <Button
+                                  loading={douyinAttrLoading}
+                                  disabled={!douyinForm.getFieldValue('categoryId')}
+                                  onClick={() =>
+                                    void reloadDouyinAttrs(
+                                      douyinForm.getFieldValue('categoryId'),
+                                      douyinForm.getFieldValue('shopId'),
+                                      true,
+                                    )
+                                  }
+                                >
+                                  刷新属性
+                                </Button>
+                              </Space>
+                            </div>
+                            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                              {douyinCategoryFlat.length === 0 ? (
                                 <Alert
                                   type="warning"
                                   showIcon
-                                  message="这些信息建议人工确认"
-                                  description={douyinIssueList(douyinMapping.warnings)}
+                                  message="暂无抖店类目数据，请先点击「刷新类目」。"
                                 />
                               ) : null}
-                              <Form form={douyinMappingForm} layout="vertical">
-                                <Form.Item name="title" label="抖店标题" rules={[{ required: true, message: '请填写抖店标题' }]}>
-                                  <Input showCount maxLength={80} />
-                                </Form.Item>
-                                <Form.Item name="description" label="抖店描述">
-                                  <Input.TextArea rows={4} />
+                              {douyinShops.length === 0 && !pubCtxError ? (
+                                <Alert type="warning" showIcon message="暂无已授权抖店店铺" description="请先完成抖店店铺授权，再回到本页选择店铺和类目。" />
+                              ) : null}
+                              <Form
+                                form={douyinForm}
+                                layout="vertical"
+                                className="product-draft-douyin-flow__form"
+                                onValuesChange={(changed, all) => {
+                                  if (Object.prototype.hasOwnProperty.call(changed, 'categoryId')) {
+                                    const cat = douyinCategoryFlat.find((x) => x.categoryId === all.categoryId);
+                                    setDouyinConfig((cur) => ({
+                                      ...cur,
+                                      categoryId: all.categoryId,
+                                      categoryPath: cat?.path,
+                                      platformAttributes: {},
+                                    }));
+                                    douyinForm.setFieldValue('platformAttributes', {});
+                                    void reloadDouyinAttrs(all.categoryId, all.shopId, false);
+                                  } else {
+                                    setDouyinConfig((cur) => ({
+                                      ...cur,
+                                      shopId: all.shopId,
+                                      categoryId: all.categoryId,
+                                      categoryPath: selectedDouyinCategory?.path || cur.categoryPath,
+                                      platformAttributes: all.platformAttributes ?? cur.platformAttributes ?? {},
+                                    }));
+                                  }
+                                }}
+                                onFinish={async (vals) => {
+                                  if (readonly) {
+                                    message.error('只读账号不可执行写操作');
+                                    return;
+                                  }
+                                  const cat = douyinCategoryFlat.find((x) => x.categoryId === vals.categoryId);
+                                  if (vals.categoryId && !cat?.isLeaf) {
+                                    message.error('只能选择抖店叶子类目');
+                                    return;
+                                  }
+                                  if (douyinConfirmingActionRef.current || douyinSaving) return;
+                                  setDouyinConfirmingAction('config');
+                                  window.setTimeout(() => douyinConfirmingActionRef.current === 'config' ? setDouyinConfirmingAction('') : undefined, 800);
+                                  confirmPlatformPublishConfigSave(async () => {
+                                    setDouyinSaving(true);
+                                    try {
+                                      const saved = await putProductPlatformPublishConfig(id, 'douyin_shop', {
+                                        shopId: vals.shopId,
+                                        categoryId: vals.categoryId,
+                                        categoryPath: cat?.path || douyinConfig.categoryPath,
+                                        platformAttributes: vals.platformAttributes ?? {},
+                                      });
+                                      setDouyinConfig({
+                                        shopId: saved.shopId,
+                                        categoryId: saved.categoryId,
+                                        categoryPath: saved.categoryPath,
+                                        platformAttributes: saved.platformAttributes ?? {},
+                                      });
+                                      message.success('抖店刊登配置已保存');
+                                      if (readinessPlat === 'douyin_shop') {
+                                        void runReadinessForTab();
+                                      }
+                                    } catch (e: unknown) {
+                                      message.error((e as Error)?.message || '保存失败');
+                                    } finally {
+                                      setDouyinSaving(false);
+                                      setDouyinConfirmingAction('');
+                                    }
+                                  });
+                                }}
+                              >
+                                <div className="product-draft-douyin-flow__form-grid">
+                                  <Form.Item name="shopId" label="抖店店铺" rules={[{ required: true, message: '请选择抖店店铺' }]}>
+                                    <Select
+                                      placeholder="选择已授权抖店店铺"
+                                      allowClear
+                                      showSearch
+                                      optionFilterProp="label"
+                                      options={douyinShops.map((s) => ({ label: s.shopName, value: s.id }))}
+                                    />
+                                  </Form.Item>
+                                  <Form.Item
+                                    name="categoryId"
+                                    label="抖店类目"
+                                    rules={[{ required: true, message: '请先选择抖店商品类目' }]}
+                                    extra={<Typography.Text type="secondary" className="product-draft-douyin-flow__long-text">{selectedDouyinCategory?.path}</Typography.Text>}
+                                  >
+                                    <Select
+                                      placeholder="搜索并选择叶子类目"
+                                      loading={douyinCategoryLoading}
+                                      showSearch
+                                      allowClear
+                                      optionFilterProp="label"
+                                      options={douyinCategoryFlat
+                                        .filter((c) => c.isLeaf)
+                                        .map((c) => ({
+                                          label: `${c.path || c.name} (${c.categoryId})`,
+                                          value: c.categoryId,
+                                        }))}
+                                    />
+                                  </Form.Item>
+                                </div>
+                                {douyinForm.getFieldValue('categoryId') && douyinAttrs.length === 0 ? (
+                                  <Alert type="info" showIcon message="该类目暂无本地属性缓存，请点击「刷新属性」。" />
+                                ) : null}
+                                {douyinAttrs.length > 0 ? (
+                                  <Spin spinning={douyinAttrLoading}>
+                                    <div className="product-draft-douyin-flow__attr-summary">
+                                      <span>必填属性：{douyinAttrs.filter((a) => a.required).length || 0} 项</span>
+                                      <span>可选属性：{douyinAttrs.filter((a) => !a.required).length || 0} 项</span>
+                                      <span>未填写必填：{douyinMissingRequiredAttrs.length} 项</span>
+                                    </div>
+                                    <Row gutter={16} className="product-draft-douyin-flow__attr-grid">
+                                      {douyinAttrs.map((attr) => {
+                                        const opts = Array.isArray(attr.options) ? attr.options : [];
+                                        return (
+                                          <Col xs={24} md={12} key={attr.attrId}>
+                                            <Form.Item
+                                              name={['platformAttributes', attr.attrId]}
+                                              label={
+                                                <Space size={4} wrap className="product-draft-douyin-flow__attr-label">
+                                                  <span>{attr.name || attr.attrId}</span>
+                                                  {attr.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>}
+                                                </Space>
+                                              }
+                                              rules={
+                                                attr.required
+                                                  ? [{ required: true, message: `请填写${attr.name || attr.attrId}` }]
+                                                  : undefined
+                                              }
+                                            >
+                                              {opts.length > 0 ? (
+                                                <Select
+                                                  allowClear={!attr.required}
+                                                  showSearch
+                                                  optionFilterProp="label"
+                                                  options={opts.map((o) => ({
+                                                    label: o.name || o.id || '',
+                                                    value: o.id || o.name,
+                                                  }))}
+                                                />
+                                              ) : (
+                                                <Input placeholder={attr.valueType || '填写属性值'} />
+                                              )}
+                                            </Form.Item>
+                                          </Col>
+                                        );
+                                      })}
+                                    </Row>
+                                  </Spin>
+                                ) : null}
+                                <Form.Item className="product-draft-douyin-flow__submit-row">
+                                  <Space wrap className="product-draft-douyin-flow__panel-actions">
+                                    <Button htmlType="submit" loading={douyinSaving} disabled={!!douyinConfirmingAction}>
+                                      保存抖店配置
+                                    </Button>
+                                    <Button
+                                      onClick={() => {
+                                        setReadinessPlat('douyin_shop');
+                                        setReadinessShopId(String(douyinForm.getFieldValue('shopId') || ''));
+                                        openDraftLocation('readiness', 'publish-check');
+                                      }}
+                                    >
+                                      查看抖店发布检查
+                                    </Button>
+                                  </Space>
                                 </Form.Item>
                               </Form>
-                              <Descriptions bordered size="small" column={2}>
-                                <Descriptions.Item label="抖店店铺">{douyinMapping.shopId || '未选择'}</Descriptions.Item>
-                                <Descriptions.Item label="抖店类目">
-                                  {douyinMapping.categoryPath || douyinMapping.categoryId || '未选择'}
-                                </Descriptions.Item>
-                                <Descriptions.Item label="价格">
-                                  {douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}
-                                  {douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min
-                                    ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}`
-                                    : ''}
-                                </Descriptions.Item>
-                                <Descriptions.Item label="库存">
-                                  {douyinMapping.stock?.total ?? '未确认'}
-                                  {douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>库存未确认</Tag> : null}
-                                </Descriptions.Item>
-                              </Descriptions>
+                            </Space>
+                          </div>
+                          <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--mapping">
+                            <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Title level={5}>主图</Typography.Title>
-                                <Typography.Text type="secondary">图片需要先上传到抖店后，才能创建抖店商品草稿。</Typography.Text>
-                                <Image.PreviewGroup>
-                                  <Space wrap>
-                                    {(douyinMapping.mainImages ?? []).map((img, idx) => (
-                                      <div key={douyinImageKey(img, 'main', idx)} style={{ width: 180, marginTop: 8 }}>
-                                        <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
-                                        <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
-                                          {douyinStorageStatusTag(img)}
-                                          {douyinImageStatusTag(img)}
-                                          {img.platformImageId ? (
-                                            <Tooltip title={`平台图片编号：${img.platformImageId}`}>
-                                              <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
-                                                已获平台编号
-                                              </Typography.Text>
-                                            </Tooltip>
-                                          ) : null}
-                                          {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
-                                          {img.errorMessage || img.errorCode ? (
-                                            <Typography.Text type="danger" style={{ fontSize: 12 }}>
-                                              {img.errorMessage || formatUserErrorMessage(img.errorCode)}
-                                            </Typography.Text>
-                                          ) : null}
-                                          <Space size={4}>
-                                            {douyinImagePreviewUrl(img) ? (
-                                              <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
-                                            ) : null}
-                                            {img.platformImageUrl ? (
-                                              <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
-                                            ) : null}
-                                            <Button
-                                              size="small"
-                                              icon={<ReloadOutlined />}
-                                              loading={douyinImageRetryingKey === douyinImageKey(img, 'main', idx)}
-                                              onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'main', idx))}
-                                            >
-                                              重试
-                                            </Button>
-                                          </Space>
-                                        </Space>
-                                      </div>
-                                    ))}
-                                  </Space>
-                                </Image.PreviewGroup>
+                                <Typography.Text strong>2. 属性映射与草稿校验</Typography.Text>
+                                <Typography.Paragraph type="secondary">
+                                  生成映射会先保存当前配置再生成草稿；保存映射只保存编辑内容；校验映射只返回错误和警告，不代表平台审核通过。
+                                </Typography.Paragraph>
                               </div>
+                              {douyinMapping?.lastMappedAt ? (
+                                <Typography.Text type="secondary">最近生成：{formatDateTime(douyinMapping.lastMappedAt)}</Typography.Text>
+                              ) : null}
+                            </div>
+                            <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                              <Space wrap className="product-draft-douyin-flow__panel-actions">
+                                <Button loading={douyinMappingLoading} disabled={!!douyinConfirmingAction} onClick={() => void handleBuildDouyinMapping()}>
+                                  生成抖店刊登草稿
+                                </Button>
+                                <Button disabled={!douyinMapping} loading={douyinMappingSaving} onClick={() => void handleSaveDouyinMapping()}>
+                                  保存刊登草稿
+                                </Button>
+                                <Button loading={douyinMappingValidating} onClick={() => void handleValidateDouyinMapping()}>
+                                  校验刊登草稿
+                                </Button>
+                              </Space>
+                              {!douyinMapping ? (
+                                <EmptyState compact title="还没有抖店刊登草稿" description="请先选择抖店店铺和叶子类目，再手动生成映射。" />
+                              ) : (
+                                <>
+                                  {douyinMapping.errors?.length ? (
+                                    <Alert
+                                      type="error"
+                                      showIcon
+                                      message="这些信息不完整，暂时不能创建抖店商品"
+                                      description={douyinIssueList(douyinMapping.errors)}
+                                    />
+                                  ) : null}
+                                  {douyinMapping.warnings?.length ? (
+                                    <Alert
+                                      type="warning"
+                                      showIcon
+                                      message="这些信息建议人工确认"
+                                      description={douyinIssueList(douyinMapping.warnings)}
+                                    />
+                                  ) : null}
+                                  <Form form={douyinMappingForm} layout="vertical" className="product-draft-douyin-draft__form">
+                                    <Form.Item name="title" label="抖店标题" rules={[{ required: true, message: '请填写抖店标题' }]}>
+                                      <Input showCount maxLength={80} />
+                                    </Form.Item>
+                                    <Form.Item name="description" label="抖店描述">
+                                      <Input.TextArea rows={4} />
+                                    </Form.Item>
+                                  </Form>
+                                  <Table
+                                    size="small"
+                                    className="product-draft-douyin-draft__table"
+                                    rowKey={(r) => r.attrId || `${r.name || 'attr'}-${r.required ? 'required' : 'optional'}-${douyinAttrValueText(r.value)}`}
+                                    pagination={false}
+                                    scroll={{ x: 720 }}
+                                    dataSource={douyinMapping.attributes ?? []}
+                                    columns={[
+                                      { title: '抖店要求填写的信息', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{r.name || r.attrId}</Typography.Text> },
+                                      { title: '状态', width: 90, render: (_, r) => (r.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>) },
+                                      { title: '当前值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.value)}</Typography.Text> },
+                                    ]}
+                                  />
+                                </>
+                              )}
+                            </Space>
+                          </div>
+                          <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--images">
+                            <div className="product-draft-douyin-flow__panel-head">
                               <div>
-                                <Typography.Title level={5}>详情图</Typography.Title>
-                                {(douyinMapping.detailImages ?? []).length ? (
-                                  <Image.PreviewGroup>
-                                    <Space wrap>
-                                      {(douyinMapping.detailImages ?? []).map((img, idx) => (
-                                        <div key={douyinImageKey(img, 'detail', idx)} style={{ width: 180 }}>
-                                          <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
-                                          <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
-                                            {douyinStorageStatusTag(img)}
-                                            {douyinImageStatusTag(img)}
-                                            {img.platformImageId ? (
-                                            <Tooltip title={`平台图片编号：${img.platformImageId}`}>
-                                              <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
-                                                已获平台编号
-                                              </Typography.Text>
-                                            </Tooltip>
-                                          ) : null}
-                                            {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
-                                            {img.errorMessage || img.errorCode ? (
-                                            <Typography.Text type="danger" style={{ fontSize: 12 }}>
-                                              {img.errorMessage || formatUserErrorMessage(img.errorCode)}
-                                            </Typography.Text>
-                                          ) : null}
-                                            <Space size={4}>
-                                              {douyinImagePreviewUrl(img) ? (
-                                                <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
-                                              ) : null}
-                                              {img.platformImageUrl ? (
-                                                <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
-                                              ) : null}
-                                              <Button
-                                                size="small"
-                                                icon={<ReloadOutlined />}
-                                                loading={douyinImageRetryingKey === douyinImageKey(img, 'detail', idx)}
-                                                onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'detail', idx))}
-                                              >
-                                                重试
-                                              </Button>
-                                            </Space>
-                                          </Space>
-                                        </div>
-                                      ))}
-                                    </Space>
-                                  </Image.PreviewGroup>
-                                ) : (
-                                  <Typography.Text type="secondary">暂无详情图</Typography.Text>
-                                )}
+                                <Typography.Text strong>3. 商品图片准备与上传</Typography.Text>
+                                <Typography.Paragraph type="secondary">
+                                  上传范围保持为主图和详情图，顺序来自当前映射；上传到抖店图片存储后才可用于创建抖店商品草稿。
+                                </Typography.Paragraph>
                               </div>
-                              <Table
-                                size="small"
-                                rowKey={(r) => r.attrId || r.name}
-                                pagination={false}
-                                dataSource={douyinMapping.attributes ?? []}
-                                columns={[
-                                  { title: '抖店要求填写的信息', render: (_, r) => r.name || r.attrId },
-                                  { title: '状态', width: 90, render: (_, r) => (r.required ? <Tag color="red">必填</Tag> : <Tag>可选</Tag>) },
-                                  { title: '当前值', render: (_, r) => douyinAttrValueText(r.value) },
-                                ]}
-                              />
-                              <Table
-                                size="small"
-                                rowKey={(r) => r.localSkuId || r.name}
-                                pagination={false}
-                                dataSource={douyinMapping.skus ?? []}
-                                columns={[
-                                  { title: '商品规格', dataIndex: 'name', ellipsis: true },
-                                  { title: '规格值', render: (_, r) => douyinAttrValueText(r.attrs ?? {}) },
-                                  { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
-                                  { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
-                                  { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
-                                ]}
-                              />
-                            </>
-                          )}
-                        </Space>
-                      </Card>
-                      <Card size="small" title="抖店刊登任务" variant="borderless" loading={douyinPublishTasksLoading}>
-                        {douyinPublishTasks.length === 0 ? (
-                          <Typography.Text type="secondary">暂无抖店刊登任务</Typography.Text>
-                        ) : (
-                          <Table
-                            size="small"
-                            rowKey="id"
-                            pagination={false}
-                            dataSource={douyinPublishTasks}
-                            columns={[
-                              { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
-                              { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => publishModeLabel(v) },
-                              { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
-                              { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
-                              {
-                                title: '失败原因',
-                                dataIndex: 'errorMessage',
-                                ellipsis: true,
-                                render: (v, r) => {
-                                  const text = (v as string) || formatUserErrorMessage(r.errorCode);
-                                  return text || '—';
-                                },
-                              },
-                              {
-                                title: '操作',
-                                width: 120,
-                                render: (_, r) => (
-                                  <Space size={4}>
-                                    <Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>
-                                    {r.status === 'failed' && r.retryable !== false ? (
-                                      <Button
-                                        type="link"
-                                        size="small"
-                                        onClick={() =>
-                                          void retryProductPublishTask(r.id)
-                                            .then(() => {
-                                              message.success('已重试刊登任务');
-                                              void reloadDouyinPublishTasks();
-                                            })
-                                            .catch((e: Error) => message.error(e.message || '重试失败'))
-                                        }
-                                      >
-                                        重试
-                                      </Button>
-                                    ) : null}
-                                  </Space>
-                                ),
-                              },
-                            ]}
-                          />
-                        )}
-                      </Card>
-                      <Card
-                        size="small"
-                        title="抖店规格绑定"
-                        variant="borderless"
-                        loading={douyinSkuBindingLoading}
-                        extra={
-                          <Space>
-                            <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
-                              查看平台规格候选
-                            </Button>
-                            <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
-                              刷新绑定状态
-                            </Button>
-                            <Button
-                              type="primary"
-                              size="small"
-                              loading={douyinSkuBindingSyncing}
-                              disabled={!douyinPublication?.id}
-                              onClick={() => void handleSyncDouyinSkuBindings()}
-                            >
-                              重新校准
-                            </Button>
-                          </Space>
-                        }
-                      >
-                        {!douyinPublication?.id ? (
-                          <Typography.Text type="secondary">
-                            创建抖店商品草稿后，可在此根据抖店商品详情校准 platformSkuId，并对 ambiguous / unmatched 规格手动绑定。
-                          </Typography.Text>
-                        ) : (
-                          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                            {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
-                              <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
-                            ) : douyinSkuBinding?.inventorySyncReady ? (
-                              <Alert type="success" showIcon message="全部规格已绑定抖店规格，可同步库存。" />
-                            ) : null}
-                            <Descriptions bordered size="small" column={2}>
-                              <Descriptions.Item label="抖店商品 ID">
-                                {douyinPublication.externalProductId || '—'}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="最近校准时间">
-                                {douyinSkuBinding?.skuBindingSyncedAt
-                                  ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
-                                  : douyinPublication.skuBindingSyncedAt
-                                    ? formatDateTime(douyinPublication.skuBindingSyncedAt)
-                                    : '—'}
-                              </Descriptions.Item>
-                              <Descriptions.Item label="已绑定">{douyinSkuBinding?.bound ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="未绑定">{douyinSkuBinding?.unmatched ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="待确认">{douyinSkuBinding?.ambiguous ?? '—'}</Descriptions.Item>
-                              <Descriptions.Item label="失败">{douyinSkuBinding?.failed ?? '—'}</Descriptions.Item>
-                            </Descriptions>
-                            {(douyinSkuBinding?.rows?.length ?? 0) > 0 ? (
-                              <Table<DouyinSkuBindingRow>
-                                size="small"
-                                rowKey="publicationSkuId"
-                                pagination={false}
-                                scroll={{ x: 1200 }}
-                                dataSource={douyinSkuBinding?.rows ?? []}
-                                columns={[
-                                  { title: '本地规格', dataIndex: 'skuCode', width: 120, ellipsis: true, render: (v, r) => v || r.productSkuId || '—' },
-                                  { title: '本地规格', dataIndex: 'specName', width: 140, ellipsis: true, render: (v) => v || '—' },
-                                  {
-                                    title: '本地价格',
-                                    width: 96,
-                                    render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—'),
-                                  },
-                                  {
-                                    title: '本地库存',
-                                    width: 88,
-                                    render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—'),
-                                  },
-                                  { title: '平台规格编号', dataIndex: 'externalSkuId', width: 140, ellipsis: true, render: (v) => v || '—' },
-                                  { title: '抖店规格名称', dataIndex: 'platformSkuName', width: 140, ellipsis: true, render: (v) => v || '—' },
-                                  { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
-                                  { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
-                                  {
-                                    title: '最近校准',
-                                    dataIndex: 'lastSyncedAt',
-                                    width: 156,
-                                    render: (v) => (v ? formatDateTime(v) : '—'),
-                                  },
-                                  {
-                                    title: '说明',
-                                    dataIndex: 'bindMessage',
-                                    ellipsis: true,
-                                    render: (v, r) => v || douyinBindStatusHint(r.bindStatus),
-                                  },
-                                  {
-                                    title: '操作',
-                                    width: 220,
-                                    fixed: 'right',
-                                    render: (_, r) => (
-                                      <Space size={4} wrap>
-                                        <Button
-                                          type="link"
-                                          size="small"
-                                          style={{ padding: 0 }}
-                                          onClick={() => {
-                                            setDouyinSkuBindTarget(r);
-                                            douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined });
-                                            setDouyinSkuBindOpen(true);
-                                          }}
-                                        >
-                                          手动绑定
-                                        </Button>
-                                        {r.externalSkuId ? (
-                                          <Popconfirm
-                                            title="确认解除该规格的抖店规格绑定？"
-                                            onConfirm={() =>
-                                              void unbindDouyinSku(r.publicationSkuId)
-                                                .then(async () => {
-                                                  message.success('已解除绑定');
-                                                  await reloadDouyinSkuBindings();
-                                                  await reloadPublicationSkus();
-                                                })
-                                                .catch((e: Error) => message.error(e.message || '解除失败'))
-                                            }
-                                          >
-                                            <Button type="link" size="small" style={{ padding: 0 }} danger>
-                                              解除绑定
-                                            </Button>
-                                          </Popconfirm>
-                                        ) : null}
-                                      </Space>
-                                    ),
-                                  },
-                                ]}
-                              />
+                              <Space wrap className="product-draft-douyin-flow__panel-actions">
+                                <Button
+                                  icon={<CloudUploadOutlined />}
+                                  disabled={!douyinMapping}
+                                  loading={douyinImageUploading}
+                                  onClick={() => void handleUploadDouyinImages(false)}
+                                >
+                                  上传图片到抖店
+                                </Button>
+                                <Button
+                                  icon={<ReloadOutlined />}
+                                  disabled={!douyinMapping}
+                                  loading={douyinImageUploading}
+                                  onClick={() => void handleUploadDouyinImages(true)}
+                                >
+                                  重新上传全部图片
+                                </Button>
+                              </Space>
+                            </div>
+                            {!douyinMapping ? (
+                              <EmptyState compact title="待生成草稿映射" description="生成映射后会显示准备上传到抖店的主图和详情图。" />
                             ) : (
-                              <Typography.Text type="secondary">点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。</Typography.Text>
+                              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                <div className="product-draft-douyin-flow__image-summary">
+                                  <span>主图 {douyinUploadedMainImages}/{douyinMainImages.length} 已上传</span>
+                                  <span>详情图 {douyinUploadedDetailImages}/{douyinDetailImages.length} 已上传</span>
+                                </div>
+                                <div className="product-draft-publish__image-section">
+                                  <Typography.Title level={5}>主图</Typography.Title>
+                                  <Typography.Text type="secondary">图片需要先上传到抖店后，才能创建抖店商品草稿。</Typography.Text>
+                                  {(douyinMapping.mainImages ?? []).length ? (
+                                    <Image.PreviewGroup>
+                                      <div className="product-draft-douyin-flow__image-grid">
+                                        {(douyinMapping.mainImages ?? []).map((img, idx) => (
+                                          <div key={douyinImageKey(img, 'main', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
+                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                              {douyinStorageStatusTag(img)}
+                                              {douyinImageStatusTag(img)}
+                                              {img.platformImageId ? (
+                                                <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                                  <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
+                                                    已获平台编号
+                                                  </Typography.Text>
+                                                </Tooltip>
+                                              ) : null}
+                                              {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                              {img.errorMessage || img.errorCode ? (
+                                                <Typography.Text type="danger" style={{ fontSize: 12 }} className="product-draft-douyin-flow__long-text">
+                                                  {img.errorMessage || formatUserErrorMessage(img.errorCode)}
+                                                </Typography.Text>
+                                              ) : null}
+                                              <Space size={4} wrap>
+                                                {douyinImagePreviewUrl(img) ? (
+                                                  <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                                ) : null}
+                                                {img.platformImageUrl ? (
+                                                  <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                                ) : null}
+                                                <Button
+                                                  size="small"
+                                                  icon={<ReloadOutlined />}
+                                                  loading={douyinImageRetryingKey === douyinImageKey(img, 'main', idx)}
+                                                  onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'main', idx))}
+                                                >
+                                                  重试
+                                                </Button>
+                                              </Space>
+                                            </Space>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </Image.PreviewGroup>
+                                  ) : (
+                                    <Typography.Text type="secondary">暂无主图</Typography.Text>
+                                  )}
+                                </div>
+                                <div className="product-draft-publish__image-section">
+                                  <Typography.Title level={5}>详情图</Typography.Title>
+                                  {(douyinMapping.detailImages ?? []).length ? (
+                                    <Image.PreviewGroup>
+                                      <div className="product-draft-douyin-flow__image-grid">
+                                        {(douyinMapping.detailImages ?? []).map((img, idx) => (
+                                          <div key={douyinImageKey(img, 'detail', idx)} className="product-draft-publish__image-card product-draft-douyin-flow__image-card">
+                                            <Image src={douyinImagePreviewUrl(img)} width={112} height={112} style={{ objectFit: 'cover' }} />
+                                            <Space direction="vertical" size={2} style={{ marginTop: 6, width: '100%' }}>
+                                              {douyinStorageStatusTag(img)}
+                                              {douyinImageStatusTag(img)}
+                                              {img.platformImageId ? (
+                                                <Tooltip title={`平台图片编号：${img.platformImageId}`}>
+                                                  <Typography.Text copyable={{ text: img.platformImageId }} type="secondary" style={{ fontSize: 12 }}>
+                                                    已获平台编号
+                                                  </Typography.Text>
+                                                </Tooltip>
+                                              ) : null}
+                                              {img.uploadedAt ? <Typography.Text type="secondary" style={{ fontSize: 12 }}>{formatDateTime(img.uploadedAt)}</Typography.Text> : null}
+                                              {img.errorMessage || img.errorCode ? (
+                                                <Typography.Text type="danger" style={{ fontSize: 12 }} className="product-draft-douyin-flow__long-text">
+                                                  {img.errorMessage || formatUserErrorMessage(img.errorCode)}
+                                                </Typography.Text>
+                                              ) : null}
+                                              <Space size={4} wrap>
+                                                {douyinImagePreviewUrl(img) ? (
+                                                  <Button size="small" icon={<EyeOutlined />} href={douyinImagePreviewUrl(img)} target="_blank" />
+                                                ) : null}
+                                                {img.platformImageUrl ? (
+                                                  <Button size="small" href={img.platformImageUrl} target="_blank">平台图</Button>
+                                                ) : null}
+                                                <Button
+                                                  size="small"
+                                                  icon={<ReloadOutlined />}
+                                                  loading={douyinImageRetryingKey === douyinImageKey(img, 'detail', idx)}
+                                                  onClick={() => void handleRetryDouyinImage(douyinImageKey(img, 'detail', idx))}
+                                                >
+                                                  重试
+                                                </Button>
+                                              </Space>
+                                            </Space>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </Image.PreviewGroup>
+                                  ) : (
+                                    <Typography.Text type="secondary">暂无详情图</Typography.Text>
+                                  )}
+                                </div>
+                              </Space>
                             )}
-                          </Space>
-                        )}
-                      </Card>
+                          </div>
+                          <div id="douyin-sku-bindings" className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--sku product-draft-douyin-bind__card">
+                            <Spin spinning={douyinSkuBindingLoading}>
+                              <div className="product-draft-douyin-flow__panel-head">
+                                <div>
+                                  <Typography.Text strong>4. 抖店规格绑定和 SKU 映射状态</Typography.Text>
+                                  <Typography.Paragraph type="secondary">
+                                    绑定区只建立本地规格与已有抖店规格的关系，不创建平台 SKU，也不会自动同步库存。
+                                  </Typography.Paragraph>
+                                </div>
+                                <Space wrap className="product-draft-douyin-bind__actions product-draft-douyin-flow__panel-actions">
+                                  <Button size="small" onClick={() => setDouyinSkuCandidatesOpen(true)} disabled={!douyinSkuBinding?.platformSkus?.length}>
+                                    查看平台规格候选
+                                  </Button>
+                                  <Button size="small" onClick={() => void reloadDouyinSkuBindings()}>
+                                    刷新绑定状态
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    loading={douyinSkuBindingSyncing}
+                                    disabled={!douyinPublication?.id}
+                                    onClick={() => void handleSyncDouyinSkuBindings()}
+                                  >
+                                    重新校准
+                                  </Button>
+                                </Space>
+                              </div>
+                              {douyinSkuBindingError ? (
+                                <Alert
+                                  type="error"
+                                  showIcon
+                                  message="抖店规格绑定加载失败"
+                                  description={douyinSkuBindingError}
+                                  action={<Button size="small" onClick={() => void reloadDouyinSkuBindings()}>重新加载</Button>}
+                                />
+                              ) : !douyinPublication?.id ? (
+                                <EmptyState
+                                  compact
+                                  title="暂无抖店刊登记录"
+                                  description="创建抖店商品草稿后，可根据抖店商品详情校准平台规格编号，并对未匹配或待确认的本地规格建立映射。"
+                                />
+                              ) : (
+                                <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                  <div className="product-draft-douyin-bind__brief">
+                                    <div className="product-draft-douyin-bind__brief-text">
+                                      <Typography.Text strong>抖店规格映射</Typography.Text>
+                                      <Typography.Paragraph type="secondary">
+                                        候选规格来自当前抖店商品详情。手动绑定只建立本地规格与已有抖店规格的映射，不创建新的平台 SKU，也不会自动同步库存。
+                                      </Typography.Paragraph>
+                                    </div>
+                                    <div className="product-draft-douyin-bind__context">
+                                      <span>平台：抖店</span>
+                                      <span>店铺：{douyinPublication.shopName || douyinPublication.shopId || '—'}</span>
+                                      <span>刊登记录：{platformSkuValue(douyinPublication.id)}</span>
+                                      <span>抖店商品：{platformSkuValue(douyinPublication.externalProductId)}</span>
+                                    </div>
+                                  </div>
+                                  {douyinSkuBinding?.inventorySyncReady === false && douyinSkuBinding.inventorySyncBlockReason ? (
+                                    <Alert type="warning" showIcon message={douyinSkuBinding.inventorySyncBlockReason} />
+                                  ) : douyinSkuBinding?.inventorySyncReady ? (
+                                    <Alert type="info" showIcon message="全部规格已有抖店规格映射，可用于创建库存同步任务。" />
+                                  ) : null}
+                                  <div className="product-draft-douyin-bind__status-grid" aria-label="抖店规格绑定状态摘要">
+                                    <div><span>已绑定</span><strong>{douyinSkuBinding?.bound ?? '—'}</strong></div>
+                                    <div><span>未绑定</span><strong>{douyinSkuBinding?.unmatched ?? '—'}</strong></div>
+                                    <div><span>待确认</span><strong>{douyinSkuBinding?.ambiguous ?? '—'}</strong></div>
+                                    <div><span>失败</span><strong>{douyinSkuBinding?.failed ?? '—'}</strong></div>
+                                    <div><span>候选规格</span><strong>{douyinSkuBinding?.platformSkus?.length ?? '—'}</strong></div>
+                                    <div>
+                                      <span>最近校准</span>
+                                      <strong>
+                                        {douyinSkuBinding?.skuBindingSyncedAt
+                                          ? formatDateTime(douyinSkuBinding.skuBindingSyncedAt)
+                                          : douyinPublication.skuBindingSyncedAt
+                                            ? formatDateTime(douyinPublication.skuBindingSyncedAt)
+                                            : '—'}
+                                      </strong>
+                                    </div>
+                                  </div>
+                                  {(douyinSkuBinding?.rows?.length ?? 0) > 0 ? (
+                                    <Table<DouyinSkuBindingRow>
+                                      size="small"
+                                      className="product-draft-douyin-bind__table"
+                                      rowKey={(r) => r.publicationSkuId || `${r.productSkuId || 'sku'}-${r.externalSkuId || 'external'}-${r.platformSkuName || 'platform'}`}
+                                      pagination={false}
+                                      scroll={{ x: 1200 }}
+                                      dataSource={douyinSkuBinding?.rows ?? []}
+                                      columns={[
+                                        { title: '本地规格编码', dataIndex: 'skuCode', width: 150, render: (v, r) => <Space direction="vertical" size={2} className="product-draft-douyin-bind__sku-cell"><Typography.Text strong className="product-draft-douyin-bind__text">{v || '未填写规格编码'}</Typography.Text><span className="product-draft-douyin-bind__id">{platformSkuValue(r.productSkuId)}</span></Space> },
+                                        { title: '本地规格名称', dataIndex: 'specName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
+                                        { title: '本地价格', width: 96, render: (_, r) => (typeof r.price === 'number' ? r.price.toFixed(2) : '—') },
+                                        { title: '本地库存', width: 88, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
+                                        { title: '平台规格编号', dataIndex: 'externalSkuId', width: 170, render: (v) => platformSkuValue(v) },
+                                        { title: '抖店规格名称', dataIndex: 'platformSkuName', width: 180, render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text> },
+                                        { title: '绑定状态', dataIndex: 'bindStatus', width: 96, render: (v) => douyinBindStatusTag(v) },
+                                        { title: '置信度', dataIndex: 'bindConfidence', width: 72, render: (v) => (typeof v === 'number' ? v : '—') },
+                                        { title: '最近校准', dataIndex: 'lastSyncedAt', width: 156, render: (v) => (v ? formatDateTime(v) : '—') },
+                                        { title: '说明', dataIndex: 'bindMessage', width: 220, render: (v, r) => <Typography.Text className="product-draft-douyin-bind__text">{v || douyinBindStatusHint(r.bindStatus)}</Typography.Text> },
+                                        {
+                                          title: '操作',
+                                          width: 220,
+                                          fixed: 'right',
+                                          render: (_, r) => (
+                                            <Space size={4} wrap>
+                                              <Button type="link" size="small" className="product-draft-douyin-bind__action" onClick={() => { setDouyinSkuBindTarget(r); douyinSkuBindForm.setFieldsValue({ platformSkuId: r.externalSkuId || undefined }); setDouyinSkuBindOpen(true); }}>手动绑定</Button>
+                                              {r.externalSkuId ? (
+                                                <Button type="link" size="small" className="product-draft-douyin-bind__action" danger onClick={() => confirmSkuUnbind(() => void unbindDouyinSku(r.publicationSkuId).then(async () => { message.success('已解除绑定'); await reloadDouyinSkuBindings(); await reloadPublicationSkus(); }).catch((e: Error) => message.error(e.message || '解除失败')))}>解除绑定</Button>
+                                              ) : null}
+                                            </Space>
+                                          ),
+                                        },
+                                      ]}
+                                    />
+                                  ) : (
+                                    <EmptyState compact title="暂无规格绑定结果" description="点击「重新校准」从抖店拉取规格并完成匹配；未匹配或待确认规格可手动绑定。" />
+                                  )}
+                                </Space>
+                              )}
+                            </Spin>
+                          </div>
+                          <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--preview">
+                            <div className="product-draft-douyin-flow__panel-head">
+                              <div>
+                                <Typography.Text strong>5. 抖店商品草稿预览</Typography.Text>
+                                <Typography.Paragraph type="secondary">这里展示即将提交给抖店草稿创建接口的数据映射，不代表这些字段已经写入抖店平台。</Typography.Paragraph>
+                              </div>
+                            </div>
+                            {!douyinMapping ? (
+                              <EmptyState compact title="暂无草稿预览" description="生成抖店刊登草稿后，会在这里展示标题、类目、价格、库存、属性和 SKU 预览。" />
+                            ) : (
+                              <Space direction="vertical" style={{ width: '100%' }} size="middle">
+                                <Descriptions bordered size="small" column={2} className="product-draft-publish__descriptions product-draft-douyin-draft__descriptions">
+                                  <Descriptions.Item label="抖店店铺">{douyinMapping.shopId || '未选择'}</Descriptions.Item>
+                                  <Descriptions.Item label="抖店类目">{douyinMapping.categoryPath || douyinMapping.categoryId || '未选择'}</Descriptions.Item>
+                                  <Descriptions.Item label="价格">{douyinMoney(douyinMapping.price?.min, douyinMapping.price?.currency)}{douyinMapping.price?.max && douyinMapping.price.max !== douyinMapping.price.min ? ` - ${douyinMoney(douyinMapping.price.max, douyinMapping.price.currency)}` : ''}</Descriptions.Item>
+                                  <Descriptions.Item label="库存">{douyinMapping.stock?.total ?? '未确认'}{douyinMapping.stock?.unconfirmed ? <Tag color="orange" style={{ marginLeft: 8 }}>库存未确认</Tag> : null}</Descriptions.Item>
+                                </Descriptions>
+                                <Table
+                                  size="small"
+                                  className="product-draft-douyin-draft__table"
+                                  rowKey={(r) => r.localSkuId || `${r.name || 'sku'}-${douyinAttrValueText(r.attrs ?? {})}-${r.price ?? ''}`}
+                                  pagination={false}
+                                  scroll={{ x: 820 }}
+                                  dataSource={douyinMapping.skus ?? []}
+                                  columns={[
+                                    { title: '商品规格', dataIndex: 'name', render: (v) => <Typography.Text className="product-draft-douyin-flow__long-text">{v || '—'}</Typography.Text> },
+                                    { title: '规格值', render: (_, r) => <Typography.Text className="product-draft-douyin-flow__long-text">{douyinAttrValueText(r.attrs ?? {})}</Typography.Text> },
+                                    { title: '售价', width: 110, render: (_, r) => douyinMoney(r.price, douyinMapping.price?.currency) },
+                                    { title: '库存', width: 90, render: (_, r) => (r.stock == null ? '未确认' : r.stock) },
+                                    { title: '规格图', width: 90, render: (_, r) => (r.imageUrl ? <Image src={r.imageUrl} width={40} height={40} /> : '无') },
+                                  ]}
+                                />
+                              </Space>
+                            )}
+                          </div>
+                          <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--create">
+                            <div className="product-draft-douyin-flow__create-copy">
+                              <Typography.Text strong>6. 创建抖店商品草稿</Typography.Text>
+                              <Typography.Paragraph type="secondary">该操作会在抖店侧创建商品草稿，使用 save_as_platform_draft 模式；不等于正式发布，不等于商品已上线。成功后请查看下方任务记录，并到抖店后台确认后上架。</Typography.Paragraph>
+                            </div>
+                            <Space wrap className="product-draft-douyin-flow__panel-actions">
+                              <Button type="primary" disabled={douyinCreateDraftDisabled || !!douyinConfirmingAction} loading={douyinDraftCreating} onClick={() => void handleCreateDouyinDraft()}>
+                                创建抖店商品草稿
+                              </Button>
+                              <Button onClick={() => openDraftLocation('publish', 'douyin-sku-bindings')}>查看 SKU 绑定状态</Button>
+                            </Space>
+                          </div>
+                          <div className="product-draft-douyin-flow__panel product-draft-douyin-flow__panel--tasks">
+                            <div className="product-draft-douyin-flow__panel-head">
+                              <div>
+                                <Typography.Text strong>7. 创建任务与结果</Typography.Text>
+                                <Typography.Paragraph type="secondary">任务记录来自抖店刊登任务列表；任务成功只表示草稿创建流程完成，不表示平台商品已经正式上线。</Typography.Paragraph>
+                              </div>
+                              <Button size="small" onClick={() => void reloadDouyinPublishTasks()}>刷新任务</Button>
+                            </div>
+                            <Spin spinning={douyinPublishTasksLoading}>
+                              {douyinPublishTasksError ? (
+                                <Alert type="error" showIcon message="抖店刊登任务加载失败" description={douyinPublishTasksError} action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>重新加载</Button>} />
+                              ) : douyinPublishTasks.length === 0 ? (
+                                <EmptyState compact title="暂无抖店刊登任务" description="创建抖店商品草稿后会在这里显示任务处理状态。" />
+                              ) : (
+                                <Table
+                                  size="small"
+                                  className="product-draft-douyin-draft__table"
+                                  rowKey="id"
+                                  pagination={false}
+                                  scroll={{ x: 900 }}
+                                  dataSource={douyinPublishTasks}
+                                  columns={[
+                                    { title: '状态', dataIndex: 'status', width: 100, render: (_, r) => tagFromPublishStatus(r.status) },
+                                    { title: '发布模式', dataIndex: 'publishMode', width: 140, render: (v) => publishModeLabel(v) },
+                                    { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
+                                    { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
+                                    { title: '失败原因', dataIndex: 'errorMessage', ellipsis: true, render: (v, r) => { const text = (v as string) || formatUserErrorMessage(r.errorCode); return text || '—'; } },
+                                    { title: '操作', width: 120, render: (_, r) => <Space size={4}><Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>{r.status === 'failed' && r.retryable !== false ? <Button type="link" size="small" onClick={() => void retryProductPublishTask(r.id).then(() => { message.success('已重试刊登任务'); void reloadDouyinPublishTasks(); }).catch((e: Error) => message.error(e.message || '重试失败'))}>重试</Button> : null}</Space> },
+                                  ]}
+                                />
+                              )}
+                            </Spin>
+                          </div>
+                        </Space>
+                      </div>
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="product-draft-publish__legacy-warning"
+                        message="传统提交刊登是兼容入口"
+                        description="此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登任务，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续任务和刊登记录为准。"
+                      />
+                      {eligibleShopsForPublish.length === 0 && !pubCtxError ? (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          message="暂无可提交刊登的店铺"
+                          description="只有已授权且 product_publish 能力为可用或 beta 的店铺会出现在传统提交入口。"
+                        />
+                      ) : null}
+                      {publishReadinessLoading ? (
+                        <Alert
+                          type="info"
+                          showIcon
+                          message="正在执行 publish 模式发布检查"
+                          description="检查完成前不会提交刊登任务。"
+                        />
+                      ) : null}
                       {publishReadiness ? (
                         <Alert
                           type={
@@ -3669,10 +5509,17 @@ export default function ProductDraftDetailPage() {
                           }
                         />
                       ) : null}
+                      <div className="product-draft-publish__legacy-panel">
+                        <div className="product-draft-publish__legacy-copy">
+                          <Typography.Text strong>传统提交刊登</Typography.Text>
+                          <Typography.Paragraph type="secondary">
+                            选择店铺后会展示 publish readiness；点击提交后先确认，再重新检查并调用传统刊登提交接口。失败不会清空已有任务和刊登记录。
+                          </Typography.Paragraph>
+                        </div>
                       <Form
                         form={publishForm}
                         layout="vertical"
-                        style={{ maxWidth: 560 }}
+                        className="product-draft-publish__legacy-form"
                         onFinish={async (vals: { shopId?: string }) => {
                           const shopId = String(vals.shopId ?? '').trim();
                           if (!shopId) {
@@ -3686,6 +5533,25 @@ export default function ProductDraftDetailPage() {
                           }
                           setPublishSubmitting(true);
                           try {
+                            await new Promise<void>((resolve, reject) => {
+                              Modal.confirm({
+                                title: '确认提交刊登？',
+                                width: 640,
+                                okText: '确认提交刊登',
+                                cancelText: '取消',
+                                okButtonProps: { danger: true },
+                                content: (
+                                  <Space direction="vertical" size={8}>
+                                    <Typography.Text>该操作会执行 publish 模式发布检查，检查通过后提交刊登任务。</Typography.Text>
+                                    <Typography.Text type="secondary">
+                                      这不是本地保存，也不是只创建草稿；可能触发真实平台写操作，平台最终结果请以任务和刊登记录为准。
+                                    </Typography.Text>
+                                  </Space>
+                                ),
+                                onOk: () => resolve(),
+                                onCancel: () => reject(new Error('cancelled')),
+                              });
+                            });
                             const r = await getProductReadiness(id, {
                               platform: shop.platform,
                               shopId,
@@ -3764,6 +5630,7 @@ export default function ProductDraftDetailPage() {
                           <Space wrap>
                             <Button
                               type="primary"
+                              danger
                               htmlType="submit"
                               loading={publishSubmitting}
                               disabled={!!publishReadiness && !publishReadiness.canPublish}
@@ -3774,41 +5641,63 @@ export default function ProductDraftDetailPage() {
                           </Space>
                         </Form.Item>
                       </Form>
-                      <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
-                        本商品刊登记录
-                      </Typography.Title>
-                      <Table<ProductPublicationRow>
-                        size="small"
-                        rowKey="id"
-                        loading={pubCtxLoading}
-                        dataSource={pubRows}
-                        pagination={false}
-                        columns={[
-                          { title: '店铺', render: (_, r) => r.shopName || r.shopId },
-                          { title: '平台', dataIndex: 'platform', width: 120, render: (v) => platformDisplayLabel(String(v ?? '')) },
-                          { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => commonStatusLabel(String(v ?? '')) },
-                          { title: '外部商品 ID', dataIndex: 'externalProductId', ellipsis: true },
-                          {
-                            title: '外链',
-                            render: (_, r) =>
-                              r.externalUrl ? (
-                                <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
-                                  打开
-                                </Typography.Link>
-                              ) : (
-                                '—'
-                              ),
-                          },
-                        ]}
-                      />
+                      </div>
+                      <div className="product-draft-publish__records-head">
+                        <div>
+                          <Typography.Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
+                            本商品刊登记录
+                          </Typography.Title>
+                          <Typography.Text type="secondary">记录展示草稿、任务或平台返回状态；草稿成功不等于正式上线，正式提交后也以后续状态为准。</Typography.Text>
+                        </div>
+                        <Button size="small" onClick={() => void reloadPublishContext()}>刷新记录</Button>
+                      </div>
+                      {pubCtxError ? (
+                        <Alert
+                          type="error"
+                          showIcon
+                          message="刊登记录加载失败"
+                          description={pubCtxError}
+                          action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
+                        />
+                      ) : pubRows.length === 0 ? (
+                        <EmptyState compact title="暂无刊登记录" description="创建草稿或提交刊登任务后，刊登记录会在这里展示。" />
+                      ) : (
+                        <Table<ProductPublicationRow>
+                          size="small"
+                          rowKey="id"
+                          loading={pubCtxLoading}
+                          dataSource={pubRows}
+                          pagination={false}
+                          scroll={{ x: 760 }}
+                          columns={[
+                            { title: '店铺', width: 220, render: (_, r) => <Typography.Text className="product-draft-publish__long-text">{r.shopName || r.shopId}</Typography.Text> },
+                            { title: '平台', dataIndex: 'platform', width: 140, render: (v) => platformDisplayLabel(String(v ?? '')) },
+                            { title: '状态', dataIndex: 'publishStatus', width: 120, render: (v) => tagFromPublishStatus(String(v ?? '')) },
+                            { title: '外部商品 ID', dataIndex: 'externalProductId', width: 180, render: (v) => <Typography.Text className="product-draft-publish__long-text">{v || '—'}</Typography.Text> },
+                            {
+                              title: '外链',
+                              width: 120,
+                              render: (_, r) =>
+                                r.externalUrl ? (
+                                  <Typography.Link href={r.externalUrl} target="_blank" rel="noreferrer">
+                                    打开
+                                  </Typography.Link>
+                                ) : (
+                                  '—'
+                                ),
+                            },
+                          ]}
+                        />
+                      )}
                     </Space>
                   </Card>
                   </Space>
                 </Spin>
               ),
             },
-          ]}
-          />
+              ]}
+            />
+          </div>
         </Space>
       ) : null}
 
@@ -3930,12 +5819,22 @@ export default function ProductDraftDetailPage() {
         open={aiOpen}
         onCancel={() => setAiOpen(false)}
         footer={null}
+        forceRender
         destroyOnHidden
-        width={640}
+        width={760}
+        className="product-draft-ai-modal"
+        rootClassName="tm-product-draft-detail"
       >
+        <Alert
+          type="info"
+          showIcon
+          className="product-draft-ai-modal__notice"
+          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
+        />
         <Form
           form={aiForm}
           layout="vertical"
+          className="product-draft-ai-modal__form"
           initialValues={{ language: 'en', platform: 'TikTok Shop', maxLength: 120 }}
           onFinish={async (v) => {
             setAiBusy(true);
@@ -3957,96 +5856,125 @@ export default function ProductDraftDetailPage() {
             }
           }}
         >
-          <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="例如 en" />
-          </Form.Item>
-          <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
-            <Input placeholder="TikTok Shop" />
-          </Form.Item>
-          <Form.Item name="maxLength" label="最长字符数" rules={[{ required: true }]}>
-            <InputNumber min={20} max={500} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item>
+          <div className="product-draft-ai-modal__fields">
+            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+              <Input placeholder="例如 en" />
+            </Form.Item>
+            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+              <Input placeholder="TikTok Shop" />
+            </Form.Item>
+            <Form.Item name="maxLength" label="最长字符数" rules={[{ required: true }]}>
+              <InputNumber min={20} max={500} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+          <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={aiBusy}>
-              运行优化
+              生成标题建议
             </Button>
           </Form.Item>
         </Form>
 
         {aiResult ? (
-          <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              输出
-            </Typography.Title>
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="原始内容">{data?.title || data?.originalTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="优化标题">{aiResult.optimizedTitle || '—'}</Descriptions.Item>
-              <Descriptions.Item label="关键词">
-                {(aiResult.keywords ?? []).length ? aiResult.keywords.join('、') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="说明">{aiResult.reason || '—'}</Descriptions.Item>
-              <Descriptions.Item label="任务 ID">{aiResult.taskId}</Descriptions.Item>
-            </Descriptions>
-            <Form.Item label="准备应用的内容">
+          <div className="product-draft-ai-modal__result">
+            <div className="product-draft-ai-modal__result-head">
+              <div>
+                <Typography.Text strong>标题建议结果</Typography.Text>
+                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+              </div>
+              <Tag color="processing">AI 建议未应用</Tag>
+            </div>
+            <div className="product-draft-ai-modal__compare">
+              <div className="product-draft-ai-modal__compare-box">
+                <span>原文</span>
+                {aiTextPreview(data?.title || data?.originalTitle, '暂无标题')}
+              </div>
+              <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
+                <span>AI 建议</span>
+                {aiTextPreview(aiResult.optimizedTitle, '暂无建议')}
+              </div>
+            </div>
+            {(aiResult.keywords ?? []).length || aiResult.reason ? (
+              <div className="product-draft-ai-modal__meta">
+                {(aiResult.keywords ?? []).length ? (
+                  <Space wrap size={4}>
+                    {(aiResult.keywords ?? []).map((keyword, index) => (
+                      <Tag key={`${keyword}-${index}`}>{keyword}</Tag>
+                    ))}
+                  </Space>
+                ) : null}
+                {aiResult.reason ? <Typography.Text type="secondary">{aiResult.reason}</Typography.Text> : null}
+              </div>
+            ) : null}
+            <Form.Item
+              label="准备应用为 AI 标题"
+              extra="应用后写入商品草稿的 AI 标题；若商品在生成后被修改，会提示内容冲突。"
+            >
               <Input.TextArea rows={3} value={aiPreparedTitle} onChange={(e) => setAiPreparedTitle(e.target.value)} />
             </Form.Item>
-            <Space wrap>
-            <Button
-              type="primary"
-              disabled={!aiPreparedTitle.trim()}
-              loading={aiBusy}
-              onClick={async () => {
-                if (!aiResult?.taskId) return;
-                setAiBusy(true);
-                try {
-                  await applyProductAITitle(id, {
-                    aiTitle: aiPreparedTitle,
-                    taskId: aiResult.taskId,
-                    expectedUpdatedAt: data?.updatedAt,
+            <Space wrap className="product-draft-ai-modal__actions">
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                disabled={!aiPreparedTitle.trim()}
+                loading={aiBusy}
+                onClick={() => {
+                  if (!aiResult?.taskId) return;
+                  confirmApplyAiText('标题', async () => {
+                    setAiBusy(true);
+                    try {
+                      await applyProductAITitle(id, {
+                        aiTitle: aiPreparedTitle,
+                        taskId: aiResult.taskId,
+                        expectedUpdatedAt: data?.updatedAt,
+                      });
+                      message.success('已应用为 AI 标题');
+                      setAiOpen(false);
+                      setAiResult(null);
+                      setAiPreparedTitle('');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '';
+                      if (msg.includes('conflict')) {
+                        message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
+                        return;
+                      }
+                      message.error((e as Error)?.message || '应用失败');
+                    } finally {
+                      setAiBusy(false);
+                    }
                   });
-                  message.success('已应用为 AI 标题');
-                  setAiOpen(false);
-                  setAiResult(null);
-                  setAiPreparedTitle('');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '';
-                  if (msg.includes('conflict')) {
-                    message.warning('商品标题在 AI 生成后已变化，请重新确认后再应用。');
-                    return;
-                  }
-                  message.error((e as Error)?.message || '应用失败');
-                } finally {
-                  setAiBusy(false);
-                }
-              }}
-            >
-              应用为 AI 标题
-            </Button>
-            <Button
-              loading={aiBusy}
-              onClick={async () => {
-                setAiBusy(true);
-                try {
-                  await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
-                  message.success('已撤销最近一次 AI 标题应用');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '撤销失败';
-                  if (msg.includes('conflict')) {
-                    message.warning('AI 标题已经被再次修改，不能静默撤销。');
-                  } else {
-                    message.error(msg);
-                  }
-                } finally {
-                  setAiBusy(false);
-                }
-              }}
-            >
-              撤销最近一次应用
-            </Button>
+                }}
+              >
+                应用为 AI 标题
+              </Button>
+              <Button
+                icon={<UndoOutlined />}
+                loading={aiBusy}
+                onClick={() => {
+                  confirmUndoAiText('标题', async () => {
+                    setAiBusy(true);
+                    try {
+                      await undoProductAITitle(id, { expectedUpdatedAt: data?.updatedAt });
+                      message.success('已撤销最近一次 AI 标题应用');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '撤销失败';
+                      if (msg.includes('conflict')) {
+                        message.warning('AI 标题已经被再次修改，不能静默撤销。');
+                      } else {
+                        message.error(msg);
+                      }
+                    } finally {
+                      setAiBusy(false);
+                    }
+                  });
+                }}
+              >
+                撤销最近一次应用
+              </Button>
+              <Typography.Text type="secondary">任务 ID：{aiResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
@@ -4057,12 +5985,22 @@ export default function ProductDraftDetailPage() {
         open={descOpen}
         onCancel={() => setDescOpen(false)}
         footer={null}
+        forceRender
         destroyOnHidden
-        width={720}
+        width={820}
+        className="product-draft-ai-modal"
+        rootClassName="tm-product-draft-detail"
       >
+        <Alert
+          type="info"
+          showIcon
+          className="product-draft-ai-modal__notice"
+          message="AI 生成可能消耗模型额度，生成结果不会自动覆盖商品内容。"
+        />
         <Form
           form={descForm}
           layout="vertical"
+          className="product-draft-ai-modal__form"
           initialValues={{ language: 'en', platform: 'TikTok Shop', tone: 'professional' }}
           onFinish={async (v) => {
             setDescBusy(true);
@@ -4084,105 +6022,147 @@ export default function ProductDraftDetailPage() {
             }
           }}
         >
-          <Form.Item name="language" label="语言" rules={[{ required: true }]}>
-            <Input placeholder="例如 en" />
-          </Form.Item>
-          <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
-            <Input placeholder="TikTok Shop" />
-          </Form.Item>
-          <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
-            <Input placeholder="例如 professional" />
-          </Form.Item>
-          <Form.Item>
+          <div className="product-draft-ai-modal__fields">
+            <Form.Item name="language" label="语言" rules={[{ required: true }]}>
+              <Input placeholder="例如 en" />
+            </Form.Item>
+            <Form.Item name="platform" label="平台" rules={[{ required: true }]}>
+              <Input placeholder="TikTok Shop" />
+            </Form.Item>
+            <Form.Item name="tone" label="语气" rules={[{ required: true }]}>
+              <Input placeholder="例如 professional" />
+            </Form.Item>
+          </div>
+          <Form.Item className="product-draft-ai-modal__submit">
             <Button type="primary" htmlType="submit" loading={descBusy}>
-              生成描述
+              生成描述建议
             </Button>
           </Form.Item>
         </Form>
 
         {descResult ? (
-          <div style={{ marginTop: 16 }}>
-            <Typography.Title level={5} style={{ marginTop: 0 }}>
-              输出
-            </Typography.Title>
-            <Descriptions bordered size="small" column={1} style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="描述">{descResult.description || '—'}</Descriptions.Item>
-              <Descriptions.Item label="原始内容">{data?.description || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Highlights">
-                {(descResult.highlights ?? []).length ? descResult.highlights.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Specifications">
-                {(descResult.specifications ?? []).length ? descResult.specifications.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Package includes">
-                {(descResult.packageIncludes ?? []).length ? descResult.packageIncludes.join('；') : '—'}
-              </Descriptions.Item>
-              <Descriptions.Item label="Notes">{descResult.notes || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Reason">{descResult.reason || '—'}</Descriptions.Item>
-              <Descriptions.Item label="任务 ID">{descResult.taskId}</Descriptions.Item>
-            </Descriptions>
-            <Form.Item label="准备应用的内容">
+          <div className="product-draft-ai-modal__result">
+            <div className="product-draft-ai-modal__result-head">
+              <div>
+                <Typography.Text strong>描述建议结果</Typography.Text>
+                <Typography.Paragraph type="secondary">当前内容尚未应用到商品，可在下方微调后应用。</Typography.Paragraph>
+              </div>
+              <Tag color="processing">AI 建议未应用</Tag>
+            </div>
+            <div className="product-draft-ai-modal__compare product-draft-ai-modal__compare--description">
+              <div className="product-draft-ai-modal__compare-box">
+                <span>原文</span>
+                {aiTextPreview(data?.description, '暂无描述')}
+              </div>
+              <div className="product-draft-ai-modal__compare-box product-draft-ai-modal__compare-box--ai">
+                <span>AI 建议</span>
+                {aiTextPreview(descResult.description, '暂无建议')}
+              </div>
+            </div>
+            <div className="product-draft-ai-modal__meta product-draft-ai-modal__meta--grid">
+              {(descResult.highlights ?? []).length ? (
+                <div>
+                  <span>Highlights</span>
+                  <Typography.Paragraph>{descResult.highlights.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {(descResult.specifications ?? []).length ? (
+                <div>
+                  <span>Specifications</span>
+                  <Typography.Paragraph>{descResult.specifications.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {(descResult.packageIncludes ?? []).length ? (
+                <div>
+                  <span>Package includes</span>
+                  <Typography.Paragraph>{descResult.packageIncludes.join('；')}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {descResult.notes ? (
+                <div>
+                  <span>Notes</span>
+                  <Typography.Paragraph>{descResult.notes}</Typography.Paragraph>
+                </div>
+              ) : null}
+              {descResult.reason ? (
+                <div>
+                  <span>Reason</span>
+                  <Typography.Paragraph>{descResult.reason}</Typography.Paragraph>
+                </div>
+              ) : null}
+            </div>
+            <Form.Item
+              label="准备应用为 AI 描述"
+              extra="应用后写入商品草稿的 AI 描述；若商品在生成后被修改，会提示内容冲突。"
+            >
               <Input.TextArea rows={6} value={descPreparedText} onChange={(e) => setDescPreparedText(e.target.value)} />
             </Form.Item>
-            <Space wrap>
-            <Button
-              type="primary"
-              disabled={!descResult.taskId || !descPreparedText.trim()}
-              loading={descBusy}
-              onClick={async () => {
-                if (!descResult?.taskId) return;
-                const text = descPreparedText.trim();
-                if (!text) return;
-                setDescBusy(true);
-                try {
-                  await applyAiDescription(id, {
-                    aiDescription: text,
-                    taskId: descResult.taskId,
-                    expectedUpdatedAt: data?.updatedAt,
+            <Space wrap className="product-draft-ai-modal__actions">
+              <Button
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                disabled={!descResult.taskId || !descPreparedText.trim()}
+                loading={descBusy}
+                onClick={() => {
+                  if (!descResult?.taskId) return;
+                  const text = descPreparedText.trim();
+                  if (!text) return;
+                  confirmApplyAiText('描述', async () => {
+                    setDescBusy(true);
+                    try {
+                      await applyAiDescription(id, {
+                        aiDescription: text,
+                        taskId: descResult.taskId,
+                        expectedUpdatedAt: data?.updatedAt,
+                      });
+                      message.success('已应用为 AI 描述');
+                      setDescOpen(false);
+                      setDescResult(null);
+                      setDescPreparedText('');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '';
+                      if (msg.includes('conflict')) {
+                        message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
+                        return;
+                      }
+                      message.error((e as Error)?.message || '应用失败');
+                    } finally {
+                      setDescBusy(false);
+                    }
                   });
-                  message.success('已应用为 AI 描述');
-                  setDescOpen(false);
-                  setDescResult(null);
-                  setDescPreparedText('');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '';
-                  if (msg.includes('conflict')) {
-                    message.warning('商品描述在 AI 生成后已变化，请重新确认后再应用。');
-                    return;
-                  }
-                  message.error((e as Error)?.message || '应用失败');
-                } finally {
-                  setDescBusy(false);
-                }
-              }}
-            >
-              应用为 AI 描述
-            </Button>
-            <Button
-              loading={descBusy}
-              onClick={async () => {
-                setDescBusy(true);
-                try {
-                  await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
-                  message.success('已撤销最近一次 AI 描述应用');
-                  await reloadDetail();
-                  await reloadTasks();
-                } catch (e: unknown) {
-                  const msg = (e as Error)?.message || '撤销失败';
-                  if (msg.includes('conflict')) {
-                    message.warning('AI 描述已经被再次修改，不能静默撤销。');
-                  } else {
-                    message.error(msg);
-                  }
-                } finally {
-                  setDescBusy(false);
-                }
-              }}
-            >
-              撤销最近一次应用
-            </Button>
+                }}
+              >
+                应用为 AI 描述
+              </Button>
+              <Button
+                icon={<UndoOutlined />}
+                loading={descBusy}
+                onClick={() => {
+                  confirmUndoAiText('描述', async () => {
+                    setDescBusy(true);
+                    try {
+                      await undoAiDescription(id, { expectedUpdatedAt: data?.updatedAt });
+                      message.success('已撤销最近一次 AI 描述应用');
+                      await reloadDetail();
+                      await reloadTasks();
+                    } catch (e: unknown) {
+                      const msg = (e as Error)?.message || '撤销失败';
+                      if (msg.includes('conflict')) {
+                        message.warning('AI 描述已经被再次修改，不能静默撤销。');
+                      } else {
+                        message.error(msg);
+                      }
+                    } finally {
+                      setDescBusy(false);
+                    }
+                  });
+                }}
+              >
+                撤销最近一次应用
+              </Button>
+              <Typography.Text type="secondary">任务 ID：{descResult.taskId}</Typography.Text>
             </Space>
           </div>
         ) : null}
@@ -4191,7 +6171,9 @@ export default function ProductDraftDetailPage() {
       <Drawer
         title={logsSku ? `库存变更 · ${logsSku.skuCode || logsSku.id}` : '库存变更'}
         open={logsOpen}
-        width={560}
+        width={720}
+        rootClassName="tm-product-draft-detail product-draft-inventory__drawer-root"
+        className="product-draft-inventory__drawer"
         destroyOnHidden
         onClose={() => {
           setLogsOpen(false);
@@ -4204,6 +6186,8 @@ export default function ProductDraftDetailPage() {
             rowKey="id"
             size="small"
             pagination={false}
+            className="product-draft-inventory__logs-table"
+            scroll={{ x: 720 }}
             dataSource={logsRows}
             columns={[
               {
@@ -4213,11 +6197,11 @@ export default function ProductDraftDetailPage() {
                 render: (v: string) => formatDateTime(v),
               },
               { title: '类型', dataIndex: 'changeType', width: 136 },
-              { title: '前', width: 56, dataIndex: 'beforeStock' },
-              { title: '后', width: 56, dataIndex: 'afterStock' },
-              { title: 'Δ', width: 56, dataIndex: 'delta' },
-              { title: '原因', ellipsis: true, dataIndex: 'reason' },
-              { title: '备注', ellipsis: true, dataIndex: 'remark' },
+              { title: '前', width: 64, dataIndex: 'beforeStock', align: 'right' as const },
+              { title: '后', width: 64, dataIndex: 'afterStock', align: 'right' as const },
+              { title: 'Δ', width: 64, dataIndex: 'delta', align: 'right' as const },
+              { title: '原因', width: 160, dataIndex: 'reason', className: 'product-draft-inventory__logs-text' },
+              { title: '备注', width: 200, dataIndex: 'remark', className: 'product-draft-inventory__logs-text' },
             ]}
           />
         </Spin>
@@ -4226,7 +6210,11 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={adjustTarget ? `调整库存 · ${adjustTarget.skuCode}` : '调整库存'}
         open={adjustOpen && !!adjustTarget}
+        forceRender
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="保存"
         confirmLoading={invAdjustSubmitting}
         onCancel={() => {
@@ -4234,31 +6222,45 @@ export default function ProductDraftDetailPage() {
           setAdjustTarget(null);
           adjustForm.resetFields();
         }}
-        onOk={async () => {
-          if (!adjustTarget) return;
-          const v = await adjustForm.validateFields();
-          const stock = Number(v.stock);
-          setInvAdjustSubmitting(true);
-          try {
-            await adjustSkuStock(id, adjustTarget.id, {
-              stock,
-              reason: String(v.reason ?? 'manual_adjust').trim(),
-              remark: String(v.remark ?? ''),
-              sync: false,
+        onOk={() => {
+          if (!adjustTarget) return Promise.reject();
+          return adjustForm.validateFields().then((v) => {
+            const stock = Number(v.stock);
+            return new Promise<void>((resolve, reject) => {
+              confirmInventoryManualAdjust(async () => {
+                setInvAdjustSubmitting(true);
+                try {
+                  await adjustSkuStock(id, adjustTarget.id, {
+                    stock,
+                    reason: String(v.reason ?? 'manual_adjust').trim(),
+                    remark: String(v.remark ?? ''),
+                    sync: false,
+                  });
+                  message.success('库存已更新');
+                  setAdjustOpen(false);
+                  setAdjustTarget(null);
+                  adjustForm.resetFields();
+                  await reloadDetail();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '调整失败');
+                  reject(e);
+                } finally {
+                  setInvAdjustSubmitting(false);
+                }
+              });
             });
-            message.success('库存已更新');
-            setAdjustOpen(false);
-            setAdjustTarget(null);
-            adjustForm.resetFields();
-            await reloadDetail();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '调整失败');
-          } finally {
-            setInvAdjustSubmitting(false);
-          }
+          });
         }}
       >
+        <Alert
+          type="warning"
+          showIcon
+          className="product-draft-inventory__modal-alert"
+          message="库存调整会覆盖当前本地库存值"
+          description="提交后写入本地 SKU 库存，当前表单不会自动同步到平台。"
+        />
         <Form form={adjustForm} layout="vertical">
           <Form.Item name="stock" label="库存（≥0）" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
@@ -4275,7 +6277,11 @@ export default function ProductDraftDetailPage() {
       <Modal
         title="同步刊登规格库存"
         open={syncOpen && !!syncRow}
+        forceRender
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="提交任务"
         confirmLoading={syncSubmitting}
         onCancel={() => {
@@ -4283,29 +6289,38 @@ export default function ProductDraftDetailPage() {
           setSyncRow(null);
           syncForm.resetFields();
         }}
-        onOk={async () => {
-          if (!syncRow) return;
-          const v = await syncForm.validateFields();
-          const stock = Number(v.stock);
-          setSyncSubmitting(true);
-          try {
-            await syncPublicationSkuInventory(syncRow.publicationSkuId, {
-              stock,
-              options: {},
+        onOk={() => {
+          if (!syncRow) return Promise.reject();
+          return syncForm.validateFields().then((v) => {
+            const stock = Number(v.stock);
+            const targetLabel = `${syncRow.platform ?? '平台'} / ${syncRow.shopName ?? syncRow.shopId ?? '—'}`;
+            const externalCall = inventorySyncRunnable(syncRow.inventorySyncCapability);
+            return new Promise<void>((resolve, reject) => {
+              confirmInventorySync(targetLabel, externalCall, async () => {
+                setSyncSubmitting(true);
+                try {
+                  await syncPublicationSkuInventory(syncRow.publicationSkuId, {
+                    stock,
+                    options: {},
+                  });
+                  message.success('库存同步任务已创建');
+                  setSyncOpen(false);
+                  setSyncRow(null);
+                  syncForm.resetFields();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error(formatInventorySyncTaskCreateError(e));
+                  reject(e);
+                } finally {
+                  setSyncSubmitting(false);
+                }
+              });
             });
-            message.success('库存同步任务已创建');
-            setSyncOpen(false);
-            setSyncRow(null);
-            syncForm.resetFields();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error(formatInventorySyncTaskCreateError(e));
-          } finally {
-            setSyncSubmitting(false);
-          }
+          });
         }}
       >
-        <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
+        <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
           平台：{syncRow?.platform ?? '—'}；店铺：{syncRow?.shopName ?? syncRow?.shopId ?? '—'}
         </Typography.Paragraph>
         <InventorySyncPlatformHint platform={syncRow?.platform} />
@@ -4323,7 +6338,11 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={stockSettingsTarget ? `预警线 · ${stockSettingsTarget.skuCode}` : '预警线'}
         open={stockSettingsOpen && !!stockSettingsTarget}
+        forceRender
         destroyOnHidden
+        width={520}
+        rootClassName="tm-product-draft-detail product-draft-inventory__modal-root"
+        className="product-draft-inventory__modal"
         okText="保存"
         confirmLoading={stockSettingsSubmitting}
         onCancel={() => {
@@ -4356,6 +6375,9 @@ export default function ProductDraftDetailPage() {
           }
         }}
       >
+        <Typography.Paragraph type="secondary" className="product-draft-inventory__modal-note">
+          预警线只用于识别低库存，不会调整实际库存，也不会同步到平台。
+        </Typography.Paragraph>
         <Form form={stockSettingsForm} layout="vertical">
           <Form.Item name="warningStock" label="预警库存线" rules={[{ required: true }]}>
             <InputNumber min={0} step={1} style={{ width: '100%' }} />
@@ -4369,7 +6391,11 @@ export default function ProductDraftDetailPage() {
       <Modal
         title={douyinSkuBindTarget ? `手动绑定抖店规格 · ${douyinSkuBindTarget.specName || douyinSkuBindTarget.skuCode || ''}` : '手动绑定抖店规格'}
         open={douyinSkuBindOpen && !!douyinSkuBindTarget}
+        forceRender
         destroyOnHidden
+        width={640}
+        rootClassName="tm-product-draft-detail product-draft-douyin-bind__modal-root"
+        className="product-draft-douyin-bind__modal"
         okText="确认绑定"
         confirmLoading={douyinSkuBindSubmitting}
         onCancel={() => {
@@ -4377,44 +6403,67 @@ export default function ProductDraftDetailPage() {
           setDouyinSkuBindTarget(null);
           douyinSkuBindForm.resetFields();
         }}
-        onOk={async () => {
-          if (!douyinSkuBindTarget) return;
-          const v = await douyinSkuBindForm.validateFields();
-          const platformSkuId = String(v.platformSkuId ?? '').trim();
-          if (!platformSkuId) {
-            message.error('请选择或填写平台规格编号');
-            return;
-          }
-          const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
-          setDouyinSkuBindSubmitting(true);
-          try {
-            await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
-              platformSkuId,
-              platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
-              bindReason: 'manual',
+        onOk={() => {
+          if (!douyinSkuBindTarget) return Promise.reject();
+          return douyinSkuBindForm.validateFields().then((v) => {
+            const platformSkuId = String(v.platformSkuId ?? '').trim();
+            if (!platformSkuId) {
+              message.error('请选择或填写平台规格编号');
+              return Promise.reject(new Error('validation'));
+            }
+            const selected = (douyinSkuBinding?.platformSkus ?? []).find((c) => c.platformSkuId === platformSkuId);
+            return new Promise<void>((resolve, reject) => {
+              confirmSkuManualBind(async () => {
+                setDouyinSkuBindSubmitting(true);
+                try {
+                  await bindDouyinSku(douyinSkuBindTarget.publicationSkuId, {
+                    platformSkuId,
+                    platformSkuName: String(v.platformSkuName ?? selected?.specName ?? '').trim(),
+                    bindReason: 'manual',
+                  });
+                  message.success('手动绑定成功');
+                  setDouyinSkuBindOpen(false);
+                  setDouyinSkuBindTarget(null);
+                  douyinSkuBindForm.resetFields();
+                  await reloadDouyinSkuBindings();
+                  await reloadPublicationSkus();
+                  resolve();
+                } catch (e: unknown) {
+                  message.error((e as Error)?.message || '绑定失败');
+                  reject(e);
+                } finally {
+                  setDouyinSkuBindSubmitting(false);
+                }
+              });
             });
-            message.success('手动绑定成功');
-            setDouyinSkuBindOpen(false);
-            setDouyinSkuBindTarget(null);
-            douyinSkuBindForm.resetFields();
-            await reloadDouyinSkuBindings();
-            await reloadPublicationSkus();
-          } catch (e: unknown) {
-            message.error((e as Error)?.message || '绑定失败');
-          } finally {
-            setDouyinSkuBindSubmitting(false);
-          }
+          });
         }}
       >
-        <Typography.Paragraph type="secondary">
-          本地规格：{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}
-        </Typography.Paragraph>
+        <div className="product-draft-douyin-bind__modal-brief">
+          <Typography.Text strong>建立映射</Typography.Text>
+          <Typography.Paragraph type="secondary">
+            选择一个已有抖店规格，与当前本地规格建立映射。该操作不会创建平台 SKU，也不会自动触发库存同步。
+          </Typography.Paragraph>
+          <div className="product-draft-douyin-bind__modal-pair">
+            <div>
+              <span>本地规格</span>
+              <strong>{douyinSkuBindTarget?.specName || douyinSkuBindTarget?.skuCode || '—'}</strong>
+              <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.productSkuId)}</span>
+            </div>
+            <div>
+              <span>当前平台规格</span>
+              <strong>{douyinSkuBindTarget?.platformSkuName || '—'}</strong>
+              <span className="product-draft-douyin-bind__modal-id">{platformSkuValue(douyinSkuBindTarget?.externalSkuId)}</span>
+            </div>
+          </div>
+        </div>
         <Form form={douyinSkuBindForm} layout="vertical">
           <Form.Item name="platformSkuId" label="抖店规格" rules={[{ required: true, message: '请选择抖店规格' }]}>
             <Select
               showSearch
               placeholder="从平台候选中选择"
               optionFilterProp="label"
+              className="product-draft-douyin-bind__select"
               options={(douyinSkuBinding?.platformSkus ?? []).map((c: DouyinPlatformSkuCandidate) => ({
                 value: c.platformSkuId,
                 label: `${c.platformSkuId} · ${c.specName || '—'}${c.boundToPublicationSkuId ? '（已绑定其他规格）' : ''}`,
@@ -4430,32 +6479,53 @@ export default function ProductDraftDetailPage() {
             <Input placeholder="可选，便于识别" />
           </Form.Item>
         </Form>
+        <TechnicalDetails label="映射标识">
+          <Descriptions size="small" column={1}>
+            <Descriptions.Item label="刊登规格">{platformSkuValue(douyinSkuBindTarget?.publicationSkuId)}</Descriptions.Item>
+            <Descriptions.Item label="抖店商品">{platformSkuValue(douyinPublication?.externalProductId)}</Descriptions.Item>
+          </Descriptions>
+        </TechnicalDetails>
       </Modal>
 
       <Drawer
         title="抖店平台规格候选"
         open={douyinSkuCandidatesOpen}
-        width={640}
+        width="min(720px, calc(100vw - 16px))"
+        rootClassName="tm-product-draft-detail product-draft-douyin-bind__drawer-root"
+        className="product-draft-douyin-bind__drawer"
         onClose={() => setDouyinSkuCandidatesOpen(false)}
       >
+        <Typography.Paragraph type="secondary" className="product-draft-douyin-bind__drawer-note">
+          候选来自当前抖店商品详情，仅用于选择已有平台规格。候选列表不会自动绑定，也不会改变本地库存。
+        </Typography.Paragraph>
         {(douyinSkuBinding?.platformSkus?.length ?? 0) === 0 ? (
-          <Typography.Text type="secondary">暂无候选，请先执行「重新校准」从抖店拉取商品详情。</Typography.Text>
+          <EmptyState
+            compact
+            title="暂无平台规格候选"
+            description="请先执行「重新校准」从抖店拉取商品详情；查询失败不会显示为空候选。"
+          />
         ) : (
           <Table<DouyinPlatformSkuCandidate>
             size="small"
+            className="product-draft-douyin-bind__candidate-table"
             rowKey="platformSkuId"
             pagination={false}
+            scroll={{ x: 680 }}
             dataSource={douyinSkuBinding?.platformSkus ?? []}
             columns={[
-              { title: '平台规格编号', dataIndex: 'platformSkuId', ellipsis: true },
-              { title: '规格名称', dataIndex: 'specName', ellipsis: true, render: (v) => v || '—' },
+              { title: '平台规格编号', dataIndex: 'platformSkuId', width: 180, render: (v) => platformSkuValue(v) },
+              {
+                title: '规格名称',
+                dataIndex: 'specName',
+                width: 220,
+                render: (v) => <Typography.Text className="product-draft-douyin-bind__text">{v || '—'}</Typography.Text>,
+              },
               { title: '价格', width: 96, render: (_, r) => (typeof r.priceYuan === 'number' ? r.priceYuan.toFixed(2) : '—') },
               { title: '库存', width: 72, render: (_, r) => (typeof r.stock === 'number' ? r.stock : '—') },
               {
                 title: '绑定状态',
-                width: 120,
-                render: (_, r) =>
-                  r.boundToPublicationSkuId ? <Tag color="blue">已绑定本地规格</Tag> : <Tag>未绑定</Tag>,
+                width: 156,
+                render: (_, r) => platformSkuCandidateStatusTag(r, douyinSkuBindTarget?.publicationSkuId),
               },
             ]}
           />

@@ -5,10 +5,26 @@
 ## 基础约定
 
 - 基础路径：`/api/v1`
-- 健康检查：`GET /health`、`GET /api/v1/health`
+- 健康检查：`GET /health`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
+- 可观测性（P5 / P5.1 / P5-V，需权限）：`GET /api/v1/observability/overview|http|tasks|providers|security`；`overview` 会返回运行态 `runtimeStatus` 与 telemetry 导出摘要，用于区分 `standard_protocol_ready` / `mock_verified` / `real_backend_deferred` / `export_degraded` / `disabled` / `incomplete`；`GET /api/v1/observability/alerts`；`POST /api/v1/observability/alerts/:id/ack|silence`；内部指标：`GET /internal/metrics`（默认仅内网/本机）
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
 - 敏感信息：接口不得返回完整 API Key、Token、Secret、Cookie 或密码
+- P7-C3 cursor 列表：Product、Order、Inventory Center、Task Center、Webhook Event、Operation Log 支持 `cursor` + `limit`，响应额外返回 `items`、`nextCursor`、`hasMore`、`limit`；旧 `page` / `pageSize` / `list` / `pagination` 兼容保留。超过深 offset 返回 `pagination_offset_too_deep`；cursor 篡改、跨租户/店铺或筛选变化分别返回 `pagination_cursor_signature_invalid`、`pagination_cursor_scope_mismatch`、`pagination_cursor_filter_mismatch`。P7-C4 隔离 Medium PostgreSQL 六类分页 runtime、Query Plan、N+1、Provider 限流、Permission Cache 失效与 Linux Race 证据已关闭；Load/Soak/Regression 仍 pending P7-V2。
+
+## Webhook 入站（公开，无 JWT）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/webhooks/:platform/:eventType` | 平台 Webhook 接收：限体、`Content-Type: application/json`、签名/时间戳校验、幂等持久化、快速 ACK；异步由 DB 轮询 Worker 处理。开发可用 `platform=internal-test`（需 `WEBHOOK_ENABLE_TEST_VERIFIER=true`）。成功 `message=accepted`，`data.eventId` / `duplicate`。 |
+
+## Webhook 事件（管理端）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/webhook-events` | 受保护的 Webhook 事件列表；支持 `platform`、`status`、`eventType`、`shopId`、`start`、`end`、`cursor`、`limit`。只返回元数据、摘要和状态，不返回 `payloadBody` 或签名原文。 |
+
+签名头：`X-Webhook-Signature` 或 `X-TradeMind-Signature`；时间戳：`X-Webhook-Timestamp` / `X-TradeMind-Timestamp`（unix 秒或 RFC3339）。`internal-test` 签名为 HMAC-SHA256 hex（payload = `"{unix}.{rawBody}"`）。失败码含 `WEBHOOK_SIGNATURE_*`、`WEBHOOK_TIMESTAMP_EXPIRED`、`WEBHOOK_PAYLOAD_TOO_LARGE` 等，**不**成功 ACK。
 
 示例：
 
@@ -37,7 +53,9 @@
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
-| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
+| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；需 `settings.manage`；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
+| `POST` | `/api/v1/settings/storage/public-check` | 同上（P1 别名） |
+| `GET` | `/api/v1/settings/storage/public-check/latest` | 最近一次公网测试结果（未执行时 `not_run`） |
 | `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）、`settings`（表单覆盖项，支持未保存先测；脱敏 `****` 占位符会忽略并沿用已保存密钥）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
 | `POST` | `/api/v1/settings/test-ocr` | 测试 `settings.image` 中的 OCR 配置。可选 JSON：`provider`（`ai_vision` / `paddleocr` / `baidu` / `aliyun` / `tencent`）、`settings`（表单覆盖项，支持未保存先测；脱敏密钥占位符会忽略）。`paddleocr` 会用后端生成的测试图调用 OCR 服务，检查连通性、文字 `blocks` 与 `bbox`；成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`blocks`、`bboxOk`。 |
 
@@ -177,11 +195,18 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/ai/title-optimize` | AI 标题优化。 |
+| `POST` | `/api/v1/ai/title-optimize` | AI 标题优化（同步/任务，见实现）。 |
 | `POST` | `/api/v1/ai/description-generate` | AI 描述生成。 |
-| `POST` | `/api/v1/ai/chat` | AI 对话或客服建议。 |
 | `GET` | `/api/v1/ai/tasks` | AI 任务列表。 |
 | `GET` | `/api/v1/ai/tasks/:id` | AI 任务详情。 |
+
+客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
+
+## Dev / Demo 种子（非 production）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `POST` | `/api/v1/dev/demo-seed/full-project-edge-cases` | **仅 dev/demo 环境**；需 **admin** 权限。写入订单 partial_success、库存同步失败、客服发送失败等样本；不调用真实外部平台。production 禁用。 |
 
 ## 采集
 
@@ -227,10 +252,10 @@
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/stores` | 店铺列表。 |
-| `POST` | `/api/v1/stores/:platform/auth-url` | 生成平台授权地址。 |
-| `GET` | `/api/v1/stores/:platform/callback` | 平台 OAuth 回调。 |
-| `POST` | `/api/v1/stores/:id/refresh-token` | 刷新店铺授权 Token。 |
+| `GET` | `/api/v1/shops` | 店铺列表（现行路径；legacy `/stores` 已废弃）。 |
+| `GET` | `/api/v1/shops/:id` | 店铺详情。 |
+| `POST` | `/api/v1/shops/:id/sync-orders` | 手动触发订单同步。 |
+| `POST` | `/api/v1/shops/:id/oauth/douyin/refresh` | 刷新抖店授权 Token（示例；各平台 OAuth 见下表）。 |
 
 现行平台 Provider 与开放平台应用配置接口：
 
@@ -291,6 +316,10 @@
 | `GET` | `/api/v1/products/:id/publication-skus` | 商品详情库存 Tab 读取刊登 SKU 映射与 `inventorySyncCapability`（`douyin_shop` 为 `beta`）。 |
 | `POST` | `/api/v1/product-publication-skus/:id/sync-inventory` | 单 SKU 库存同步；body：`stock`、`options`、`fromInventoryAlert`。要求 `product_publications.external_product_id` 与 `product_publication_skus.external_sku_id` 已绑定。 |
 | `POST` | `/api/v1/products/:id/sync-inventory` | 单商品多 SKU 库存同步；body：`shopId`、`skuIds[]`、`options`。 |
+| `GET` | `/api/v1/inventory` | 库存中心 SKU 列表（F3）；筛选 stockStatus / skuBindStatus / syncStatus / hasException 等。 |
+| `GET` | `/api/v1/inventory/alerts` | 库存预警列表。 |
+| `GET` | `/api/v1/inventory/effects` | 订单库存扣减/回滚影响（扣减记录页数据源）。 |
+| `GET` | `/api/v1/inventory/logs` | 本地库存变更流水。 |
 | `GET` | `/api/v1/inventory-sync/tasks` | 库存同步任务列表。 |
 | `GET` | `/api/v1/inventory-sync/tasks/:id` | 任务详情。 |
 | `POST` | `/api/v1/inventory-sync/tasks/:id/retry` | 重试 failed 任务。 |
@@ -381,7 +410,10 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/operation-logs` | 查询 `action`（如 `douyin.auth.success`）；不返回 Secret/Token |
-| `GET` | `/api/v1/dashboard/product-operations` | 商品运营 KPI、漏斗、异常（只读 DB 聚合，不调抖店 OpenAPI） |
+| `GET` | `/api/v1/dashboard/product-operations` | 运营总览 KPI、漏斗、异常（只读 DB 聚合，不调平台 OpenAPI；含 RBAC 店铺 scope） |
+| `GET` | `/api/v1/dashboard/overview` | 模块化 overview + 10 张运营卡片 |
+| `GET` | `/api/v1/dashboard/todos` | 统一待办流（P0/P1/P2 优先级） |
+| `GET` | `/api/v1/dashboard/health` | 子系统健康 + 配置风险摘要 |
 
 ### AI 商品运营工作台（Phase A3.3）
 
@@ -392,6 +424,50 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 | `GET` | `/api/v1/ai/operation-workbench/todos/:id` | 单条待办详情 |
 | `POST` | `/api/v1/ai/operation-workbench/todos/refresh` | 重新聚合待办（只读，不写库、不调平台 API） |
 
+## P6 Backup / Restore / Release / DR API
+
+All P6 write operations require Bearer authentication and backend RBAC. The frontend never receives shell commands, full backup paths, storage secrets or database credentials.
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/ops/backups` | `backup.read` | 备份记录列表；不返回完整对象路径。 |
+| `POST` | `/api/v1/ops/backups` | `backup.create` | 创建备份任务；未启用备份时生成待复核记录。 |
+| `GET` | `/api/v1/ops/backups/:id` | `backup.read` | 备份详情。 |
+| `POST` | `/api/v1/ops/backups/:id/verify` | `backup.verify` | 执行备份校验。 |
+| `POST` | `/api/v1/ops/backups/:id/hold` | `backup.hold` | 添加手动保留。 |
+| `DELETE` | `/api/v1/ops/backups/:id` | `backup.delete` | 删除非运行、非 hold 的备份记录。 |
+| `GET` | `/api/v1/ops/restores` | `restore.read` | 恢复验证列表。 |
+| `POST` | `/api/v1/ops/restores` | `restore.execute` | 创建隔离恢复验证；production 目标默认拒绝。 |
+| `GET` | `/api/v1/ops/restores/:id` | `restore.read` | 恢复验证详情。 |
+| `POST` | `/api/v1/ops/restores/:id/verify` | `restore.verify` | 写入恢复完整性验证。 |
+| `GET` | `/api/v1/ops/releases` | `release.read` | 发布记录列表。 |
+| `POST` | `/api/v1/ops/releases` | `release.create` | 创建发布记录和 manifest 摘要。 |
+| `GET` | `/api/v1/ops/releases/:id` | `release.read` | 发布详情。 |
+| `POST` | `/api/v1/ops/releases/:id/execute` | `release.execute` | 执行受控发布状态机。 |
+| `POST` | `/api/v1/ops/releases/:id/rollback` | `release.rollback` | 应用层回滚；禁止自动数据库恢复。 |
+| `GET` | `/api/v1/ops/dr/status` | `dr.read` | 灾备状态与 Deferred 项。 |
+| `POST` | `/api/v1/ops/dr/drills` | `dr.execute` | 记录隔离演练；必须确认隔离环境。 |
+
+P6-VR closure evidence is recorded in `docs/P6_VR_FINAL_CLOSURE_REPORT.md`: isolated restore, isolated release rollback, Linux race, and final gates passed. P6 still does not mark Production Ready and does not perform real production restore, PITR drill or traffic switch.
+
+## P7 Performance / Capacity API Status
+
+P7 currently adds backend configuration, database tables, local rate-limit middleware, guarded dataset / load / soak / race scripts and validation gates, but does **not** expose public management APIs yet. P7-V has real isolated Medium dataset evidence (`insertedRows=1,900,150`, `failedRows=0`), while load, soak, regression and final closure remain incomplete and must not be described as production performance verification.
+
+Planned ops routes remain design-only until implemented with RBAC, re-authentication for writes and audit logging:
+
+| 方法 | 路径 | 状态 | 说明 |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/ops/performance/overview` | planned | 聚合 API / DB / Worker / Provider 性能概览。 |
+| `GET` | `/api/v1/ops/performance/regressions` | planned | 性能回归记录。 |
+| `GET` | `/api/v1/ops/capacity/overview` | planned | 数据规模、连接池、Worker 容量与扩容建议。 |
+| `GET` | `/api/v1/ops/rate-limits` | planned | 限流策略只读展示，不暴露 Redis key 或明文 PII。 |
+| `PUT` | `/api/v1/ops/rate-limits/:policyId` | planned | 高权限、重认证、审计后修改受控策略。 |
+| `GET` | `/api/v1/ops/quotas` | planned | Tenant / Shop / User / System 配额模板。 |
+| `POST` | `/api/v1/ops/profiling/cpu` | planned | 内部高权限 profiling，duration 有上限，不返回任意路径。 |
+
+Current code-level P7 endpoints affected: product and order list APIs reject excessive deep offset via P7 pagination guard; HTTP requests can be locally rate-limited when `RATE_LIMIT_ENABLED=true`.
+
 ## 修改 API 时的同步要求
 
 - 后端：handler、service、DTO、权限和错误处理一起检查。
@@ -399,3 +475,8 @@ Provider 调用官方 `sku.syncStock`（`incremental=false` 全量更新）；�
 - 文档：同步本文档、`docs/module-map.md` 和必要的 README 能力描述。
 - 安全：涉及密钥、Token、密码、Cookie 时同步 `SECURITY.md`。
 - 任务：耗时接口必须使用任务状态，不应在 HTTP 请求中长时间阻塞。
+## P3.2 Douyin Webhook Routing Addendum
+
+For `platform=douyin_shop` / `douyin`, the public webhook route resolves the verified payload to a concrete shop binding before persistence. Accepted events carry `tenantId`, `internalShopId`, `platformShopId`, `appId`, and `bindingId` into `webhook_events` and downstream order upsert. Duplicate detection is scoped by `platform + tenant_id + platform_shop_id + event_id`, so the same platform `event_id` from two shops does not collide.
+
+Resolution failures are non-success ACKs and may use codes such as `DOUYIN_WEBHOOK_SHOP_NOT_RESOLVED`, `DOUYIN_WEBHOOK_SHOP_AMBIGUOUS`, `DOUYIN_WEBHOOK_BINDING_REVOKED`, `DOUYIN_WEBHOOK_AUTHORIZATION_EXPIRED`, `DOUYIN_WEBHOOK_APP_BINDING_MISMATCH`, and `DOUYIN_WEBHOOK_TENANT_MISMATCH`.

@@ -1,0 +1,87 @@
+{
+  "phase": "P7-V",
+  "status": "ready",
+  "runId": "p7v-local-20260713",
+  "databaseName": "trademind_p7_p7v_local_20260713",
+  "environmentMode": "local_ephemeral_postgres",
+  "tempDataDir": "D:\\project\\trademind-ai\\artifacts\\p7-v\\pg-p7v_local_20260713\\data",
+  "allowedDatabasePrefix": "trademind_p7_",
+  "startedAt": "2026-07-13T11:52:31.623Z",
+  "finishedAt": "2026-07-13T11:53:05.225Z",
+  "os": {
+    "platform": "win32",
+    "release": "10.0.19045",
+    "arch": "x64",
+    "cpus": 12,
+    "totalMemory": 17010700288
+  },
+  "env": {
+    "APP_ENV": "performance",
+    "PERFORMANCE_TEST_MODE": "true",
+    "ALLOW_PERFORMANCE_DATASET": "true",
+    "EXTERNAL_PROVIDER_MODE": "mock",
+    "DOUYIN_WRITE_ENABLED": "false",
+    "AUTO_LISTING_ENABLED": "false",
+    "PPROF_INTERNAL_ONLY": "true",
+    "DB_DRIVER": "postgres",
+    "DB_HOST": "127.0.0.1",
+    "DB_PORT": "49362",
+    "DB_USER": "p7v_user",
+    "DB_PASSWORD": "***",
+    "DB_NAME": "trademind_p7_p7v_local_20260713",
+    "REDIS_ADDR": "127.0.0.1:6379"
+  },
+  "steps": [
+    {
+      "id": "docker-version",
+      "command": "docker --version",
+      "status": 1,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "psql-version",
+      "command": "psql --version",
+      "status": 0,
+      "stdout": "psql (PostgreSQL) 17.9\r\n",
+      "stderr": ""
+    },
+    {
+      "id": "local-create-database",
+      "command": "psql -h 127.0.0.1 -p 5432 -U trademind -d postgres -v ON_ERROR_STOP=1 -c SELECT 'CREATE DATABASE \"trademind_p7_p7v_local_20260713\"' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'trademind_p7_p7v_local_20260713')\\gexec",
+      "status": 2,
+      "stdout": "",
+      "stderr": "psql: error: connection to server at \"127.0.0.1\", port 5432 failed: ��������:  �û� \"trademind\" Password ��֤ʧ��\r\n"
+    },
+    {
+      "id": "ephemeral-initdb",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\initdb.exe -D D:\\project\\trademind-ai\\artifacts\\p7-v\\pg-p7v_local_20260713\\data -U p7v_user --pwfile D:\\project\\trademind-ai\\artifacts\\p7-v\\pg-p7v_local_20260713\\pwfile --auth-host=scram-sha-256 --auth-local=trust",
+      "status": 0,
+      "stdout": "The files belonging to this database system will be owned by user \"Administrator\".\r\nThis user must also own the server process.\r\n\r\nThe database cluster will be initialized with locale \"Chinese (Simplified)_China.936\".\r\nEncoding \"GBK\" implied by locale is not allowed as a server-side encoding.\r\nThe default database encoding will be set to \"UTF8\" instead.\r\nThe default text search configuration will be set to \"simple\".\r\n\r\nData page checksums are disabled.\r\n\r\ncreating directory D:/project/trademind-ai/artifacts/p7-v/pg-p7v_local_20260713/data ... ok\r\ncreating subdirectories ... ok\r\nselecting dynamic shared memory implementation ... windows\r\nselecting default \"max_connections\" ... 100\r\nselecting default \"shared_buffers\" ... 128MB\r\nselecting default time zone ... Asia/Shanghai\r\ncreating configuration files ... ok\r\nrunning bootstrap script ... ok\r\nperforming post-bootstrap initialization ... ok\r\nsyncing data to disk ... ok\r\n\r\nSuccess. You can now start the database server using:\r\n\r\n    ^\"C^:^\\Program^ Files^\\PostgreSQL^\\17^\\bin^\\pg^_ctl^\" -D ^\"D^:^\\project^\\trademind^-ai^\\artifacts^\\p7^-v^\\pg^-p7v^_local^_20260713^\\data^\" -l logfile start\r\n\r\n",
+      "stderr": "initdb: could not find suitable text search configuration for locale \"Chinese (Simplified)_China.936\"\r\n"
+    },
+    {
+      "id": "ephemeral-pg-ctl-start",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe -D D:\\project\\trademind-ai\\artifacts\\p7-v\\pg-p7v_local_20260713\\data -l D:\\project\\trademind-ai\\artifacts\\p7-v\\pg-p7v_local_20260713\\postgres.log -o -p 49362 -h 127.0.0.1 -W start",
+      "status": 0,
+      "stdout": "server starting\r\n",
+      "stderr": ""
+    },
+    {
+      "id": "ephemeral-pg-isready",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\pg_isready.exe -h 127.0.0.1 -p 49362",
+      "status": 0,
+      "stdout": "127.0.0.1:49362 - accepting connections\r\n",
+      "stderr": ""
+    },
+    {
+      "id": "ephemeral-create-database",
+      "command": "C:\\Program Files\\PostgreSQL\\17\\bin\\psql.exe -h 127.0.0.1 -p 49362 -U p7v_user -d postgres -v ON_ERROR_STOP=1 -c CREATE DATABASE \"trademind_p7_p7v_local_20260713\"",
+      "status": 0,
+      "stdout": "CREATE DATABASE\r\n",
+      "stderr": ""
+    }
+  ],
+  "issues": [],
+  "productionReady": false
+}

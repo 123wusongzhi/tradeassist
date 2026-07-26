@@ -1,0 +1,72 @@
+{
+  "phase": "P7-V2-R3B-PORT-R2",
+  "status": "incomplete",
+  "blockedStage": "restart_probe",
+  "originalPort": 8080,
+  "originalPortClassification": "wsl_forwarding_process",
+  "windowsOwner": {
+    "status": "available",
+    "listeners": [
+      {
+        "localAddress": "::",
+        "localPort": 8080,
+        "state": 2,
+        "pid": 25116,
+        "name": "server.exe",
+        "executablePath": "C:\\Users\\Administrator\\AppData\\Local\\go-build\\3f\\3fedcb10cf6a3becff678b32b8eb01d5f4f2d3fdc307b95f9e010d2ccb51892c-d\\server.exe",
+        "commandLine": "C:\\Users\\Administrator\\AppData\\Local\\go-build\\3f\\3fedcb10cf6a3becff678b32b8eb01d5f4f2d3fdc307b95f9e010d2ccb51892c-d\\server.exe",
+        "creationDate": "/Date(1784052997603)/"
+      }
+    ]
+  },
+  "wslOwner": {
+    "status": "available",
+    "raw": [
+      "State  Recv-Q Send-Q Local Address:Port Peer Address:PortProcess",
+      "LISTEN 0      4096       127.0.0.1:8080      0.0.0.0:*    users:((\"server\",pid=1100,fd=19))"
+    ],
+    "pids": [
+      "1100"
+    ],
+    "identity": null,
+    "pidFile": "1100"
+  },
+  "belongsToTradeMind": false,
+  "action": "port_migration",
+  "portMigrated": true,
+  "selectedPort": 18080,
+  "portProbe": {
+    "passedCycles": 0,
+    "failedCycles": 3
+  },
+  "runtimeFreeze": {
+    "status": "not_started"
+  },
+  "baseline": {
+    "runId": "",
+    "status": "not_started",
+    "artifactStatus": "not_started"
+  },
+  "current": {
+    "runId": "",
+    "status": "not_started",
+    "artifactStatus": "not_started"
+  },
+  "comparability": {
+    "status": "not_started",
+    "differences": []
+  },
+  "regression": {
+    "status": "not_started",
+    "failedMetrics": []
+  },
+  "newRunIdsRequired": true,
+  "rebaselineRequired": true,
+  "nextStep": "repair restart probe and rerun with new recovery3 run IDs",
+  "productionResourcesAccessed": false,
+  "realProviderCalls": 0,
+  "realDouyinWrites": 0,
+  "tagCreated": false,
+  "productionReady": false,
+  "generatedAt": "2026-07-15T05:05:21.100Z"
+}

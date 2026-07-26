@@ -11,11 +11,15 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -35,6 +39,7 @@ type SyncOrdersBody struct {
 	Cursor   string `json:"cursor"`
 	Limit    int    `json:"limit"`
 	MaxPages int    `json:"maxPages"`
+	ForceNew bool   `json:"forceNew"`
 }
 
 type syncInputSnapshot struct {
@@ -106,12 +111,14 @@ func pagesOf(total int64, ps int) int {
 
 // Service orchestrates order_sync_tasks + Platform Provider SyncOrders + order upserts.
 type Service struct {
-	DB        *gorm.DB
-	Redis     *rdb.Client
-	Shops     *shop.Service
-	Orders    *order.Service
-	Inventory *inventory.Service
-	OpLog     *operationlog.Service
+	DB          *gorm.DB
+	Redis       *rdb.Client
+	Shops       *shop.Service
+	Orders      *order.Service
+	Inventory   *inventory.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
 
 	QueueEnabled bool
 	QueueName    string
@@ -254,6 +261,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 		return nil, err
 	}
 
+	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "order-sync-create")
+	jobAcquire, replayRes, acqErr := s.acquireSyncJob(c.Request.Context(), strings.TrimSpace(row.Platform), shopID, snap, inputJSON, body.ForceNew, owner)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if jobAcquire == nil && replayRes != nil {
+		return s.resolveExistingSyncTask(c, replayRes)
+	}
+
 	task := OrderSyncTask{
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
@@ -265,7 +281,13 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 		CreatedBy: adminID,
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(&task).Error; err != nil {
+		s.failSyncJobCreate(c.Request.Context(), jobAcquire, "ORDER_SYNC_CREATE_FAILED", true)
 		return nil, err
+	}
+	if jobAcquire != nil {
+		if err := s.completeSyncJobCreate(c.Request.Context(), jobAcquire, task.ID); err != nil {
+			return nil, err
+		}
 	}
 
 	if s.OpLog != nil {
@@ -296,7 +318,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), task.ID)
+	out, err := s.GetDTO(c, task.ID)
 	return &out, err
 }
 
@@ -314,6 +336,7 @@ func (s *Service) enqueue(ctx context.Context, taskID uuid.UUID) error {
 
 // ProcessQueuedTask executes one task (worker or inline dev mode).
 func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	start := time.Now()
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("ordersync: no db")
 	}
@@ -325,7 +348,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}()
 
 	lease := s.orderSyncLeaseTTL()
-	task, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
+	task, claim, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
 	if err != nil {
 		return err
 	}
@@ -337,7 +360,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return err
 	}
 
-	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, lease)
+	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, claim, lease)
 	defer stopRen()
 
 	if s.OpLog != nil {
@@ -363,15 +386,11 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-			Updates(map[string]any{
-				"status":        StatusFailed,
-				"error_message": msg,
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
-			}).Error
+		_ = s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": msg,
+			"finished_at":   &fin,
+		})
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 				AdminUserID: task.CreatedBy,
@@ -392,6 +411,8 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 				})
 			}
 		}
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "failure", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
 		return fmt.Errorf("%s", msg)
 	}
 
@@ -436,10 +457,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 	}
 
 	payloads := ToSyncedPayloads(res.Orders)
-	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertSyncedOrders(ctx, task.ShopID, shopRow.Platform, payloads)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "received", "success", "", len(payloads), 0, 0)
+	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertPlatformOrders(ctx, task.ShopID, shopRow.Platform, order.UpsertSourcePolling, payloads)
 	if errUp != nil {
 		return fail(errUp.Error())
 	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "created", "success", "", createdN, 0, 0)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "updated", "success", "", updatedN, 0, 0)
 
 	ordersSeen := 0
 	linesTotal := 0
@@ -565,20 +589,19 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fin := time.Now().UTC()
 	finalStatus := resolveFinalSyncStatus(res, failedN)
-	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-		Updates(map[string]any{
-			"status":        finalStatus,
-			"finished_at":   &fin,
-			"total_count":   len(res.Orders),
-			"success_count": successN,
-			"failed_count":  failedN,
-			"cursor":        nextCur,
-			"output":        datatypes.JSON(outJSON),
-			"error_message": "",
-			"locked_by":     nil,
-			"locked_until":  nil,
-			"updated_at":    fin,
-		}).Error
+	if err := s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        finalStatus,
+		"finished_at":   &fin,
+		"total_count":   len(res.Orders),
+		"success_count": successN,
+		"failed_count":  failedN,
+		"cursor":        nextCur,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	}); err != nil {
+		slog.Warn("order_sync_success_lease_lost", "taskId", taskID.String(), "error", err.Error())
+		return err
+	}
 
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -603,6 +626,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 			douyinmetrics.RecordOrderSyncOutcome(totalFetched, createdN, updatedN, finalStatus == StatusPartialSuccess, unmatchedN, deductedStockItems)
 		}
 	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "success", "", 1, time.Since(start), 0)
 	return nil
 }
 
@@ -646,19 +670,23 @@ func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
 	return sh.ShopName
 }
 
-// GetDTO loads one task by id.
-func (s *Service) GetDTO(ctx context.Context, id uuid.UUID) (TaskDTO, error) {
+// GetDTO loads one task by id with tenant scope.
+func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
-	var t OrderSyncTask
-	if err := s.DB.WithContext(ctx).First(&t, "id = ?", id).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return zero, err
 	}
-	name := s.shopNameLookup(ctx, t.ShopID)
-	return s.taskToDTO(ctx, &t, name), nil
+	var t OrderSyncTask
+	if err := repository.FindByID(c.Request.Context(), s.DB, &t, tid, id); err != nil {
+		return zero, err
+	}
+	name := s.shopNameLookup(c.Request.Context(), t.ShopID)
+	return s.taskToDTO(c.Request.Context(), &t, name), nil
 }
 
-// List paginates sync tasks.
-func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
+// List paginates sync tasks with tenant scope.
+func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
@@ -674,9 +702,19 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
-	tx := s.DB.WithContext(ctx).Model(&OrderSyncTask{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if q.ShopID != nil && *q.ShopID != uuid.Nil {
 		tx = tx.Where("shop_id = ?", *q.ShopID)
+		if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+			return nil, err
+		} else {
+			tx = scoped
+		}
 	}
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -706,6 +744,7 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		shopIDs = append(shopIDs, r.ShopID)
 	}
 	sm := map[uuid.UUID]string{}
+	ctx := c.Request.Context()
 	if len(shopIDs) > 0 && s.Shops != nil {
 		// Batch summaries require gin.Context — fall back to per-row lookup via DB when unavailable.
 		for _, sid := range shopIDs {
@@ -733,7 +772,11 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, fmt.Errorf("ordersync: no db")
 	}
 	var task OrderSyncTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
 	st := strings.TrimSpace(task.Status)
@@ -808,6 +851,6 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	out, err := s.GetDTO(c, taskID)
 	return &out, err
 }

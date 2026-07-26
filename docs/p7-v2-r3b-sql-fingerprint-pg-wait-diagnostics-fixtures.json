@@ -1,0 +1,100 @@
+{
+  "phase": "P7-V2-R3B-SQL-FINGERPRINT-PG-WAIT-DIAGNOSTICS-FIXTURES",
+  "status": "passed",
+  "credentialLeakCount": 0,
+  "highCardinalityLabelCount": 0,
+  "rawSqlParameterLeakCount": 0,
+  "checks": [
+    {
+      "id": "sql-parameter-redaction",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "low-cardinality-fingerprint",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "unknown-sql-no-raw-params",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "db-timing-metrics",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "password-verify-safe-fields",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "pg-sampling-schema",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "dbstats-delta-fields",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-stage-coverage-enums",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-stage-coverage-enums",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-handler-decode-write",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-sql-fingerprints",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-path-types",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "webhook-processor-business-only-when-real",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-handler-decode-write",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "auth-password-verify-paths",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "oplog-transaction-stages",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "no-high-cardinality-json-tags",
+      "status": "passed",
+      "detail": ""
+    },
+    {
+      "id": "forbidden-optimizations-absent",
+      "status": "passed",
+      "detail": ""
+    }
+  ],
+  "failed": []
+}

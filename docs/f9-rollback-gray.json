@@ -1,0 +1,30 @@
+{
+  "phase": "F9.5",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "preparation_passed_execution_blocked_by_environment",
+  "rollback": {
+    "dbBackup": "documented",
+    "fileBackup": "documented",
+    "adminDist": "admin/dist built",
+    "backendBinary": "backend/tmp/server.exe",
+    "nginxReference": "admin/nginx.conf",
+    "configRollback": "settings encrypted, .env not in git",
+    "failureRetry": "task-center batch-retry APIs",
+    "runbooks": [
+      "docs/DOUYIN_ROLLBACK_RUNBOOK.md",
+      "docs/DOUYIN_ROLLBACK_DRILL_REPORT.md"
+    ]
+  },
+  "grayPlan": {
+    "durationHours": "48-72",
+    "scope": "single shop, draft only, readonly order sync first",
+    "metrics": [
+      "failure_rate",
+      "order_sync_partial_success",
+      "inventory_sync_errors",
+      "customer_send_failures"
+    ],
+    "ready": false,
+    "blocker": "blocked_by_environment + blocked_by_real_credentials"
+  }
+}

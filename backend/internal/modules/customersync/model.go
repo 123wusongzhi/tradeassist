@@ -11,6 +11,7 @@ import (
 // CustomerMessageSyncTask records one shop customer message pull job.
 type CustomerMessageSyncTask struct {
 	model.HardDeleteBase
+	TenantID     int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	ShopID       uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
 	Platform     string         `gorm:"size:64;index;not null" json:"platform"`
 	TaskType     string         `gorm:"size:64;index;not null" json:"taskType"`
@@ -29,6 +30,8 @@ type CustomerMessageSyncTask struct {
 	LockedBy     *string        `gorm:"size:220;index" json:"lockedBy,omitempty"`
 	LockedUntil  *time.Time     `gorm:"index" json:"lockedUntil,omitempty"`
 	LockVersion  int            `gorm:"default:0;not null" json:"lockVersion"`
+	HeartbeatAt  *time.Time     `gorm:"index" json:"heartbeatAt,omitempty"`
+	ExecutionID  *string        `gorm:"size:36;index" json:"executionId,omitempty"`
 }
 
 func (CustomerMessageSyncTask) TableName() string { return "customer_message_sync_tasks" }

@@ -14,22 +14,27 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
 
 // Service handles product draft persistence.
 type Service struct {
-	DB        *gorm.DB
-	OpLog     *operationlog.Service
-	Settings  *settings.Service
-	Prompts   *aiprompt.Service
-	AITasks   *aitask.Service
-	AIGateway *aigate.Gateway
+	DB          *gorm.DB
+	OpLog       *operationlog.Service
+	Settings    *settings.Service
+	Prompts     *aiprompt.Service
+	AITasks     *aitask.Service
+	AIGateway   *aigate.Gateway
+	Idempotency *idempotency.Service
 
 	Shops               DouyinShopClientFactory
 	DouyinImageUploader DouyinImageUploader
@@ -45,16 +50,14 @@ type DouyinImageUploader interface {
 }
 
 func clampPage(page, ps int) (int, int) {
-	if page < 1 {
-		page = 1
+	p, err := pagination.NormalizePage(page, ps)
+	if err != nil {
+		if page < 1 {
+			page = 1
+		}
+		return page, pagination.MaxLimit
 	}
-	if ps < 1 {
-		ps = 20
-	}
-	if ps > 100 {
-		ps = 100
-	}
-	return page, ps
+	return p.Page, p.Limit
 }
 
 func pickCoverURL(origin, pub string) string {
@@ -83,10 +86,36 @@ func progressImageExistsClause(alias string) string {
 	)`, alias, alias, imageType, ImageTypeMain, urlExpr, imageType, ImageTypeMain, imageType, ImageTypeSKU, urlExpr)
 }
 
+func productCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) string {
+	allowed := []string{}
+	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
+		for _, id := range p.AllowedStoreIDs() {
+			allowed = append(allowed, id.String())
+		}
+		sort.Strings(allowed)
+	}
+	return pagination.Fingerprint(map[string]any{
+		"tenantId":             tenantID,
+		"allowedShopIds":       allowed,
+		"status":               q.Status,
+		"source":               q.Source,
+		"keyword":              q.Keyword,
+		"operationStep":        q.OperationStep,
+		"missingAiTitle":       q.MissingAiTitle,
+		"missingAiDescription": q.MissingAiDescription,
+		"readinessBlocked":     q.ReadinessBlocked,
+		"publishable":          q.Publishable,
+		"sort":                 "created_at_desc_id_desc",
+	})
+}
+
 // List returns paginated drafts with optional filters.
 func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	if q.UseCursor && q.Limit > 0 {
+		q.PageSize = q.Limit
 	}
 	page, ps := clampPage(q.Page, q.PageSize)
 	titleExpr := preferredDraftTextExpr("title", "original_title")
@@ -178,15 +207,54 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		)`)
 	}
 
+	var tenantID int64
+	if scoped, tid, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+		tenantID = tid
+	}
+	if scoped, err := adminperm.ApplyProductScope(c, s.DB, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+	scopeHash := productCursorScope(c, s.DB, q, tenantID)
+	if q.UseCursor && strings.TrimSpace(q.Cursor) != "" {
+		cur, err := pagination.DecodeCursor(q.Cursor, tenantID, "", scopeHash)
+		if err != nil {
+			return nil, err
+		}
+		next, err := pagination.ApplyDescKeyset(tx, "created_at", "id", cur)
+		if err != nil {
+			return nil, err
+		}
+		tx = next
+	}
+
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
-	offset := (page - 1) * ps
+	query := tx.Order("created_at DESC, id DESC")
+	limit := ps
+	if q.UseCursor {
+		limit = ps + 1
+	} else {
+		paged, err := pagination.NormalizePage(page, ps)
+		if err != nil {
+			return nil, err
+		}
+		query = query.Offset(paged.Offset)
+	}
 	var rows []Product
-	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
+	if err := query.Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
+	}
+	hasMore := q.UseCursor && len(rows) > ps
+	if hasMore {
+		rows = rows[:ps]
 	}
 
 	covers := map[uuid.UUID]string{}
@@ -226,10 +294,18 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 			CoverURL:  covers[r.ID],
 		})
 	}
-	var err error
-	items, err = s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
+	progressItems, err := s.attachOperationProgressSummaries(c.Request.Context(), rows, items)
 	if err != nil {
 		return nil, err
+	}
+	items = progressItems
+	nextCursor := ""
+	if q.UseCursor && hasMore && len(rows) > 0 {
+		last := rows[len(rows)-1]
+		nextCursor, err = pagination.BuildNextCursor(true, tenantID, "", scopeHash, "created_at", last.CreatedAt, last.ID.String())
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	pages := int(total) / ps
@@ -246,6 +322,9 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 		Page:       page,
 		PageSize:   ps,
 		TotalPages: pages,
+		Limit:      ps,
+		NextCursor: nextCursor,
+		HasMore:    hasMore,
 	}, nil
 }
 
@@ -279,8 +358,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		raw = datatypes.JSON(body.RawData)
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+
 	p := &Product{
-		TenantID:      body.TenantID,
+		TenantID:      tid,
 		CreatedBy:     adminID,
 		Source:        source,
 		SourceURL:     strings.TrimSpace(body.SourceURL),
@@ -316,15 +400,22 @@ func (s *Service) Get(c *gin.Context, id uuid.UUID) (*DetailDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).
+	tx := s.DB.WithContext(c.Request.Context()).
 		Preload("Images", func(db *gorm.DB) *gorm.DB {
 			return db.Order("sort_order ASC")
 		}).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB {
 			return db.Order("created_at ASC")
-		}).
-		First(&p, "id = ?", id).Error; err != nil {
+		})
+	if err := repository.FindByID(c.Request.Context(), tx, &p, tid, id); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
 		return nil, err
 	}
 	return toDetailDTO(&p), nil
@@ -523,8 +614,15 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+		return nil, err
+	}
 	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", id).Error; err != nil {
+	if err := repository.FindByID(c.Request.Context(), s.DB, &p, tid, id); err != nil {
 		return nil, err
 	}
 
@@ -583,11 +681,18 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&Product{}, "id = ?", id)
-	if res.Error != nil {
-		return res.Error
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
 	}
-	if res.RowsAffected == 0 {
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+		return err
+	}
+	rows, err := repository.DeleteByID(c.Request.Context(), s.DB, &Product{}, tid, id)
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
 		return gorm.ErrRecordNotFound
 	}
 	if s.OpLog != nil {

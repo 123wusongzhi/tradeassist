@@ -1,0 +1,38 @@
+{
+  "phase": "P7-V2-R3A",
+  "component": "runtime-cleanup",
+  "commandMode": "single-exact-drop",
+  "status": "dropped",
+  "environment": {
+    "appEnv": "performance",
+    "performanceTestMode": true,
+    "production": false,
+    "hostClass": "wsl2_local_postgresql_socket"
+  },
+  "approval": {
+    "required": true,
+    "approvalFile": "docs/p7-v2-r3a-cleanup-approval-request.json",
+    "approvalEvidenceHash": "c43f408d2d42feff55319fc26580a084ef973b10ba6c1ca1bf50d8a46fe11caf",
+    "approvedDatabaseNames": [
+      "trademind_p7v2_p7v2_auth_stability_1",
+      "trademind_p7v2_p7v2_auth_stability_2",
+      "trademind_p7v2_p7v2_auth_stability_3",
+      "trademind_p7v2_p7v2_bootstrap_idempotency_2",
+      "trademind_p7v2_p7v2_env_20260714143459",
+      "trademind_p7v2_p7v2_r2_env_20260714164000",
+      "trademind_p7v2_p7v2_r3_baseline_20260714130414",
+      "trademind_p7v2_p7v2_baseline_r3a_20260714225500"
+    ]
+  },
+  "cleanup": {
+    "requestedDatabase": "trademind_p7v2_p7v2_baseline_r3a_20260714225500",
+    "databasesBefore": [
+      "trademind_p7v2_p7v2_baseline_r3a_20260714225500"
+    ],
+    "connectionsTerminated": [],
+    "databaseDropped": "trademind_p7v2_p7v2_baseline_r3a_20260714225500",
+    "databasesAfter": [],
+    "remainingDatabasesWithPrefix": 0
+  },
+  "issues": []
+}

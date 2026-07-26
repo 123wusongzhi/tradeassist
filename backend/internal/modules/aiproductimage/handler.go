@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -200,8 +201,18 @@ func (h *Handler) ApplyItem(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	if result.Status == ItemConflict {
-		response.JSON(c, 409, response.CodeBadRequest, result.ErrorMessage, gin.H{"errorCode": "AI_IMAGE_APPLY_CONFLICT"})
+	if result.Status == ItemConflict || result.ErrorCode == ErrCodeTargetVersionConflict ||
+		result.ErrorCode == idempotency.ErrCodeKeyConflict || result.ErrorCode == idempotency.ErrCodeInProgress ||
+		result.Status == ItemProcessing {
+		code := result.ErrorCode
+		if code == "" {
+			code = "AI_IMAGE_APPLY_CONFLICT"
+		}
+		msg := result.ErrorMessage
+		if msg == "" {
+			msg = ConflictUserMessage
+		}
+		response.JSON(c, 409, response.CodeBadRequest, msg, gin.H{"errorCode": code, "item": result})
 		return
 	}
 	response.OK(c, result)

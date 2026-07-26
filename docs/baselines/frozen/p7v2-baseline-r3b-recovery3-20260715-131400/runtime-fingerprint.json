@@ -1,0 +1,26 @@
+{
+  "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
+  "environmentFingerprint": {
+    "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+    "runType": "baseline",
+    "gitCommit": "6a80dce2d5592c4db3858af12e6184886331bdfe",
+    "gitDirty": true,
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "cpuCores": 12,
+    "memoryTotal": 17010700288,
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "nodeVersion": "v22.22.1",
+    "pnpmVersion": "9.15.4",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "startedAt": "2026-07-15T05:35:41.341Z",
+    "endedAt": "",
+    "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+    "configFingerprint": "8b7d7af89215a75e",
+    "loadProfileFingerprint": "818ce231b0091774",
+    "databaseNameHash": "8ad0109a58eace05"
+  }
+}

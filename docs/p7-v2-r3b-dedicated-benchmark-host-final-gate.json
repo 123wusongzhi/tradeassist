@@ -1,0 +1,128 @@
+{
+  "phase": "P7-V2-R3B-DEDICATED-BENCHMARK-HOST-CONTRACT",
+  "status": "failed",
+  "failedCount": 15,
+  "failed": [
+    "preflight:nodePlatform",
+    "preflight:GOOS",
+    "preflight:nativeLinuxFilesystem",
+    "preflight:freeDiskHeadroomPassed",
+    "preflight:dockerDaemonReachable",
+    "preflight:gccPath",
+    "preflight:k6VersionMatch",
+    "preflight:workingTreeClean",
+    "preflight:timeSyncActive",
+    "preflight:thermalThrottleDetected",
+    "preflightStatusPassed",
+    "nativeLinuxFilesystem",
+    "toolchainAttestationPassed",
+    "dockerDaemonReachable",
+    "k6VersionMatch"
+  ],
+  "checkedAt": "2026-07-20T07:48:07.427Z",
+  "gitCommit": "48c4628f82a200a246a4aa6d8cd7cd6e870d2c3e",
+  "sourcePreflight": "docs/p7-v2-r3b-dedicated-benchmark-host-preflight.json",
+  "formalHostIsolationVersion": 3,
+  "dedicatedBenchmarkHostContractVersion": 1,
+  "nativeLinuxFilesystem": false,
+  "exclusiveBenchmarkWindow": true,
+  "toolchainAttestationPassed": false,
+  "dockerDaemonReachable": false,
+  "k6VersionMatch": false,
+  "schedulerContentionDetected": false,
+  "backgroundIoContentionDetected": false,
+  "activeSwapDuringWindow": false,
+  "unknownHeavyProcessCount": 0,
+  "unknownDatabaseWorkloadCount": 0,
+  "hostContractImmutable": true,
+  "hostFingerprintPresent": true,
+  "hostFingerprint": "b0767de569c40725baeca12c7b9c638ea05a46eb7a20215487aea1ccfda03e9e",
+  "hostContractHash": "f783835fcfcef6dd59c250f4cc806bcccad3715275a91ef00ade8cbc29bd001b",
+  "businessRuntimeChanged": false,
+  "loadContractChanged": false,
+  "formalPlanCreated": false,
+  "runtimeFreezeCreated": false,
+  "formalPairStarted": false,
+  "checks": [
+    {
+      "id": "preflightStatusPassed",
+      "status": "failed"
+    },
+    {
+      "id": "formalHostIsolationVersion",
+      "status": "passed"
+    },
+    {
+      "id": "dedicatedBenchmarkHostContractVersion",
+      "status": "passed"
+    },
+    {
+      "id": "nativeLinuxFilesystem",
+      "status": "failed"
+    },
+    {
+      "id": "exclusiveBenchmarkWindow",
+      "status": "passed"
+    },
+    {
+      "id": "toolchainAttestationPassed",
+      "status": "failed"
+    },
+    {
+      "id": "dockerDaemonReachable",
+      "status": "failed"
+    },
+    {
+      "id": "k6VersionMatch",
+      "status": "failed"
+    },
+    {
+      "id": "schedulerContentionDetected",
+      "status": "passed"
+    },
+    {
+      "id": "backgroundIoContentionDetected",
+      "status": "passed"
+    },
+    {
+      "id": "activeSwapDuringWindow",
+      "status": "passed"
+    },
+    {
+      "id": "unknownHeavyProcessCount",
+      "status": "passed"
+    },
+    {
+      "id": "unknownDatabaseWorkloadCount",
+      "status": "passed"
+    },
+    {
+      "id": "hostContractImmutable",
+      "status": "passed"
+    },
+    {
+      "id": "hostFingerprintPresent",
+      "status": "passed"
+    },
+    {
+      "id": "businessRuntimeChanged",
+      "status": "passed"
+    },
+    {
+      "id": "loadContractChanged",
+      "status": "passed"
+    },
+    {
+      "id": "formalPlanCreated",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeCreated",
+      "status": "passed"
+    },
+    {
+      "id": "formalPairStarted",
+      "status": "passed"
+    }
+  ]
+}

@@ -25,6 +25,7 @@ const (
 // TaskAlert is an in-site alert record (deduped per task+category).
 type TaskAlert struct {
 	ID              uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
+	TenantID        int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskType        string     `gorm:"size:48;uniqueIndex:uq_task_alert_type_src_cat;not null" json:"taskType"`
 	SourceID        string     `gorm:"size:64;uniqueIndex:uq_task_alert_type_src_cat;not null" json:"sourceId"`
 	SourceTable     string     `gorm:"size:64" json:"sourceTable,omitempty"`

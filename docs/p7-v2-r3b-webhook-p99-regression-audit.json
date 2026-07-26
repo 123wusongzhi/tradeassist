@@ -1,0 +1,421 @@
+{
+  "phase": "P7-V2-R3B-WEBHOOK-P99-REGRESSION-AUDIT",
+  "status": "passed",
+  "runtimeFreezeId": "a39c1f26e709d612670525759d0d2badc9d54f6c508d98d0965b2a919a95d53b",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715153726",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260715153726",
+  "sources": {
+    "runtimeFreezePath": "docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json",
+    "runManifestPath": "docs/p7-v2-r3b-run-manifest.json",
+    "baselineArtifactPath": "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715153726/raw-summary.json",
+    "currentArtifactPath": "docs/currents/frozen/p7v2-current-r3b-recovery6-20260715153726/raw-summary.json",
+    "baselineManifestPath": "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715153726/manifest.json",
+    "currentManifestPath": "docs/currents/frozen/p7v2-current-r3b-recovery6-20260715153726/manifest.json",
+    "comparabilityPath": "docs/p7-v2-r3b-fast-close-r3-comparability-report.json",
+    "regressionPath": "docs/p7-v2-r3b-fast-close-r3-regression-v2-report.json"
+  },
+  "formalPairIntegrity": {
+    "baselineArtifactPath": "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715153726/raw-summary.json",
+    "currentArtifactPath": "docs/currents/frozen/p7v2-current-r3b-recovery6-20260715153726/raw-summary.json",
+    "baselineArtifactSha256": "fa45980de02afe107c765207ab843f3d2c09ddde9ff02bce9336226c5b30f8f6",
+    "currentArtifactSha256": "32924fa596c9d4270497fb8fcb6475a7ce9273b5bae6e24837daf7ef19a05d00",
+    "baselineArtifactHashMatch": true,
+    "currentArtifactHashMatch": true,
+    "baselineFrozen": true,
+    "currentFrozen": true,
+    "baselineValidForRegression": true,
+    "currentValidForRegression": true,
+    "currentRunIndependent": true,
+    "comparabilityPassed": true,
+    "runtimeFreezeBindingPassed": true,
+    "artifactHashBindingPassed": true,
+    "pairBindingPassed": true
+  },
+  "metric": {
+    "metricId": "webhookIngestion",
+    "metricName": "p7_webhook_ingestion_steady_duration",
+    "routeId": "POST /api/v1/webhooks/internal-test/ping",
+    "operationId": "ingest",
+    "scenarioId": "webhook_ingestion",
+    "aggregation": "p99",
+    "baselineValueMs": 25.18280538000002,
+    "currentValueMs": 29.425643459999993,
+    "absoluteDeltaMs": 4.242838079999974,
+    "relativeDelta": 0.16848154985026415
+  },
+  "samples": {
+    "baseline": 2515,
+    "current": 2514,
+    "minimum": 100,
+    "baselineRequestCount": 2515,
+    "currentRequestCount": 2514,
+    "baselineSuccessCount": 2515,
+    "currentSuccessCount": 2514,
+    "baselineErrorCount": 0,
+    "currentErrorCount": 0,
+    "baselineTimeoutCount": 0,
+    "currentTimeoutCount": 0,
+    "baselineRetryCount": 0,
+    "currentRetryCount": 0,
+    "baselineStatusCodeDistribution": {},
+    "currentStatusCodeDistribution": {}
+  },
+  "distribution": {
+    "baseline": {
+      "p50": 12.095143,
+      "p75": null,
+      "p90": 15.2138988,
+      "p95": 16.52403879999999,
+      "p99": 25.18280538000002,
+      "max": 2855.965425,
+      "avg": 15.642514922862778
+    },
+    "current": {
+      "p50": 11.917034,
+      "p75": null,
+      "p90": 15.537721900000005,
+      "p95": 17.0077213,
+      "p99": 29.425643459999993,
+      "max": 88.900266,
+      "avg": 12.712920190135234
+    },
+    "deltas": {
+      "p50AbsoluteDelta": -0.17810900000000096,
+      "p50RelativeDelta": -0.014725663020271935,
+      "p90AbsoluteDelta": 0.3238231000000038,
+      "p90RelativeDelta": 0.021284688708459384,
+      "p95AbsoluteDelta": 0.4836825000000111,
+      "p95RelativeDelta": 0.02927144542894752,
+      "p99AbsoluteDelta": 4.242838079999974,
+      "p99RelativeDelta": 0.16848154985026415,
+      "maxAbsoluteDelta": -2767.0651589999998,
+      "maxRelativeDelta": -0.9688720790448645,
+      "baselineP99P95Gap": 8.65876658000003,
+      "currentP99P95Gap": 12.417922159999993
+    },
+    "classification": "tail_only_regression"
+  },
+  "tailSamples": {
+    "sampleLevelEvidenceAvailable": false,
+    "baselineTailSampleCount": null,
+    "currentTailSampleCount": null,
+    "baselineTailMin": null,
+    "baselineTailMedian": null,
+    "baselineTailMax": null,
+    "currentTailMin": null,
+    "currentTailMedian": null,
+    "currentTailMax": null
+  },
+  "binding": {
+    "baselineMetricBinding": {
+      "metricId": "webhookIngestion",
+      "metricName": "p7_webhook_ingestion_steady_duration",
+      "metricType": "trend",
+      "routeId": "POST /api/v1/webhooks/internal-test/ping",
+      "operationId": "ingest",
+      "scenarioId": "webhook_ingestion",
+      "phaseTagKey": "phase",
+      "phaseTagValue": "steady",
+      "statusTag": "expectedStatusClass=2xx",
+      "aggregation": "p99",
+      "steadyWindow": "phase=steady",
+      "summaryStat": "p(99)",
+      "sampleCounter": "p7_webhook_ingestion_steady_requests"
+    },
+    "currentMetricBinding": {
+      "metricId": "webhookIngestion",
+      "metricName": "p7_webhook_ingestion_steady_duration",
+      "metricType": "trend",
+      "routeId": "POST /api/v1/webhooks/internal-test/ping",
+      "operationId": "ingest",
+      "scenarioId": "webhook_ingestion",
+      "phaseTagKey": "phase",
+      "phaseTagValue": "steady",
+      "statusTag": "expectedStatusClass=2xx",
+      "aggregation": "p99",
+      "steadyWindow": "phase=steady",
+      "summaryStat": "p(99)",
+      "sampleCounter": "p7_webhook_ingestion_steady_requests"
+    },
+    "equal": true,
+    "mismatchFields": []
+  },
+  "database": {
+    "audited": true,
+    "runtimeDatabaseAvailableForExplain": false,
+    "reason": "Stage 0 intentionally cleaned the failed current-formal runtime databases before read-only Stage A.",
+    "queryPath": [
+      {
+        "queryId": "webhook_existing_event_lookup",
+        "queryPurpose": "duplicate event check",
+        "indexExpected": "ux_webhook_shop_event"
+      },
+      {
+        "queryId": "idempotency_acquire_lookup",
+        "queryPurpose": "scope/key lease acquisition",
+        "indexExpected": "ux_idempotency_scope_key"
+      },
+      {
+        "queryId": "webhook_event_insert",
+        "queryPurpose": "persist accepted webhook",
+        "indexExpected": "ux_webhook_shop_event ON CONFLICT target"
+      },
+      {
+        "queryId": "idempotency_complete_update",
+        "queryPurpose": "mark accepted webhook idempotency record succeeded",
+        "indexExpected": "primary key id"
+      }
+    ],
+    "redundantSuccessPathReloadDetected": true,
+    "minimumRepairAction": "Skip the post-insert event reload when ON CONFLICT inserted a new row; keep the reload only for concurrent duplicate insert.",
+    "lockWaitDetected": false,
+    "poolWaitDetected": false,
+    "planEvidenceAvailable": false
+  },
+  "runtime": {
+    "baselineRuntimeObservations": {
+      "runtimeSourceTreeHash": "6e949c9d9281ebbd6785851c92c386010bc4d83e59f16a47bd408c66ce5426f4",
+      "loadScriptsHash": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+      "metricSemanticsHash": "12d52af9a5fd03e64544e4db12e6ae49995ad3962a98b0e1cd74d15e53fba428",
+      "databaseNameHash": "bc77dd8c30d0f698",
+      "memoryLeakDetected": false,
+      "goroutineLeakDetected": false,
+      "connectionLeakDetected": false,
+      "queueLeakDetected": false
+    },
+    "currentRuntimeObservations": {
+      "runtimeSourceTreeHash": "6e949c9d9281ebbd6785851c92c386010bc4d83e59f16a47bd408c66ce5426f4",
+      "loadScriptsHash": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+      "metricSemanticsHash": "12d52af9a5fd03e64544e4db12e6ae49995ad3962a98b0e1cd74d15e53fba428",
+      "databaseNameHash": "cefed8b3787fb8bf",
+      "memoryLeakDetected": false,
+      "goroutineLeakDetected": false,
+      "connectionLeakDetected": false,
+      "queueLeakDetected": false
+    },
+    "environmentAnomalies": []
+  },
+  "executionPath": {
+    "observedStageMetrics": [
+      "p7_webhook_ingestion_steady_duration",
+      "p7_webhook_ingestion_steady_requests"
+    ],
+    "missingStageMetrics": [
+      "signatureVerifyDuration",
+      "jsonDecodeDuration",
+      "idempotencyLookupDuration",
+      "webhookEventInsertDuration",
+      "idempotencyCompleteDuration",
+      "dbPoolWaitDuration"
+    ],
+    "suspectedSlowStages": [
+      "database success path"
+    ],
+    "orderUpsertExecutedInMeasuredPath": false,
+    "taskEnqueueExecutedInMeasuredPath": false,
+    "operationLogExecutedInMeasuredPath": false
+  },
+  "pairComparability": {
+    "profileComparable": true,
+    "datasetComparable": true,
+    "scenarioComparable": true,
+    "metricComparable": true,
+    "environmentComparable": true
+  },
+  "regressionEvidence": {
+    "status": "failed",
+    "failedMetricCount": 1,
+    "webhookComparisons": [
+      {
+        "scenario": "Webhook Ingestion",
+        "metric": "p95",
+        "metricFamily": "latency",
+        "direction": "lower_is_better",
+        "unit": "ms",
+        "baselinePresent": true,
+        "baselineValue": 16.52403879999999,
+        "baselineSampleCount": 2515,
+        "currentPresent": true,
+        "currentValue": 17.0077213,
+        "currentSampleCount": 2514,
+        "relativeThreshold": 0.1,
+        "materialityFloor": {
+          "type": "absolute_delta",
+          "value": 2,
+          "unit": "ms"
+        },
+        "absoluteSlo": true,
+        "absoluteDelta": 0.4836825000000111,
+        "relativeDelta": 0.02927144542894752,
+        "relativeExceeded": false,
+        "materialityExceeded": false,
+        "finalVerdict": "passed",
+        "reason": "passed"
+      },
+      {
+        "scenario": "Webhook Ingestion",
+        "metric": "p99",
+        "metricFamily": "latency",
+        "direction": "lower_is_better",
+        "unit": "ms",
+        "baselinePresent": true,
+        "baselineValue": 25.18280538000002,
+        "baselineSampleCount": 2515,
+        "currentPresent": true,
+        "currentValue": 29.425643459999993,
+        "currentSampleCount": 2514,
+        "relativeThreshold": 0.15,
+        "materialityFloor": {
+          "type": "absolute_delta",
+          "value": 3,
+          "unit": "ms"
+        },
+        "absoluteSlo": true,
+        "absoluteDelta": 4.242838079999974,
+        "relativeDelta": 0.16848154985026415,
+        "relativeExceeded": true,
+        "materialityExceeded": true,
+        "finalVerdict": "failed_material_regression",
+        "reason": "failed_material_regression"
+      },
+      {
+        "scenario": "Webhook Ingestion",
+        "metric": "rps",
+        "metricFamily": "throughput",
+        "direction": "higher_is_better",
+        "unit": "rps",
+        "baselinePresent": true,
+        "baselineValue": 1.9542019846480394,
+        "baselineSampleCount": 2515,
+        "currentPresent": true,
+        "currentValue": 1.9554346897624382,
+        "currentSampleCount": 2514,
+        "relativeThreshold": 0.1,
+        "materialityFloor": null,
+        "absoluteSlo": true,
+        "absoluteDelta": 0.0012327051143987688,
+        "relativeDelta": -0.0006307971868224178,
+        "relativeExceeded": false,
+        "materialityExceeded": true,
+        "finalVerdict": "passed",
+        "reason": "passed"
+      },
+      {
+        "scenario": "Webhook Ingestion",
+        "metric": "errorRate",
+        "metricFamily": "rate",
+        "direction": "lower_is_better",
+        "unit": "ratio",
+        "baselinePresent": true,
+        "baselineValue": 0,
+        "baselineSampleCount": 2515,
+        "currentPresent": true,
+        "currentValue": 0,
+        "currentSampleCount": 2514,
+        "relativeThreshold": null,
+        "materialityFloor": {
+          "type": "percentage_point",
+          "value": 0.002,
+          "unit": "ratio"
+        },
+        "absoluteSlo": true,
+        "absoluteDelta": 0,
+        "relativeDelta": 0,
+        "finalVerdict": "passed_no_change_zero_to_zero",
+        "reason": "explicit_zero_semantics"
+      },
+      {
+        "scenario": "Webhook Ingestion",
+        "metric": "timeouts",
+        "metricFamily": "count",
+        "direction": "lower_is_better",
+        "unit": "count",
+        "baselinePresent": true,
+        "baselineValue": 0,
+        "baselineSampleCount": 2515,
+        "currentPresent": true,
+        "currentValue": 0,
+        "currentSampleCount": 2514,
+        "relativeThreshold": null,
+        "materialityFloor": null,
+        "absoluteSlo": true,
+        "absoluteDelta": 0,
+        "relativeDelta": 0,
+        "finalVerdict": "passed_no_change_zero_to_zero",
+        "reason": "explicit_zero_semantics"
+      }
+    ]
+  },
+  "rootCause": {
+    "primary": "database_query_or_index_regression",
+    "secondary": [
+      "tail_only_runtime_regression"
+    ],
+    "confidence": "medium",
+    "supportingEvidence": [
+      "Metric binding is identical for baseline/current and comparability passed.",
+      "Samples are sufficient on both sides: baseline=2515, current=2514, minimum=100.",
+      "p50 improved while p90/p95 moved only slightly; only p99 exceeded both the relative threshold and materiality floor.",
+      "The measured internal-test webhook success path contains an avoidable post-insert event reload after a successful ON CONFLICT insert."
+    ],
+    "contradictingEvidence": [
+      "Current max latency is lower than baseline max, and average latency improved.",
+      "Frozen artifacts do not contain sample-level tail traces or per-stage DB timing."
+    ],
+    "missingEvidence": [
+      "EXPLAIN ANALYZE for the cleaned failed runtime databases.",
+      "Per-stage webhook duration metrics.",
+      "Connection-pool wait and lock-wait samples bound to the failed run."
+    ]
+  },
+  "decision": {
+    "repairPath": "B",
+    "newRuntimeFreezeRequired": true,
+    "newFormalPairRequired": true,
+    "diagnosticProbeRequired": false
+  },
+  "guardrails": {
+    "thresholdChanged": false,
+    "materialityChanged": false,
+    "sloChanged": false,
+    "vusChanged": false,
+    "stagesChanged": false,
+    "datasetChanged": false,
+    "productionResourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinCalls": 0,
+    "formalExecutionStarted": false
+  },
+  "cleanup": {
+    "phase": "P7-V2-R3B-WEBHOOK-P99-FAILURE-CLEANUP",
+    "status": "passed",
+    "cleanupType": "failed_run_resource_cleanup",
+    "runtimeFreezeId": "a39c1f26e709d612670525759d0d2badc9d54f6c508d98d0965b2a919a95d53b",
+    "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715153726",
+    "currentRunId": "p7v2-current-r3b-recovery6-20260715153726",
+    "currentFormalResidualCount": 0,
+    "failedAttemptResidualCount": 0,
+    "historicalEvidenceDatabaseCount": 7,
+    "unknownDatabaseCount": 0,
+    "unknownProcessesKilled": 0,
+    "listener18080Count": 0,
+    "apiProcessesRemaining": 0,
+    "workerProcessesRemaining": 0,
+    "k6ProcessesRemaining": 0,
+    "droppedDatabases": [
+      "trademind_p7v2_p7v2_current_r3b_recovery6_20260715153726_restar"
+    ],
+    "preservedEvidence": [
+      "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715153726/raw-summary.json",
+      "docs/currents/frozen/p7v2-current-r3b-recovery6-20260715153726/raw-summary.json",
+      "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260715153726/manifest.json",
+      "docs/currents/frozen/p7v2-current-r3b-recovery6-20260715153726/manifest.json",
+      "docs/p7-v2-r3b-fast-close-r3-comparability-report.json",
+      "docs/p7-v2-r3b-fast-close-r3-regression-v2-report.json",
+      "docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json",
+      "docs/baselines/p7-v2-baseline-registry.json",
+      "docs/currents/p7-v2-current-registry.json"
+    ],
+    "finalCleanupClaimed": false
+  }
+}

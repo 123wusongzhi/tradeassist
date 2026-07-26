@@ -1,0 +1,870 @@
+{
+  "phase": "P7-V2",
+  "status": "blocked",
+  "kind": "current",
+  "runId": "p7v2-current-r3b-recovery6-20260715165422",
+  "active": false,
+  "validForRegression": false,
+  "validForComparability": false,
+  "validForClosure": false,
+  "reason": "k6_exit_non_zero",
+  "baseUrl": "http://127.0.0.1:18080/",
+  "selectedHost": "127.0.0.1",
+  "selectedPort": 18080,
+  "configuredVUs": 10,
+  "peakVUs": 10,
+  "failedRequests": null,
+  "throttledRequests": 0,
+  "scenarios": [
+    {
+      "scenario": "Product List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Order List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Inventory List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Task List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Webhook Event List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Operation Log List",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Webhook Ingestion",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Provider Mock Flow",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Auth Invalid Login",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    },
+    {
+      "scenario": "Webhook Invalid Signature",
+      "requests": null,
+      "requestCount": null,
+      "sampleCount": null,
+      "metricEvidenceClassification": "metric_missing",
+      "metricPresent": false,
+      "sampleMetricPresent": false,
+      "minimumSampleCount": 100,
+      "rps": null,
+      "p50": null,
+      "p90": null,
+      "p95": null,
+      "p99": null,
+      "max": null,
+      "avg": null,
+      "timeouts": 0,
+      "timeoutCount": 0,
+      "statusCodeDistribution": {},
+      "exitCode": 1
+    }
+  ],
+  "failedScenarios": 1,
+  "thresholdsPassed": false,
+  "absoluteSloPassed": false,
+  "absoluteSloEvaluationStatus": "not_evaluable",
+  "realAbsoluteSloFailure": false,
+  "sloEvaluations": [
+    {
+      "sloId": "Product List:p95",
+      "metricId": "Product List",
+      "metricName": "p7_product_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Order List:p95",
+      "metricId": "Order List",
+      "metricName": "p7_order_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Inventory List:p95",
+      "metricId": "Inventory List",
+      "metricName": "p7_inventory_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Task List:p95",
+      "metricId": "Task List",
+      "metricName": "p7_task_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Webhook Event List:p95",
+      "metricId": "Webhook Event List",
+      "metricName": "p7_webhook_event_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Operation Log List:p95",
+      "metricId": "Operation Log List",
+      "metricName": "p7_operation_log_list_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 800,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Webhook Ingestion:p95",
+      "metricId": "Webhook Ingestion",
+      "metricName": "p7_webhook_ingestion_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 1200,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Provider Mock Flow:p95",
+      "metricId": "Provider Mock Flow",
+      "metricName": "p7_provider_mock_flow_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 500,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Auth Invalid Login:p95",
+      "metricId": "Auth Invalid Login",
+      "metricName": "p7_auth_invalid_login_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 500,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    },
+    {
+      "sloId": "Webhook Invalid Signature:p95",
+      "metricId": "Webhook Invalid Signature",
+      "metricName": "p7_webhook_invalid_signature_steady_duration",
+      "sampleCount": null,
+      "minimumSampleCount": 100,
+      "aggregation": "p(95)",
+      "threshold": 500,
+      "unit": "ms",
+      "direction": "lower_is_better",
+      "actualValue": null,
+      "metricPresent": false,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable",
+      "realAbsoluteSloFailure": false
+    }
+  ],
+  "unexpectedMetricEvidence": [
+    {
+      "metricName": "unexpected_401",
+      "metricPresent": false,
+      "actualValue": null,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable"
+    },
+    {
+      "metricName": "unexpected_403",
+      "metricPresent": false,
+      "actualValue": null,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable"
+    },
+    {
+      "metricName": "unexpected_404",
+      "metricPresent": false,
+      "actualValue": null,
+      "evaluationStatus": "not_evaluable_metric_missing",
+      "verdict": "not_evaluable"
+    }
+  ],
+  "targetReached": false,
+  "targetReachedComponents": {
+    "loadTargetReached": false,
+    "steadyStageEntered": false,
+    "steadyStageCompleted": false,
+    "steadyDurationReached": false,
+    "scenarioCoverageReached": false,
+    "sampleTargetReached": false,
+    "sloEvaluationCompleted": false,
+    "targetReached": false
+  },
+  "requiredScenarioMissingCount": 10,
+  "scenarioCoverageReached": false,
+  "sampleTargetReached": false,
+  "sloEvaluationCompleted": false,
+  "k6ExitCode": 1,
+  "crashes": 0,
+  "panics": 0,
+  "oom": 0,
+  "steadyMinutes": 10,
+  "steadyWindow": {
+    "phase": "steady",
+    "steadyStart": "5m+3m",
+    "steadyEnd": "5m+3m+10m",
+    "steadyDuration": "10m",
+    "steadySampleCount": 0
+  },
+  "loadProfile": {
+    "configuredVUs": 10,
+    "warmup": "5m",
+    "ramp": "3m",
+    "steady": "10m",
+    "rampdown": "2m",
+    "stages": [
+      {
+        "name": "warmup",
+        "duration": "5m",
+        "targetVUs": 10
+      },
+      {
+        "name": "ramp",
+        "duration": "3m",
+        "targetVUs": 10
+      },
+      {
+        "name": "steady",
+        "duration": "10m",
+        "targetVUs": 10
+      },
+      {
+        "name": "rampdown",
+        "duration": "2m",
+        "targetVUs": 0
+      }
+    ],
+    "scenarios": [
+      {
+        "name": "warmup",
+        "executor": "constant-vus",
+        "startTime": "0s"
+      },
+      {
+        "name": "ramp",
+        "executor": "ramping-vus",
+        "startTime": "5m"
+      },
+      {
+        "name": "steady",
+        "executor": "constant-vus",
+        "startTime": "8m"
+      },
+      {
+        "name": "rampdown",
+        "executor": "ramping-vus",
+        "startTime": "18m"
+      },
+      {
+        "name": "security_negative",
+        "executor": "constant-vus",
+        "startTime": "0s",
+        "weight": 1
+      }
+    ],
+    "requestMix": [
+      {
+        "routeId": "product_list",
+        "method": "GET",
+        "weight": 20
+      },
+      {
+        "routeId": "order_list",
+        "method": "GET",
+        "weight": 20
+      },
+      {
+        "routeId": "inventory_list",
+        "method": "GET",
+        "weight": 15
+      },
+      {
+        "routeId": "task_list",
+        "method": "GET",
+        "weight": 10
+      },
+      {
+        "routeId": "webhook_event_list",
+        "method": "GET",
+        "weight": 8
+      },
+      {
+        "routeId": "operation_log_list",
+        "method": "GET",
+        "weight": 7
+      },
+      {
+        "routeId": "webhook_ingestion",
+        "method": "POST",
+        "weight": 5
+      },
+      {
+        "routeId": "provider_mock_flow",
+        "method": "GET",
+        "weight": 5
+      },
+      {
+        "routeId": "auth_security",
+        "method": "GET",
+        "weight": 2
+      }
+    ],
+    "credentialMix": [
+      {
+        "role": "system_admin",
+        "weight": 1
+      },
+      {
+        "role": "tenant_admin",
+        "weight": 1
+      },
+      {
+        "role": "operator",
+        "weight": 1
+      },
+      {
+        "role": "readonly",
+        "weight": 1
+      }
+    ],
+    "loadScript": {
+      "path": "tests/load/p7v2-baseline.js",
+      "sha256": "6544aa21d07fd1561ce41e81b8accd05a9e30d2f4f57afa5a123c6a528ced58d"
+    }
+  },
+  "canonicalLoadProfile": {
+    "credentialMix": [
+      {
+        "role": "operator",
+        "weight": 1
+      },
+      {
+        "role": "readonly",
+        "weight": 1
+      },
+      {
+        "role": "system_admin",
+        "weight": 1
+      },
+      {
+        "role": "tenant_admin",
+        "weight": 1
+      }
+    ],
+    "load": {
+      "configuredVUs": 10,
+      "stages": [
+        {
+          "durationMs": 300000,
+          "name": "warmup",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 180000,
+          "name": "ramp",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 600000,
+          "name": "steady",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 120000,
+          "name": "rampdown",
+          "targetVUs": 0
+        }
+      ]
+    },
+    "loadEngine": {
+      "name": "k6"
+    },
+    "loadLibraries": [],
+    "loadScript": {
+      "relativePath": "tests/load/p7v2-baseline.js",
+      "sha256": "6544aa21d07fd1561ce41e81b8accd05a9e30d2f4f57afa5a123c6a528ced58d"
+    },
+    "requestMix": [
+      {
+        "method": "GET",
+        "routeId": "auth_security",
+        "weight": 2
+      },
+      {
+        "method": "GET",
+        "routeId": "inventory_list",
+        "weight": 15
+      },
+      {
+        "method": "GET",
+        "routeId": "operation_log_list",
+        "weight": 7
+      },
+      {
+        "method": "GET",
+        "routeId": "order_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "product_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "provider_mock_flow",
+        "weight": 5
+      },
+      {
+        "method": "GET",
+        "routeId": "task_list",
+        "weight": 10
+      },
+      {
+        "method": "GET",
+        "routeId": "webhook_event_list",
+        "weight": 8
+      },
+      {
+        "method": "POST",
+        "routeId": "webhook_ingestion",
+        "weight": 5
+      }
+    ],
+    "scenarios": [
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "warmup",
+        "startTimeMs": 0
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "ramp",
+        "startTimeMs": 300000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "steady",
+        "startTimeMs": 480000
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "rampdown",
+        "startTimeMs": 1080000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "security_negative",
+        "startTimeMs": 0,
+        "weight": 1
+      }
+    ],
+    "schemaVersion": 3
+  },
+  "environmentFingerprint": {
+    "runId": "p7v2-current-r3b-recovery6-20260715165422",
+    "runType": "current",
+    "gitCommit": "9c55130512b7d23b7a8593780820512cfe6fcb95",
+    "gitDirty": true,
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "cpuCores": 12,
+    "memoryTotal": 17010700288,
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "nodeVersion": "v22.22.1",
+    "pnpmVersion": "9.15.4",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "startedAt": "2026-07-16T03:43:16.234Z",
+    "endedAt": "",
+    "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+    "configFingerprint": "8b7d7af89215a75e",
+    "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066",
+    "loadProfileFingerprintVersion": 3,
+    "databaseNameHash": "ce12be0b9cb59b9e"
+  },
+  "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+  "configFingerprint": "8b7d7af89215a75e",
+  "loadProfileFingerprint": "79858a50eb3dbc73b15ea703ff4a555fb25509912111a47672981c5c781a7066",
+  "loadProfileFingerprintVersion": 3,
+  "trackedDiffHash": "21baa1c051813b5b5ee62c696fa496108485eeca448ca02d102db542154dfe53",
+  "untrackedRuntimeManifestHash": "9cc4d935e7a9e750b0fc2c8fc4127184230b7a6dd57de40690ab8824b426df4c",
+  "runtimeSourceTreeHash": "0084e6292c15bc0dc8503b8149a763c55fcae58aba2af637079bcb8869aa46eb",
+  "apiSourceHash": "cbc8391c527cb0ee630e35465ad2e3705b998086f700bb0728bdf9d20743ae11",
+  "loadScriptHash": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+  "loadScriptsHash": "eacaa87778c217bdfec48506fd0303bc8a4f5a12a530e64620075441e91a5556",
+  "metricSemanticsHash": "12d52af9a5fd03e64544e4db12e6ae49995ad3962a98b0e1cd74d15e53fba428",
+  "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
+  "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+  "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+  "memoryLeakDetected": false,
+  "goroutineLeakDetected": false,
+  "connectionLeakDetected": false,
+  "queueLeakDetected": false,
+  "issues": [
+    "k6 summary export missing",
+    "k6 completed zero requests",
+    "required scenario metrics missing: 10",
+    "absolute SLO evidence is not evaluable"
+  ],
+  "productionReady": false,
+  "restartEvidence": {
+    "phase": "P7-V2-R3B-CI-RG",
+    "component": "environment-restart",
+    "runId": "p7v2-current-r3b-recovery6-20260715165422-restart",
+    "status": "passed",
+    "restartPerformed": true,
+    "api": {
+      "startMode": "restart",
+      "previousPresent": true,
+      "previousIdentity": {
+        "present": true,
+        "pid": "1183",
+        "bootId": "c4be30d5-e57c-4e26-aa60-f5791c9cc9b5",
+        "processStartTicks": "1994",
+        "processStartTime": "",
+        "executablePath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "executableRealPath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "executableSha256": "abb6b1745527f196fbab5d1dc5264da3a9e6e41383bd78dc717143dd5c303d15",
+        "commandLine": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "workingDirectory": "/mnt/d/project/trademind-ai",
+        "listeningAddress": "127.0.0.1",
+        "listeningPort": 18080,
+        "socketInode": "",
+        "portOwnerPid": "1183",
+        "instanceNonce": "",
+        "capturedAt": "2026-07-15T17:18:26.859Z",
+        "identityKey": "c4be30d5-e57c-4e26-aa60-f5791c9cc9b5:1183:1994:abb6b1745527f196fbab5d1dc5264da3a9e6e41383bd78dc717143dd5c303d15"
+      },
+      "currentIdentity": {
+        "present": true,
+        "pid": "8536",
+        "bootId": "c4be30d5-e57c-4e26-aa60-f5791c9cc9b5",
+        "processStartTicks": "134247",
+        "processStartTime": "",
+        "executablePath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "executableRealPath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "executableSha256": "abb6b1745527f196fbab5d1dc5264da3a9e6e41383bd78dc717143dd5c303d15",
+        "commandLine": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "workingDirectory": "/mnt/d/project/trademind-ai",
+        "listeningAddress": "127.0.0.1",
+        "listeningPort": 18080,
+        "socketInode": "",
+        "portOwnerPid": "8536",
+        "instanceNonce": "7a64f7d8-8233-4b81-80f7-de5887f8e7ea",
+        "capturedAt": "2026-07-15T17:20:10.975Z",
+        "identityKey": "c4be30d5-e57c-4e26-aa60-f5791c9cc9b5:8536:134247:abb6b1745527f196fbab5d1dc5264da3a9e6e41383bd78dc717143dd5c303d15"
+      },
+      "oldProcessStopped": true,
+      "oldPidExists": false,
+      "oldIdentityExists": false,
+      "stalePidFile": false,
+      "portReleased": true,
+      "portWasFreeBeforeStart": true,
+      "processChanged": true,
+      "pidReused": false,
+      "freshProcessVerified": true,
+      "portOwnerVerified": true,
+      "serverBinaryVerified": true,
+      "instanceNonceVerified": true
+    },
+    "worker": {
+      "topology": "embedded_in_api",
+      "required": true,
+      "previousIdentity": null,
+      "currentIdentity": null,
+      "processChanged": false,
+      "freshInstanceVerified": true,
+      "status": "passed",
+      "evidence": "performance worker lifecycle is embedded in the API process"
+    },
+    "redis": {
+      "isolationMethod": "flushall",
+      "restarted": false,
+      "flushed": true,
+      "stateResetVerified": true
+    },
+    "mockProvider": {
+      "topology": "in_memory_mock",
+      "freshStateVerified": true,
+      "realProviderCalls": 0,
+      "status": "passed"
+    },
+    "database": {
+      "previousName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715165422",
+      "currentName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260715165422_restar",
+      "stateResetMethod": "new_isolated_database",
+      "stateReset": true,
+      "migrationCompleted": true,
+      "datasetProfile": "medium",
+      "plannedRows": 1900150,
+      "actualRows": 1900150,
+      "failedRows": 0,
+      "duplicateRows": 0,
+      "datasetVerified": true,
+      "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d"
+    },
+    "bootstrapPassed": true,
+    "authProbePassed": true,
+    "routeProbePassed": true,
+    "serverReady": true,
+    "currentRunIndependent": true,
+    "productionResourcesAccessed": false,
+    "selectedHost": "127.0.0.1",
+    "selectedPort": 18080,
+    "baseUrl": "http://127.0.0.1:18080",
+    "generatedAt": "2026-07-15T17:20:10.976Z",
+    "issues": []
+  },
+  "currentRunIndependent": true,
+  "independentRun": true,
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260715165422",
+  "runtimeFreezeId": "f918b0454de17f2b2da96ac60ce24c43c3091bd1b4dfe7f241fbf105099c8271",
+  "runtimeFreezeContractHash": "f918b0454de17f2b2da96ac60ce24c43c3091bd1b4dfe7f241fbf105099c8271",
+  "runtimeFreezeRunId": "p7v2-current-r3b-recovery6-20260715165422"
+}

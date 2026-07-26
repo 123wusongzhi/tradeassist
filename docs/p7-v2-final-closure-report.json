@@ -1,0 +1,171 @@
+{
+  "phase": "P7-V2",
+  "status": "incomplete",
+  "failed": 12,
+  "passed": 10,
+  "checks": [
+    {
+      "id": "preflight",
+      "status": "passed"
+    },
+    {
+      "id": "baseline-freeze",
+      "status": "passed"
+    },
+    {
+      "id": "load",
+      "status": "passed"
+    },
+    {
+      "id": "baseline",
+      "status": "passed"
+    },
+    {
+      "id": "comparability",
+      "status": "failed"
+    },
+    {
+      "id": "current",
+      "status": "failed"
+    },
+    {
+      "id": "regression",
+      "status": "failed"
+    },
+    {
+      "id": "soak",
+      "status": "failed"
+    },
+    {
+      "id": "soak-minutes",
+      "status": "failed"
+    },
+    {
+      "id": "demo-run1",
+      "status": "failed"
+    },
+    {
+      "id": "demo-run2",
+      "status": "failed"
+    },
+    {
+      "id": "p1-p7-gate",
+      "status": "failed"
+    },
+    {
+      "id": "mandatory-partial-zero",
+      "status": "passed"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "failed"
+    },
+    {
+      "id": "cleanup",
+      "status": "failed"
+    },
+    {
+      "id": "stability",
+      "status": "failed"
+    },
+    {
+      "id": "race",
+      "status": "failed"
+    },
+    {
+      "id": "dataset-rows",
+      "status": "passed"
+    },
+    {
+      "id": "no-production-access",
+      "status": "passed"
+    },
+    {
+      "id": "no-real-provider",
+      "status": "passed"
+    },
+    {
+      "id": "no-tag",
+      "status": "passed"
+    },
+    {
+      "id": "not-production-ready",
+      "status": "passed"
+    }
+  ],
+  "preflight": {
+    "status": "passed",
+    "k6Available": true
+  },
+  "dataset": {
+    "profile": "medium",
+    "plannedRows": 1900150,
+    "actualRows": 1900150,
+    "duplicateRows": 0,
+    "failedRows": 0,
+    "fingerprintStable": true
+  },
+  "load": {
+    "status": "passed",
+    "thresholdsPassed": true
+  },
+  "baseline": {
+    "status": "passed",
+    "runId": "p7v2-r3-baseline-20260714133131",
+    "immutable": true
+  },
+  "comparability": {
+    "status": "not_comparable"
+  },
+  "current": {
+    "runId": "",
+    "independentRun": false
+  },
+  "regression": {
+    "status": "failed",
+    "absoluteSloPassed": true,
+    "relativeRegressionPassed": true
+  },
+  "soak": {
+    "steadyMinutes": 0
+  },
+  "demoAcceptance": {
+    "run1": "pending",
+    "run2": "pending"
+  },
+  "capabilities": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 12
+  },
+  "gates": {
+    "p7V2": "incomplete",
+    "p1ToP7": "incomplete"
+  },
+  "cleanup": {
+    "status": "incomplete",
+    "remainingDatabasesWithPrefix": 7,
+    "processesRemaining": 10,
+    "portsRemaining": 0
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "issues": [
+    "comparability",
+    "current",
+    "regression",
+    "soak",
+    "soak-minutes",
+    "demo-run1",
+    "demo-run2",
+    "p1-p7-gate",
+    "mandatory-missing-zero",
+    "cleanup",
+    "stability",
+    "race"
+  ]
+}
