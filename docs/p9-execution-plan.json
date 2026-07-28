@@ -16,7 +16,7 @@
   "legacyPlanningTaskIdsPreserved": true,
   "planningFoundationCompleted": true,
   "fullImplementationPlanCompleted": true,
-  "productImplementationStarted": false,
+  "productImplementationStarted": true,
   "planningFoundationTaskIds": [
     "P9-101",
     "P9-102",
@@ -89,8 +89,8 @@
   "currentBranch": "dev",
   "headDetached": false,
   "stagedFileCount": 0,
-  "p9ProductImplementationFileCount": 0,
-  "productCompletedTaskCount": 0,
+  "p9ProductImplementationFileCount": 1,
+  "productCompletedTaskCount": 12,
   "p10BoundaryPreserved": true,
   "productionReady": false,
   "workstreams": [
@@ -109,11 +109,25 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["docs/P8_DEVELOPMENT_CLOSURE.md", "docs/p8-development-closure.json"],
-          "deliverables": ["live HEAD capture", "P8 baseline snapshot"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-02"],
-          "evidencePaths": ["docs/P9_SCOPE_DISCOVERY.md", "docs/p9-scope-discovery.json"],
-          "gateIds": ["P9-ENTRY"],
+          "dependencies": [
+            "docs/P8_DEVELOPMENT_CLOSURE.md",
+            "docs/p8-development-closure.json"
+          ],
+          "deliverables": [
+            "live HEAD capture",
+            "P8 baseline snapshot"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-02"
+          ],
+          "evidencePaths": [
+            "docs/P9_SCOPE_DISCOVERY.md",
+            "docs/p9-scope-discovery.json"
+          ],
+          "gateIds": [
+            "P9-ENTRY"
+          ],
           "status": "completed",
           "implementationStarted": false
         },
@@ -126,11 +140,25 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-101"],
-          "deliverables": ["reference classification table", "historical evidence map"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-02", "AC-P9-03"],
-          "evidencePaths": ["docs/P9_SCOPE_DISCOVERY.md", "docs/p9-scope-discovery.json"],
-          "gateIds": ["P9-ENTRY"],
+          "dependencies": [
+            "P9-101"
+          ],
+          "deliverables": [
+            "reference classification table",
+            "historical evidence map"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-02",
+            "AC-P9-03"
+          ],
+          "evidencePaths": [
+            "docs/P9_SCOPE_DISCOVERY.md",
+            "docs/p9-scope-discovery.json"
+          ],
+          "gateIds": [
+            "P9-ENTRY"
+          ],
           "status": "completed",
           "implementationStarted": false
         }
@@ -151,11 +179,24 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-102"],
-          "deliverables": ["canonical scope decision lock", "P10 boundary summary"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-15"],
-          "evidencePaths": ["docs/P9_OWNER_SCOPE_DECISION.md", "docs/p9-owner-scope-decision.json"],
-          "gateIds": ["P9-ENTRY"],
+          "dependencies": [
+            "P9-102"
+          ],
+          "deliverables": [
+            "canonical scope decision lock",
+            "P10 boundary summary"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_OWNER_SCOPE_DECISION.md",
+            "docs/p9-owner-scope-decision.json"
+          ],
+          "gateIds": [
+            "P9-ENTRY"
+          ],
           "status": "completed",
           "implementationStarted": false
         },
@@ -168,11 +209,23 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-201"],
-          "deliverables": ["non-goals list", "production boundary summary"],
-          "acceptanceCriteriaIds": ["AC-P9-15"],
-          "evidencePaths": ["docs/P9_OWNER_SCOPE_DECISION.md", "docs/p9-owner-scope-decision.json"],
-          "gateIds": ["P9-ENTRY"],
+          "dependencies": [
+            "P9-201"
+          ],
+          "deliverables": [
+            "non-goals list",
+            "production boundary summary"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_OWNER_SCOPE_DECISION.md",
+            "docs/p9-owner-scope-decision.json"
+          ],
+          "gateIds": [
+            "P9-ENTRY"
+          ],
           "status": "completed",
           "implementationStarted": false
         }
@@ -193,11 +246,24 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-201"],
-          "deliverables": ["entry gate script", "entry gate fixtures"],
-          "acceptanceCriteriaIds": ["AC-P9-11", "AC-P9-13"],
-          "evidencePaths": ["scripts/p9-entry-gate.mjs", "tests/gates/p9/entry.mjs"],
-          "gateIds": ["P9-ENTRY"],
+          "dependencies": [
+            "P9-201"
+          ],
+          "deliverables": [
+            "entry gate script",
+            "entry gate fixtures"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "scripts/p9-entry-gate.mjs",
+            "tests/gates/p9/entry.mjs"
+          ],
+          "gateIds": [
+            "P9-ENTRY"
+          ],
           "status": "completed",
           "implementationStarted": false
         },
@@ -210,11 +276,25 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-202", "P9-301"],
-          "deliverables": ["plan gate script", "plan gate fixtures"],
-          "acceptanceCriteriaIds": ["AC-P9-11", "AC-P9-15"],
-          "evidencePaths": ["scripts/p9-plan-final-gate.mjs", "tests/gates/p9/plan.mjs"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-202",
+            "P9-301"
+          ],
+          "deliverables": [
+            "plan gate script",
+            "plan gate fixtures"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11",
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "scripts/p9-plan-final-gate.mjs",
+            "tests/gates/p9/plan.mjs"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "completed",
           "implementationStarted": false
         }
@@ -235,11 +315,24 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-301"],
-          "deliverables": ["discovery docs", "plan docs", "gate reports"],
-          "acceptanceCriteriaIds": ["AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-301"
+          ],
+          "deliverables": [
+            "discovery docs",
+            "plan docs",
+            "gate reports"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "completed",
           "implementationStarted": false
         },
@@ -252,11 +345,23 @@
           "batchId": "planning",
           "taskCategory": "planning_governance",
           "planningFoundation": true,
-          "dependencies": ["P9-401"],
-          "deliverables": ["docs index update", "progress summary update"],
-          "acceptanceCriteriaIds": ["AC-P9-13"],
-          "evidencePaths": ["docs/PROGRESS.md", "docs/README.md"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-401"
+          ],
+          "deliverables": [
+            "docs index update",
+            "progress summary update"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/PROGRESS.md",
+            "docs/README.md"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "completed",
           "implementationStarted": false
         }
@@ -278,13 +383,28 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-PLAN"],
-          "deliverables": ["InventorySyncRun", "status", "cursor/checkpoint"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-02"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-PLAN"
+          ],
+          "deliverables": [
+            "InventorySyncRun",
+            "status",
+            "cursor/checkpoint"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-02"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-502",
@@ -295,13 +415,29 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-501"],
-          "deliverables": ["InventorySnapshotItem", "payload hash", "immutable history"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-02", "AC-P9-04"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-501"
+          ],
+          "deliverables": [
+            "InventorySnapshotItem",
+            "payload hash",
+            "immutable history"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-02",
+            "AC-P9-04"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-503",
@@ -312,13 +448,28 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-502"],
-          "deliverables": ["SKUBinding", "binding source", "optimistic revision"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-502"
+          ],
+          "deliverables": [
+            "SKUBinding",
+            "binding source",
+            "optimistic revision"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-504",
@@ -329,13 +480,28 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-503"],
-          "deliverables": ["SKUBindingCalibration", "score breakdown", "reason codes"],
-          "acceptanceCriteriaIds": ["AC-P9-04", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-503"
+          ],
+          "deliverables": [
+            "SKUBindingCalibration",
+            "score breakdown",
+            "reason codes"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-04",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-505",
@@ -346,13 +512,29 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-504"],
-          "deliverables": ["ManualBindingRequest", "resolution", "audit trail"],
-          "acceptanceCriteriaIds": ["AC-P9-05", "AC-P9-06", "AC-P9-07"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-504"
+          ],
+          "deliverables": [
+            "ManualBindingRequest",
+            "resolution",
+            "audit trail"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-05",
+            "AC-P9-06",
+            "AC-P9-07"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-506",
@@ -363,13 +545,29 @@
           "batchId": "P9-TASK-BATCH-1",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-505"],
-          "deliverables": ["forward migrations", "repositories", "race tests"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-02", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_TASK_BATCH_1_SCOPE.md", "docs/p9-task-batch-1-scope.json"],
-          "gateIds": ["P9-PLAN", "P9-TASK-BATCH-1-SCOPE"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-505"
+          ],
+          "deliverables": [
+            "forward migrations",
+            "repositories",
+            "race tests"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-02",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_1_SCOPE.md",
+            "docs/p9-task-batch-1-scope.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-1-SCOPE"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         }
       ]
     },
@@ -389,13 +587,27 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-506"],
-          "deliverables": ["SKU code normalization", "barcode normalization"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-04"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-506"
+          ],
+          "deliverables": [
+            "SKU code normalization",
+            "barcode normalization"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-04"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-602",
@@ -406,13 +618,27 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-601"],
-          "deliverables": ["exact SKU code match", "exact barcode match"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-04"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-601"
+          ],
+          "deliverables": [
+            "exact SKU code match",
+            "exact barcode match"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-04"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-603",
@@ -423,13 +649,28 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-602"],
-          "deliverables": ["score breakdown", "reason codes", "candidate ordering"],
-          "acceptanceCriteriaIds": ["AC-P9-04", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-602"
+          ],
+          "deliverables": [
+            "score breakdown",
+            "reason codes",
+            "candidate ordering"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-04",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-604",
@@ -440,13 +681,27 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-603"],
-          "deliverables": ["high-confidence threshold", "low-confidence policy"],
-          "acceptanceCriteriaIds": ["AC-P9-04", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-603"
+          ],
+          "deliverables": [
+            "high-confidence threshold",
+            "low-confidence policy"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-04",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-605",
@@ -457,13 +712,29 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-604"],
-          "deliverables": ["create request", "approve/reject", "audit"],
-          "acceptanceCriteriaIds": ["AC-P9-05", "AC-P9-06", "AC-P9-07"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-604"
+          ],
+          "deliverables": [
+            "create request",
+            "approve/reject",
+            "audit"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-05",
+            "AC-P9-06",
+            "AC-P9-07"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-606",
@@ -474,13 +745,28 @@
           "batchId": "P9-TASK-BATCH-2",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-605"],
-          "deliverables": ["concurrency tests", "race tests", "gate evidence"],
-          "acceptanceCriteriaIds": ["AC-P9-08", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
-          "status": "planned",
-          "implementationStarted": false
+          "dependencies": [
+            "P9-605"
+          ],
+          "deliverables": [
+            "concurrency tests",
+            "race tests",
+            "gate evidence"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-08",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_TASK_BATCH_2_SKU_CALIBRATION.md",
+            "docs/p9-task-batch-2-sku-calibration.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-TASK-BATCH-2-SKU-CALIBRATION"
+          ],
+          "status": "completed",
+          "implementationStarted": true
         }
       ]
     },
@@ -500,11 +786,24 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-606"],
-          "deliverables": ["provider interface", "cursor contract"],
-          "acceptanceCriteriaIds": ["AC-P9-09", "AC-P9-11"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-606"
+          ],
+          "deliverables": [
+            "provider interface",
+            "cursor contract"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-09",
+            "AC-P9-11"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -517,11 +816,24 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-701"],
-          "deliverables": ["deterministic fixture provider", "success/error scenarios"],
-          "acceptanceCriteriaIds": ["AC-P9-09", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-701"
+          ],
+          "deliverables": [
+            "deterministic fixture provider",
+            "success/error scenarios"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-09",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -534,11 +846,25 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-702"],
-          "deliverables": ["sync run creation", "snapshot capture", "stats"],
-          "acceptanceCriteriaIds": ["AC-P9-01", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-702"
+          ],
+          "deliverables": [
+            "sync run creation",
+            "snapshot capture",
+            "stats"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-01",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -551,11 +877,24 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-703"],
-          "deliverables": ["confirmed binding priority", "automatic candidate flow"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-703"
+          ],
+          "deliverables": [
+            "confirmed binding priority",
+            "automatic candidate flow"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -568,11 +907,25 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-704"],
-          "deliverables": ["failure classification", "safe rerun", "manual retry"],
-          "acceptanceCriteriaIds": ["AC-P9-06", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-704"
+          ],
+          "deliverables": [
+            "failure classification",
+            "safe rerun",
+            "manual retry"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-06",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -585,11 +938,25 @@
           "batchId": "P9-TASK-BATCH-3",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-705"],
-          "deliverables": ["task tests", "cursor tests", "race tests"],
-          "acceptanceCriteriaIds": ["AC-P9-08", "AC-P9-10"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-705"
+          ],
+          "deliverables": [
+            "task tests",
+            "cursor tests",
+            "race tests"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-08",
+            "AC-P9-10"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         }
@@ -611,11 +978,23 @@
           "batchId": "P9-TASK-BATCH-4",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-706"],
-          "deliverables": ["view/run/binding/audit permissions"],
-          "acceptanceCriteriaIds": ["AC-P9-11", "AC-P9-12"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-706"
+          ],
+          "deliverables": [
+            "view/run/binding/audit permissions"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11",
+            "AC-P9-12"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -628,11 +1007,25 @@
           "batchId": "P9-TASK-BATCH-4",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-801"],
-          "deliverables": ["run events", "binding events", "manual request events"],
-          "acceptanceCriteriaIds": ["AC-P9-07", "AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-801"
+          ],
+          "deliverables": [
+            "run events",
+            "binding events",
+            "manual request events"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-07",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -645,11 +1038,23 @@
           "batchId": "P9-TASK-BATCH-4",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-802"],
-          "deliverables": ["provider metadata redaction", "safe error details"],
-          "acceptanceCriteriaIds": ["AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-802"
+          ],
+          "deliverables": [
+            "provider metadata redaction",
+            "safe error details"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -662,11 +1067,24 @@
           "batchId": "P9-TASK-BATCH-4",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-803"],
-          "deliverables": ["fake provider guard", "real boundary guard"],
-          "acceptanceCriteriaIds": ["AC-P9-14", "AC-P9-15"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-803"
+          ],
+          "deliverables": [
+            "fake provider guard",
+            "real boundary guard"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-14",
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         }
@@ -688,11 +1106,23 @@
           "batchId": "P9-TASK-BATCH-5",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-804"],
-          "deliverables": ["create/list/detail/status/statistics"],
-          "acceptanceCriteriaIds": ["AC-P9-11", "AC-P9-12"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-804"
+          ],
+          "deliverables": [
+            "create/list/detail/status/statistics"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11",
+            "AC-P9-12"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -705,11 +1135,23 @@
           "batchId": "P9-TASK-BATCH-5",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-901"],
-          "deliverables": ["list/filter", "cursor pagination"],
-          "acceptanceCriteriaIds": ["AC-P9-11"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-901"
+          ],
+          "deliverables": [
+            "list/filter",
+            "cursor pagination"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -722,11 +1164,27 @@
           "batchId": "P9-TASK-BATCH-5",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-902"],
-          "deliverables": ["bindings", "candidates", "recalibration", "history"],
-          "acceptanceCriteriaIds": ["AC-P9-03", "AC-P9-04", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-902"
+          ],
+          "deliverables": [
+            "bindings",
+            "candidates",
+            "recalibration",
+            "history"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-03",
+            "AC-P9-04",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -739,11 +1197,26 @@
           "batchId": "P9-TASK-BATCH-5",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-903"],
-          "deliverables": ["pending list", "detail", "approve", "reject"],
-          "acceptanceCriteriaIds": ["AC-P9-06", "AC-P9-07"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-903"
+          ],
+          "deliverables": [
+            "pending list",
+            "detail",
+            "approve",
+            "reject"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-06",
+            "AC-P9-07"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -756,11 +1229,25 @@
           "batchId": "P9-TASK-BATCH-5",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-904"],
-          "deliverables": ["run history", "error summary", "audit timeline"],
-          "acceptanceCriteriaIds": ["AC-P9-13", "AC-P9-14"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-904"
+          ],
+          "deliverables": [
+            "run history",
+            "error summary",
+            "audit timeline"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-13",
+            "AC-P9-14"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         }
@@ -782,11 +1269,26 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-905"],
-          "deliverables": ["sync run list", "status", "statistics", "filters"],
-          "acceptanceCriteriaIds": ["AC-P9-12", "AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-905"
+          ],
+          "deliverables": [
+            "sync run list",
+            "status",
+            "statistics",
+            "filters"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-12",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -799,11 +1301,25 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1001"],
-          "deliverables": ["run stats", "inventory snapshot", "unresolved items"],
-          "acceptanceCriteriaIds": ["AC-P9-12", "AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1001"
+          ],
+          "deliverables": [
+            "run stats",
+            "inventory snapshot",
+            "unresolved items"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-12",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -816,11 +1332,25 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1002"],
-          "deliverables": ["remote SKU", "local candidate", "score details"],
-          "acceptanceCriteriaIds": ["AC-P9-04", "AC-P9-05"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1002"
+          ],
+          "deliverables": [
+            "remote SKU",
+            "local candidate",
+            "score details"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-04",
+            "AC-P9-05"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -833,11 +1363,25 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1003"],
-          "deliverables": ["manual approve/reject", "conflict hints", "search"],
-          "acceptanceCriteriaIds": ["AC-P9-06", "AC-P9-07"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1003"
+          ],
+          "deliverables": [
+            "manual approve/reject",
+            "conflict hints",
+            "search"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-06",
+            "AC-P9-07"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -850,11 +1394,25 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1004"],
-          "deliverables": ["binding history", "calibration history", "audit timeline"],
-          "acceptanceCriteriaIds": ["AC-P9-13", "AC-P9-14"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1004"
+          ],
+          "deliverables": [
+            "binding history",
+            "calibration history",
+            "audit timeline"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-13",
+            "AC-P9-14"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -867,11 +1425,27 @@
           "batchId": "P9-TASK-BATCH-6",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1005"],
-          "deliverables": ["i18n", "loading", "empty", "error", "responsive checks"],
-          "acceptanceCriteriaIds": ["AC-P9-12", "AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1005"
+          ],
+          "deliverables": [
+            "i18n",
+            "loading",
+            "empty",
+            "error",
+            "responsive checks"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-12",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         }
@@ -893,11 +1467,28 @@
           "batchId": "P9-TASK-BATCH-7",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1006"],
-          "deliverables": ["success", "low-confidence", "conflict", "manual binding", "failure"],
-          "acceptanceCriteriaIds": ["AC-P9-09", "AC-P9-10", "AC-P9-12"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN"],
+          "dependencies": [
+            "P9-1006"
+          ],
+          "deliverables": [
+            "success",
+            "low-confidence",
+            "conflict",
+            "manual binding",
+            "failure"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-09",
+            "AC-P9-10",
+            "AC-P9-12"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -910,11 +1501,27 @@
           "batchId": "P9-TASK-BATCH-7",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1101"],
-          "deliverables": ["fixture sync", "candidate calibration", "manual binding"],
-          "acceptanceCriteriaIds": ["AC-P9-11", "AC-P9-12", "AC-P9-13"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN", "P9-FINAL"],
+          "dependencies": [
+            "P9-1101"
+          ],
+          "deliverables": [
+            "fixture sync",
+            "candidate calibration",
+            "manual binding"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-11",
+            "AC-P9-12",
+            "AC-P9-13"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-FINAL"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -927,11 +1534,25 @@
           "batchId": "P9-TASK-BATCH-7",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1102"],
-          "deliverables": ["real credential guard", "real network guard"],
-          "acceptanceCriteriaIds": ["AC-P9-14", "AC-P9-15"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN", "P9-FINAL"],
+          "dependencies": [
+            "P9-1102"
+          ],
+          "deliverables": [
+            "real credential guard",
+            "real network guard"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-14",
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-FINAL"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -944,11 +1565,25 @@
           "batchId": "P9-TASK-BATCH-7",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1103"],
-          "deliverables": ["task completion", "acceptance criteria", "quality gates"],
-          "acceptanceCriteriaIds": ["AC-P9-15"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN", "P9-FINAL"],
+          "dependencies": [
+            "P9-1103"
+          ],
+          "deliverables": [
+            "task completion",
+            "acceptance criteria",
+            "quality gates"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-FINAL"
+          ],
           "status": "planned",
           "implementationStarted": false
         },
@@ -961,11 +1596,25 @@
           "batchId": "P9-TASK-BATCH-7",
           "taskCategory": "product_implementation",
           "planningFoundation": false,
-          "dependencies": ["P9-1104"],
-          "deliverables": ["closure markdown", "closure JSON", "P10 reservation"],
-          "acceptanceCriteriaIds": ["AC-P9-15"],
-          "evidencePaths": ["docs/P9_EXECUTION_PLAN.md", "docs/p9-execution-plan.json"],
-          "gateIds": ["P9-PLAN", "P9-FINAL"],
+          "dependencies": [
+            "P9-1104"
+          ],
+          "deliverables": [
+            "closure markdown",
+            "closure JSON",
+            "P10 reservation"
+          ],
+          "acceptanceCriteriaIds": [
+            "AC-P9-15"
+          ],
+          "evidencePaths": [
+            "docs/P9_EXECUTION_PLAN.md",
+            "docs/p9-execution-plan.json"
+          ],
+          "gateIds": [
+            "P9-PLAN",
+            "P9-FINAL"
+          ],
           "status": "planned",
           "implementationStarted": false
         }
@@ -977,43 +1626,90 @@
       "batch": 1,
       "batchId": "P9-TASK-BATCH-1",
       "batchName": "Inventory Sync, SKU Binding Calibration and Manual Fallback / Domain and Persistence Foundation",
-      "taskIds": ["P9-501", "P9-502", "P9-503", "P9-504", "P9-505", "P9-506"]
+      "taskIds": [
+        "P9-501",
+        "P9-502",
+        "P9-503",
+        "P9-504",
+        "P9-505",
+        "P9-506"
+      ]
     },
     {
       "batch": 2,
       "batchId": "P9-TASK-BATCH-2",
       "batchName": "Calibration and Manual Binding Services",
-      "taskIds": ["P9-601", "P9-602", "P9-603", "P9-604", "P9-605", "P9-606"]
+      "taskIds": [
+        "P9-601",
+        "P9-602",
+        "P9-603",
+        "P9-604",
+        "P9-605",
+        "P9-606"
+      ]
     },
     {
       "batch": 3,
       "batchId": "P9-TASK-BATCH-3",
       "batchName": "Fixture Inventory Sync Orchestration",
-      "taskIds": ["P9-701", "P9-702", "P9-703", "P9-704", "P9-705", "P9-706"]
+      "taskIds": [
+        "P9-701",
+        "P9-702",
+        "P9-703",
+        "P9-704",
+        "P9-705",
+        "P9-706"
+      ]
     },
     {
       "batch": 4,
       "batchId": "P9-TASK-BATCH-4",
       "batchName": "Permissions, Audit and Safety",
-      "taskIds": ["P9-801", "P9-802", "P9-803", "P9-804"]
+      "taskIds": [
+        "P9-801",
+        "P9-802",
+        "P9-803",
+        "P9-804"
+      ]
     },
     {
       "batch": 5,
       "batchId": "P9-TASK-BATCH-5",
       "batchName": "Backend APIs",
-      "taskIds": ["P9-901", "P9-902", "P9-903", "P9-904", "P9-905"]
+      "taskIds": [
+        "P9-901",
+        "P9-902",
+        "P9-903",
+        "P9-904",
+        "P9-905"
+      ]
     },
     {
       "batch": 6,
       "batchId": "P9-TASK-BATCH-6",
       "batchName": "Admin Inventory Sync and Binding Center",
-      "taskIds": ["P9-1001", "P9-1002", "P9-1003", "P9-1004", "P9-1005", "P9-1006"]
+      "taskIds": [
+        "P9-1001",
+        "P9-1002",
+        "P9-1003",
+        "P9-1004",
+        "P9-1005",
+        "P9-1006"
+      ]
     },
     {
       "batch": 7,
       "batchId": "P9-TASK-BATCH-7",
       "batchName": "Integration, Final Gates and Development Closure",
-      "taskIds": ["P9-1101", "P9-1102", "P9-1103", "P9-1104", "P9-1105"]
+      "taskIds": [
+        "P9-1101",
+        "P9-1102",
+        "P9-1103",
+        "P9-1104",
+        "P9-1105"
+      ]
     }
-  ]
+  ],
+  "phaseStatus": "In Progress",
+  "currentHead": "1ac652ac4797eee636bf615f1e9ed272f2b82f84"
 }

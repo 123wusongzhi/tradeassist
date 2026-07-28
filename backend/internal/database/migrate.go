@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/imagetask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventorysyncp9"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationtask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
@@ -188,6 +189,9 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 	if err := operationtask.Migrate(db); err != nil {
+		return err
+	}
+	if err := inventorysyncp9.Migrate(db); err != nil {
 		return err
 	}
 	if err := migrateDouyinPhase102Indexes(db); err != nil {

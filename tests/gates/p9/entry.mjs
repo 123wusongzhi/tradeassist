@@ -82,6 +82,31 @@ function assertFails(id, overrides = {}) {
 }
 
 assert.equal(validateP9EntryBundle(validBundle()).status, 'allowed');
+assert.equal(validateP9EntryBundle(validBundle({ currentHead: 'head-01', discovery: { p9DiscoveryBaseHead: 'head-01' } })).status, 'allowed', 'HEAD-01 planning gate accepts exact discovery HEAD');
+assert.equal(
+  validateP9EntryBundle(
+    validBundle({
+      currentHead: 'head-02-live',
+      discovery: {
+        p9DiscoveryBaseHead: 'head-02-base',
+        currentHead: 'head-02-live',
+        implementationStarted: true,
+        productImplementationStarted: true,
+        p9ProductImplementationFileCount: 1,
+      },
+    }),
+  ).status,
+  'allowed',
+  'HEAD-02 product implementation may advance beyond discovery base when current HEAD is recorded',
+);
+assertFails('discoveryHeadMatch', { currentHead: 'head-03-live', discovery: { p9DiscoveryBaseHead: 'head-03-base' } });
+assertFails('discoveryHeadMatch', {
+  currentHead: 'head-04-live',
+  discovery: { p9DiscoveryBaseHead: 'head-04-base', currentHead: 'head-04-old', implementationStarted: true, productImplementationStarted: true, p9ProductImplementationFileCount: 1 },
+});
+assertFails('p9ProductImplementationFileCount', { discovery: { p9ProductImplementationFileCount: 1 } });
+assertFails('implementationStarted', { discovery: { implementationStarted: true, productImplementationStarted: false, p9ProductImplementationFileCount: 1, currentHead: 'abc123' } });
+assertFails('stagedFileCount', { stagedFileCount: 1 });
 assertFails('ownerDecisionApproved', {
   ownerDecision: {
     decisionStatus: 'draft',

@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 export const P9_OWNER_SCOPE_DECISION_JSON = 'docs/p9-owner-scope-decision.json';
 export const P9_OWNER_SCOPE_DECISION_MD = 'docs/P9_OWNER_SCOPE_DECISION.md';
@@ -16,6 +15,28 @@ export const P9_BATCH_1_SCOPE_GATE_JSON = 'docs/p9-task-batch-1-scope-gate.json'
 export const P9_BATCH_1_SCOPE_GATE_MD = 'docs/P9_TASK_BATCH_1_SCOPE_GATE.md';
 export const P9_PLAN_GATE_JSON = 'docs/p9-plan-final-gate.json';
 export const P9_PLAN_GATE_MD = 'docs/P9_PLAN_FINAL_GATE.md';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function readJSON(rel) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeJSON(rel, data) {
+  const full = path.join(REPO_ROOT, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+}
+
+function writeMarkdown(rel, body) {
+  const full = path.join(REPO_ROOT, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, body, 'utf8');
+}
 
 const REQUIRED_FILES = [
   P9_OWNER_SCOPE_DECISION_MD,
@@ -48,7 +69,7 @@ const PRODUCT_BATCH_IDS = PRODUCT_BATCH_SPECS.map((batch) => batch.batch);
 
 function git(args) {
   try {
-    return execFileSync('git', args, { cwd: process.cwd(), encoding: 'utf8' }).trim();
+    return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
   } catch {
     return '';
   }
@@ -157,7 +178,7 @@ export function validateP9PlanBundle({
   const head = currentHead ?? git(['rev-parse', 'HEAD']);
   const detached = headDetached ?? git(['rev-parse', '--abbrev-ref', 'HEAD']) === 'HEAD';
   const staged = stagedFileCount ?? (git(['diff', '--cached', '--name-only']) === '' ? 0 : git(['diff', '--cached', '--name-only']).split('\n').length);
-  const missingFiles = REQUIRED_FILES.filter((rel) => !fs.existsSync(path.join(process.cwd(), rel)));
+  const missingFiles = REQUIRED_FILES.filter((rel) => !fs.existsSync(path.join(REPO_ROOT, rel)));
   const ownerDecisionApproved =
     ownerDecision.decisionStatus === 'approved' &&
     ownerDecision.approvedByRole === 'Owner' &&
@@ -181,6 +202,11 @@ export function validateP9PlanBundle({
   const productBatchCoverage = product.every((task) => Number(taskBatch(task)) >= 1 && Number(taskBatch(task)) <= 7 && String(task.batchId || '').length > 0);
   const productImplementationStarted = plan.productImplementationStarted === true || product.some((task) => task.implementationStarted === true);
   const productCompletedTaskCount = product.filter((task) => taskStatus(task) === 'completed').length;
+  const productStartedPlanCompatible = productImplementationStarted ? product.some((task) => task.implementationStarted === true || taskStatus(task) === 'completed') : true;
+  const productStatusCompatible = productImplementationStarted ? product.every((task) => ['planned', 'in_progress', 'completed'].includes(taskStatus(task))) : productPlanned;
+  const productCompletedTaskCountCompatible = productImplementationStarted ? productCompletedTaskCount > 0 : productCompletedTaskCount === 0;
+  const productImplementationFileCountCompatible = productImplementationStarted ? Number(plan.p9ProductImplementationFileCount || 0) > 0 : Number(plan.p9ProductImplementationFileCount || 0) === 0;
+  const discoveryHeadCompatible = productImplementationStarted ? plan.currentHead === head && String(plan.p9DiscoveryBaseHead || '').length > 0 : plan.p9DiscoveryBaseHead === head;
   const duplicateTaskIdCount = allTasks.length - unique(allTasks.map(taskId)).length;
   const planningProductOverlap = product.map(taskId).filter((id) => PLANNING_TASK_IDS.includes(id)).length;
   const batch1Ids = batchTaskIds(product, 1);
@@ -229,20 +255,20 @@ export function validateP9PlanBundle({
     ['allTasksHaveEvidenceMapping', productEvidenceCovered],
     ['allTasksHaveGateMapping', productGateCoverage],
     ['allTasksHaveCoreFields', allTasksHaveCoreFields],
-    ['allTasksPlannedOrCompletedAsExpected', planningCompleted && productPlanned],
+    ['allTasksPlannedOrCompletedAsExpected', planningCompleted && productStatusCompatible],
     ['allProductTasksHaveBatchMapping', productBatchCoverage],
-    ['productImplementationStarted', productImplementationStarted === false],
-    ['productCompletedTaskCount', productCompletedTaskCount === 0],
+    ['productImplementationStarted', productStartedPlanCompatible],
+    ['productCompletedTaskCount', productCompletedTaskCountCompatible],
     ['duplicateTaskIdCount', duplicateTaskIdCount === 0],
     ['productTaskIdCollisionCount', planningProductOverlap === 0],
     ['ownerDecisionRequired', discovery.ownerDecisionRequired === false],
-    ['p9ProductImplementationFileCount', plan.p9ProductImplementationFileCount === 0],
+    ['p9ProductImplementationFileCount', productImplementationFileCountCompatible],
     ['p10BoundaryPreserved', plan.p10BoundaryPreserved === true],
     ['productionReady', plan.productionReady === false],
     ['currentBranch', branch === 'dev'],
     ['headDetached', detached === false],
     ['stagedFileCount', staged === 0],
-    ['discoveryHeadMatch', plan.p9DiscoveryBaseHead === head],
+    ['discoveryHeadMatch', discoveryHeadCompatible],
   ];
 
   const failed = failedCountChecks.filter(([, ok]) => !ok).map(([id]) => id);
@@ -285,13 +311,13 @@ export function validateP9PlanBundle({
     allTasksHaveEvidenceMapping: productEvidenceCovered,
     allTasksHaveGateMapping: productGateCoverage,
     allTasksHaveCoreFields,
-    allTasksPlannedOrCompletedAsExpected: planningCompleted && productPlanned,
+    allTasksPlannedOrCompletedAsExpected: planningCompleted && productStatusCompatible,
     allProductTasksHaveBatchMapping: productBatchCoverage,
     productImplementationStarted,
     p9ProductImplementationFileCount: plan.p9ProductImplementationFileCount || 0,
     p10BoundaryPreserved: plan.p10BoundaryPreserved === true,
     productionReady: plan.productionReady === true,
-    discoveryHeadMatch: plan.p9DiscoveryBaseHead === head,
+    discoveryHeadMatch: discoveryHeadCompatible,
     checks: failedCountChecks.map(([id, ok]) => ({ id, status: ok ? 'passed' : 'failed' })),
   };
 }

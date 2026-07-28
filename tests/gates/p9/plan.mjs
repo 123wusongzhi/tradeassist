@@ -299,6 +299,45 @@ function assertFails(id, overrides = {}) {
 }
 
 assert.equal(validateP9PlanBundle(validBundle()).status, 'passed');
+assert.equal(validateP9PlanBundle(validBundle({ currentHead: 'head-01', plan: { p9DiscoveryBaseHead: 'head-01' } })).status, 'passed', 'HEAD-01 planning gate accepts exact discovery HEAD');
+assert.equal(
+  validateP9PlanBundle(
+    validBundle({
+      currentHead: 'head-02-live',
+      plan: {
+        p9DiscoveryBaseHead: 'head-02-base',
+        currentHead: 'head-02-live',
+        productImplementationStarted: true,
+        p9ProductImplementationFileCount: 1,
+        workstreams: validBundle().plan.workstreams.map((ws) =>
+          ws.workstreamType === 'product_implementation' && ws.batch === 1
+            ? { ...ws, tasks: ws.tasks.map((task, idx) => (idx === 0 ? { ...task, status: 'completed', implementationStarted: true } : task)) }
+            : ws,
+        ),
+      },
+    }),
+  ).status,
+  'passed',
+  'HEAD-02 product implementation may advance beyond discovery base when current HEAD is recorded',
+);
+assertFails('discoveryHeadMatch', { currentHead: 'head-03-live', plan: { p9DiscoveryBaseHead: 'head-03-base' } });
+assertFails('discoveryHeadMatch', {
+  currentHead: 'head-04-live',
+  plan: {
+    p9DiscoveryBaseHead: 'head-04-base',
+    currentHead: 'head-04-old',
+    productImplementationStarted: true,
+    p9ProductImplementationFileCount: 1,
+    workstreams: validBundle().plan.workstreams.map((ws) =>
+      ws.workstreamType === 'product_implementation' && ws.batch === 1
+        ? { ...ws, tasks: ws.tasks.map((task, idx) => (idx === 0 ? { ...task, status: 'completed', implementationStarted: true } : task)) }
+        : ws,
+    ),
+  },
+});
+assertFails('p9ProductImplementationFileCount', { plan: { p9ProductImplementationFileCount: 1 } });
+assertFails('productImplementationStarted', { plan: { productImplementationStarted: true, p9ProductImplementationFileCount: 1 } });
+assertFails('stagedFileCount', { stagedFileCount: 1 });
 assertFails('ownerDecisionPresent', {
   ownerDecision: {
     decisionStatus: 'draft',

@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { readJSON, writeJSON, writeMarkdown } from './p7-v2-lib.mjs';
 
 export const P9_SCOPE_DISCOVERY_JSON = 'docs/p9-scope-discovery.json';
 export const P9_SCOPE_DISCOVERY_MD = 'docs/P9_SCOPE_DISCOVERY.md';
@@ -10,6 +9,28 @@ export const P9_OWNER_SCOPE_DECISION_JSON = 'docs/p9-owner-scope-decision.json';
 export const P9_OWNER_SCOPE_DECISION_MD = 'docs/P9_OWNER_SCOPE_DECISION.md';
 export const P9_ENTRY_GATE_JSON = 'docs/p9-entry-gate-report.json';
 export const P9_ENTRY_GATE_MD = 'docs/P9_ENTRY_GATE_REPORT.md';
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function readJSON(rel) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeJSON(rel, data) {
+  const full = path.join(REPO_ROOT, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+}
+
+function writeMarkdown(rel, body) {
+  const full = path.join(REPO_ROOT, rel);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, body, 'utf8');
+}
 
 const REQUIRED_FILES = [
   P9_SCOPE_DISCOVERY_MD,
@@ -24,7 +45,7 @@ const REQUIRED_FILES = [
 
 function git(args) {
   try {
-    return execFileSync('git', args, { cwd: process.cwd(), encoding: 'utf8' }).trim();
+    return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim();
   } catch {
     return '';
   }
@@ -59,7 +80,7 @@ export function validateP9EntryBundle({
   const head = currentHead ?? git(['rev-parse', 'HEAD']);
   const detached = headDetached ?? git(['rev-parse', '--abbrev-ref', 'HEAD']) === 'HEAD';
   const staged = stagedFileCount ?? (git(['diff', '--cached', '--name-only']) === '' ? 0 : git(['diff', '--cached', '--name-only']).split('\n').length);
-  const missingFiles = REQUIRED_FILES.filter((rel) => !fs.existsSync(path.join(process.cwd(), rel)));
+  const missingFiles = REQUIRED_FILES.filter((rel) => !fs.existsSync(path.join(REPO_ROOT, rel)));
   const ownerDecisionApproved =
     ownerDecision.decisionStatus === 'approved' &&
     ownerDecision.approvedByRole === 'Owner' &&
@@ -73,7 +94,10 @@ export function validateP9EntryBundle({
     p8Closure.p10ProductionBoundaryPreserved === true;
   const p8FinalGatePassed =
     p8TaskBatch9Gate.status === 'passed' && p8TaskBatch9Gate.productionReady === false;
-  const discoveryHeadMatch = discovery.p9DiscoveryBaseHead === head;
+  const productImplementationStarted = discovery.implementationStarted === true || discovery.productImplementationStarted === true;
+  const implementationStartedCompatible = productImplementationStarted ? discovery.implementationStarted === true && discovery.productImplementationStarted === true : discovery.implementationStarted === false && discovery.productImplementationStarted !== true;
+  const discoveryHeadMatch = productImplementationStarted ? discovery.currentHead === head && String(discovery.p9DiscoveryBaseHead || '').length > 0 : discovery.p9DiscoveryBaseHead === head;
+  const productImplementationFileCountCompatible = productImplementationStarted ? Number(discovery.p9ProductImplementationFileCount || 0) > 0 : Number(discovery.p9ProductImplementationFileCount || 0) === 0;
 
   const checks = [
     ['requiredFilesPresent', missingFiles.length === 0],
@@ -94,8 +118,8 @@ export function validateP9EntryBundle({
     ['referenceClassifications', refCounts.current > 0 && refCounts.historical > 0 && refCounts.completed > 0],
     ['planningFoundationCompleted', discovery.planningFoundationCompleted === true],
     ['fullImplementationPlanCompleted', discovery.fullImplementationPlanCompleted === true],
-    ['p9ProductImplementationFileCount', discovery.p9ProductImplementationFileCount === 0],
-    ['implementationStarted', discovery.implementationStarted === false],
+    ['p9ProductImplementationFileCount', productImplementationFileCountCompatible],
+    ['implementationStarted', implementationStartedCompatible],
     ['p10BoundaryPreserved', discovery.p10BoundaryPreserved === true],
     ['productionReady', discovery.productionReady === false],
   ];
