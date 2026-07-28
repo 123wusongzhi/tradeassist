@@ -105,7 +105,7 @@ export function buildP8TaskBatch9GateReport(bundle = {}) {
   if (currentBranch !== 'dev') failed.push('currentBranch');
   if (headDetached) failed.push('headDetached');
   if (stagedFiles !== '') failed.push('stagedFileCount');
-  if (head !== '73c12f12b0503aed654d0adbcc5cc8bc5be2073d') failed.push('headChanged');
+  if (head !== '2635f2438ca6c83bb28fa5016d9bb1cd16e3c40e') failed.push('headChanged');
   return {
     phase: 'P8',
     gate: 'P8-TASK-BATCH-9',

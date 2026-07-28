@@ -6,7 +6,7 @@ Status: **passed**
 - Tasks: P8-701, P8-702, P8-703, P8-704, P8-705
 - Current branch: dev
 - Head detached: false
-- HEAD: 73c12f12b0503aed654d0adbcc5cc8bc5be2073d
+- HEAD: 2635f2438ca6c83bb28fa5016d9bb1cd16e3c40e
 - Staged files: 0
 - Authenticated API golden path passed: true
 - Admin authenticated E2E passed: true

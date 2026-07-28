@@ -6,7 +6,7 @@
   "title": "Final Integration, E2E, Gates, and Closure",
   "baseBranch": "dev",
   "currentBranch": "dev",
-  "currentHead": "73c12f12b0503aed654d0adbcc5cc8bc5be2073d",
+  "currentHead": "2635f2438ca6c83bb28fa5016d9bb1cd16e3c40e",
   "tasks": {
     "P8-701": {
       "title": "Integration Fixtures",
