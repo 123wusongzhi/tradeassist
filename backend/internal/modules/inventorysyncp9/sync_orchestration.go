@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -24,6 +26,7 @@ const (
 )
 
 type InventorySyncAuthorizer interface {
+	CanRunInventorySync(ctx context.Context, tenantID int64, actorID uuid.UUID, shopConnectionID uuid.UUID) error
 	CanRerunInventorySync(ctx context.Context, tenantID int64, actorID uuid.UUID, sourceRunID uuid.UUID) error
 }
 
@@ -32,6 +35,7 @@ type InventorySyncOrchestrator struct {
 	Registry           *InventoryProviderRegistry
 	CalibrationService *SKUBindingCalibrationService
 	Authorizer         InventorySyncAuthorizer
+	Audit              *InventorySyncAuditService
 	locks              *inventorySyncLockRegistry
 	Now                func() time.Time
 }
@@ -93,7 +97,7 @@ type inventorySyncLockRegistry struct {
 }
 
 func NewInventorySyncOrchestrator(db *gorm.DB, registry *InventoryProviderRegistry, calibrationService *SKUBindingCalibrationService, authorizer InventorySyncAuthorizer) *InventorySyncOrchestrator {
-	return &InventorySyncOrchestrator{DB: db, Registry: registry, CalibrationService: calibrationService, Authorizer: authorizer, locks: &inventorySyncLockRegistry{locks: map[string]*sync.Mutex{}}, Now: utcNow}
+	return &InventorySyncOrchestrator{DB: db, Registry: registry, CalibrationService: calibrationService, Authorizer: authorizer, Audit: NewInventorySyncAuditService(db), locks: &inventorySyncLockRegistry{locks: map[string]*sync.Mutex{}}, Now: utcNow}
 }
 
 func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySyncOrchestratorInput) (*InventorySyncOrchestratorResult, error) {
@@ -103,19 +107,25 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 	if err := normalizeOrchestratorInput(&input); err != nil {
 		return nil, err
 	}
-	if input.TriggerType == InventorySyncTriggerManualRerun {
-		if err := o.authorizeRerun(ctx, input); err != nil {
-			return nil, err
+	if err := o.authorizeRun(ctx, input); err != nil {
+		if auditErr := o.auditPermissionDenied(ctx, input); auditErr != nil {
+			return nil, auditErr
 		}
+		return nil, err
 	}
 	provider, err := o.Registry.Resolve(input.Platform, input.ProviderMode)
 	if err != nil {
+		if errors.Is(err, ErrProductionCapabilityForbidden) || errors.Is(err, ErrProviderCapabilityForbidden) {
+			if auditErr := o.auditProductionCapabilityBlocked(ctx, input, err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
 		return nil, err
 	}
 	unlock := o.locks.acquire(input.TenantID, input.ShopConnectionID, input.Platform, input.ProviderMode)
 	defer unlock()
 	fingerprint := inventorySyncInputFingerprint(input)
-	run, err := NewInventorySyncRunRepository(o.DB).Create(ctx, &InventorySyncRun{
+	run := &InventorySyncRun{
 		TenantID:           input.TenantID,
 		ShopConnectionID:   input.ShopConnectionID,
 		Platform:           input.Platform,
@@ -128,8 +138,31 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 		IdempotencyKeyHash: input.IdempotencyKeyHash,
 		InputFingerprint:   fingerprint,
 		Revision:           1,
-	})
-	if err != nil {
+	}
+	if err := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := validateInventorySyncRun(run); err != nil {
+			return err
+		}
+		if err := verifyShopConnection(ctx, tx, run.TenantID, run.ShopConnectionID, run.Platform); err != nil {
+			return err
+		}
+		if existing, err := getRunByIdempotency(ctx, tx, run.TenantID, run.IdempotencyKeyHash); err == nil {
+			if existing.InputFingerprint != run.InputFingerprint {
+				return ErrIdempotencyPayloadConflict
+			}
+			*run = *existing
+			return nil
+		} else if !errors.Is(err, ErrNotFound) {
+			return err
+		}
+		if err := tx.Create(run).Error; err != nil {
+			if isUniqueViolation(err) {
+				return stableError(err, ErrIdempotencyPayloadConflict)
+			}
+			return stableError(err, ErrStateConflict)
+		}
+		return o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.run_created", Resource: inventorySyncAuditResourceRun, ResourceID: run.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"runStatusAfter": InventorySyncRunStatusPending})})
+	}); err != nil {
 		return nil, err
 	}
 	if isTerminalRunStatus(run.Status) {
@@ -137,8 +170,17 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 	}
 	if run.Status == InventorySyncRunStatusPending {
 		now := o.now()
-		run, err = updateRunStatusWithDB(ctx, o.DB, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusRunning, InventorySyncRunStatusPatch{StartedAt: &now})
-		if err != nil {
+		if err := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			started, err := updateRunStatusWithDB(ctx, tx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusRunning, InventorySyncRunStatusPatch{StartedAt: &now})
+			if err != nil {
+				return err
+			}
+			if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.started", Resource: inventorySyncAuditResourceRun, ResourceID: started.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"runStatusBefore": InventorySyncRunStatusPending, "runStatusAfter": InventorySyncRunStatusRunning})}); err != nil {
+				return err
+			}
+			run = started
+			return nil
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -150,34 +192,34 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 	cursor := run.Cursor
 	for page := 0; page < input.MaxPagesPerRun; page++ {
 		if err := ctx.Err(); err != nil {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusCancelled, ErrSyncCancelled, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusCancelled, ErrSyncCancelled, checkpoint)
 		}
 		request := InventoryFetchRequest{TenantID: input.TenantID, ShopConnectionID: input.ShopConnectionID.String(), Platform: input.Platform, ProviderMode: input.ProviderMode, FixtureScenario: input.FixtureScenario, Cursor: cursor, PageSize: input.PageSize, MaxItemsPerPage: input.MaxItemsPerPage}
 		pageResult, err := provider.FetchInventoryPage(ctx, request)
 		if err != nil {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
 		}
 		checkpoint.ProviderNetworkCalls += pageResult.NetworkCalls
 		if pageResult.NetworkCalls != 0 {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderCapabilityForbidden, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderCapabilityForbidden, checkpoint)
 		}
 		if err := validateFetchedPage(input, cursor, pageResult, checkpoint); err != nil {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
 		}
 		cursorKey := string(pageResult.Cursor)
 		if seenCursors[cursorKey] {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderCursorLoop, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderCursorLoop, checkpoint)
 		}
 		seenCursors[cursorKey] = true
 		if err := validateProviderPageNoDuplicateExternalSKU(pageResult.Items); err != nil {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
 		}
 		if checkpoint.TotalRecordCount+len(pageResult.Items) > input.MaxItemsPerRun {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderPageLimitExceeded, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderPageLimitExceeded, checkpoint)
 		}
 		run, err = o.commitPage(ctx, input, run, pageResult, &checkpoint)
 		if err != nil {
-			return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
+			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
 		}
 		cursor = pageResult.NextCursor
 		if !pageResult.HasMore {
@@ -186,14 +228,24 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 			if jsonErr != nil {
 				return nil, jsonErr
 			}
-			finalRun, err := updateRunStatusWithDB(ctx, o.DB, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusSucceeded, InventorySyncRunStatusPatch{FinishedAt: &finished, Checkpoint: checkpointJSON, Cursor: cursor})
-			if err != nil {
+			var finalRun *InventorySyncRun
+			if err := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				updated, err := updateRunStatusWithDB(ctx, tx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusSucceeded, InventorySyncRunStatusPatch{FinishedAt: &finished, Checkpoint: checkpointJSON, Cursor: cursor})
+				if err != nil {
+					return err
+				}
+				if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.completed", Resource: inventorySyncAuditResourceRun, ResourceID: updated.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"runStatusBefore": InventorySyncRunStatusRunning, "runStatusAfter": InventorySyncRunStatusSucceeded, "totalRecordCount": checkpoint.TotalRecordCount, "matchedRecordCount": checkpoint.MatchedRecordCount, "unmatchedRecordCount": checkpoint.UnmatchedRecordCount, "conflictRecordCount": checkpoint.ConflictRecordCount, "failedRecordCount": checkpoint.FailedRecordCount, "pagesProcessed": checkpoint.PagesProcessed, "cursorHash": safeCursorHash(cursor)})}); err != nil {
+					return err
+				}
+				finalRun = updated
+				return nil
+			}); err != nil {
 				return nil, err
 			}
 			return o.resultFromRun(finalRun)
 		}
 	}
-	return o.finishWithError(ctx, input.TenantID, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderPageLimitExceeded, checkpoint)
+	return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderPageLimitExceeded, checkpoint)
 }
 
 func (o *InventorySyncOrchestrator) ManualRerun(ctx context.Context, input InventorySyncOrchestratorInput) (*InventorySyncOrchestratorResult, error) {
@@ -256,6 +308,9 @@ func (o *InventorySyncOrchestrator) commitPage(ctx context.Context, input Invent
 		if err != nil {
 			return err
 		}
+		if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.page_processed", Resource: inventorySyncAuditResourceRun, ResourceID: current.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"pageNumber": checkpoint.PagesProcessed, "pageItemCount": len(stored), "totalRecordCount": checkpoint.TotalRecordCount, "matchedRecordCount": checkpoint.MatchedRecordCount, "unmatchedRecordCount": checkpoint.UnmatchedRecordCount, "conflictRecordCount": checkpoint.ConflictRecordCount, "failedRecordCount": checkpoint.FailedRecordCount, "cursorHash": safeCursorHash(page.NextCursor), "pagesProcessed": checkpoint.PagesProcessed})}); err != nil {
+			return err
+		}
 		updated = patched
 		return nil
 	})
@@ -308,14 +363,17 @@ func normalizeOrchestratorInput(input *InventorySyncOrchestratorInput) error {
 	return nil
 }
 
-func (o *InventorySyncOrchestrator) authorizeRerun(ctx context.Context, input InventorySyncOrchestratorInput) error {
+func (o *InventorySyncOrchestrator) authorizeRun(ctx context.Context, input InventorySyncOrchestratorInput) error {
 	if o.Authorizer == nil {
 		return ErrPermissionDenied
 	}
 	if input.ActorID == zeroUUID {
 		return ErrValidation
 	}
-	return o.Authorizer.CanRerunInventorySync(ctx, input.TenantID, input.ActorID, input.SourceRunID)
+	if input.TriggerType == InventorySyncTriggerManualRerun {
+		return o.Authorizer.CanRerunInventorySync(ctx, input.TenantID, input.ActorID, input.SourceRunID)
+	}
+	return o.Authorizer.CanRunInventorySync(ctx, input.TenantID, input.ActorID, input.ShopConnectionID)
 }
 
 func validateFetchedPage(input InventorySyncOrchestratorInput, expectedCursor datatypes.JSON, page InventoryFetchPageResult, checkpoint inventorySyncCheckpoint) error {
@@ -370,7 +428,7 @@ func providerItemsToSnapshots(input InventorySyncOrchestratorInput, run Inventor
 	return snapshots, nil
 }
 
-func (o *InventorySyncOrchestrator) finishWithError(ctx context.Context, tenantID int64, runID uuid.UUID, expectedRevision int, status string, err error, checkpoint inventorySyncCheckpoint) (*InventorySyncOrchestratorResult, error) {
+func (o *InventorySyncOrchestrator) finishWithError(ctx context.Context, input InventorySyncOrchestratorInput, runID uuid.UUID, expectedRevision int, status string, err error, checkpoint inventorySyncCheckpoint) (*InventorySyncOrchestratorResult, error) {
 	metadata, metaErr := safeErrorMetadata(err, checkpoint)
 	if metaErr != nil {
 		return nil, metaErr
@@ -380,7 +438,19 @@ func (o *InventorySyncOrchestrator) finishWithError(ctx context.Context, tenantI
 	if jsonErr != nil {
 		return nil, jsonErr
 	}
-	updated, updateErr := updateRunStatusWithDB(ctx, o.DB, tenantID, runID, expectedRevision, status, InventorySyncRunStatusPatch{FinishedAt: &finished, SafeErrorMetadata: metadata, Checkpoint: checkpointJSON})
+	var updated *InventorySyncRun
+	updateErr := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		patched, updateErr := updateRunStatusWithDB(ctx, tx, input.TenantID, runID, expectedRevision, status, InventorySyncRunStatusPatch{FinishedAt: &finished, SafeErrorMetadata: metadata, Checkpoint: checkpointJSON})
+		if updateErr != nil {
+			return updateErr
+		}
+		code := providerErrorCode(err)
+		if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.failed", Resource: inventorySyncAuditResourceRun, ResourceID: runID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusFailed, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"runStatusBefore": InventorySyncRunStatusRunning, "runStatusAfter": status, "errorCode": code, "safeMessage": code, "retryable": syncErrorRetryable(err), "pagesProcessed": checkpoint.PagesProcessed, "totalRecordCount": checkpoint.TotalRecordCount, "matchedRecordCount": checkpoint.MatchedRecordCount, "unmatchedRecordCount": checkpoint.UnmatchedRecordCount, "conflictRecordCount": checkpoint.ConflictRecordCount, "failedRecordCount": checkpoint.FailedRecordCount})}); err != nil {
+			return err
+		}
+		updated = patched
+		return nil
+	})
 	if updateErr != nil {
 		return nil, updateErr
 	}
@@ -400,6 +470,50 @@ func (o *InventorySyncOrchestrator) resultFromRun(run *InventorySyncRun) (*Inven
 		_ = json.Unmarshal(run.Checkpoint, &checkpoint)
 	}
 	return &InventorySyncOrchestratorResult{InventorySyncRunID: run.ID, Status: run.Status, TotalRecordCount: checkpoint.TotalRecordCount, MatchedRecordCount: checkpoint.MatchedRecordCount, UnmatchedRecordCount: checkpoint.UnmatchedRecordCount, ConflictRecordCount: checkpoint.ConflictRecordCount, FailedRecordCount: checkpoint.FailedRecordCount, CursorAfter: run.Cursor, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt, ManualBindingRequestCount: run.ManualRequestCount, ConfirmedBindingCount: checkpoint.ConfirmedBindingCount, SafeErrorSummary: run.SafeErrorMetadata}, nil
+}
+
+func (o *InventorySyncOrchestrator) auditWithDB(db *gorm.DB) *InventorySyncAuditService {
+	if o.Audit == nil {
+		return nil
+	}
+	return o.Audit.WithDB(db)
+}
+
+func (o *InventorySyncOrchestrator) writeAuditWithDB(ctx context.Context, db *gorm.DB, event InventorySyncAuditEvent) error {
+	audit := o.auditWithDB(db)
+	if audit == nil {
+		return ErrStateConflict
+	}
+	return audit.Write(ctx, event)
+}
+
+func (o *InventorySyncOrchestrator) auditPermissionDenied(ctx context.Context, input InventorySyncOrchestratorInput) error {
+	audit := o.auditWithDB(o.DB)
+	if audit == nil {
+		return ErrStateConflict
+	}
+	return audit.PermissionDenied(ctx, input.TenantID, input.ActorID, input.TriggerType, inventorySyncPermission(input), input.RequestID)
+}
+
+func (o *InventorySyncOrchestrator) auditProductionCapabilityBlocked(ctx context.Context, input InventorySyncOrchestratorInput, err error) error {
+	audit := o.auditWithDB(o.DB)
+	if audit == nil {
+		return ErrStateConflict
+	}
+	return audit.ProductionCapabilityBlocked(ctx, input, err)
+}
+
+func inventorySyncPermission(input InventorySyncOrchestratorInput) string {
+	if input.TriggerType == InventorySyncTriggerManualRerun {
+		return adminperm.PermInventorySyncRerun
+	}
+	return adminperm.PermInventorySyncRun
+}
+
+func inventorySyncAuditMetadata(input InventorySyncOrchestratorInput, extra map[string]any) map[string]any {
+	metadata := map[string]any{"platform": input.Platform, "providerMode": input.ProviderMode, "fixtureScenario": input.FixtureScenario, "requestId": normalizeString(input.RequestID)}
+	maps.Copy(metadata, extra)
+	return metadata
 }
 
 func (o *InventorySyncOrchestrator) now() time.Time {

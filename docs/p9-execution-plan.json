@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "phase": "P9",
-  "status": "execution_plan_ready",
-  "executionStatus": "ready",
+  "status": "batch_4_completed_locally_verified_postgres_deferred",
+  "executionStatus": "in_progress",
   "ownerScopeDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
   "ownerScopeDecisionApproved": true,
   "canonicalPhaseName": "Douyin Shop inventory sync MVP with SKU binding calibration and manual binding fallback",
@@ -90,7 +90,7 @@
   "headDetached": false,
   "stagedFileCount": 0,
   "p9ProductImplementationFileCount": 1,
-  "productCompletedTaskCount": 12,
+  "productCompletedTaskCount": 22,
   "p10BoundaryPreserved": true,
   "productionReady": false,
   "workstreams": [
@@ -400,8 +400,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -433,8 +433,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -465,8 +465,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -497,8 +497,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -530,8 +530,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -563,8 +563,8 @@
             "docs/p9-task-batch-1-scope.json"
           ],
           "gateIds": [
-            "P9-PLAN",
-            "P9-TASK-BATCH-1-SCOPE"
+            "P9-TASK-BATCH-1-SCOPE",
+            "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE"
           ],
           "status": "completed",
           "implementationStarted": true
@@ -603,7 +603,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -634,7 +633,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -666,7 +664,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -697,7 +694,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -730,7 +726,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -762,7 +757,6 @@
             "docs/p9-task-batch-2-sku-calibration.json"
           ],
           "gateIds": [
-            "P9-PLAN",
             "P9-TASK-BATCH-2-SKU-CALIBRATION"
           ],
           "status": "completed",
@@ -798,14 +792,14 @@
             "AC-P9-11"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-702",
@@ -828,14 +822,14 @@
             "AC-P9-10"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-703",
@@ -859,14 +853,14 @@
             "AC-P9-10"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-704",
@@ -889,14 +883,14 @@
             "AC-P9-05"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-705",
@@ -920,14 +914,14 @@
             "AC-P9-10"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-706",
@@ -951,14 +945,14 @@
             "AC-P9-10"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_3_SYNC_ORCHESTRATION.md",
+            "docs/p9-task-batch-3-sync-orchestration.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-3-SYNC-ORCHESTRATION"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         }
       ]
     },
@@ -989,14 +983,14 @@
             "AC-P9-12"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md",
+            "docs/p9-task-batch-4-permissions-audit-safety.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-4-PERMISSIONS-AUDIT-SAFETY"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-802",
@@ -1020,14 +1014,14 @@
             "AC-P9-13"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md",
+            "docs/p9-task-batch-4-permissions-audit-safety.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-4-PERMISSIONS-AUDIT-SAFETY"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-803",
@@ -1049,14 +1043,14 @@
             "AC-P9-13"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md",
+            "docs/p9-task-batch-4-permissions-audit-safety.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-4-PERMISSIONS-AUDIT-SAFETY"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         },
         {
           "taskId": "P9-804",
@@ -1079,14 +1073,14 @@
             "AC-P9-15"
           ],
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md",
+            "docs/p9-task-batch-4-permissions-audit-safety.json"
           ],
           "gateIds": [
-            "P9-PLAN"
+            "P9-TASK-BATCH-4-PERMISSIONS-AUDIT-SAFETY"
           ],
-          "status": "planned",
-          "implementationStarted": false
+          "status": "completed",
+          "implementationStarted": true
         }
       ]
     },
@@ -1633,7 +1627,8 @@
         "P9-504",
         "P9-505",
         "P9-506"
-      ]
+      ],
+      "status": "completed"
     },
     {
       "batch": 2,
@@ -1646,7 +1641,8 @@
         "P9-604",
         "P9-605",
         "P9-606"
-      ]
+      ],
+      "status": "completed"
     },
     {
       "batch": 3,
@@ -1659,7 +1655,8 @@
         "P9-704",
         "P9-705",
         "P9-706"
-      ]
+      ],
+      "status": "completed"
     },
     {
       "batch": 4,
@@ -1670,7 +1667,8 @@
         "P9-802",
         "P9-803",
         "P9-804"
-      ]
+      ],
+      "status": "completed"
     },
     {
       "batch": 5,
@@ -1682,7 +1680,8 @@
         "P9-903",
         "P9-904",
         "P9-905"
-      ]
+      ],
+      "status": "notStarted"
     },
     {
       "batch": 6,
@@ -1711,5 +1710,21 @@
     }
   ],
   "phaseStatus": "In Progress",
-  "currentHead": "1ac652ac4797eee636bf615f1e9ed272f2b82f84"
+  "currentHead": "d2ff054f915a7919275dd4dae9b76472572f5b84",
+  "batch4Completed": true,
+  "batch4GatePassed": true,
+  "batch4EvidencePaths": [
+    "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md",
+    "docs/p9-task-batch-4-permissions-audit-safety.json"
+  ],
+  "batch4GatePaths": [
+    "scripts/p9-task-batch-4-permissions-audit-safety-gate.mjs",
+    "tests/gates/p9/task-batch-4-permissions-audit-safety.mjs",
+    "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md",
+    "docs/p9-task-batch-4-permissions-audit-safety-gate.json"
+  ],
+  "postgresIntegrationStatus": "not_run",
+  "postgresIntegrationPassed": false,
+  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
+  "p9FinalClosureBlocker": true
 }

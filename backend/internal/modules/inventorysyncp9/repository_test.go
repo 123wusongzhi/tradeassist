@@ -11,6 +11,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"gorm.io/datatypes"
@@ -29,7 +30,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 	require.NoError(t, db.Exec("PRAGMA foreign_keys = ON").Error)
-	require.NoError(t, db.AutoMigrate(&shop.Shop{}, &product.Product{}, &product.ProductSKU{}))
+	require.NoError(t, db.AutoMigrate(&shop.Shop{}, &product.Product{}, &product.ProductSKU{}, &operationlog.OperationLog{}))
 	require.NoError(t, Migrate(db))
 	return db
 }

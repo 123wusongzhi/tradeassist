@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -17,6 +18,7 @@ const (
 	ErrCodeDatabaseNotReady                   = "DATABASE_NOT_READY"
 	ErrCodeRedisNotReady                      = "REDIS_NOT_READY"
 	ErrCodeProductionWebhookFallbackForbidden = "PRODUCTION_WEBHOOK_FALLBACK_FORBIDDEN"
+	ErrCodeP9ProductionCapabilityForbidden    = "production_capability_forbidden"
 )
 
 const defaultJWTSecret = "change-me-in-development"
@@ -73,6 +75,9 @@ func (c *Config) Validate() error {
 		return err
 	}
 	if err := c.validateP7ProductionGuards(); err != nil {
+		return err
+	}
+	if err := c.validateP9InventorySyncSafety(); err != nil {
 		return err
 	}
 	if !IsProduction(c.AppEnv) {
@@ -229,4 +234,63 @@ func (c *Config) AllowsLocalStorageProvider() bool {
 		return true
 	}
 	return AllowsLocalStorage(c.AppEnv)
+}
+
+func (c *Config) validateP9InventorySyncSafety() error {
+	for _, key := range p9InventorySyncDangerousBoolEnvKeys {
+		if envBool(os.Getenv(key), false) {
+			return fmt.Errorf("%s: %s is forbidden for P9 inventory sync", ErrCodeP9ProductionCapabilityForbidden, key)
+		}
+	}
+	for _, key := range p9InventorySyncCredentialEnvKeys {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			return fmt.Errorf("%s: %s is forbidden for P9 inventory sync", ErrCodeP9ProductionCapabilityForbidden, key)
+		}
+	}
+	for _, key := range p9InventorySyncProviderModeEnvKeys {
+		mode := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+		switch mode {
+		case "production", "prod", "real", "live", "online", "remote", "oauth":
+			return fmt.Errorf("%s: %s=%s is forbidden for P9 inventory sync", ErrCodeP9ProductionCapabilityForbidden, key, mode)
+		}
+	}
+	if c.InventorySyncWorkerConcurrency > 0 && envBool(os.Getenv("AUTO_INVENTORY_SYNC"), false) {
+		return fmt.Errorf("%s: AUTO_INVENTORY_SYNC is forbidden for P9 inventory sync", ErrCodeP9ProductionCapabilityForbidden)
+	}
+	return nil
+}
+
+var p9InventorySyncDangerousBoolEnvKeys = []string{
+	"REAL_DOUYIN_ENABLED",
+	"REAL_PLATFORM_READ",
+	"REAL_PLATFORM_WRITE",
+	"REAL_INVENTORY_READ",
+	"REAL_INVENTORY_WRITE",
+	"INVENTORY_MUTATION_ENABLED",
+	"AUTO_INVENTORY_SYNC",
+	"AUTO_RETRY",
+	"INVENTORY_SYNC_AUTO_RETRY",
+	"INVENTORY_SYNC_BACKGROUND_WORKER_ENABLED",
+	"INVENTORY_SYNC_NETWORK_ACCESS",
+}
+
+var p9InventorySyncCredentialEnvKeys = []string{
+	"INVENTORY_SYNC_ACCESS_TOKEN",
+	"INVENTORY_SYNC_REFRESH_TOKEN",
+	"INVENTORY_SYNC_OAUTH_CODE",
+	"INVENTORY_SYNC_AUTHORIZATION",
+	"INVENTORY_SYNC_COOKIE",
+	"INVENTORY_SYNC_CLIENT_SECRET",
+	"INVENTORY_SYNC_APP_SECRET",
+	"INVENTORY_SYNC_PASSWORD",
+	"INVENTORY_SYNC_API_KEY",
+	"DOUYIN_INVENTORY_ACCESS_TOKEN",
+	"DOUYIN_INVENTORY_REFRESH_TOKEN",
+	"DOUYIN_INVENTORY_CLIENT_SECRET",
+	"DOUYIN_INVENTORY_APP_SECRET",
+}
+
+var p9InventorySyncProviderModeEnvKeys = []string{
+	"INVENTORY_SYNC_PROVIDER_MODE",
+	"DOUYIN_INVENTORY_PROVIDER_MODE",
 }

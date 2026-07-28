@@ -11,7 +11,7 @@ planningFoundationPreserved=true
 historicalPlanningTaskIdsPreserved=true
 productImplementationWorkstreamCount=7
 productImplementationBatchCount=7
-productImplementationStarted=false
+productImplementationStarted=true
 productionReady=false
 ```
 
@@ -57,43 +57,43 @@ The existing `P9-101` through `P9-402` tasks remain the planning / governance fo
 
 | Task ID | Task Name | Batch | Status | Deliverables |
 | --- | --- | --- | --- | --- |
-| `P9-501` | Inventory Sync Run Model | 1 | planned | InventorySyncRun, status, cursor/checkpoint |
-| `P9-502` | Inventory Snapshot Model | 1 | planned | InventorySnapshotItem, payload hash, immutable history |
-| `P9-503` | SKU Binding Model | 1 | planned | SKUBinding, binding source, optimistic revision |
-| `P9-504` | SKU Binding Calibration Model | 1 | planned | SKUBindingCalibration, score breakdown, reason codes |
-| `P9-505` | Manual Binding Fallback Model | 1 | planned | ManualBindingRequest, resolution, audit trail |
-| `P9-506` | Migration, Repository and Persistence Verification | 1 | planned | forward migrations, repositories, race tests |
+| `P9-501` | Inventory Sync Run Model | 1 | completed | InventorySyncRun, status, cursor/checkpoint |
+| `P9-502` | Inventory Snapshot Model | 1 | completed | InventorySnapshotItem, payload hash, immutable history |
+| `P9-503` | SKU Binding Model | 1 | completed | SKUBinding, binding source, optimistic revision |
+| `P9-504` | SKU Binding Calibration Model | 1 | completed | SKUBindingCalibration, score breakdown, reason codes |
+| `P9-505` | Manual Binding Fallback Model | 1 | completed | ManualBindingRequest, resolution, audit trail |
+| `P9-506` | Migration, Repository and Persistence Verification | 1 | completed | forward migrations, repositories, race tests |
 
 ### WS-06 Calibration Services
 
 | Task ID | Task Name | Batch | Status | Deliverables |
 | --- | --- | --- | --- | --- |
-| `P9-601` | SKU Identifier Normalization | 2 | planned | SKU code normalization, barcode normalization |
-| `P9-602` | Exact Identifier Matching | 2 | planned | exact code match, exact barcode match |
-| `P9-603` | Candidate Scoring and Explainability | 2 | planned | score breakdown, reason codes, candidate ordering |
-| `P9-604` | Calibration Threshold Policy | 2 | planned | high-confidence threshold, low-confidence policy |
-| `P9-605` | Manual Binding Fallback Service | 2 | planned | create request, approve/reject, audit |
-| `P9-606` | Calibration Service Verification | 2 | planned | concurrency tests, race tests, gate evidence |
+| `P9-601` | SKU Identifier Normalization | 2 | completed | SKU code normalization, barcode normalization |
+| `P9-602` | Exact Identifier Matching | 2 | completed | exact code match, exact barcode match |
+| `P9-603` | Candidate Scoring and Explainability | 2 | completed | score breakdown, reason codes, candidate ordering |
+| `P9-604` | Calibration Threshold Policy | 2 | completed | high-confidence threshold, low-confidence policy |
+| `P9-605` | Manual Binding Fallback Service | 2 | completed | create request, approve/reject, audit |
+| `P9-606` | Calibration Service Verification | 2 | completed | concurrency tests, race tests, gate evidence |
 
 ### WS-07 Inventory Sync Orchestration
 
 | Task ID | Task Name | Batch | Status | Deliverables |
 | --- | --- | --- | --- | --- |
-| `P9-701` | Inventory Provider Port | 3 | planned | provider interface, cursor contract |
-| `P9-702` | Douyin Fixture / Mock Inventory Provider | 3 | planned | deterministic fixture provider, success/error scenarios |
-| `P9-703` | Inventory Sync Orchestrator | 3 | planned | sync run creation, snapshot capture, stats |
-| `P9-704` | Binding Resolution Pipeline | 3 | planned | confirmed binding priority, automatic candidate flow |
-| `P9-705` | Sync Failure and Manual Rerun | 3 | planned | failure classification, safe rerun, manual retry |
-| `P9-706` | Sync Orchestration Verification | 3 | planned | task tests, cursor tests, race tests |
+| `P9-701` | Inventory Provider Port | 3 | completed | provider interface, cursor contract |
+| `P9-702` | Douyin Fixture / Mock Inventory Provider | 3 | completed | deterministic fixture provider, success/error scenarios |
+| `P9-703` | Inventory Sync Orchestrator | 3 | completed | sync run creation, snapshot capture, stats |
+| `P9-704` | Binding Resolution Pipeline | 3 | completed | confirmed binding priority, automatic candidate flow |
+| `P9-705` | Sync Failure and Manual Rerun | 3 | completed | failure classification, safe rerun, manual retry |
+| `P9-706` | Sync Orchestration Verification | 3 | completed | task tests, cursor tests, race tests |
 
 ### WS-08 Permission, Audit and Safety
 
 | Task ID | Task Name | Batch | Status | Deliverables |
 | --- | --- | --- | --- | --- |
-| `P9-801` | Inventory Sync RBAC | 4 | planned | view/run/binding/audit permissions |
-| `P9-802` | Inventory Sync Audit Events | 4 | planned | run start/completion events, binding events |
-| `P9-803` | Inventory Metadata Redaction | 4 | planned | provider metadata redaction, safe error details |
-| `P9-804` | Provider and Production Boundary Guard | 4 | planned | fake provider guard, real boundary guard |
+| `P9-801` | Inventory Sync RBAC | 4 | completed | view/run/binding/audit permissions |
+| `P9-802` | Inventory Sync Audit Events | 4 | completed | run start/completion events, binding events |
+| `P9-803` | Inventory Metadata Redaction | 4 | completed | provider metadata redaction, safe error details |
+| `P9-804` | Provider and Production Boundary Guard | 4 | completed | fake provider guard, real boundary guard |
 
 ### WS-09 Backend APIs
 
@@ -138,6 +138,37 @@ The existing `P9-101` through `P9-402` tasks remain the planning / governance fo
 | 6 | Admin Inventory Sync and Binding Center | `P9-1001` - `P9-1006` |
 | 7 | Integration, Final Gates and Development Closure | `P9-1101` - `P9-1105` |
 
+## Batch 4 Completion Artifact
+
+Batch 4 permissions, audit, redaction, and safety boundary work is completed locally.
+
+```text
+batch4TaskIdsExactlyMatch=true
+batch4TaskCount=4
+batch4Completed=true
+batch4GatePassed=true
+modulePath=backend/internal/modules/inventorysyncp9
+existingRBACReused=true
+existingAuditInfrastructureReused=true
+existingSecretRedactorReused=true
+duplicateSecurityFrameworkCreated=false
+postgresIntegrationStatus=not_run
+postgresIntegrationPassed=false
+postgresIntegrationDeferredTo=P9_Final_Development_Closure
+p9FinalClosureBlocker=true
+productionReady=false
+p9Complete=false
+```
+
+Evidence:
+
+- [`P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md`](P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY.md)
+- [`p9-task-batch-4-permissions-audit-safety.json`](p9-task-batch-4-permissions-audit-safety.json)
+- [`P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md`](P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md)
+- [`p9-task-batch-4-permissions-audit-safety-gate.json`](p9-task-batch-4-permissions-audit-safety-gate.json)
+
+Next product batch remains `P9-901` through `P9-905` Backend APIs, status `notStarted`.
+
 ## Batch 1 Scope Artifact
 
 Batch 1 is the only immediately actionable product batch.
@@ -159,6 +190,14 @@ pnpm test:p9-plan
 pnpm p9:plan-gate
 pnpm test:p9-task-batch-1-scope
 pnpm p9:task-batch-1-scope-gate
+pnpm test:p9-task-batch-1-domain-persistence
+pnpm p9:task-batch-1-domain-persistence-gate
+pnpm test:p9-task-batch-2-sku-calibration
+pnpm p9:task-batch-2-sku-calibration-gate
+pnpm test:p9-task-batch-3-sync-orchestration
+pnpm p9:task-batch-3-sync-orchestration-gate
+pnpm test:p9-task-batch-4-permissions-audit-safety
+pnpm p9:task-batch-4-permissions-audit-safety-gate
 ```
 
 ## P10 Boundary

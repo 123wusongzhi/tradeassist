@@ -31,6 +31,7 @@ type WriteOpts struct {
 	ShopID      *uuid.UUID
 	Platform    string
 	Permission  string
+	RequestID   string
 	Status      string
 	Message     string
 }
@@ -129,14 +130,19 @@ func (s *Service) WriteBackground(ctx context.Context, opts WriteOpts) error {
 
 	row := &OperationLog{
 		AdminUserID: adminID,
+		SessionID:   opts.SessionID,
+		AdminRole:   strings.TrimSpace(opts.AdminRole),
 		Username:    username,
 		TenantID:    opts.TenantID,
 		Action:      strings.TrimSpace(opts.Action),
 		Resource:    strings.TrimSpace(opts.Resource),
 		ResourceID:  strings.TrimSpace(opts.ResourceID),
+		ShopID:      opts.ShopID,
+		Platform:    strings.TrimSpace(opts.Platform),
+		Permission:  strings.TrimSpace(opts.Permission),
 		Method:      "INTERNAL",
 		Path:        "/internal/worker",
-		RequestID:   "",
+		RequestID:   strings.TrimSpace(opts.RequestID),
 		Status:      strings.TrimSpace(opts.Status),
 		Message:     truncateRunes(opts.Message, 2000),
 		CreatedAt:   time.Now().UTC(),

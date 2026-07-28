@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -54,20 +53,25 @@ func (k InventoryProviderKey) String() string {
 
 type InventoryProviderCapabilities struct {
 	FixtureBacked            bool `json:"fixtureBacked"`
+	FixtureRead              bool `json:"fixtureRead"`
 	MockBacked               bool `json:"mockBacked"`
 	NetworkAccess            bool `json:"networkAccess"`
 	OAuth                    bool `json:"oauth"`
 	Credentials              bool `json:"credentials"`
+	RealCredentials          bool `json:"realCredentials"`
 	RealPlatformRead         bool `json:"realPlatformRead"`
 	RealPlatformWrite        bool `json:"realPlatformWrite"`
 	RealInventoryRead        bool `json:"realInventoryRead"`
 	RealInventoryWrite       bool `json:"realInventoryWrite"`
 	InventoryMutation        bool `json:"inventoryMutation"`
+	AutomaticExecution       bool `json:"automaticExecution"`
+	AutomaticRetry           bool `json:"automaticRetry"`
+	BackgroundWorker         bool `json:"backgroundWorker"`
 	AcceptsCredentialPayload bool `json:"acceptsCredentialPayload"`
 }
 
 func (c InventoryProviderCapabilities) unsafe() bool {
-	return c.NetworkAccess || c.OAuth || c.Credentials || c.RealPlatformRead || c.RealPlatformWrite || c.RealInventoryRead || c.RealInventoryWrite || c.InventoryMutation || c.AcceptsCredentialPayload
+	return c.NetworkAccess || c.OAuth || c.Credentials || c.RealCredentials || c.RealPlatformRead || c.RealPlatformWrite || c.RealInventoryRead || c.RealInventoryWrite || c.InventoryMutation || c.AutomaticExecution || c.AutomaticRetry || c.BackgroundWorker || c.AcceptsCredentialPayload
 }
 
 type InventoryProvider interface {
@@ -152,6 +156,9 @@ func (r *InventoryProviderRegistry) Register(provider InventoryProvider) error {
 		return ErrProviderNotRegistered
 	}
 	key := provider.Key().normalized()
+	if inventoryProviderKeyProductionForbidden(key) {
+		return ErrProductionCapabilityForbidden
+	}
 	if !inventoryProviderKeyAllowed(key) {
 		return ErrProviderNotRegistered
 	}
@@ -169,6 +176,9 @@ func (r *InventoryProviderRegistry) Resolve(platform, providerMode string) (Inve
 		return nil, ErrProviderNotRegistered
 	}
 	key := InventoryProviderKey{Platform: platform, ProviderMode: providerMode}.normalized()
+	if inventoryProviderKeyProductionForbidden(key) {
+		return nil, ErrProductionCapabilityForbidden
+	}
 	if !inventoryProviderKeyAllowed(key) {
 		return nil, ErrProviderNotRegistered
 	}
@@ -191,6 +201,16 @@ func inventoryProviderKeyAllowed(key InventoryProviderKey) bool {
 	return key.ProviderMode == ProviderModeMock || key.ProviderMode == ProviderModeSandbox || key.ProviderMode == ProviderModeLocalDraftOnly
 }
 
+func inventoryProviderKeyProductionForbidden(key InventoryProviderKey) bool {
+	mode := normalizeLower(key.ProviderMode)
+	switch mode {
+	case "production", "prod", "real", "live", "online", "remote", "oauth":
+		return true
+	default:
+		return false
+	}
+}
+
 type InventoryFixtureProvider struct {
 	key             InventoryProviderKey
 	capabilities    InventoryProviderCapabilities
@@ -202,7 +222,7 @@ type InventoryFixtureProvider struct {
 func NewDouyinInventoryMockProvider() *InventoryFixtureProvider {
 	return &InventoryFixtureProvider{
 		key:             InventoryProviderKey{Platform: PlatformDouyin, ProviderMode: ProviderModeMock},
-		capabilities:    InventoryProviderCapabilities{MockBacked: true},
+		capabilities:    InventoryProviderCapabilities{MockBacked: true, FixtureRead: true},
 		defaultScenario: FixtureScenarioSuccessSinglePage,
 		fixtureVersion:  DefaultInventoryFixtureVersion,
 	}
@@ -211,7 +231,7 @@ func NewDouyinInventoryMockProvider() *InventoryFixtureProvider {
 func NewDouyinInventoryFixtureProvider(defaultScenario string) *InventoryFixtureProvider {
 	return &InventoryFixtureProvider{
 		key:             InventoryProviderKey{Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox},
-		capabilities:    InventoryProviderCapabilities{FixtureBacked: true},
+		capabilities:    InventoryProviderCapabilities{FixtureBacked: true, FixtureRead: true},
 		defaultScenario: normalizeFixtureScenario(defaultScenario),
 		fixtureVersion:  DefaultInventoryFixtureVersion,
 	}
@@ -220,7 +240,7 @@ func NewDouyinInventoryFixtureProvider(defaultScenario string) *InventoryFixture
 func NewLocalInventoryFixtureProvider(defaultScenario string) *InventoryFixtureProvider {
 	return &InventoryFixtureProvider{
 		key:             InventoryProviderKey{Platform: PlatformDouyin, ProviderMode: ProviderModeLocalDraftOnly},
-		capabilities:    InventoryProviderCapabilities{FixtureBacked: true},
+		capabilities:    InventoryProviderCapabilities{FixtureBacked: true, FixtureRead: true},
 		defaultScenario: normalizeFixtureScenario(defaultScenario),
 		fixtureVersion:  DefaultInventoryFixtureVersion,
 	}
@@ -432,23 +452,7 @@ func providerCursorEqual(a, b datatypes.JSON) bool {
 }
 
 func providerSafeMetadata(meta map[string]string) (datatypes.JSON, error) {
-	if len(meta) == 0 {
-		return datatypes.JSON([]byte(`{}`)), nil
-	}
-	keys := make([]string, 0, len(meta))
-	for key := range meta {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	ordered := map[string]string{}
-	for _, key := range keys {
-		ordered[key] = meta[key]
-	}
-	encoded, err := json.Marshal(ordered)
-	if err != nil {
-		return nil, ErrProviderPageInvalid
-	}
-	return normalizeModelJSON(datatypes.JSON(encoded), maxSafeJSONBytes)
+	return safeProviderMetadataJSON(meta)
 }
 
 func providerErrorCode(err error) string {
@@ -459,6 +463,8 @@ func providerErrorCode(err error) string {
 		return ErrCodeProviderNotRegistered
 	case errors.Is(err, ErrProviderCapabilityForbidden):
 		return ErrCodeProviderCapabilityForbidden
+	case errors.Is(err, ErrProductionCapabilityForbidden):
+		return ErrCodeProductionCapabilityForbidden
 	case errors.Is(err, ErrProviderCursorInvalid):
 		return ErrCodeProviderCursorInvalid
 	case errors.Is(err, ErrProviderCursorLoop):
@@ -504,6 +510,8 @@ func errWithCode(code string) error {
 		return ErrProviderNotRegistered
 	case ErrCodeProviderCapabilityForbidden:
 		return ErrProviderCapabilityForbidden
+	case ErrCodeProductionCapabilityForbidden:
+		return ErrProductionCapabilityForbidden
 	case ErrCodeProviderCursorInvalid:
 		return ErrProviderCursorInvalid
 	case ErrCodeProviderCursorLoop:

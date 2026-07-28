@@ -30,6 +30,7 @@ const (
 	ErrCodeImmutableRecord                 = "immutable_record"
 	ErrCodeProviderNotRegistered           = "provider_not_registered"
 	ErrCodeProviderCapabilityForbidden     = "provider_capability_forbidden"
+	ErrCodeProductionCapabilityForbidden   = "production_capability_forbidden"
 	ErrCodeProviderCursorInvalid           = "provider_cursor_invalid"
 	ErrCodeProviderCursorLoop              = "provider_cursor_loop"
 	ErrCodeProviderPageLimitExceeded       = "provider_page_limit_exceeded"
@@ -65,6 +66,7 @@ var (
 	ErrImmutableRecord                 = errors.New(ErrCodeImmutableRecord)
 	ErrProviderNotRegistered           = errors.New(ErrCodeProviderNotRegistered)
 	ErrProviderCapabilityForbidden     = errors.New(ErrCodeProviderCapabilityForbidden)
+	ErrProductionCapabilityForbidden   = errors.New(ErrCodeProductionCapabilityForbidden)
 	ErrProviderCursorInvalid           = errors.New(ErrCodeProviderCursorInvalid)
 	ErrProviderCursorLoop              = errors.New(ErrCodeProviderCursorLoop)
 	ErrProviderPageLimitExceeded       = errors.New(ErrCodeProviderPageLimitExceeded)

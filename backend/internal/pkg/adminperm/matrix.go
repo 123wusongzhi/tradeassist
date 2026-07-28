@@ -64,6 +64,15 @@ const (
 	PermOperationTaskExecute   = "operationtask.execute"
 	PermOperationTaskRetry     = "operationtask.retry"
 	PermOperationTaskAuditRead = "operationtask.audit.read"
+	// P9 inventory sync permissions
+	PermInventorySyncRead      = "inventory_sync.read"
+	PermInventorySyncRun       = "inventory_sync.run"
+	PermInventorySyncRerun     = "inventory_sync.rerun"
+	PermInventorySnapshotRead  = "inventory_snapshot.read"
+	PermSKUBindingRead         = "sku_binding.read"
+	PermSKUBindingManage       = "sku_binding.manage"
+	PermSKUBindingResolveManual = "sku_binding.resolve_manual"
+	PermInventorySyncAuditRead = "inventory_sync.audit.read"
 )
 
 var allPermissions = []string{
@@ -123,6 +132,14 @@ var allPermissions = []string{
 	PermOperationTaskExecute,
 	PermOperationTaskRetry,
 	PermOperationTaskAuditRead,
+	PermInventorySyncRead,
+	PermInventorySyncRun,
+	PermInventorySyncRerun,
+	PermInventorySnapshotRead,
+	PermSKUBindingRead,
+	PermSKUBindingManage,
+	PermSKUBindingResolveManual,
+	PermInventorySyncAuditRead,
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
@@ -134,6 +151,11 @@ var reviewerPermissions = []string{
 	PermOperationTaskExecute,
 	PermOperationTaskRetry,
 	PermOperationTaskAuditRead,
+	PermInventorySyncRead,
+	PermInventorySnapshotRead,
+	PermSKUBindingRead,
+	PermSKUBindingResolveManual,
+	PermInventorySyncAuditRead,
 }
 
 var operatorPermissions = []string{
@@ -166,6 +188,12 @@ var operatorPermissions = []string{
 	PermDRRead,
 	PermOperationTaskEdit,
 	PermOperationTaskAuditRead,
+	PermInventorySyncRead,
+	PermInventorySyncRun,
+	PermInventorySyncRerun,
+	PermInventorySnapshotRead,
+	PermSKUBindingRead,
+	PermSKUBindingManage,
 }
 
 var readonlyPermissions = []string{
@@ -186,6 +214,9 @@ var readonlyPermissions = []string{
 	PermReleaseRead,
 	PermDRRead,
 	PermOperationTaskAuditRead,
+	PermInventorySyncRead,
+	PermInventorySnapshotRead,
+	PermSKUBindingRead,
 }
 
 // PermissionsForRole returns granted permission keys for a role.

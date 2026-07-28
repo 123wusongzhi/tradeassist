@@ -23,6 +23,13 @@ func (p unsafeInventoryProvider) FetchInventoryPage(ctx context.Context, request
 
 type testSyncAuthorizer struct{ allowed bool }
 
+func (a testSyncAuthorizer) CanRunInventorySync(ctx context.Context, tenantID int64, actorID uuid.UUID, shopConnectionID uuid.UUID) error {
+	if !a.allowed {
+		return ErrPermissionDenied
+	}
+	return nil
+}
+
 func (a testSyncAuthorizer) CanRerunInventorySync(ctx context.Context, tenantID int64, actorID uuid.UUID, sourceRunID uuid.UUID) error {
 	if !a.allowed {
 		return ErrPermissionDenied
@@ -36,7 +43,7 @@ func TestInventoryProviderRegistryAndFixtureProviderSafety(t *testing.T) {
 	_, err = registry.Resolve(PlatformDouyin, ProviderModeMock)
 	require.NoError(t, err)
 	_, err = registry.Resolve(PlatformDouyin, "production")
-	require.ErrorIs(t, err, ErrProviderNotRegistered)
+	require.ErrorIs(t, err, ErrProductionCapabilityForbidden)
 	_, err = registry.Resolve("unknown", ProviderModeMock)
 	require.ErrorIs(t, err, ErrProviderNotRegistered)
 	err = registry.Register(unsafeInventoryProvider{key: InventoryProviderKey{Platform: PlatformDouyin, ProviderMode: ProviderModeMock}, capabilities: InventoryProviderCapabilities{NetworkAccess: true}})
@@ -65,9 +72,9 @@ func TestInventorySyncOrchestratorProcessesFixturePages(t *testing.T) {
 	policy, err := NewCalibrationThresholdPolicy(CalibrationThresholdConfig{HighConfidenceThreshold: 9500, AutoConfirmationEnabled: false})
 	require.NoError(t, err)
 	service := NewSKUBindingCalibrationService(db, staticCandidateProvider{candidates: []LocalSKUCandidate{{TenantID: 701, LocalProductID: prod.ID, LocalSKUID: sku.ID, SKUCode: "SKU-701", Barcode: "B701"}}}, policy)
-	orchestrator := NewInventorySyncOrchestrator(db, registry, service, nil)
+	orchestrator := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
 
-	result, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 701, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioSuccessMultiPage, PageSize: 1, MaxPagesPerRun: 5, MaxItemsPerPage: 2, MaxItemsPerRun: 10, RequestID: "req-b3-701"})
+	result, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 701, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioSuccessMultiPage, PageSize: 1, MaxPagesPerRun: 5, MaxItemsPerPage: 2, MaxItemsPerRun: 10, ActorID: uuid.New(), RequestID: "req-b3-701"})
 	require.NoError(t, err)
 	require.Equal(t, InventorySyncRunStatusSucceeded, result.Status)
 	require.Equal(t, 2, result.TotalRecordCount)
@@ -98,9 +105,9 @@ func TestBindingResolutionPipelinePrioritizesConfirmedBinding(t *testing.T) {
 	policy, err := NewCalibrationThresholdPolicy(CalibrationThresholdConfig{HighConfidenceThreshold: 9500, AutoConfirmationEnabled: false})
 	require.NoError(t, err)
 	service := NewSKUBindingCalibrationService(db, staticCandidateProvider{candidates: []LocalSKUCandidate{}}, policy)
-	orchestrator := NewInventorySyncOrchestrator(db, registry, service, nil)
+	orchestrator := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
 
-	result, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 704, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, RequestID: "req-b3-confirmed"})
+	result, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 704, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, ActorID: uuid.New(), RequestID: "req-b3-confirmed"})
 	require.NoError(t, err)
 	require.Equal(t, 1, result.MatchedRecordCount)
 	require.Equal(t, 0, result.UnmatchedRecordCount)
@@ -118,18 +125,19 @@ func TestInventorySyncOrchestratorFailureCancellationIdempotencyAndRerun(t *test
 	policy, err := NewCalibrationThresholdPolicy(CalibrationThresholdConfig{HighConfidenceThreshold: 9500, AutoConfirmationEnabled: false})
 	require.NoError(t, err)
 	service := NewSKUBindingCalibrationService(db, staticCandidateProvider{candidates: []LocalSKUCandidate{{TenantID: 702, LocalProductID: prod.ID, LocalSKUID: sku.ID, SKUCode: "SKU-701"}}}, policy)
-	orchestrator := NewInventorySyncOrchestrator(db, registry, service, nil)
+	orchestrator := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
 
-	failed, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioProviderRejected, PageSize: 1, RequestID: "req-b3-fail"})
+	failed, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioProviderRejected, PageSize: 1, ActorID: uuid.New(), RequestID: "req-b3-fail"})
 	require.ErrorIs(t, err, ErrProviderRejected)
 	require.Equal(t, InventorySyncRunStatusFailed, failed.Status)
 	require.Contains(t, string(failed.SafeErrorSummary), ErrCodeProviderRejected)
 
-	same, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioProviderRejected, PageSize: 1, RequestID: "req-b3-fail"})
+	same, err := orchestrator.Run(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeSandbox, FixtureScenario: FixtureScenarioProviderRejected, PageSize: 1, ActorID: uuid.New(), RequestID: "req-b3-fail"})
 	require.NoError(t, err)
 	require.Equal(t, failed.InventorySyncRunID, same.InventorySyncRunID)
 
-	_, err = orchestrator.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, ActorID: uuid.New(), RequestID: "req-b3-rerun-deny"})
+	denied := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: false})
+	_, err = denied.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, ActorID: uuid.New(), RequestID: "req-b3-rerun-deny"})
 	require.ErrorIs(t, err, ErrPermissionDenied)
 
 	allowed := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
@@ -148,8 +156,8 @@ func TestInventorySyncOrchestratorConcurrentSameRequestCreatesOneRun(t *testing.
 	policy, err := NewCalibrationThresholdPolicy(CalibrationThresholdConfig{HighConfidenceThreshold: 9500, AutoConfirmationEnabled: false})
 	require.NoError(t, err)
 	service := NewSKUBindingCalibrationService(db, staticCandidateProvider{candidates: []LocalSKUCandidate{{TenantID: 703, LocalProductID: prod.ID, LocalSKUID: sku.ID, SKUCode: "SKU-701", Barcode: "B701"}}}, policy)
-	orchestrator := NewInventorySyncOrchestrator(db, registry, service, nil)
-	input := InventorySyncOrchestratorInput{TenantID: 703, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, RequestID: "req-b3-concurrent"}
+	orchestrator := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
+	input := InventorySyncOrchestratorInput{TenantID: 703, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, ActorID: uuid.New(), RequestID: "req-b3-concurrent"}
 
 	var wg sync.WaitGroup
 	results := make(chan *InventorySyncOrchestratorResult, 2)

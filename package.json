@@ -118,6 +118,8 @@
     "p9:task-batch-2-sku-calibration-gate": "node scripts/p9-task-batch-2-sku-calibration-gate.mjs",
     "test:p9-task-batch-3-sync-orchestration": "node tests/gates/p9/task-batch-3-sync-orchestration.mjs",
     "p9:task-batch-3-sync-orchestration-gate": "node scripts/p9-task-batch-3-sync-orchestration-gate.mjs",
+    "test:p9-task-batch-4-permissions-audit-safety": "node tests/gates/p9/task-batch-4-permissions-audit-safety.mjs",
+    "p9:task-batch-4-permissions-audit-safety-gate": "node scripts/p9-task-batch-4-permissions-audit-safety-gate.mjs",
     "test:p7-v2-gates": "node tests/gates/p7-v2/index.mjs",
     "test:p7-v2-process-identity": "node tests/gates/p7-v2/process-identity.mjs",
     "test:p7-v2-current-independence": "node tests/gates/p7-v2/current-independence.mjs",

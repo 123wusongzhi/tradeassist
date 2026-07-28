@@ -40,8 +40,23 @@ func TestPermissionsForRole(t *testing.T) {
 	if StrictHasPermission(RoleOperator, PermOperationTaskReview) || StrictHasPermission(RoleOperator, PermOperationTaskExecute) || StrictHasPermission(RoleOperator, PermOperationTaskRetry) {
 		t.Fatal("operator must not review, execute, or retry operation tasks")
 	}
-	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) {
-		t.Fatal("unknown roles must not inherit permissions on strict path")
+	if !StrictHasPermission(RoleOperator, PermInventorySyncRun) || !StrictHasPermission(RoleOperator, PermInventorySyncRerun) || !StrictHasPermission(RoleOperator, PermSKUBindingManage) {
+		t.Fatal("operator should run fixture inventory sync and manage SKU bindings")
+	}
+	if StrictHasPermission(RoleOperator, PermSKUBindingResolveManual) || StrictHasPermission(RoleOperator, PermInventorySyncAuditRead) {
+		t.Fatal("operator must not resolve manual bindings or read inventory sync audit")
+	}
+	if !StrictHasPermission(RoleReviewer, PermSKUBindingResolveManual) || !StrictHasPermission(RoleReviewer, PermInventorySyncAuditRead) {
+		t.Fatal("reviewer should resolve manual bindings and read inventory sync audit")
+	}
+	if StrictHasPermission(RoleReviewer, PermInventorySyncRun) || StrictHasPermission(RoleReviewer, PermInventorySyncRerun) || StrictHasPermission(RoleReadonly, PermInventorySyncRun) {
+		t.Fatal("reviewer and readonly must not run inventory sync")
+	}
+	if !StrictHasPermission(RoleReadonly, PermInventorySyncRead) || !StrictHasPermission(RoleReadonly, PermInventorySnapshotRead) || !StrictHasPermission(RoleReadonly, PermSKUBindingRead) {
+		t.Fatal("readonly should read inventory sync, snapshots, and SKU bindings")
+	}
+	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
+		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
 	}
 }
 

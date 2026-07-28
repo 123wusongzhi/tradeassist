@@ -187,6 +187,30 @@ func TestValidate_stagingRejectsDouyinWebhookDemoFallback(t *testing.T) {
 	}
 }
 
+func TestValidateP9InventorySyncSafetyRejectsDangerousEnv(t *testing.T) {
+	cases := []struct {
+		key   string
+		value string
+	}{
+		{key: "REAL_DOUYIN_ENABLED", value: "true"},
+		{key: "REAL_PLATFORM_READ", value: "true"},
+		{key: "INVENTORY_MUTATION_ENABLED", value: "true"},
+		{key: "AUTO_INVENTORY_SYNC", value: "true"},
+		{key: "INVENTORY_SYNC_PROVIDER_MODE", value: "production"},
+		{key: "INVENTORY_SYNC_ACCESS_TOKEN", value: "secret-token"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.key, func(t *testing.T) {
+			cfg := &Config{AppEnv: EnvDevelopment, DB: DBConfig{Driver: "postgres", User: "u", Name: "db"}}
+			t.Setenv(tc.key, tc.value)
+			err := cfg.Validate()
+			if err == nil || !strings.Contains(err.Error(), ErrCodeP9ProductionCapabilityForbidden) {
+				t.Fatalf("expected P9 safety rejection, got %v", err)
+			}
+		})
+	}
+}
+
 func TestRedactedSummary_noSecrets(t *testing.T) {
 	t.Parallel()
 	cfg := &Config{
