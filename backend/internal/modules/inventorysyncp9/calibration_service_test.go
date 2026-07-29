@@ -143,6 +143,35 @@ func TestCalibrationServicePersistsCandidatesAndManualRequestIdempotently(t *tes
 	require.Len(t, requests, 1)
 }
 
+func TestCalibrationServiceRecalibrationCreatesImmutableVersion(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+	store, prod, sku := seedShopAndSKU(t, db, 607)
+	run := createRun(t, ctx, db, 607, store.ID)
+	snapshot := validSnapshot(607, run, "remote-sku-recalibrate-1")
+	snapshot.ExternalSKUCode = "SKU-607"
+	require.NoError(t, NewInventorySnapshotRepository(db).CreateBatch(ctx, 607, []InventorySnapshotItem{snapshot}))
+	stored, err := NewInventorySnapshotRepository(db).GetByRunAndExternalSKU(ctx, 607, run.ID, snapshot.ExternalSKUID)
+	require.NoError(t, err)
+	policy, err := NewCalibrationThresholdPolicy(CalibrationThresholdConfig{HighConfidenceThreshold: 9500, AutoConfirmationEnabled: false})
+	require.NoError(t, err)
+	service := NewSKUBindingCalibrationService(db, staticCandidateProvider{candidates: []LocalSKUCandidate{{TenantID: 607, LocalProductID: prod.ID, LocalSKUID: sku.ID, SKUCode: "SKU-607"}}}, policy)
+	_, err = service.CalibrateSnapshotItem(ctx, 607, run.ID, stored.ID)
+	require.NoError(t, err)
+
+	recalibrated, version, err := service.RecalibrateSnapshotItem(ctx, 607, run.ID, stored.ID, 1)
+	require.NoError(t, err)
+	require.Equal(t, 2, version)
+	require.Len(t, recalibrated.Candidates, 1)
+	require.Equal(t, 2, recalibrated.Candidates[0].CalibrationVersion)
+	rows, err := NewSKUBindingCalibrationRepository(db).ListBySnapshot(ctx, 607, stored.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	require.ElementsMatch(t, []int{1, 2}, []int{rows[0].CalibrationVersion, rows[1].CalibrationVersion})
+	_, _, err = service.RecalibrateSnapshotItem(ctx, 607, run.ID, stored.ID, 1)
+	require.ErrorIs(t, err, ErrRevisionConflict)
+}
+
 func TestManualBindingServiceAuthorizationIdempotencyAndConcurrency(t *testing.T) {
 	ctx := context.Background()
 	db := newTestDB(t)

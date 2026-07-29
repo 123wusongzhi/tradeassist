@@ -2,15 +2,13 @@ package operationtask
 
 import (
 	"encoding/json"
-	"errors"
-	"io"
-	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/httpapi"
 	"gorm.io/datatypes"
 )
 
@@ -29,16 +27,7 @@ const (
 var apiIdempotencyKeyPattern = regexp.MustCompile(`^[A-Za-z0-9._:-]{8,128}$`)
 
 func apiBindJSON(c *gin.Context, dst any) error {
-	if c == nil || dst == nil || c.Request == nil || c.Request.Body == nil {
-		return ErrValidation
-	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, apiMaxJSONBodyBytes)
-	dec := json.NewDecoder(c.Request.Body)
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return ErrValidation
-	}
-	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+	if err := httpapi.BindStrictJSON(c, dst, apiMaxJSONBodyBytes); err != nil {
 		return ErrValidation
 	}
 	return nil

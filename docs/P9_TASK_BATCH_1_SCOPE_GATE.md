@@ -5,7 +5,7 @@ Status: **passed**
 - Batch id: P9-TASK-BATCH-1
 - Batch name: Inventory Sync, SKU Binding Calibration and Manual Fallback
 - Current branch: dev
-- Current head: 1ac652ac4797eee636bf615f1e9ed272f2b82f84
+- Current head: af1a4da8ca22d0f5477828540d5caa5d22f72a75
 - Head detached: false
 - Staged files: 0
 - Canonical scope resolved: true

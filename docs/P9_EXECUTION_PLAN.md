@@ -99,11 +99,11 @@ The existing `P9-101` through `P9-402` tasks remain the planning / governance fo
 
 | Task ID | Task Name | Batch | Status | Deliverables |
 | --- | --- | --- | --- | --- |
-| `P9-901` | Sync Run APIs | 5 | planned | create/list/detail/status/statistics |
-| `P9-902` | Inventory Snapshot APIs | 5 | planned | list/filter/cursor pagination |
-| `P9-903` | SKU Binding and Calibration APIs | 5 | planned | bindings, candidates, recalibration, history |
-| `P9-904` | Manual Binding APIs | 5 | planned | pending list, detail, approve, reject |
-| `P9-905` | Sync History and Audit APIs | 5 | planned | run history, error summary, audit timeline |
+| `P9-901` | Sync Run APIs | 5 | completed | create/list/detail/status/statistics |
+| `P9-902` | Inventory Snapshot APIs | 5 | completed | list/filter/cursor pagination |
+| `P9-903` | SKU Binding and Calibration APIs | 5 | completed | bindings, candidates, recalibration, history |
+| `P9-904` | Manual Binding APIs | 5 | completed | pending list, detail, approve, reject |
+| `P9-905` | Sync History and Audit APIs | 5 | completed | run history, error summary, audit timeline |
 
 ### WS-10 Admin UI
 
@@ -167,7 +167,40 @@ Evidence:
 - [`P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md`](P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md)
 - [`p9-task-batch-4-permissions-audit-safety-gate.json`](p9-task-batch-4-permissions-audit-safety-gate.json)
 
-Next product batch remains `P9-901` through `P9-905` Backend APIs, status `notStarted`.
+## Batch 5 Completion Artifact
+
+Batch 5 backend APIs are completed locally on `dev`. The surface is fixture/mock-only and keeps the P10 production boundary intact.
+
+```text
+batch5TaskIdsExactlyMatch=true
+batch5TaskCount=5
+batch5Completed=true
+batch5GatePassed=true
+apiImplemented=true
+strictJSONBodyLimit=true
+keysetPagination=true
+allowedActionsImplemented=true
+controlledRecalibrationHistory=true
+adminUiImplemented=false
+realCredentialsEnabled=false
+realNetworkEnabled=false
+workerImplemented=false
+postgresIntegrationStatus=not_run
+postgresIntegrationPassed=false
+postgresIntegrationDeferredTo=P9_Final_Development_Closure
+p9FinalClosureBlocker=true
+productionReady=false
+p9Complete=false
+```
+
+Evidence:
+
+- [`P9_TASK_BATCH_5_BACKEND_APIS.md`](P9_TASK_BATCH_5_BACKEND_APIS.md)
+- [`p9-task-batch-5-backend-apis.json`](p9-task-batch-5-backend-apis.json)
+- [`P9_TASK_BATCH_5_BACKEND_APIS_GATE.md`](P9_TASK_BATCH_5_BACKEND_APIS_GATE.md)
+- [`p9-task-batch-5-backend-apis-gate.json`](p9-task-batch-5-backend-apis-gate.json)
+
+Next product batch is `P9-1001` through `P9-1006` Admin Inventory Sync and Binding Center, status `planned`.
 
 ## Batch 1 Scope Artifact
 

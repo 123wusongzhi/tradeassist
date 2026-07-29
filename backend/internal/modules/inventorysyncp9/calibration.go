@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -353,7 +354,7 @@ func (p GORMLocalSKUCandidateProvider) ListLocalSKUCandidates(ctx context.Contex
 	if err := p.DB.WithContext(ctx).Table("product_skus AS sk").
 		Select("p.tenant_id AS tenant_id, p.id AS product_id, sk.id AS sku_id, sk.sku_code AS sku_code").
 		Joins("JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL").
-		Where("p.tenant_id = ? AND sk.deleted_at IS NULL", tenantID).
+		Where("p.tenant_id = ?", tenantID).
 		Order("sk.id ASC").
 		Scan(&rows).Error; err != nil {
 		return nil, stableError(err, ErrStateConflict)
@@ -418,6 +419,47 @@ func (s *SKUBindingCalibrationService) CalibrateSnapshotItem(ctx context.Context
 	return result, nil
 }
 
+// RecalibrateSnapshotItem creates a new immutable calibration version while
+// preserving all prior candidate rows. It is intentionally explicit so a
+// caller cannot silently overwrite historical calibration evidence.
+func (s *SKUBindingCalibrationService) RecalibrateSnapshotItem(ctx context.Context, tenantID int64, runID uuid.UUID, snapshotID uuid.UUID, expectedVersion int) (*CalibrationServiceResult, int, error) {
+	if s == nil || s.DB == nil || s.CandidateProvider == nil {
+		return nil, 0, fmt.Errorf("sku binding calibration service: dependencies are nil")
+	}
+	if validateTenantID(tenantID) != nil || runID == zeroUUID || snapshotID == zeroUUID {
+		return nil, 0, ErrValidation
+	}
+	var result *CalibrationServiceResult
+	version := 0
+	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var snapshot InventorySnapshotItem
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND inventory_sync_run_id = ? AND id = ?", tenantID, runID, snapshotID).First(&snapshot).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrNotFound
+			}
+			return stableError(err, ErrStateConflict)
+		}
+		var current int
+		if err := tx.Model(&SKUBindingCalibration{}).Where("tenant_id = ? AND inventory_snapshot_item_id = ?", tenantID, snapshotID).Select("COALESCE(MAX(calibration_version), 0)").Scan(&current).Error; err != nil {
+			return stableError(err, ErrStateConflict)
+		}
+		if expectedVersion > 0 && current != expectedVersion {
+			return ErrRevisionConflict
+		}
+		version = current + 1
+		calibrated, err := s.calibrateSnapshotWithDBVersion(ctx, tx, snapshot, version, true)
+		if err != nil {
+			return err
+		}
+		result = calibrated
+		return nil
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, version, nil
+}
+
 func (s *SKUBindingCalibrationService) calibrateSnapshotItemWithDB(ctx context.Context, tx *gorm.DB, tenantID int64, runID uuid.UUID, snapshotID uuid.UUID) (*CalibrationServiceResult, error) {
 	if s == nil || tx == nil || s.CandidateProvider == nil {
 		return nil, fmt.Errorf("sku binding calibration service: dependencies are nil")
@@ -429,10 +471,14 @@ func (s *SKUBindingCalibrationService) calibrateSnapshotItemWithDB(ctx context.C
 		}
 		return nil, stableError(err, ErrStateConflict)
 	}
-	return s.calibrateSnapshotWithDB(ctx, tx, snapshot)
+	return s.calibrateSnapshotWithDBVersion(ctx, tx, snapshot, 0, false)
 }
 
 func (s *SKUBindingCalibrationService) calibrateSnapshotWithDB(ctx context.Context, tx *gorm.DB, snapshot InventorySnapshotItem) (*CalibrationServiceResult, error) {
+	return s.calibrateSnapshotWithDBVersion(ctx, tx, snapshot, 0, false)
+}
+
+func (s *SKUBindingCalibrationService) calibrateSnapshotWithDBVersion(ctx context.Context, tx *gorm.DB, snapshot InventorySnapshotItem, version int, force bool) (*CalibrationServiceResult, error) {
 	candidates, err := s.CandidateProvider.ListLocalSKUCandidates(ctx, snapshot.TenantID)
 	if err != nil {
 		return nil, err
@@ -444,7 +490,13 @@ func (s *SKUBindingCalibrationService) calibrateSnapshotWithDB(ctx context.Conte
 	}
 	policyResult := s.Policy.Evaluate(match.Status, scored)
 	fingerprint := inputFingerprint(snapshot, candidates)
-	if existing, err := listCalibrationsByFingerprint(ctx, tx, snapshot.TenantID, snapshot.ID, fingerprint); err == nil && len(existing) > 0 {
+	if force {
+		fingerprint = hashString(fingerprint, version)
+		for idx := range scored {
+			scored[idx].CalibrationVersion = version
+			scored[idx].InputFingerprint = fingerprint
+		}
+	} else if existing, err := listCalibrationsByFingerprint(ctx, tx, snapshot.TenantID, snapshot.ID, fingerprint); err == nil && len(existing) > 0 {
 		result := &CalibrationServiceResult{MatchStatus: match.Status, Candidates: calibrationsToCandidates(existing), PolicyResult: policyResult, InputFingerprint: fingerprint}
 		if req, err := getManualRequestByFingerprint(ctx, tx, snapshot.TenantID, snapshot.ID, fingerprint); err == nil {
 			result.ManualBindingRequest = req
@@ -453,8 +505,10 @@ func (s *SKUBindingCalibrationService) calibrateSnapshotWithDB(ctx context.Conte
 		}
 		return result, nil
 	}
-	if err := ensureNoCalibrationPayloadConflict(ctx, tx, snapshot.TenantID, snapshot.ID, fingerprint); err != nil {
-		return nil, err
+	if !force {
+		if err := ensureNoCalibrationPayloadConflict(ctx, tx, snapshot.TenantID, snapshot.ID, fingerprint); err != nil {
+			return nil, err
+		}
 	}
 	if len(scored) > 0 {
 		rows, err := candidatesToCalibrations(snapshot, scored)

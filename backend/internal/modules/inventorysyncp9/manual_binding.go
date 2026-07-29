@@ -37,6 +37,7 @@ type ManualBindingActor struct {
 type ConfirmManualBindingInput struct {
 	Actor              ManualBindingActor
 	RequestID          uuid.UUID
+	CorrelationID      string
 	ExpectedRevision   int
 	SelectedLocalSKUID uuid.UUID
 	IdempotencyKeyHash string
@@ -46,6 +47,7 @@ type ConfirmManualBindingInput struct {
 type RejectManualBindingInput struct {
 	Actor              ManualBindingActor
 	RequestID          uuid.UUID
+	CorrelationID      string
 	ExpectedRevision   int
 	ReasonCode         string
 	IdempotencyKeyHash string
@@ -69,7 +71,7 @@ func (s *ManualBindingService) ConfirmBinding(ctx context.Context, input Confirm
 		return nil, fmt.Errorf("manual binding service: db is nil")
 	}
 	if err := s.authorize(ctx, input.Actor, input.RequestID); err != nil {
-		if auditErr := s.auditPermissionDenied(ctx, input.Actor, input.RequestID); auditErr != nil {
+		if auditErr := s.auditPermissionDenied(ctx, input.Actor, input.RequestID, input.CorrelationID); auditErr != nil {
 			return nil, auditErr
 		}
 		return nil, err
@@ -176,7 +178,7 @@ func (s *ManualBindingService) ConfirmBinding(ctx context.Context, input Confirm
 		if err := createManualDecision(ctx, tx, decision); err != nil {
 			return err
 		}
-		if err := s.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.Actor.TenantID, ActorID: input.Actor.ActorID, Action: "sku_binding.manual_confirmed", Resource: inventorySyncAuditResourceManualBinding, ResourceID: input.RequestID.String(), ShopID: request.ShopConnectionID, Platform: PlatformDouyin, Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusSuccess, Metadata: map[string]any{"bindingStatusBefore": ManualBindingStatusPending, "bindingStatusAfter": ManualBindingStatusConfirmed, "bindingSource": SKUBindingSourceManual, "localSkuId": input.SelectedLocalSKUID.String(), "externalSkuId": request.ExternalSKUID, "reasonCodes": []string{ReasonExistingConfirmedBinding}}}); err != nil {
+		if err := s.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.Actor.TenantID, ActorID: input.Actor.ActorID, Action: "sku_binding.manual_confirmed", Resource: inventorySyncAuditResourceManualBinding, ResourceID: input.RequestID.String(), ShopID: request.ShopConnectionID, Platform: PlatformDouyin, Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusSuccess, RequestID: input.CorrelationID, Metadata: map[string]any{"bindingStatusBefore": ManualBindingStatusPending, "bindingStatusAfter": ManualBindingStatusConfirmed, "bindingSource": SKUBindingSourceManual, "localSkuId": input.SelectedLocalSKUID.String(), "externalSkuId": request.ExternalSKUID, "reasonCodes": []string{ReasonExistingConfirmedBinding}}}); err != nil {
 			return err
 		}
 		result = ManualBindingResult{Request: updated, Binding: binding}
@@ -193,7 +195,7 @@ func (s *ManualBindingService) RejectBinding(ctx context.Context, input RejectMa
 		return nil, fmt.Errorf("manual binding service: db is nil")
 	}
 	if err := s.authorize(ctx, input.Actor, input.RequestID); err != nil {
-		if auditErr := s.auditPermissionDenied(ctx, input.Actor, input.RequestID); auditErr != nil {
+		if auditErr := s.auditPermissionDenied(ctx, input.Actor, input.RequestID, input.CorrelationID); auditErr != nil {
 			return nil, auditErr
 		}
 		return nil, err
@@ -257,7 +259,7 @@ func (s *ManualBindingService) RejectBinding(ctx context.Context, input RejectMa
 		if err := createManualDecision(ctx, tx, decision); err != nil {
 			return err
 		}
-		if err := s.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.Actor.TenantID, ActorID: input.Actor.ActorID, Action: "sku_binding.manual_rejected", Resource: inventorySyncAuditResourceManualBinding, ResourceID: input.RequestID.String(), ShopID: request.ShopConnectionID, Platform: PlatformDouyin, Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusSuccess, Metadata: map[string]any{"bindingStatusBefore": ManualBindingStatusPending, "bindingStatusAfter": ManualBindingStatusRejected, "bindingSource": SKUBindingSourceManual, "externalSkuId": request.ExternalSKUID, "reasonCodes": []string{input.ReasonCode}}}); err != nil {
+		if err := s.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.Actor.TenantID, ActorID: input.Actor.ActorID, Action: "sku_binding.manual_rejected", Resource: inventorySyncAuditResourceManualBinding, ResourceID: input.RequestID.String(), ShopID: request.ShopConnectionID, Platform: PlatformDouyin, Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusSuccess, RequestID: input.CorrelationID, Metadata: map[string]any{"bindingStatusBefore": ManualBindingStatusPending, "bindingStatusAfter": ManualBindingStatusRejected, "bindingSource": SKUBindingSourceManual, "externalSkuId": request.ExternalSKUID, "reasonCodes": []string{input.ReasonCode}}}); err != nil {
 			return err
 		}
 		result = ManualBindingResult{Request: updated}
@@ -284,12 +286,12 @@ func (s *ManualBindingService) writeAuditWithDB(ctx context.Context, db *gorm.DB
 	return audit.Write(ctx, event)
 }
 
-func (s *ManualBindingService) auditPermissionDenied(ctx context.Context, actor ManualBindingActor, requestID uuid.UUID) error {
+func (s *ManualBindingService) auditPermissionDenied(ctx context.Context, actor ManualBindingActor, requestID uuid.UUID, correlationID string) error {
 	audit := s.auditWithDB(s.DB)
 	if audit == nil {
 		return ErrStateConflict
 	}
-	return audit.Write(ctx, InventorySyncAuditEvent{TenantID: actor.TenantID, ActorID: actor.ActorID, Action: "inventory_sync.permission_denied", Resource: inventorySyncAuditResourceManualBinding, ResourceID: requestID.String(), Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusDenied, Metadata: map[string]any{"errorCode": ErrCodePermissionDenied, "safeMessage": ErrCodePermissionDenied, "reasonCodes": []string{ErrCodePermissionDenied}, "stage": "manual_binding.resolve"}})
+	return audit.Write(ctx, InventorySyncAuditEvent{TenantID: actor.TenantID, ActorID: actor.ActorID, Action: "inventory_sync.permission_denied", Resource: inventorySyncAuditResourceManualBinding, ResourceID: requestID.String(), Permission: adminperm.PermSKUBindingResolveManual, Status: inventorySyncAuditStatusDenied, RequestID: correlationID, Metadata: map[string]any{"errorCode": ErrCodePermissionDenied, "safeMessage": ErrCodePermissionDenied, "reasonCodes": []string{ErrCodePermissionDenied}, "stage": "manual_binding.resolve"}})
 }
 
 func (s *ManualBindingService) authorize(ctx context.Context, actor ManualBindingActor, requestID uuid.UUID) error {

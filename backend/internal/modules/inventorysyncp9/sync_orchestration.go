@@ -217,9 +217,16 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 		if checkpoint.TotalRecordCount+len(pageResult.Items) > input.MaxItemsPerRun {
 			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, ErrProviderPageLimitExceeded, checkpoint)
 		}
+		currentRun := run
 		run, err = o.commitPage(ctx, input, run, pageResult, &checkpoint)
 		if err != nil {
-			return o.finishWithError(ctx, input, run.ID, run.Revision, InventorySyncRunStatusFailed, err, checkpoint)
+			runID := currentRun.ID
+			revision := currentRun.Revision
+			if run != nil {
+				runID = run.ID
+				revision = run.Revision
+			}
+			return o.finishWithError(ctx, input, runID, revision, InventorySyncRunStatusFailed, err, checkpoint)
 		}
 		cursor = pageResult.NextCursor
 		if !pageResult.HasMore {
@@ -333,7 +340,7 @@ func normalizeOrchestratorInput(input *InventorySyncOrchestratorInput) error {
 	if input.TriggerType == "" {
 		input.TriggerType = InventorySyncTriggerManual
 	}
-	if input.Platform != PlatformDouyin || !allowedProviderModes[input.ProviderMode] {
+	if input.Platform != PlatformDouyin || (!allowedProviderModes[input.ProviderMode] && !inventoryProviderKeyProductionForbidden(InventoryProviderKey{Platform: input.Platform, ProviderMode: input.ProviderMode})) {
 		return ErrValidation
 	}
 	if input.PageSize <= 0 {

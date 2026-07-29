@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "P9",
-  "status": "batch_4_completed_locally_verified_postgres_deferred",
+  "status": "batch_5_completed_locally_verified_postgres_deferred",
   "executionStatus": "in_progress",
   "ownerScopeDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
   "ownerScopeDecisionApproved": true,
@@ -90,7 +90,7 @@
   "headDetached": false,
   "stagedFileCount": 0,
   "p9ProductImplementationFileCount": 1,
-  "productCompletedTaskCount": 22,
+  "productCompletedTaskCount": 27,
   "p10BoundaryPreserved": true,
   "productionReady": false,
   "workstreams": [
@@ -1110,15 +1110,16 @@
             "AC-P9-11",
             "AC-P9-12"
           ],
+          "status": "completed",
+          "implementationStarted": true,
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+            "docs/p9-task-batch-5-backend-apis.json"
           ],
           "gateIds": [
-            "P9-PLAN"
-          ],
-          "status": "planned",
-          "implementationStarted": false
+            "P9-PLAN",
+            "P9-TASK-BATCH-5-BACKEND-APIS"
+          ]
         },
         {
           "taskId": "P9-902",
@@ -1139,15 +1140,16 @@
           "acceptanceCriteriaIds": [
             "AC-P9-11"
           ],
+          "status": "completed",
+          "implementationStarted": true,
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+            "docs/p9-task-batch-5-backend-apis.json"
           ],
           "gateIds": [
-            "P9-PLAN"
-          ],
-          "status": "planned",
-          "implementationStarted": false
+            "P9-PLAN",
+            "P9-TASK-BATCH-5-BACKEND-APIS"
+          ]
         },
         {
           "taskId": "P9-903",
@@ -1172,15 +1174,16 @@
             "AC-P9-04",
             "AC-P9-05"
           ],
+          "status": "completed",
+          "implementationStarted": true,
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+            "docs/p9-task-batch-5-backend-apis.json"
           ],
           "gateIds": [
-            "P9-PLAN"
-          ],
-          "status": "planned",
-          "implementationStarted": false
+            "P9-PLAN",
+            "P9-TASK-BATCH-5-BACKEND-APIS"
+          ]
         },
         {
           "taskId": "P9-904",
@@ -1204,15 +1207,16 @@
             "AC-P9-06",
             "AC-P9-07"
           ],
+          "status": "completed",
+          "implementationStarted": true,
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+            "docs/p9-task-batch-5-backend-apis.json"
           ],
           "gateIds": [
-            "P9-PLAN"
-          ],
-          "status": "planned",
-          "implementationStarted": false
+            "P9-PLAN",
+            "P9-TASK-BATCH-5-BACKEND-APIS"
+          ]
         },
         {
           "taskId": "P9-905",
@@ -1235,15 +1239,16 @@
             "AC-P9-13",
             "AC-P9-14"
           ],
+          "status": "completed",
+          "implementationStarted": true,
           "evidencePaths": [
-            "docs/P9_EXECUTION_PLAN.md",
-            "docs/p9-execution-plan.json"
+            "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+            "docs/p9-task-batch-5-backend-apis.json"
           ],
           "gateIds": [
-            "P9-PLAN"
-          ],
-          "status": "planned",
-          "implementationStarted": false
+            "P9-PLAN",
+            "P9-TASK-BATCH-5-BACKEND-APIS"
+          ]
         }
       ]
     },
@@ -1681,7 +1686,7 @@
         "P9-904",
         "P9-905"
       ],
-      "status": "notStarted"
+      "status": "completed"
     },
     {
       "batch": 6,
@@ -1710,7 +1715,7 @@
     }
   ],
   "phaseStatus": "In Progress",
-  "currentHead": "d2ff054f915a7919275dd4dae9b76472572f5b84",
+  "currentHead": "af1a4da8ca22d0f5477828540d5caa5d22f72a75",
   "batch4Completed": true,
   "batch4GatePassed": true,
   "batch4EvidencePaths": [
@@ -1722,6 +1727,18 @@
     "tests/gates/p9/task-batch-4-permissions-audit-safety.mjs",
     "docs/P9_TASK_BATCH_4_PERMISSIONS_AUDIT_SAFETY_GATE.md",
     "docs/p9-task-batch-4-permissions-audit-safety-gate.json"
+  ],
+  "batch5Completed": true,
+  "batch5GatePassed": true,
+  "batch5EvidencePaths": [
+    "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+    "docs/p9-task-batch-5-backend-apis.json"
+  ],
+  "batch5GatePaths": [
+    "scripts/p9-task-batch-5-backend-apis-gate.mjs",
+    "tests/gates/p9/task-batch-5-backend-apis.mjs",
+    "docs/P9_TASK_BATCH_5_BACKEND_APIS_GATE.md",
+    "docs/p9-task-batch-5-backend-apis-gate.json"
   ],
   "postgresIntegrationStatus": "not_run",
   "postgresIntegrationPassed": false,
