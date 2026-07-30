@@ -305,7 +305,7 @@ jobs:
 
       - name: Upload sanitized P9 PostgreSQL runtime evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: p9-postgres-runtime
           path: |
