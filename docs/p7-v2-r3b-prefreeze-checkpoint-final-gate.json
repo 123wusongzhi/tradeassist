@@ -1,0 +1,31 @@
+{
+  "phase": "P7-V2-R3B-PREFREEZE-CHECKPOINT-FINAL-GATE",
+  "status": "passed",
+  "createdAt": "2026-07-16T13:03:32.7193409+08:00",
+  "checkpointCommit": "dc9df79b61d2effd7b5b3938f24249be6adb05ba",
+  "checkpointCommitCreated": true,
+  "checkpointCommitCreatedThisRun": false,
+  "workingTreeCleanAtStageStart": true,
+  "checks": {
+    "worktreeClassificationPassed": true,
+    "checkpointCommitCreated": true,
+    "workingTreeClean": true,
+    "unrelatedChangeCount": 0,
+    "unclassifiedFileCount": 0,
+    "webhookRepairFinalGatePassed": true,
+    "webhookRacePassed": true,
+    "fullGoRacePassed": true,
+    "dataRaces": 0,
+    "allRequiredFixturesPassed": true,
+    "allProjectChecksPassed": true,
+    "runtimeFreezeCreated": false,
+    "formalExecutionStarted": false,
+    "gitPushPerformed": false,
+    "tagCreated": false
+  },
+  "failedChecks": [],
+  "failed": 0,
+  "classificationReport": "docs/p7-v2-r3b-prefreeze-worktree-classification.json",
+  "webhookRepairGateReport": "docs/p7-v2-r3b-webhook-p99-local-repair-final-gate.json",
+  "note": "The webhook repair checkpoint already existed as HEAD when this pre-freeze pass started from a clean worktree."
+}

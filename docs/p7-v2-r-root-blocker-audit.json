@@ -1,0 +1,53 @@
+{
+  "phase": "P7-V2-R",
+  "component": "root-blocker-audit",
+  "generatedAt": "2026-07-14T06:35:00.000Z",
+  "rootBlocker": "k6_unavailable",
+  "rootBlockerResolved": true,
+  "resolutionMethod": "go-install-goproxy-cn",
+  "dependentFailures": [
+    "load",
+    "baseline",
+    "current",
+    "regression",
+    "soak",
+    "demo",
+    "final_gates"
+  ],
+  "priorAttempts": [
+    {
+      "method": "wget-github-release",
+      "result": "failed",
+      "reason": "download interrupted"
+    },
+    {
+      "method": "curl-github-release",
+      "result": "failed",
+      "reason": "exit 56 network/SSL interrupt, 120s timeout"
+    },
+    {
+      "method": "apt-install-k6",
+      "result": "failed",
+      "reason": "package not in apt sources"
+    },
+    {
+      "method": "docker-pull-grafana-k6-0.57.0",
+      "result": "failed",
+      "reason": "docker.io registry timeout"
+    }
+  ],
+  "resolution": {
+    "method": "go-install",
+    "proxy": "https://goproxy.cn,direct",
+    "version": "v0.57.0",
+    "path": "/mnt/d/project/trademind-ai/tools/k6/k6",
+    "platform": "linux",
+    "architecture": "amd64"
+  },
+  "evidence": [
+    "docs/p7-v2-preflight-audit.json",
+    "docs/p7-v2-load-test-report.json",
+    "docs/p7-v2-final-closure-report.json",
+    "docs/p7-v2-r-k6-provisioning-report.json"
+  ]
+}

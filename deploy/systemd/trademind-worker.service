@@ -1,0 +1,15 @@
+[Unit]
+Description=TradeMind Background Workers (embedded in API process)
+After=trademind-api.service
+PartOf=trademind-api.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/true
+
+[Install]
+WantedBy=multi-user.target
+
+# Note: TradeMind MVP runs queue workers in-process with the API server.
+# Use this unit only as documentation placeholder; enable trademind-api.service.

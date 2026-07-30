@@ -1,0 +1,252 @@
+{
+  "phase": "P7-V2-R3B-AUTH-OPERATION-LOG-TAIL-MINIMAL-REPAIR",
+  "status": "local_repair_completed",
+  "primaryRootCause": "B_auth_audit_or_operation_log_db_tail",
+  "confidence": "high",
+  "repairPath": "auth_operation_log_hash_chain_or_commit_path_minimal_fix",
+  "parentCheckpoint": "c4ba1ba6ccf7a4ee80638bce04ed51c08adbf5c2",
+  "changedFiles": [
+    "backend/internal/modules/operationlog/hash_chain.go",
+    "backend/internal/modules/operationlog/service.go",
+    "backend/internal/database/migrate_p7.go",
+    "backend/internal/modules/operationlog/service_test.go",
+    "backend/internal/modules/auth/session_service_test.go",
+    "backend/internal/pkg/p7diag/diagnostics.go",
+    "backend/internal/pkg/p7diag/diagnostics_test.go",
+    "tests/gates/p7-v2/webhook-p99/fixtures.mjs",
+    "docs/P7_V2_R3B_AUTH_OPERATION_LOG_TAIL_REPAIR.md",
+    "docs/P7_V2_R3B_AUTH_OPERATION_LOG_TAIL_REPAIR_FINAL_GATE.md",
+    "docs/p7-v2-r3b-auth-operation-log-tail-repair-final-gate.json",
+    "docs/p7-v2-r3b-auth-operation-log-tail-repair.json",
+    "scripts/p7-v2-r3b-auth-operation-log-tail-repair-final-gate.mjs"
+  ],
+  "migrationFiles": [
+    "backend/internal/database/migrate_p7.go"
+  ],
+  "actualCallChain": [
+    "POST /api/v1/auth/login",
+    "auth.Handler.Login",
+    "auth.LoginService.Login",
+    "auth.SessionService.CreateSession",
+    "LoginGuard.CheckAllowed",
+    "admin.Store.ByLoginAccount",
+    "admin.CheckPassword bcrypt verification",
+    "LoginGuard.RecordFailure",
+    "operationlog.Service.Write",
+    "operationlog.Service.appendHashChain",
+    "operation_logs previous hash lookup",
+    "operation_logs insert",
+    "transaction commit",
+    "401 response"
+  ],
+  "hashChainSemantics": {
+    "scope": "tenant plus UTC date",
+    "uniqueKey": "chain_partition=t{tenantID}:YYYY-MM-DD",
+    "previousHashQuery": "SELECT ... FROM operation_logs WHERE chain_partition = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+    "previousRowLocking": "PostgreSQL uses pg_advisory_xact_lock(hashtext(chain_partition)::bigint) and FOR UPDATE on the predecessor row",
+    "localConcurrencyControl": "process-local mutex by chain_partition serializes same-process same-scope writers before the DB transaction",
+    "transactionIsolation": "default database transaction isolation; predecessor lookup and insert remain in one transaction",
+    "hashInputs": [
+      "prev_hash",
+      "tenant_id",
+      "action",
+      "resource",
+      "resource_id",
+      "status",
+      "request_id",
+      "created_at RFC3339Nano",
+      "SHA256(message)"
+    ],
+    "emptyChainInitialValue": "empty prev_hash",
+    "createdAtTieBreak": "created_at DESC, id DESC; new row timestamp is advanced by one microsecond when it would not be after predecessor",
+    "crossRequestPreviousHashCache": false
+  },
+  "beforeQueryBudget": {
+    "unknown_account": {
+      "accountLookupCount": 1,
+      "passwordVerifyCount": 0,
+      "failedAttemptReadCount": 4,
+      "failedAttemptWriteCount": 2,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    },
+    "known_account_wrong_password": {
+      "accountLookupCount": 1,
+      "passwordVerifyCount": 1,
+      "failedAttemptReadCount": 4,
+      "failedAttemptWriteCount": 2,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    },
+    "locked_account": {
+      "accountLookupCount": 0,
+      "passwordVerifyCount": 0,
+      "failedAttemptReadCount": 1,
+      "failedAttemptWriteCount": 0,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    }
+  },
+  "afterQueryBudget": {
+    "unknown_account": {
+      "accountLookupCount": 1,
+      "passwordVerifyCount": 0,
+      "failedAttemptReadCount": 4,
+      "failedAttemptWriteCount": 2,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    },
+    "known_account_wrong_password": {
+      "accountLookupCount": 1,
+      "passwordVerifyCount": 1,
+      "failedAttemptReadCount": 4,
+      "failedAttemptWriteCount": 2,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    },
+    "locked_account": {
+      "accountLookupCount": 0,
+      "passwordVerifyCount": 0,
+      "failedAttemptReadCount": 1,
+      "failedAttemptWriteCount": 0,
+      "securityAuditInsertCount": 1,
+      "operationLogPreviousHashLookupCount": 1,
+      "operationLogInsertCount": 1,
+      "transactionCommitCount": 1
+    }
+  },
+  "duplicateWriteAudit": {
+    "duplicateAccountLookup": false,
+    "duplicatePasswordVerify": false,
+    "duplicatePreviousHashLookup": false,
+    "duplicateSecurityAuditInsert": false,
+    "duplicateOperationLogInsert": false,
+    "securityAuditStorage": "logical security_audit fingerprint is the same durable operation_logs insert; no separate security_audit table exists in this implementation"
+  },
+  "beforeExplain": {
+    "environment": "isolated WSL PostgreSQL 14.23 temporary database",
+    "operation": "auth.operation_log_previous_hash_lookup",
+    "sqlShape": "SELECT id, entry_hash, created_at FROM operation_logs WHERE chain_partition = $1 ORDER BY created_at DESC, id DESC LIMIT 1",
+    "planNode": "Limit -> Sort -> Seq Scan",
+    "indexName": "",
+    "actualRows": 1,
+    "rowsRemovedByFilter": 13333,
+    "sharedHitBlocks": 494,
+    "sharedReadBlocks": 0,
+    "executionTimeMs": 2.634,
+    "planningTimeMs": 0.294,
+    "sortMethod": "top-N heapsort",
+    "lockWait": "not observed"
+  },
+  "afterExplain": {
+    "environment": "isolated WSL PostgreSQL 14.23 temporary database",
+    "operation": "auth.operation_log_previous_hash_lookup",
+    "sqlShape": "SELECT id, entry_hash, created_at FROM operation_logs WHERE chain_partition = $1 ORDER BY created_at DESC, id DESC LIMIT 1",
+    "planNode": "Limit -> Index Scan",
+    "indexName": "idx_operation_logs_p7_chain_partition_created_id",
+    "actualRows": 1,
+    "rowsRemovedByFilter": 0,
+    "sharedHitBlocks": 1,
+    "sharedReadBlocks": 3,
+    "executionTimeMs": 0.044,
+    "planningTimeMs": 0.344,
+    "sortMethod": "",
+    "lockWait": "not observed"
+  },
+  "additionalExplain": {
+    "auth.failed_attempt_update": {
+      "planNode": "ModifyTable -> Seq Scan",
+      "indexName": "",
+      "actualRows": 0,
+      "rowsRemovedByFilter": 0,
+      "sharedHitBlocks": 3,
+      "sharedReadBlocks": 0,
+      "executionTimeMs": 0.055,
+      "planningTimeMs": 0.161,
+      "note": "single-row isolated fixture; existing idx_auth_login_account remains unchanged"
+    },
+    "auth.operation_log_insert": {
+      "planNode": "ModifyTable -> Result",
+      "indexName": "",
+      "actualRows": 0,
+      "sharedHitBlocks": 94,
+      "sharedReadBlocks": 0,
+      "executionTimeMs": 0.27,
+      "planningTimeMs": 0.089
+    },
+    "auth.security_audit_insert": {
+      "planNode": "same durable operation_logs insert",
+      "indexName": "",
+      "actualRows": 0,
+      "executionTimeMs": 0.27,
+      "planningTimeMs": 0.089
+    }
+  },
+  "beforeBenchmark": {
+    "source": "not rerun from parent checkpoint in this working tree",
+    "formalClosureEvidence": false
+  },
+  "afterBenchmark": {
+    "command": "go test -run '^$' -bench 'InvalidLogin|OperationLog|HashChain' -benchmem ./internal/modules/auth ./internal/modules/operationlog",
+    "goos": "windows",
+    "goarch": "amd64",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "BenchmarkInvalidLoginUnknownAccount": {
+      "nsPerOp": 1221464,
+      "bytesPerOp": 122199,
+      "allocsPerOp": 1190
+    },
+    "BenchmarkInvalidLoginWrongPassword": {
+      "nsPerOp": 1272976,
+      "bytesPerOp": 122125,
+      "allocsPerOp": 1189
+    },
+    "BenchmarkInvalidLoginWithAudit": {
+      "nsPerOp": 1311986,
+      "bytesPerOp": 122197,
+      "allocsPerOp": 1192
+    },
+    "BenchmarkOperationLogHashChainAppend": {
+      "nsPerOp": 1835426,
+      "bytesPerOp": 45221,
+      "allocsPerOp": 491
+    },
+    "formalClosureEvidence": false
+  },
+  "hashChainSemanticsUnchanged": true,
+  "securityAuditSemanticsUnchanged": true,
+  "failedLoginSemanticsUnchanged": true,
+  "transactionSemanticsUnchanged": true,
+  "queryBudgetEvidencePassed": true,
+  "explainEvidencePassed": true,
+  "benchmarkEvidencePassed": true,
+  "hashChainConcurrencyPassed": true,
+  "rollbackTestsPassed": true,
+  "formalDiagnosticWriterDisabled": true,
+  "authTestsPassed": true,
+  "operationLogTestsPassed": true,
+  "p7diagTestsPassed": true,
+  "authRacePassed": true,
+  "fullGoRacePassed": true,
+  "racePassed": true,
+  "dataRaces": 0,
+  "formalRerunStarted": false,
+  "guardrails": {
+    "thresholdChanged": false,
+    "sloChanged": false,
+    "materialityChanged": false,
+    "vusChanged": false,
+    "stagesChanged": false,
+    "datasetChanged": false
+  }
+}

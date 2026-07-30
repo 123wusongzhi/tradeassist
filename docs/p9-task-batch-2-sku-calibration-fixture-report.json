@@ -1,0 +1,7 @@
+{
+  "phase": "P9",
+  "batchId": "P9-TASK-BATCH-2",
+  "gate": "P9-TASK-BATCH-2-SKU-CALIBRATION-FIXTURE",
+  "status": "passed",
+  "fixtureAssertions": 22
+}

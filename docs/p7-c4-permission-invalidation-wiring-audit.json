@@ -1,0 +1,18 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:45:00Z",
+  "writePaths": [
+    {"operation": "assign_role", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "remove_role", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "update_role_permissions", "handler": "admin", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "delete_role", "handler": "admin", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "update_tenant_grant", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "update_shop_grant", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "disable_user", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "enable_user", "handler": "adminuser", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "increment_security_version", "handler": "securitymod", "localInvalidation": true, "versionUpdate": true, "status": "wired"},
+    {"operation": "revoke_sessions", "handler": "auth", "localInvalidation": true, "versionUpdate": true, "status": "wired"}
+  ],
+  "mandatoryMissing": 0
+}

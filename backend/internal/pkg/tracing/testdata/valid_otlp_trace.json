@@ -1,0 +1,82 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "trademind-api"
+            }
+          },
+          {
+            "key": "deployment.environment",
+            "value": {
+              "stringValue": "test"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "trademind-test",
+            "version": "v1"
+          },
+          "spans": [
+            {
+              "traceId": "00112233445566778899aabbccddeeff",
+              "spanId": "0011223344556677",
+              "name": "root-export",
+              "kind": 2,
+              "startTimeUnixNano": "1700000000000000123",
+              "endTimeUnixNano": "1700000000001000123",
+              "attributes": [
+                {
+                  "key": "app.module",
+                  "value": {
+                    "stringValue": "tracing"
+                  }
+                },
+                {
+                  "key": "item.count",
+                  "value": {
+                    "intValue": "3"
+                  }
+                },
+                {
+                  "key": "cache.hit",
+                  "value": {
+                    "boolValue": true
+                  }
+                }
+              ],
+              "status": {}
+            },
+            {
+              "traceId": "00112233445566778899aabbccddeeff",
+              "spanId": "8899aabbccddeeff",
+              "parentSpanId": "0011223344556677",
+              "name": "child-export",
+              "kind": 3,
+              "startTimeUnixNano": "1700000000001000123",
+              "endTimeUnixNano": "1700000000002000123",
+              "attributes": [
+                {
+                  "key": "http.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                }
+              ],
+              "status": {
+                "code": 2,
+                "message": "timeout"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

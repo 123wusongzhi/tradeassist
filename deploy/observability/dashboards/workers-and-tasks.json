@@ -1,0 +1,18 @@
+{
+  "title": "workers-and-tasks",
+  "description": "TradeMind P5 dashboard definition (version controlled, no credentials)",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "requests",
+      "metric": "http_server_requests_total"
+    }
+  ],
+  "variables": {
+    "environment": [
+      "development",
+      "staging",
+      "production"
+    ]
+  }
+}

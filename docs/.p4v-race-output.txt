@@ -1,0 +1,26 @@
+go: downloading github.com/golang-jwt/jwt/v5 v5.3.1
+# github.com/trademind-ai/trademind/backend/internal/modules/auth
+internal/modules/auth/jwt.go:6:2: github.com/golang-jwt/jwt/v5@v5.3.1: Get "https://proxy.golang.org/github.com/golang-jwt/jwt/v5/@v/v5.3.1.zip": dial tcp 142.250.73.113:443: i/o timeout
+FAIL	github.com/trademind-ai/trademind/backend/internal/modules/auth [setup failed]
+# github.com/trademind-ai/trademind/backend/internal/modules/securitymod
+internal/modules/auth/jwt.go:6:2: github.com/golang-jwt/jwt/v5@v5.3.1: Get "https://proxy.golang.org/github.com/golang-jwt/jwt/v5/@v/v5.3.1.zip": dial tcp 142.250.73.113:443: i/o timeout
+FAIL	github.com/trademind-ai/trademind/backend/internal/modules/securitymod [setup failed]
+ok  	github.com/trademind-ai/trademind/backend/internal/pkg/security	1.032s
+ok  	github.com/trademind-ai/trademind/backend/internal/pkg/crypto	1.018s
+?   	github.com/trademind-ai/trademind/backend/internal/modules/operationlog	[no test files]
+?   	github.com/trademind-ai/trademind/backend/internal/modules/files	[no test files]
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/taskcenter	1.047s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier	1.025s
+?   	github.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify	[no test files]
+?   	github.com/trademind-ai/trademind/backend/internal/modules/inventory	[no test files]
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/customerchat	1.044s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/aiproducttext	1.393s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/aiproductimage	1.458s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/productpublish	2.998s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/ordersync	1.041s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/webhook	2.008s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/shop	1.700s
+?   	github.com/trademind-ai/trademind/backend/internal/modules/exportmod	[no test files]
+FAIL
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/auth	2.513s
+ok  	github.com/trademind-ai/trademind/backend/internal/modules/securitymod	1.065s

@@ -1,0 +1,11 @@
+{
+  "loadProfile": {
+    "kind": "current",
+    "targetVUs": 10,
+    "warmup": "5m",
+    "ramp": "3m",
+    "steady": "10m",
+    "rampdown": "2m"
+  },
+  "loadProfileFingerprint": "ae4c862477ca18d0"
+}

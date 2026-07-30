@@ -1,0 +1,117 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-PAIR-REPEATABILITY-AUDIT-FINAL-GATE",
+  "status": "failed",
+  "failed": [
+    "runCount",
+    "order",
+    "allRunsIndependent",
+    "allDatasetRows",
+    "inputSequenceHashMatch",
+    "branchMixFingerprintMatch",
+    "hostSnapshotsPresent",
+    "binaryProvenancePassed",
+    "baselineSelfVarianceCalculated",
+    "currentSelfVarianceCalculated",
+    "crossVersionVarianceCalculated",
+    "rootCauseClassified"
+  ],
+  "failedCount": 12,
+  "sourceReport": "docs/p7-v2-r3b-formal-pair-repeatability-order-bias-audit.json",
+  "formal": false,
+  "validForClosure": false,
+  "diagnosticOnly": true,
+  "order": "",
+  "runCount": 0,
+  "allRunsIndependent": false,
+  "allDatasetRows": false,
+  "inputSequenceHashMatch": false,
+  "branchMixFingerprintMatch": false,
+  "hostSnapshotsPresent": false,
+  "binaryProvenancePassed": false,
+  "processIdentityProbeVersion": 2,
+  "probeMethod": "linux_procfs",
+  "externalShimUsed": false,
+  "primaryRootCause": "not_classified_bccb_repeatability_matrix_not_executed",
+  "confidence": "low",
+  "repairPath": "run_bounded_non_formal_bccb_repeatability_diagnostics_after_probe_checkpoint",
+  "formalRerunStarted": false,
+  "checks": [
+    {
+      "id": "diagnosticOnly",
+      "status": "passed"
+    },
+    {
+      "id": "formal",
+      "status": "passed"
+    },
+    {
+      "id": "runCount",
+      "status": "failed"
+    },
+    {
+      "id": "order",
+      "status": "failed"
+    },
+    {
+      "id": "allRunsIndependent",
+      "status": "failed"
+    },
+    {
+      "id": "allDatasetRows",
+      "status": "failed"
+    },
+    {
+      "id": "inputSequenceHashMatch",
+      "status": "failed"
+    },
+    {
+      "id": "branchMixFingerprintMatch",
+      "status": "failed"
+    },
+    {
+      "id": "hostSnapshotsPresent",
+      "status": "failed"
+    },
+    {
+      "id": "binaryProvenancePassed",
+      "status": "failed"
+    },
+    {
+      "id": "baselineSelfVarianceCalculated",
+      "status": "failed"
+    },
+    {
+      "id": "currentSelfVarianceCalculated",
+      "status": "failed"
+    },
+    {
+      "id": "crossVersionVarianceCalculated",
+      "status": "failed"
+    },
+    {
+      "id": "rootCauseClassified",
+      "status": "failed"
+    },
+    {
+      "id": "formalRerunStarted",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    }
+  ],
+  "generatedAt": "2026-07-18T01:29:11.476Z"
+}

@@ -1,0 +1,11 @@
+{
+  "phase": "P7-V2-R3",
+  "status": "blocked",
+  "changedGoRuntimeFiles": 0,
+  "sourceRaceReport": "docs/p7-c4-race-test-report.json",
+  "runtimeSourceTreeCompatibility": false,
+  "reason": "Skipped: no valid baseline/current comparability chain; running final stability or race checks cannot close R3.",
+  "issues": [
+    "Skipped: no valid baseline/current comparability chain; running final stability or race checks cannot close R3."
+  ]
+}

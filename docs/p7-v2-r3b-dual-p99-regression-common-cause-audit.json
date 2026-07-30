@@ -1,0 +1,395 @@
+{
+  "phase": "P7-V2-R3B-DUAL-P99-REGRESSION-AUDIT",
+  "status": "completed",
+  "generatedAt": "2026-07-16T10:58:00.000Z",
+  "baselineRunId": "p7v2-baseline-r3b-recovery6-20260716082252",
+  "currentRunId": "p7v2-current-r3b-recovery6-20260716082252",
+  "runtimeFreezeId": "db08320b4e37b1cb11f1ad3182ad7ce09730906e7aaa912230f1c7b82279116f",
+  "baselineArtifactSha256": "6edf07eceea10be9b059aeb55cd4d5e679734bde955e6f56ceabced5af2f2512",
+  "currentArtifactSha256": "7ed88fe13a9b556fd7b43ec0ef603c3699fd098eb59f1500d5696f03ba7c61e5",
+  "sources": {
+    "runManifest": "docs/p7-v2-r3b-run-manifest.json",
+    "runtimeFreeze": "docs/p7-v2-r3b-fast-close-r3-runtime-freeze.json",
+    "comparabilityReport": "docs/p7-v2-r3b-fast-close-r3-comparability-report.json",
+    "regressionReport": "docs/p7-v2-r3b-fast-close-r3-regression-v2-report.json",
+    "baselineReport": "docs/baselines/p7-v2-baseline-p7v2-baseline-r3b-recovery6-20260716082252.json",
+    "currentReport": "docs/currents/p7-v2-current-p7v2-current-r3b-recovery6-20260716082252.json",
+    "baselineFrozenArtifact": "docs/baselines/frozen/p7v2-baseline-r3b-recovery6-20260716082252/raw-summary.json",
+    "currentFrozenArtifact": "docs/currents/frozen/p7v2-current-r3b-recovery6-20260716082252/raw-summary.json",
+    "cleanupReport": "docs/p7-v2-runtime-cleanup-report.json"
+  },
+  "failureStateCleanup": {
+    "status": "passed",
+    "failureStateCleanupPassed": true,
+    "currentFormalResidualCount": 0,
+    "failedAttemptResidualCount": 0,
+    "unknownDatabaseCount": 0,
+    "unknownProcessCount": 0,
+    "listener18080Count": 0,
+    "historicalFrozenArtifactDeletedCount": 0,
+    "historicalEvidenceDeletedCount": 0,
+    "unknownResourceDeletedCount": 0,
+    "resourceOwnershipVerified": true,
+    "cleanupActions": [
+      {
+        "resourceRunId": "p7v2-baseline-r3b-recovery6-20260716082252",
+        "resourceType": "postgres_database",
+        "resourceIdentity": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260716082252",
+        "ownershipVerified": true,
+        "action": "dropped_by_scoped_cleanup"
+      },
+      {
+        "resourceRunId": "p7v2-current-r3b-recovery6-20260716082252",
+        "resourceType": "process",
+        "resourceIdentity": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server pid=4419 port=18080",
+        "ownershipVerified": true,
+        "action": "stopped_exact_verified_pid_after_nonresponsive_term"
+      },
+      {
+        "resourceRunId": "p7v2-current-r3b-recovery6-20260716082252",
+        "resourceType": "postgres_database",
+        "resourceIdentity": "trademind_p7v2_p7v2_current_r3b_recovery6_20260716082252_restar",
+        "ownershipVerified": true,
+        "action": "dropped_by_scoped_cleanup"
+      }
+    ]
+  },
+  "failedPairDisposition": {
+    "status": "failed_regression",
+    "active": false,
+    "historicalEvidence": true,
+    "validForAudit": true,
+    "validForRegressionRerun": false,
+    "validForSoak": false,
+    "validForClosure": false,
+    "freshRunIdsConsumed": true
+  },
+  "pairIntegrity": {
+    "pairIntegrityPassed": true,
+    "artifactHashBindingPassed": true,
+    "runtimeFreezeBindingPassed": true,
+    "metricBindingPassed": true,
+    "datasetBindingPassed": true,
+    "comparabilityPassed": true,
+    "mismatchCount": 0,
+    "notComparableCount": 0,
+    "actualRows": 1900150,
+    "runtimeFreezeStillValidForHistoricalAudit": true,
+    "noMutableArtifactUsed": true,
+    "noHistoricalReportSelected": true,
+    "noLegacyFallbackUsed": true
+  },
+  "regression": {
+    "status": "failed",
+    "failedMetricCount": 2,
+    "notComparableCount": 0,
+    "invalidMetricCount": 0,
+    "insufficientSampleCount": 0,
+    "summaryStatMissingCount": 0
+  },
+  "rawSampleEvidenceAvailable": false,
+  "tailWindowEvidenceAvailable": false,
+  "stageTimingAvailable": false,
+  "webhookDistribution": {
+    "metric": "Webhook Ingestion",
+    "metricName": "p7_webhook_ingestion_steady_duration",
+    "aggregation": "p99",
+    "baseline": {
+      "sampleCount": 2506,
+      "successCount": 2506,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "min": 6.651739,
+      "p25": null,
+      "p50": 13.055998,
+      "p75": null,
+      "p90": 16.527445,
+      "p95": 17.7284625,
+      "p97": null,
+      "p98": null,
+      "p99": 27.795560399999975,
+      "p99_5": null,
+      "max": 955.774216,
+      "mean": 13.836403878691133,
+      "stddev": null,
+      "p99MinusP95": 10.067097899999975,
+      "maxMinusP99": 927.9786556,
+      "p99ToMedianRatio": 2.1289494989199578,
+      "p95ToMedianRatio": 1.3578787695892722
+    },
+    "current": {
+      "sampleCount": 2505,
+      "successCount": 2505,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "min": 6.078166,
+      "p25": null,
+      "p50": 12.895408,
+      "p75": null,
+      "p90": 16.8207182,
+      "p95": 18.190723199999994,
+      "p97": null,
+      "p98": null,
+      "p99": 52.218400640000056,
+      "p99_5": null,
+      "max": 994.17243,
+      "mean": 14.378840941317359,
+      "stddev": null,
+      "p99MinusP95": 34.02767744000006,
+      "maxMinusP99": 941.9540293599999,
+      "p99ToMedianRatio": 4.049379487643978,
+      "p95ToMedianRatio": 1.4106357239724399
+    },
+    "absoluteDelta": 24.42284024000008,
+    "relativeDelta": 0.8786597531597206,
+    "samplesAboveBaselineP99": null,
+    "samplesAboveAbsoluteSlo": null,
+    "top1PercentSampleCount": null,
+    "tailShape": "tail_only_spike",
+    "finalVerdict": "failed_material_regression"
+  },
+  "authInvalidLoginDistribution": {
+    "metric": "Auth Invalid Login",
+    "metricName": "p7_auth_invalid_login_steady_duration",
+    "aggregation": "p99",
+    "baseline": {
+      "sampleCount": 1192,
+      "successCount": 1192,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "min": 3.107551,
+      "p25": null,
+      "p50": 5.136534,
+      "p75": null,
+      "p90": 6.7517477999999995,
+      "p95": 7.733516650000002,
+      "p97": null,
+      "p98": null,
+      "p99": 16.88928388999987,
+      "p99_5": null,
+      "max": 1227.964522,
+      "mean": 6.6669488884228185,
+      "stddev": null,
+      "p99MinusP95": 9.155767239999868,
+      "maxMinusP99": 1211.07523811,
+      "p99ToMedianRatio": 3.288070105249935,
+      "p95ToMedianRatio": 1.5055904720965543
+    },
+    "current": {
+      "sampleCount": 1187,
+      "successCount": 1187,
+      "errorCount": 0,
+      "timeoutCount": 0,
+      "min": 3.056915,
+      "p25": null,
+      "p50": 5.221208,
+      "p75": null,
+      "p90": 7.065194400000001,
+      "p95": 8.9023304,
+      "p97": null,
+      "p98": null,
+      "p99": 140.05195838000012,
+      "p99_5": null,
+      "max": 230.45931,
+      "mean": 9.119471791069921,
+      "stddev": null,
+      "p99MinusP95": 131.1496279800001,
+      "maxMinusP99": 90.40735161999987,
+      "p99ToMedianRatio": 26.823669614388113,
+      "p95ToMedianRatio": 1.7050327050751475
+    },
+    "absoluteDelta": 123.16267449000024,
+    "relativeDelta": 7.292356223754682,
+    "samplesAboveBaselineP99": null,
+    "samplesAboveAbsoluteSlo": null,
+    "top1PercentSampleCount": null,
+    "tailShape": "tail_only_spike",
+    "finalVerdict": "failed_material_regression"
+  },
+  "tailWindows": {
+    "webhookTailWindows": null,
+    "authTailWindows": null,
+    "overlappingTailWindowCount": null,
+    "tailWindowOverlapRatio": null,
+    "commonRuntimeOrDatabaseContentionLikely": null,
+    "reason": "Frozen artifacts contain aggregate k6 summary metrics only; request-level samples and timestamps are unavailable."
+  },
+  "commonRuntimeAudit": {
+    "cpuEvidence": {
+      "audited": true,
+      "available": false,
+      "cpuSaturationEvidence": "not_recorded"
+    },
+    "gcEvidence": {
+      "audited": true,
+      "available": false,
+      "gcPauseAlignmentEvidence": "not_recorded"
+    },
+    "databasePoolEvidence": {
+      "audited": true,
+      "available": false,
+      "openConnections": null,
+      "inUseConnections": null,
+      "idleConnections": null,
+      "waitCount": null,
+      "waitDuration": null,
+      "maxOpenConnections": null,
+      "conclusion": "No frozen DB pool counters or wait timing were captured for the failed pair."
+    },
+    "transactionEvidence": {
+      "audited": true,
+      "available": false,
+      "commitLatency": null,
+      "conclusion": "No transaction commit timing was captured for the failed pair."
+    },
+    "lockEvidence": {
+      "audited": true,
+      "available": false,
+      "pgLocksSnapshot": null,
+      "blockedQueries": null,
+      "conclusion": "No pg_stat_activity, pg_locks, or lock wait snapshots were frozen during the run."
+    },
+    "environmentEquivalence": {
+      "audited": true,
+      "baselineApiPid": null,
+      "currentApiPid": null,
+      "goVersionMatch": true,
+      "nodeVersionMatch": true,
+      "postgresVersionMatch": true,
+      "k6VersionMatch": true,
+      "datasetFingerprintMatch": true,
+      "loadProfileFingerprintMatch": true,
+      "configFingerprintMatch": true,
+      "leakFlags": {
+        "baseline": {
+          "memoryLeakDetected": false,
+          "goroutineLeakDetected": false,
+          "connectionLeakDetected": false,
+          "queueLeakDetected": false
+        },
+        "current": {
+          "memoryLeakDetected": false,
+          "goroutineLeakDetected": false,
+          "connectionLeakDetected": false,
+          "queueLeakDetected": false
+        }
+      }
+    }
+  },
+  "webhookStageAudit": {
+    "audited": true,
+    "stageTimingAvailable": false,
+    "normalInsertQueryCount": 1,
+    "duplicatePathQueryCount": 2,
+    "normalInsertReloadRemoved": true,
+    "freshDuplicateEventStruct": true,
+    "currentHitNormalInsertPath": "not_proven_by_frozen_artifact",
+    "duplicateRatioEvidence": "not_recorded",
+    "transactionLockWaitEvidence": "not_recorded",
+    "connectionPoolWaitEvidence": "not_recorded"
+  },
+  "authInvalidLoginStageAudit": {
+    "audited": true,
+    "stageTimingAvailable": false,
+    "normalInvalidUserPathQueryCount": null,
+    "wrongPasswordPathQueryCount": null,
+    "failedAttemptWriteCount": 2,
+    "auditWriteCount": 1,
+    "passwordHashAlgorithm": "bcrypt",
+    "passwordHashCost": "bcrypt.DefaultCost",
+    "hashVerificationCountPerRequest": "0_for_nonexistent_user_1_for_wrong_password_user",
+    "repeatedUserLookupEvidence": "not_recorded",
+    "failedAttemptLockContentionEvidence": "not_recorded",
+    "operationLogWriteEvidence": "handler_writes_failed_login_operation_log"
+  },
+  "commonDependencyMatrix": [
+    {
+      "dependency": "PostgreSQL Pool",
+      "webhook": true,
+      "authInvalidLogin": true,
+      "currentAbnormalEvidence": "not_recorded"
+    },
+    {
+      "dependency": "Transaction Commit",
+      "webhook": true,
+      "authInvalidLogin": true,
+      "currentAbnormalEvidence": "not_recorded"
+    },
+    {
+      "dependency": "Audit Logging",
+      "webhook": false,
+      "authInvalidLogin": true,
+      "currentAbnormalEvidence": "not_recorded"
+    },
+    {
+      "dependency": "File Logger",
+      "webhook": false,
+      "authInvalidLogin": false,
+      "currentAbnormalEvidence": "not_recorded"
+    },
+    {
+      "dependency": "Redis/Rate Limit",
+      "webhook": false,
+      "authInvalidLogin": false,
+      "currentAbnormalEvidence": "not_used_by_failed_pair_path"
+    },
+    {
+      "dependency": "CPU/GC",
+      "webhook": true,
+      "authInvalidLogin": true,
+      "currentAbnormalEvidence": "not_recorded"
+    },
+    {
+      "dependency": "Worker Queue",
+      "webhook": false,
+      "authInvalidLogin": false,
+      "currentAbnormalEvidence": "not_used_by_synchronous_failed_pair_metric"
+    }
+  ],
+  "rootCause": {
+    "primaryRootCause": "F_insufficient_evidence",
+    "secondaryRootCauses": [
+      "B_shared_database_pool_or_transaction_regression_possible",
+      "D_auth_specific_hash_query_or_audit_regression_possible",
+      "C_webhook_specific_query_or_lock_regression_less_likely_after_query_budget_fixture"
+    ],
+    "confidence": "medium",
+    "evidenceSupporting": [
+      "Both failed metrics are p99-only tail spikes while p50 and p95 remain close to baseline.",
+      "Both failed metrics have zero errors and zero timeouts, so the failure is latency-only.",
+      "Comparability passed with mismatchCount=0 and notComparableCount=0.",
+      "Frozen artifacts do not contain request-level samples, timestamps, DB pool counters, lock snapshots, GC pause data, CPU saturation data, or stage timing data."
+    ],
+    "evidenceContradicting": [
+      "The two failed paths do not share all dependencies; failed login has operation-log writes and bcrypt on wrong-password paths, while webhook ingestion has webhook event/idempotency writes.",
+      "Operation Log List and Task List did not fail p99 regression, weakening a broad shared-DB explanation.",
+      "Current Auth Invalid Login max is lower than baseline max, so isolated maximum outliers alone do not explain the regression."
+    ]
+  },
+  "recommendedRepairPath": "F_low_cardinality_diagnostics_before_formal_rerun",
+  "minimumRepairAction": "Add fixed low-cardinality diagnostic timing for webhook ingestion stages, auth invalid-login stages, DB pool wait, transaction commit, and runtime snapshots; do not write diagnostic output into the formal registry until a new checkpoint/runtime freeze/formal pair is created.",
+  "newCheckpointRequired": true,
+  "newRuntimeFreezeRequired": true,
+  "newFormalPairRequired": true,
+  "formalRerunStarted": false,
+  "downstreamStepsNotExecuted": [
+    "soak",
+    "demo",
+    "stability",
+    "race",
+    "cleanup_final",
+    "final_gates"
+  ],
+  "guardrails": {
+    "thresholdChanged": false,
+    "sloChanged": false,
+    "materialityChanged": false,
+    "vusChanged": false,
+    "stagesChanged": false,
+    "datasetChanged": false,
+    "metricSchemaChanged": false,
+    "productionResourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinCalls": 0
+  }
+}

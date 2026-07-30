@@ -1,0 +1,25 @@
+{
+  "phase": "P7-V2-R3B-REBASELINE2",
+  "status": "blocked",
+  "runId": "p7v2-baseline-r3b-recovery2-20260715-022554",
+  "command": "pnpm p7-v2:env:start -- --run-id p7v2-baseline-r3b-recovery2-20260715-022554",
+  "exitCode": 1,
+  "blocker": "port 8080 remains occupied before API start",
+  "datasetExecuted": false,
+  "k6Executed": false,
+  "requests": 0,
+  "rawArtifact": null,
+  "artifactSha256": "",
+  "artifactSizeBytes": 0,
+  "immutable": false,
+  "validForRegression": false,
+  "productionResourcesAccessed": false,
+  "realProviderCalls": 0,
+  "realDouyinWrites": 0,
+  "autoListingTriggered": false,
+  "cleanup": {
+    "database": "trademind_p7v2_p7v2_baseline_r3b_recovery2_20260715_022554",
+    "databaseDropped": true,
+    "unknownPortOwnerStopped": false
+  }
+}

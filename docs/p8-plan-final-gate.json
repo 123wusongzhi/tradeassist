@@ -1,0 +1,128 @@
+{
+  "phase": "P8",
+  "gate": "P8-PLAN",
+  "status": "passed",
+  "checkedAt": "2026-07-20T00:00:00.000Z",
+  "baseCheckpoint": "ef537bf1d19c670f831e71a8c3c6fa7cbf1bc8ca",
+  "canonicalScopeDecisionId": "P8-OWNER-SCOPE-DECISION-20260720",
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "historicalPhase8Reused": false,
+  "objectiveCount": 7,
+  "deliverableCount": 8,
+  "acceptanceCriteriaCount": 15,
+  "workstreamCount": 8,
+  "taskCount": 41,
+  "allTasksHaveDependencies": true,
+  "allTasksHaveAcceptanceCriteria": true,
+  "allTasksHaveEvidenceRequirements": true,
+  "p7ConditionalClosurePreserved": true,
+  "p7DeferredPerformancePreserved": true,
+  "p10ProductionBoundaryPreserved": true,
+  "realCredentialsEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "humanConfirmationRequired": true,
+  "productionReady": false,
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "ownerDecisionPresent",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalScopeResolved",
+      "status": "passed"
+    },
+    {
+      "id": "scopeConfidence",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalScopeDecisionId",
+      "status": "passed"
+    },
+    {
+      "id": "baseCheckpoint",
+      "status": "passed"
+    },
+    {
+      "id": "objectivesCount",
+      "status": "passed"
+    },
+    {
+      "id": "deliverablesCount",
+      "status": "passed"
+    },
+    {
+      "id": "acceptanceCriteriaCount",
+      "status": "passed"
+    },
+    {
+      "id": "workstreamCount",
+      "status": "passed"
+    },
+    {
+      "id": "taskCount",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveDependencies",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveAcceptanceCriteria",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveEvidenceRequirements",
+      "status": "passed"
+    },
+    {
+      "id": "firstBatchLimited",
+      "status": "passed"
+    },
+    {
+      "id": "historicalPhase8Reused",
+      "status": "passed"
+    },
+    {
+      "id": "p7ConditionalClosurePreserved",
+      "status": "passed"
+    },
+    {
+      "id": "p7DeferredPerformancePreserved",
+      "status": "passed"
+    },
+    {
+      "id": "p10ProductionBoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "realCredentialsEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "realPlatformWriteEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "automaticPublishEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "automaticListingEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "humanConfirmationRequired",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    }
+  ]
+}

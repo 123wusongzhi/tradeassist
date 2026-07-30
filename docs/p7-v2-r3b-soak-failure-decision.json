@@ -1,0 +1,27 @@
+{
+  "phase": "P7-V2-R3B-SOAK-FAILURE-AUDIT-AND-CLOSE",
+  "status": "blocked",
+  "primaryRootCause": "soak_metric_schema_mismatch",
+  "secondaryRootCauses": [
+    "steady_metric_name_mismatch",
+    "steady_metric_extraction_bug",
+    "absolute_slo_binding_error",
+    "target_reached_calculation_error",
+    "wrapper_lifecycle_bug"
+  ],
+  "confidence": "high",
+  "repairPath": "C",
+  "currentPairReusable": false,
+  "newRuntimeFreezeRequired": true,
+  "newBaselineRequired": true,
+  "newCurrentRequired": true,
+  "minimumRepairAction": "Repair soak load metric semantics so soak emits the formal route-level steady metrics, repair evaluator missing-metric classification and wrapper cooldown finalization, then run fixtures, create a new runtime freeze, and execute a full new Recovery6 baseline/current/comparability/regression/soak chain.",
+  "downstreamStepsNotExecuted": [
+    "demo1",
+    "demo2",
+    "stability",
+    "race",
+    "cleanup final gate",
+    "final closure gates"
+  ]
+}

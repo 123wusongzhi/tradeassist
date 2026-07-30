@@ -1,0 +1,38 @@
+{
+  "phase": "P7-C",
+  "status": "blocked",
+  "generatedAt": "2026-07-13T13:35:49.214Z",
+  "checks": [
+    {
+      "name": "Product Cursor List",
+      "status": "pending"
+    },
+    {
+      "name": "Order Cursor List",
+      "status": "pending"
+    },
+    {
+      "name": "Inventory Cursor List",
+      "status": "pending"
+    },
+    {
+      "name": "Task Claim",
+      "status": "pending"
+    },
+    {
+      "name": "Webhook Dedup",
+      "status": "pending"
+    },
+    {
+      "name": "Operation Log Cursor List",
+      "status": "pending"
+    },
+    {
+      "name": "Role/Permission Batch Read",
+      "status": "pending"
+    }
+  ],
+  "issues": [
+    "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) was not executed because no isolated Medium PostgreSQL runtime was provided."
+  ]
+}

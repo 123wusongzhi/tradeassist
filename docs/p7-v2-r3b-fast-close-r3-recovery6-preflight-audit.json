@@ -1,0 +1,240 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE-R3-FORMAL",
+  "component": "preflight-audit",
+  "status": "passed",
+  "semanticGatePassed": true,
+  "classification": "accepted",
+  "preflightBindingVersion": 2,
+  "formalRecovery6Mode": true,
+  "canonicalManifestPath": "docs/p7-v2-r3b-run-manifest.json",
+  "canonicalManifestSha256": "11b94133721bf2d42694843fe397cf2eb636aba46e31bd44867e169af0aaee27",
+  "canonicalManifestStatus": "runtime_frozen",
+  "selectedManifestPath": "docs/p7-v2-r3b-run-manifest.json",
+  "selectedManifestReason": "canonical_active_recovery6_manifest",
+  "manifestCandidates": [
+    "docs/p7-v2-r3b-run-manifest.json"
+  ],
+  "baselineRunIdSource": "docs/p7-v2-r3b-run-manifest.json",
+  "runtimeFreezeIdSource": "docs/p7-v2-r3b-run-manifest.json",
+  "runtimeFreezeCreatedSource": "docs/p7-v2-r3b-run-manifest.json",
+  "legacyFallbackUsed": false,
+  "staleCandidatePaths": [
+    "docs/baselines/p7-v2-baseline-registry.json",
+    "docs/p7-v2-current-load-report.json"
+  ],
+  "resolvedPlanCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "planCheckpoint": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "currentGitHead": "8b72aebbc2c56daf967ff0347da7132fbba99e8b",
+  "planCheckpointMatch": true,
+  "resolvedBaselineRunId": "p7v2-baseline-r3b-recovery6-20260718031555",
+  "resolvedCurrentRunId": "p7v2-current-r3b-recovery6-20260718031555",
+  "resolvedSoakRunId": "p7v2-soak-r3b-recovery6-20260718031555",
+  "resolvedDemoRun1Id": "p7v2-demo1-r3b-recovery6-20260718031555",
+  "resolvedDemoRun2Id": "p7v2-demo2-r3b-recovery6-20260718031555",
+  "resolvedRuntimeFreezeId": "1e529fdf1ee65534e9f44843189f656529ab3630da0e7a2948735cdf7a29522f",
+  "runtimeFreezeIdentityVersion": 2,
+  "binaryProvenanceVersion": 2,
+  "baselineBinarySha256Match": true,
+  "currentBinarySha256Match": true,
+  "inputSequenceHashMatch": true,
+  "branchMixFingerprintBound": true,
+  "runtimeFreezeCreated": true,
+  "planBindingHash": "0aa513bea4867740e894e47a6ba4861f72eb8efbcda3a84b7d7c48d66fe7c432",
+  "runtimeContentHash": "8ae127cc2a0a5a4b141953f7d98e2822572f9e5ecec85686b7286f89b8e9fd74",
+  "planBindingHashMatch": true,
+  "runtimeContentHashMatch": true,
+  "runtimeFreezeStillValid": true,
+  "immutableMismatchFields": [],
+  "plannedRunIdsBindingPassed": true,
+  "baselineBinaryBindingPassed": true,
+  "currentBinaryBindingPassed": true,
+  "baselineRuntimeCommitBindingPassed": true,
+  "currentRuntimeCommitBindingPassed": true,
+  "inputSequenceBindingPassed": true,
+  "branchMixBindingPassed": true,
+  "legacyBaselineRunIdDetected": "p7v2-baseline-r3b-recovery6-20260716082252",
+  "legacyBaselineRunIdIgnored": true,
+  "legacyBaselineCandidates": [
+    "p7v2-baseline-r3b-recovery6-20260716082252"
+  ],
+  "ignoredHistoricalCandidates": [
+    "p7v2-baseline-r3b-recovery6-20260716082252"
+  ],
+  "runIdCollisionCount": 0,
+  "freshRunIdsConsumed": false,
+  "databaseCreated": false,
+  "environmentStarted": false,
+  "datasetExecuted": false,
+  "k6Executed": false,
+  "rawArtifactCreated": false,
+  "frozenArtifactCreated": false,
+  "listener18080Count": 0,
+  "port18080Available": true,
+  "freshPidExists": false,
+  "unknownDatabaseCount": 0,
+  "failedChecks": [],
+  "checks": [
+    {
+      "id": "canonical_manifest_present",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_phase",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_status",
+      "status": "passed"
+    },
+    {
+      "id": "canonical_manifest_active",
+      "status": "passed"
+    },
+    {
+      "id": "formal_execution_not_started",
+      "status": "passed"
+    },
+    {
+      "id": "environment_not_started",
+      "status": "passed"
+    },
+    {
+      "id": "dataset_not_executed",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_not_executed",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_present",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_unique",
+      "status": "passed"
+    },
+    {
+      "id": "run_ids_pattern",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_created",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_id_present",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_evidence_present",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_identity_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_version_v2",
+      "status": "passed"
+    },
+    {
+      "id": "binary_provenance_bound",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "current_binary_sha256_match",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_version_v1",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_bound",
+      "status": "passed"
+    },
+    {
+      "id": "input_sequence_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "branch_mix_fingerprint_bound",
+      "status": "passed"
+    },
+    {
+      "id": "plan_binding_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_content_hash_match",
+      "status": "passed"
+    },
+    {
+      "id": "plan_checkpoint_match",
+      "status": "passed"
+    },
+    {
+      "id": "baseline_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "current_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "soak_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "demo1_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "demo2_run_id_match",
+      "status": "passed"
+    },
+    {
+      "id": "runtime_freeze_still_valid",
+      "status": "passed"
+    },
+    {
+      "id": "immutable_mismatch_fields_empty",
+      "status": "passed"
+    },
+    {
+      "id": "legacy_fallback_not_used",
+      "status": "passed"
+    },
+    {
+      "id": "database_not_created",
+      "status": "passed"
+    },
+    {
+      "id": "listener18080_absent",
+      "status": "passed"
+    },
+    {
+      "id": "fresh_pid_absent",
+      "status": "passed"
+    },
+    {
+      "id": "raw_artifact_absent",
+      "status": "passed"
+    },
+    {
+      "id": "frozen_artifact_absent",
+      "status": "passed"
+    }
+  ],
+  "issues": [],
+  "nextRequiredAction": "Recovery6 formal baseline may begin."
+}

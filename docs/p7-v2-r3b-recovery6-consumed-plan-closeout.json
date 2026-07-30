@@ -1,0 +1,51 @@
+{
+  "phase": "P7-V2-R3B-CONSUMED-PLAN-CLOSEOUT",
+  "status": "blocked",
+  "createdAt": "2026-07-16T08:20:40.797Z",
+  "oldPlanCheckpoint": "c182977694a616ddd263c42e7089a88fb5093c9c",
+  "oldRuntimeFreezeId": "169a84ff16ecb11cfed96d434497ce8c52390d6e44035a8721d343f5515fbf43",
+  "oldPlanStatus": "blocked",
+  "oldPlanActive": false,
+  "oldRuntimeFreezeStatus": "superseded",
+  "oldRuntimeFreezeActive": false,
+  "oldRunIds": {
+    "baselineRunId": "p7v2-baseline-r3b-recovery6-20260716063639",
+    "currentRunId": "p7v2-current-r3b-recovery6-20260716063639",
+    "soakRunId": "p7v2-soak-r3b-recovery6-20260716063639",
+    "demoRun1Id": "p7v2-demo1-r3b-recovery6-20260716063639",
+    "demoRun2Id": "p7v2-demo2-r3b-recovery6-20260716063639"
+  },
+  "oldRunIdsConsumed": true,
+  "oldRunIdsHistoricalEvidence": true,
+  "validForFormalExecution": false,
+  "validForComparability": false,
+  "validForRegression": false,
+  "validForClosure": false,
+  "rootCause": "no_formal_same_run_retry_transition_for_prestart_database_residue",
+  "planBlockReason": "baseline_prestart_database_residue_and_no_same_run_retry_contract",
+  "runtimeFreezeSupersedeReason": "recovery6_plan_consumed_by_non_retryable_baseline_prestart_failure",
+  "failedDatabase": {
+    "databaseName": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260716063639",
+    "databaseOwnershipVerified": true,
+    "activeConnectionsBeforeDelete": 0,
+    "publicAppTablesBeforeDelete": 0,
+    "datasetExecuted": false,
+    "k6Executed": false,
+    "rawArtifactExists": false,
+    "frozenArtifactExists": false,
+    "databaseDeleted": true,
+    "databaseExistsAfterDelete": false
+  },
+  "cleanup": {
+    "currentFailedPlanDatabaseDeletedCount": 1,
+    "historicalDatabaseDeletedCount": 0,
+    "unknownDatabaseDeletedCount": 0,
+    "unknownConnectionTerminatedCount": 0,
+    "listener18080Count": 0
+  },
+  "productionResourcesAccessed": false,
+  "realProviderCalls": 0,
+  "realDouyinWrites": 0,
+  "tagCreated": false,
+  "productionReady": false
+}

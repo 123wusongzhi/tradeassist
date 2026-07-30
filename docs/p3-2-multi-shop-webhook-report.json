@@ -1,0 +1,256 @@
+{
+  "phase": "P3.2",
+  "status": "passed_with_real_credentials_deferred",
+  "multiShopRouting": {
+    "resolver": "passed",
+    "binding": "passed",
+    "tenantIsolation": "passed",
+    "ambiguityRejection": "passed",
+    "productionFallback": "passed"
+  },
+  "concurrency": {
+    "webhook": "passed",
+    "orderUpsert": "passed",
+    "tokenRefresh": "passed"
+  },
+  "race": {
+    "status": "passed"
+  },
+  "regression": {
+    "goTestStableRuns": 2,
+    "nonAiFailed": 0
+  },
+  "realCredentialVerification": "deferred",
+  "checks": [
+    {
+      "id": "resolver.file",
+      "status": "passed",
+      "message": "WebhookShopResolver exists",
+      "detail": "backend/internal/modules/webhook/shop_resolver.go"
+    },
+    {
+      "id": "resolver.interface",
+      "status": "passed",
+      "message": "resolver interface and DB implementation",
+      "detail": "backend/internal/modules/webhook/shop_resolver.go"
+    },
+    {
+      "id": "resolver.no_first_shop_fallback",
+      "status": "passed",
+      "message": "resolver rejects missing / ambiguous / untrusted shop IDs",
+      "detail": "backend/internal/modules/webhook/shop_resolver.go"
+    },
+    {
+      "id": "resolver.binding",
+      "status": "passed",
+      "message": "resolver validates app and binding ownership",
+      "detail": "backend/internal/modules/webhook/shop_resolver.go"
+    },
+    {
+      "id": "resolver.tenant",
+      "status": "passed",
+      "message": "resolver returns tenant and internal shop",
+      "detail": "backend/internal/modules/webhook/shop_resolver.go"
+    },
+    {
+      "id": "handler.resolver",
+      "status": "passed",
+      "message": "handler calls resolver before ingest",
+      "detail": "backend/internal/modules/webhook/handler.go"
+    },
+    {
+      "id": "router.resolver",
+      "status": "passed",
+      "message": "router wires resolver",
+      "detail": "backend/internal/api/router.go"
+    },
+    {
+      "id": "event.model.scope",
+      "status": "passed",
+      "message": "webhook event stores tenant/shop/binding scope",
+      "detail": "backend/internal/modules/webhook/model.go"
+    },
+    {
+      "id": "event.ingest.scope",
+      "status": "passed",
+      "message": "ingest idempotency and uniqueness are shop scoped",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "event.worker.by_id",
+      "status": "passed",
+      "message": "worker processes selected event row by ID",
+      "detail": "backend/internal/modules/webhook/processor.go"
+    },
+    {
+      "id": "order.tenant.scope",
+      "status": "passed",
+      "message": "order webhook uses resolved tenant/shop scope",
+      "detail": "backend/internal/modules/ordersync/douyin_order_webhook.go"
+    },
+    {
+      "id": "order.upsert.scope",
+      "status": "passed",
+      "message": "order upsert accepts tenant and platform shop scope",
+      "detail": "backend/internal/modules/order/platform_upsert.go"
+    },
+    {
+      "id": "order.import.scope",
+      "status": "passed",
+      "message": "order import lookup is tenant scoped",
+      "detail": "backend/internal/modules/order/idempotency_import.go"
+    },
+    {
+      "id": "fallback.config",
+      "status": "passed",
+      "message": "fallback env vars are loaded",
+      "detail": "backend/internal/config/config.go"
+    },
+    {
+      "id": "fallback.validate",
+      "status": "passed",
+      "message": "staging/production fallback fail-fast",
+      "detail": "backend/internal/config/validate.go"
+    },
+    {
+      "id": "fallback.test",
+      "status": "passed",
+      "message": "fallback config tests",
+      "detail": "backend/internal/config/validate_test.go"
+    },
+    {
+      "id": "env.example",
+      "status": "passed",
+      "message": "env example contains fallback vars",
+      "detail": ".env.example"
+    },
+    {
+      "id": "env.docker",
+      "status": "passed",
+      "message": "docker env example contains fallback vars",
+      "detail": ".env.docker.example"
+    },
+    {
+      "id": "compose.env",
+      "status": "passed",
+      "message": "docker compose passes fallback vars",
+      "detail": "docker-compose.full.yml"
+    },
+    {
+      "id": "test.resolver",
+      "status": "passed",
+      "message": "resolver tests exists",
+      "detail": "backend/internal/modules/webhook/shop_resolver_test.go"
+    },
+    {
+      "id": "test.multishop.event",
+      "status": "passed",
+      "message": "same eventId across shops test exists",
+      "detail": "backend/internal/modules/webhook/shop_resolver_test.go"
+    },
+    {
+      "id": "test.ambiguous",
+      "status": "passed",
+      "message": "ambiguous binding test exists",
+      "detail": "backend/internal/modules/webhook/shop_resolver_test.go"
+    },
+    {
+      "id": "test.webhook.concurrent",
+      "status": "passed",
+      "message": "same-shop concurrent event test exists",
+      "detail": "backend/internal/modules/webhook/handler_test.go"
+    },
+    {
+      "id": "test.order.concurrent",
+      "status": "passed",
+      "message": "webhook + polling concurrent upsert test exists",
+      "detail": "backend/internal/modules/order/platform_upsert_test.go"
+    },
+    {
+      "id": "migration.p32",
+      "status": "passed",
+      "message": "P3.2 migration exists",
+      "detail": "backend/internal/database/migrate_p3_2_webhook.go"
+    },
+    {
+      "id": "migration.call",
+      "status": "passed",
+      "message": "migrate.go calls P3.2 migration",
+      "detail": "backend/internal/database/migrate.go"
+    },
+    {
+      "id": "migration.index",
+      "status": "passed",
+      "message": "migration replaces platform-only webhook uniqueness",
+      "detail": "backend/internal/database/migrate_p3_2_webhook.go"
+    },
+    {
+      "id": "configstatus.p32",
+      "status": "passed",
+      "message": "config status wires P3.2 items",
+      "detail": "backend/internal/modules/configstatus/service.go"
+    },
+    {
+      "id": "configstatus.p32.file",
+      "status": "passed",
+      "message": "P3.2 config status file exists",
+      "detail": "backend/internal/modules/configstatus/p32_status.go"
+    },
+    {
+      "id": "taskcenter.codes",
+      "status": "passed",
+      "message": "task center P3.2 categories exist",
+      "detail": "backend/internal/modules/taskcenter/failureclassifier/enumerate.go"
+    },
+    {
+      "id": "doc.P3_2_MULTI_SHOP_WEBHOOK_AUDIT.md",
+      "status": "passed",
+      "message": "P3_2_MULTI_SHOP_WEBHOOK_AUDIT.md exists",
+      "detail": "docs/P3_2_MULTI_SHOP_WEBHOOK_AUDIT.md"
+    },
+    {
+      "id": "doc.DOUYIN_WEBHOOK_SHOP_RESOLUTION.md",
+      "status": "passed",
+      "message": "DOUYIN_WEBHOOK_SHOP_RESOLUTION.md exists",
+      "detail": "docs/DOUYIN_WEBHOOK_SHOP_RESOLUTION.md"
+    },
+    {
+      "id": "doc.DOUYIN_WEBHOOK_TENANT_ISOLATION.md",
+      "status": "passed",
+      "message": "DOUYIN_WEBHOOK_TENANT_ISOLATION.md exists",
+      "detail": "docs/DOUYIN_WEBHOOK_TENANT_ISOLATION.md"
+    },
+    {
+      "id": "doc.DOUYIN_WEBHOOK_APP_SECRET_BINDING.md",
+      "status": "passed",
+      "message": "DOUYIN_WEBHOOK_APP_SECRET_BINDING.md exists",
+      "detail": "docs/DOUYIN_WEBHOOK_APP_SECRET_BINDING.md"
+    },
+    {
+      "id": "doc.TEST_DATABASE_ISOLATION.md",
+      "status": "passed",
+      "message": "TEST_DATABASE_ISOLATION.md exists",
+      "detail": "docs/TEST_DATABASE_ISOLATION.md"
+    },
+    {
+      "id": "doc.GO_TEST_STABILITY_REPORT.md",
+      "status": "passed",
+      "message": "GO_TEST_STABILITY_REPORT.md exists",
+      "detail": "docs/GO_TEST_STABILITY_REPORT.md"
+    },
+    {
+      "id": "doc.P3_2_RACE_TEST_REPORT.md",
+      "status": "passed",
+      "message": "P3_2_RACE_TEST_REPORT.md exists",
+      "detail": "docs/P3_2_RACE_TEST_REPORT.md"
+    },
+    {
+      "id": "doc.P3_2_MULTI_SHOP_WEBHOOK_REPORT.md",
+      "status": "passed",
+      "message": "P3_2_MULTI_SHOP_WEBHOOK_REPORT.md exists",
+      "detail": "docs/P3_2_MULTI_SHOP_WEBHOOK_REPORT.md"
+    }
+  ],
+  "issues": [],
+  "warnings": []
+}

@@ -1,0 +1,79 @@
+{
+  "cleanupContractVersion": 2,
+  "cleanupAttemptId": "cleanup-v2-20260717073125-bb7de7a3",
+  "mode": "check",
+  "startedAt": "2026-07-17T07:31:25.229Z",
+  "completedAt": "2026-07-17T07:31:25.518Z",
+  "targetScope": {
+    "runId": "p7v2-current-r3b-recovery6-20260717051755",
+    "databaseName": "",
+    "pid": "",
+    "diagnosticRunId": ""
+  },
+  "discoveredResources": [
+    {
+      "resourceType": "process",
+      "listener18080Count": 1,
+      "listenerPid": "9837",
+      "listenerOwnership": "old_formal_current_owned_process",
+      "listenerRunId": "p7v2-current-r3b-recovery6-20260717051755",
+      "listenerDatabaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260717051755_restar",
+      "listenerExecutable": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "listenerWorkingDirectory": "/mnt/d/project/trademind-ai",
+      "listenerStartedAt": "Fri Jul 17 13:48:47 2026",
+      "listenerInstanceNonce": "e8aeedd8-5aa2-4ef3-b10a-17fc14c03bd7",
+      "listenerCommandLine": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server ",
+      "queryStatus": 0,
+      "queryStderr": ""
+    }
+  ],
+  "classificationSummary": {
+    "currentFormalResidualCount": 0,
+    "oldFormalPairResidueCount": 0,
+    "historicalEvidenceDatabaseCount": 0,
+    "historicalFormalEvidenceDatabaseCount": 0,
+    "diagnosticDatabaseCount": 0,
+    "completedDiagnosticEphemeralCount": 0,
+    "knownRetainedDiagnosticDatabaseCount": 0,
+    "activeRequiredDiagnosticDatabaseCount": 0,
+    "unknownDatabaseCount": 0,
+    "unknownProcessCount": 0,
+    "unknownConnectionCount": 1,
+    "listener18080Count": 1
+  },
+  "plannedActions": [
+    {
+      "type": "stop_process",
+      "resourceType": "process",
+      "resourceId": "9837",
+      "classification": "old_formal_current_owned_process",
+      "exactIdentity": {
+        "pid": "9837",
+        "executable": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+        "workingDirectory": "/mnt/d/project/trademind-ai",
+        "databaseName": "trademind_p7v2_p7v2_current_r3b_recovery6_20260717051755_restar",
+        "instanceNonce": "e8aeedd8-5aa2-4ef3-b10a-17fc14c03bd7"
+      }
+    }
+  ],
+  "executedActions": [],
+  "verification": {
+    "queryExecuted": false,
+    "listener18080Count": 1,
+    "targetResidualCount": 0,
+    "dropVerification": []
+  },
+  "semanticGatePassed": false,
+  "status": "blocked",
+  "destructiveActionCount": 0,
+  "unexpectedDatabaseDeletedCount": 0,
+  "unexpectedProcessKilledCount": 0,
+  "historicalFrozenEvidencePreserved": true,
+  "historicalEvidencePreserved": true,
+  "issues": [
+    "database inventory query failed",
+    "database connection audit failed",
+    "database inventory unavailable",
+    "unknown database connection blocks execution"
+  ]
+}

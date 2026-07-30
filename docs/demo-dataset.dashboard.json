@@ -1,0 +1,94 @@
+﻿{
+    "kpiCoverage":  [
+                        "collect_failed",
+                        "product_drafts",
+                        "ai_pending_review",
+                        "publish_check_issues",
+                        "publish_task_issues",
+                        "order_exceptions",
+                        "inventory_alerts",
+                        "customer_pending",
+                        "failure_tasks",
+                        "config_risk"
+                    ],
+    "samples":  [
+                    {
+                        "reachable":  true,
+                        "kpiKeys":  [
+                                        "generatedAt",
+                                        "sections",
+                                        "cards"
+                                    ],
+                        "note":  "GET /dashboard/overview",
+                        "tag":  "dashboard_overview_api"
+                    },
+                    {
+                        "reachable":  true,
+                        "note":  "GET /dashboard/todos",
+                        "tag":  "dashboard_todos_api"
+                    },
+                    {
+                        "reachable":  true,
+                        "note":  "GET /dashboard/health",
+                        "tag":  "dashboard_health_api"
+                    },
+                    {
+                        "hint":  "run collect task or seed failed collect below",
+                        "note":  "collect tasks kpi sample",
+                        "tag":  "collect_tasks_kpi"
+                    },
+                    {
+                        "productSlotCount":  20,
+                        "note":  "product drafts kpi",
+                        "tag":  "product_drafts_kpi"
+                    },
+                    {
+                        "workbenchTodoSum":  1371,
+                        "note":  "AI pending review kpi",
+                        "tag":  "ai_pending_review_kpi"
+                    },
+                    {
+                        "detail":  "from workbench todos",
+                        "note":  "publish check issues kpi",
+                        "tag":  "publish_check_issues_kpi"
+                    },
+                    {
+                        "detail":  "from task samples",
+                        "note":  "publish task issues kpi",
+                        "tag":  "publish_task_issues_kpi"
+                    },
+                    {
+                        "orderSampleCount":  3,
+                        "note":  "order exceptions kpi",
+                        "tag":  "order_exceptions_kpi"
+                    },
+                    {
+                        "inventorySampleCount":  8,
+                        "note":  "inventory alerts kpi",
+                        "tag":  "inventory_alerts_kpi"
+                    },
+                    {
+                        "customerSampleCount":  5,
+                        "note":  "customer pending kpi",
+                        "tag":  "customer_pending_kpi"
+                    },
+                    {
+                        "taskCenterFailures":  1,
+                        "note":  "failure tasks kpi",
+                        "tag":  "failure_tasks_kpi"
+                    },
+                    {
+                        "hint":  "config-status center",
+                        "note":  "config risk kpi",
+                        "tag":  "config_risk_kpi"
+                    },
+                    {
+                        "shopId":  "a80d9e7e-813b-43f9-a478-1d0910cff780",
+                        "result":  "ok",
+                        "note":  "POST sync-orders on first shop",
+                        "tag":  "order_sync_probe"
+                    }
+                ],
+    "generatedAt":  "2026-07-13T09:55:41.2127122Z",
+    "note":  "F7 Dashboard KPI aggregation samples; run after seed-demo-data"
+}

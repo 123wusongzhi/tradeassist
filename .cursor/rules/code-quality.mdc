@@ -1,0 +1,35 @@
+---
+description: Project-wide code quality automatic rules for changed code, baseline ratchet, lightweight checks, deep reviews, and CI quality gates
+globs: admin/src/**,collector/src/**,backend/**,scripts/**,tests/**,backend/migrations/**,tests/contracts/**,package.json,admin/package.json,collector/package.json,pnpm-lock.yaml,pnpm-workspace.yaml,go.work,backend/go.mod,backend/go.sum,**/*.go,**/*.ts,**/*.tsx,**/*.test.ts,**/*.spec.ts,.github/workflows/**,Dockerfile,backend/Dockerfile,docker-compose*.yml,.env*.example,.agents/skills/**,.cursor/rules/**
+alwaysApply: false
+---
+
+# Code Quality 自动规则
+
+任何代码新增、修改、重构或 Bug 修复，必须自动读取并遵循：
+
+- `.agents/skills/code-quality/SKILL.md`
+
+用户无需显式要求“代码质量检查”“Code Review”或“安全检查”。不得在本 Cursor rule 中复制完整主 Skill。
+
+## 自动联动
+
+- UI 修改同时读取 `.agents/skills/frontend-design/SKILL.md` 和 `.agents/skills/admin-e2e-testing/SKILL.md`。
+- 测试修改同时读取 `.agents/skills/project-testing/SKILL.md`。
+- 后端修改同时读取 `.agents/skills/backend-testing/SKILL.md`。
+- API、DTO、envelope、contract 或 Admin mock 修改同时读取 `.agents/skills/api-contract-testing/SKILL.md`。
+- 前端单元、service、hook、组件或 TS 工具修改同时读取 `.agents/skills/frontend-unit-testing/SKILL.md`。
+- 新模块、跨模块依赖、shared/common、adapter、worker、repository、migration、公共 API/type 或大型重构同时读取 `.agents/skills/modular-architecture/SKILL.md`。
+
+## 检查级别
+
+- 小修改运行轻量质量检查：最小 diff、命名/类型、错误处理、Promise、空值、重复逻辑、敏感信息、必要测试、diff hygiene。
+- 高风险修改运行深度审查：认证、权限、库存、发布、第三方平台、数据库事务、Redis、队列、worker、并发、文件上传、Token、API envelope、shared type、migration、跨模块重构。
+
+## Baseline/Ratchet
+
+Admin 历史 TypeScript 错误由 `tests/quality/baselines/admin-typescript.json` 管理。新增错误、既有错误数量增加、新文件错误或修改文件引入新错误不得扩大 baseline。普通检查和 CI 不得自动更新 baseline；更新必须显式执行并说明原因。
+
+## 禁止项
+
+不得为了通过检查大规模重构无关代码。不得用 skip、ignore、宽泛 allowlist 或自动扩大 baseline 掩盖失败。未运行必要检查不得声明完成；检查阻塞必须明确报告命令、根因和风险。未经用户要求不得 commit/push。

@@ -1,0 +1,12 @@
+{
+  "timing": [
+    "actualSteadySeconds",
+    "samplesCount",
+    "maxSampleGapSeconds",
+    "continuousSteadyWindow"
+  ],
+  "cooldown": [
+    "actualMinutes",
+    "cooldownRecoveryPassed"
+  ]
+}

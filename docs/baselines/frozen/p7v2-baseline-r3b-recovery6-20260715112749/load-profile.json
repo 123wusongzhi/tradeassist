@@ -1,0 +1,264 @@
+{
+  "loadProfile": {
+    "configuredVUs": 10,
+    "warmup": "5m",
+    "ramp": "3m",
+    "steady": "10m",
+    "rampdown": "2m",
+    "stages": [
+      {
+        "name": "warmup",
+        "duration": "5m",
+        "targetVUs": 10
+      },
+      {
+        "name": "ramp",
+        "duration": "3m",
+        "targetVUs": 10
+      },
+      {
+        "name": "steady",
+        "duration": "10m",
+        "targetVUs": 10
+      },
+      {
+        "name": "rampdown",
+        "duration": "2m",
+        "targetVUs": 0
+      }
+    ],
+    "scenarios": [
+      {
+        "name": "warmup",
+        "executor": "constant-vus",
+        "startTime": "0s"
+      },
+      {
+        "name": "ramp",
+        "executor": "ramping-vus",
+        "startTime": "5m"
+      },
+      {
+        "name": "steady",
+        "executor": "constant-vus",
+        "startTime": "8m"
+      },
+      {
+        "name": "rampdown",
+        "executor": "ramping-vus",
+        "startTime": "18m"
+      },
+      {
+        "name": "security_negative",
+        "executor": "constant-vus",
+        "startTime": "0s",
+        "weight": 1
+      }
+    ],
+    "requestMix": [
+      {
+        "routeId": "product_list",
+        "method": "GET",
+        "weight": 20
+      },
+      {
+        "routeId": "order_list",
+        "method": "GET",
+        "weight": 20
+      },
+      {
+        "routeId": "inventory_list",
+        "method": "GET",
+        "weight": 15
+      },
+      {
+        "routeId": "task_list",
+        "method": "GET",
+        "weight": 10
+      },
+      {
+        "routeId": "webhook_event_list",
+        "method": "GET",
+        "weight": 8
+      },
+      {
+        "routeId": "operation_log_list",
+        "method": "GET",
+        "weight": 7
+      },
+      {
+        "routeId": "webhook_ingestion",
+        "method": "POST",
+        "weight": 5
+      },
+      {
+        "routeId": "provider_mock_flow",
+        "method": "GET",
+        "weight": 5
+      },
+      {
+        "routeId": "auth_security",
+        "method": "GET",
+        "weight": 2
+      }
+    ],
+    "credentialMix": [
+      {
+        "role": "system_admin",
+        "weight": 1
+      },
+      {
+        "role": "tenant_admin",
+        "weight": 1
+      },
+      {
+        "role": "operator",
+        "weight": 1
+      },
+      {
+        "role": "readonly",
+        "weight": 1
+      }
+    ],
+    "loadScript": {
+      "path": "tests/load/p7v2-baseline.js",
+      "sha256": "677b5d79ba94c51487317113ee36ce8dd0fa5b84cb668b8048416f64d19dddb2"
+    }
+  },
+  "canonicalLoadProfile": {
+    "credentialMix": [
+      {
+        "role": "operator",
+        "weight": 1
+      },
+      {
+        "role": "readonly",
+        "weight": 1
+      },
+      {
+        "role": "system_admin",
+        "weight": 1
+      },
+      {
+        "role": "tenant_admin",
+        "weight": 1
+      }
+    ],
+    "load": {
+      "configuredVUs": 10,
+      "stages": [
+        {
+          "durationMs": 300000,
+          "name": "warmup",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 180000,
+          "name": "ramp",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 600000,
+          "name": "steady",
+          "targetVUs": 10
+        },
+        {
+          "durationMs": 120000,
+          "name": "rampdown",
+          "targetVUs": 0
+        }
+      ]
+    },
+    "loadEngine": {
+      "name": "k6"
+    },
+    "loadLibraries": [],
+    "loadScript": {
+      "relativePath": "tests/load/p7v2-baseline.js",
+      "sha256": "677b5d79ba94c51487317113ee36ce8dd0fa5b84cb668b8048416f64d19dddb2"
+    },
+    "requestMix": [
+      {
+        "method": "GET",
+        "routeId": "auth_security",
+        "weight": 2
+      },
+      {
+        "method": "GET",
+        "routeId": "inventory_list",
+        "weight": 15
+      },
+      {
+        "method": "GET",
+        "routeId": "operation_log_list",
+        "weight": 7
+      },
+      {
+        "method": "GET",
+        "routeId": "order_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "product_list",
+        "weight": 20
+      },
+      {
+        "method": "GET",
+        "routeId": "provider_mock_flow",
+        "weight": 5
+      },
+      {
+        "method": "GET",
+        "routeId": "task_list",
+        "weight": 10
+      },
+      {
+        "method": "GET",
+        "routeId": "webhook_event_list",
+        "weight": 8
+      },
+      {
+        "method": "POST",
+        "routeId": "webhook_ingestion",
+        "weight": 5
+      }
+    ],
+    "scenarios": [
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "warmup",
+        "startTimeMs": 0
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "ramp",
+        "startTimeMs": 300000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "steady",
+        "startTimeMs": 480000
+      },
+      {
+        "executor": "ramping-vus",
+        "gracefulStopMs": 0,
+        "name": "rampdown",
+        "startTimeMs": 1080000
+      },
+      {
+        "executor": "constant-vus",
+        "gracefulStopMs": 0,
+        "name": "security_negative",
+        "startTimeMs": 0,
+        "weight": 1
+      }
+    ],
+    "schemaVersion": 3
+  },
+  "loadProfileFingerprint": "6ebabfd8050b8a788bff6d53f297d18e5ae6cfe5167316cad404a68b8287204e",
+  "fingerprintVersion": 3
+}

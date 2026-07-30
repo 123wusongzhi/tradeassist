@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "batch": 1,
+  "batchId": "P9-TASK-BATCH-1",
+  "batchName": "Inventory Sync, SKU Binding Calibration and Manual Fallback",
+  "canonicalProductScope": "Domain and Persistence Foundation",
+  "ownerScopeDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "scopeReady": true,
+  "implementationStarted": false,
+  "productCodeChanged": false,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "allowedAreas": [
+    "domain models",
+    "persistence migrations",
+    "repositories",
+    "constraints",
+    "persistence tests"
+  ],
+  "forbiddenAreas": [
+    "calibration service",
+    "inventory sync orchestrator",
+    "worker",
+    "HTTP API",
+    "Admin UI",
+    "real provider access",
+    "real OAuth",
+    "real credentials",
+    "real inventory reads",
+    "real inventory writes"
+  ],
+  "testingRequirements": [
+    "migration tests",
+    "database integration tests",
+    "repository tests",
+    "race tests"
+  ],
+  "gateRequirements": [
+    "P9 plan gate",
+    "P9 batch 1 scope gate"
+  ],
+  "evidenceRequirements": [
+    "docs/P9_EXECUTION_PLAN.md",
+    "docs/p9-execution-plan.json",
+    "docs/P9_TASK_BATCH_1_SCOPE_GATE.md",
+    "docs/p9-task-batch-1-scope-gate.json"
+  ],
+  "notDoing": [
+    "calibration service",
+    "sync orchestrator",
+    "worker",
+    "API",
+    "Admin UI"
+  ],
+  "p10ReservedBoundary": [
+    "real Douyin OAuth",
+    "real platform write",
+    "automatic publish",
+    "automatic listing",
+    "production acceptance"
+  ],
+  "gitOperationConstraints": [
+    "dev only",
+    "no branch creation",
+    "no commit",
+    "no push"
+  ],
+  "taskIds": [
+    "P9-501",
+    "P9-502",
+    "P9-503",
+    "P9-504",
+    "P9-505",
+    "P9-506"
+  ],
+  "taskCount": 6,
+  "tasks": [
+    {
+      "taskId": "P9-501",
+      "taskName": "Inventory Sync Run Model",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "InventorySyncRun model"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    },
+    {
+      "taskId": "P9-502",
+      "taskName": "Inventory Snapshot Model",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "InventorySnapshotItem model"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    },
+    {
+      "taskId": "P9-503",
+      "taskName": "SKU Binding Model",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "SKUBinding model"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    },
+    {
+      "taskId": "P9-504",
+      "taskName": "SKU Binding Calibration Model",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "SKUBindingCalibration model"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    },
+    {
+      "taskId": "P9-505",
+      "taskName": "Manual Binding Fallback Model",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "ManualBindingRequest model"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    },
+    {
+      "taskId": "P9-506",
+      "taskName": "Migration, Repository and Persistence Verification",
+      "workstream": "WS-05",
+      "workstreamId": "WS-05",
+      "batch": 1,
+      "batchId": "P9-TASK-BATCH-1",
+      "dependencies": [
+        "P9-PLAN"
+      ],
+      "deliverables": [
+        "forward migrations",
+        "repositories",
+        "race tests"
+      ],
+      "acceptanceCriteriaIds": [
+        "AC-P9-01"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_1_SCOPE.md"
+      ],
+      "gateIds": [
+        "P9-PLAN",
+        "P9-TASK-BATCH-1-SCOPE"
+      ],
+      "status": "planned",
+      "implementationStarted": false
+    }
+  ],
+  "domainModelsIncluded": true,
+  "migrationsIncluded": true,
+  "repositoriesIncluded": true,
+  "constraintsIncluded": true,
+  "persistenceTestsIncluded": true,
+  "calibrationServiceExcluded": true,
+  "syncOrchestratorExcluded": true,
+  "workerExcluded": true,
+  "apiExcluded": true,
+  "adminUiExcluded": true,
+  "realProviderExcluded": true,
+  "realOAuthExcluded": true,
+  "realCredentialsExcluded": true,
+  "realInventoryReadExcluded": true,
+  "realInventoryWriteExcluded": true,
+  "batch1ScopeReady": true
+}

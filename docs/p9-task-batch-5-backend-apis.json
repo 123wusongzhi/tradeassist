@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "batchId": "P9-TASK-BATCH-5",
+  "batchName": "Backend APIs",
+  "status": "completed_locally_verified_postgres_deferred_to_p9_final_development_closure",
+  "workingBranch": "dev",
+  "baseBranch": "dev",
+  "baseCheckpoint": "af1a4da8ca22d0f5477828540d5caa5d22f72a75",
+  "currentHead": "af1a4da8ca22d0f5477828540d5caa5d22f72a75",
+  "changesCommitted": false,
+  "checkpointCreated": false,
+  "checkpointStatus": "not_created_by_owner_instruction",
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "modulePath": "backend/internal/modules/inventorysyncp9",
+  "apiBasePath": "/api/v1/inventory-sync",
+  "handlerPackage": "backend/internal/modules/inventorysyncp9",
+  "apiServicePackage": "backend/internal/modules/inventorysyncp9",
+  "tasks": {
+    "P9-901": {
+      "status": "completed",
+      "deliverables": [
+        "POST/GET run list and detail",
+        "safe statistics and retry state",
+        "manual rerun"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
+    },
+    "P9-902": {
+      "status": "completed",
+      "deliverables": [
+        "tenant-scoped snapshot list/detail",
+        "binding-result filters",
+        "signed keyset cursor"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
+    },
+    "P9-903": {
+      "status": "completed",
+      "deliverables": [
+        "binding/calibration DTOs",
+        "controlled immutable recalibration version",
+        "binding history"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
+    },
+    "P9-904": {
+      "status": "completed",
+      "deliverables": [
+        "pending request list/detail",
+        "revision-checked confirm/reject"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
+    },
+    "P9-905": {
+      "status": "completed",
+      "deliverables": [
+        "run history projection",
+        "safe error summary",
+        "tenant-scoped audit timeline"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
+    }
+  },
+  "apiImplemented": true,
+  "httpHandlerImplemented": true,
+  "restApiImplemented": true,
+  "authenticatedRoutesPresent": true,
+  "routerRegisteredOnce": true,
+  "existingRouterReused": true,
+  "existingAuthMiddlewareReused": true,
+  "existingTenantContextReused": true,
+  "existingResponseEnvelopeReused": true,
+  "existingPaginationReused": true,
+  "thinHandlersPresent": true,
+  "apiServiceFacadePresent": true,
+  "handlersDirectRepositoryAccess": false,
+  "strictJSONBodyLimit": true,
+  "unknownFieldsRejected": true,
+  "contentTypeValidated": true,
+  "trustedActorAndTenantIsolation": true,
+  "trustedTenantContextUsed": true,
+  "trustedActorContextUsed": true,
+  "callerSuppliedTenantTrusted": false,
+  "callerSuppliedActorTrusted": false,
+  "callerSuppliedRoleTrusted": false,
+  "writesRequireIdempotencyKey": true,
+  "requestIdPropagated": true,
+  "keysetPagination": true,
+  "offsetPaginationAbsent": true,
+  "paginationDuplicates": 0,
+  "paginationOmissions": 0,
+  "explicitSafeDTOs": true,
+  "rawDomainModelsNotReturned": true,
+  "safeErrorMappingPresent": true,
+  "rawProviderErrorExposed": false,
+  "rawAuditMetadataExposed": false,
+  "rawCursorExposed": false,
+  "rawIdempotencyKeyExposed": false,
+  "allowedActionsImplemented": true,
+  "allowedActionsServerComputed": true,
+  "resourceOperationsReauthorize": true,
+  "existingRBACReused": true,
+  "domainServicesReused": true,
+  "controlledRecalibrationHistory": true,
+  "auditTimelineImplemented": true,
+  "readonlySnapshotAndBindingHistory": true,
+  "syncRunApisPresent": true,
+  "inventorySnapshotApisPresent": true,
+  "skuBindingApisPresent": true,
+  "calibrationApisPresent": true,
+  "manualBindingApisPresent": true,
+  "syncHistoryApisPresent": true,
+  "auditTimelineApisPresent": true,
+  "realDouyinProviderImplemented": false,
+  "productionProviderModesCallable": false,
+  "oauthImplemented": false,
+  "realCredentialsEnabled": false,
+  "realCredentialsExecutable": false,
+  "realNetworkEnabled": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "inventoryMutationEnabled": false,
+  "workerImplemented": false,
+  "backgroundSyncWorkerImplemented": false,
+  "automaticRetryWorkerImplemented": false,
+  "adminUiImplemented": false,
+  "testsPassed": true,
+  "permissionTestsPassed": true,
+  "tenantIsolationTestsPassed": true,
+  "idempotencyTestsPassed": true,
+  "paginationTestsPassed": true,
+  "apiContractTestsPassed": true,
+  "concurrencyTestsPassed": true,
+  "sqliteIntegrationTestsPassed": true,
+  "raceTestsPassed": true,
+  "dataRaces": 0,
+  "postgresIntegrationStatus": "not_run",
+  "postgresIntegrationPassed": false,
+  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
+  "p9FinalClosureBlocker": true,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "verification": {
+    "inventorysyncp9ModuleTests": "passed",
+    "httpapiStrictJSONTests": "passed",
+    "operationtaskRegressionTests": "passed",
+    "backendModuleTests": "passed",
+    "backendUncachedFullTests": "passed",
+    "backendBuild": "passed",
+    "targetedGoVet": "passed",
+    "inventorysyncAndAdminPermissionRaceTests": "passed",
+    "apiContractTests": "passed",
+    "architectureBoundaryCheck": "passed_new_violations_0",
+    "sensitiveDiffScan": "passed_findings_0",
+    "developmentEnvironmentCheck": "passed",
+    "uiCopyStrictCheck": "passed_no_admin_ui_changes",
+    "gitDiffCheck": "passed_with_crlf_conversion_warnings_only",
+    "batch1ScopeGate": "passed",
+    "batch1PersistenceGate": "passed",
+    "batch2CalibrationGate": "passed",
+    "batch3OrchestrationGate": "passed",
+    "batch4PermissionsAuditSafetyGate": "passed",
+    "batch5Fixtures": "passed_B5_01_through_B5_21",
+    "batch5Gate": "passed_failed_count_0",
+    "p9PlanGate": "passed_failed_count_0",
+    "qualityBackend": "blocked_by_existing_454_unformatted_go_files_affected_files_formatted",
+    "architectureAffected": "blocked_by_existing_vitest_mjs_import_syntax_loader_error_boundary_check_passed",
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "testDatabaseUrl": "set_not_recorded",
+    "postgresRevalidation": "passed"
+  },
+  "nextBatch": {
+    "taskIds": [
+      "P9-1001",
+      "P9-1002",
+      "P9-1003",
+      "P9-1004",
+      "P9-1005",
+      "P9-1006"
+    ],
+    "status": "planned",
+    "name": "Admin Inventory Sync and Binding Center"
+  },
+  "p9Complete": false,
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed"
+}

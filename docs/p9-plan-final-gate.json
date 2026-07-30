@@ -1,0 +1,233 @@
+{
+  "phase": "P9",
+  "gate": "P9-PLAN",
+  "status": "passed",
+  "checkedAt": "2026-07-30T07:27:58.918Z",
+  "ownerDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
+  "discoveryBaseHead": "313726f310f4d76f5967ef169b9c197488f8bed4",
+  "canonicalPhaseName": "Douyin Shop inventory sync MVP with SKU binding calibration and manual binding fallback",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "headDetached": false,
+  "stagedFileCount": 0,
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "ownerScopeDecisionPresent": true,
+  "ownerScopeDecisionApproved": true,
+  "ownerDecisionRequired": false,
+  "planningFoundationPreserved": true,
+  "historicalPlanningTaskIdsPreserved": true,
+  "legacyPlanningTaskIdsPreserved": true,
+  "planningFoundationTaskIdsPreserved": true,
+  "productTaskIdsPreserved": true,
+  "planningFoundationTaskCount": 8,
+  "planningFoundationCompletedTaskCount": 8,
+  "planningWorkstreamCount": 4,
+  "productImplementationWorkstreamCount": 7,
+  "productImplementationBatchCount": 7,
+  "productTaskCount": 38,
+  "productCompletedTaskCount": 27,
+  "batch1TaskIds": [
+    "P9-501",
+    "P9-502",
+    "P9-503",
+    "P9-504",
+    "P9-505",
+    "P9-506"
+  ],
+  "batch1TaskCount": 6,
+  "batch1TaskIdsExactlyMatch": true,
+  "batch1ScopeCreated": true,
+  "batch1ScopeGatePassed": true,
+  "batch1ScopeBatchMatch": true,
+  "duplicateTaskIdCount": 0,
+  "productTaskIdCollisionCount": 0,
+  "allTasksHaveDependencies": true,
+  "allTasksHaveDeliverables": true,
+  "allTasksHaveAcceptanceMapping": true,
+  "allTasksHaveEvidenceMapping": true,
+  "allTasksHaveGateMapping": true,
+  "allTasksHaveCoreFields": true,
+  "allTasksPlannedOrCompletedAsExpected": true,
+  "allProductTasksHaveBatchMapping": true,
+  "productImplementationStarted": true,
+  "p9ProductImplementationFileCount": 1,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "ownerDecisionPresent",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalScopeResolved",
+      "status": "passed"
+    },
+    {
+      "id": "scopeConfidence",
+      "status": "passed"
+    },
+    {
+      "id": "ownerScopeDecisionCreated",
+      "status": "passed"
+    },
+    {
+      "id": "planningFoundationCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "fullImplementationPlanCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "planningFoundationPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "historicalPlanningTaskIdsPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "legacyPlanningTaskIdsPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "planningTaskIdsPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "productTaskIdsPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "planningWorkstreamCount",
+      "status": "passed"
+    },
+    {
+      "id": "productImplementationWorkstreamCount",
+      "status": "passed"
+    },
+    {
+      "id": "productImplementationBatchCount",
+      "status": "passed"
+    },
+    {
+      "id": "productTaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "planningFoundationTaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "batch1TaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "batch1TaskIdsExactlyMatch",
+      "status": "passed"
+    },
+    {
+      "id": "batch1ScopeCreated",
+      "status": "passed"
+    },
+    {
+      "id": "batch1ScopeGatePassed",
+      "status": "passed"
+    },
+    {
+      "id": "batch1ScopeBatchMatch",
+      "status": "passed"
+    },
+    {
+      "id": "batch1ScopeTaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveDependencies",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveDeliverables",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveAcceptanceMapping",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveEvidenceMapping",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveGateMapping",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksHaveCoreFields",
+      "status": "passed"
+    },
+    {
+      "id": "allTasksPlannedOrCompletedAsExpected",
+      "status": "passed"
+    },
+    {
+      "id": "allProductTasksHaveBatchMapping",
+      "status": "passed"
+    },
+    {
+      "id": "productImplementationStarted",
+      "status": "passed"
+    },
+    {
+      "id": "productCompletedTaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "duplicateTaskIdCount",
+      "status": "passed"
+    },
+    {
+      "id": "productTaskIdCollisionCount",
+      "status": "passed"
+    },
+    {
+      "id": "ownerDecisionRequired",
+      "status": "passed"
+    },
+    {
+      "id": "p9ProductImplementationFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "headDetached",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "discoveryHeadMatch",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,175 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-HOST-ISOLATION-FINAL-GATE",
+  "status": "passed",
+  "formalHostIsolationVersion": 3,
+  "lifecycleContractHash": "c931cd965899d0d9fa8a6d6cd2384968ba3fe2c0bfb7263ecc279049b95476ab",
+  "databasePostDatasetBarrierHash": "838b36ec0fd4371111206cb3574bef6d4128c909fb216a0e8a0a1ff3234084e9",
+  "warmupManifestHash": "3cd8745ab4821b2b62487a1ccd286e1870cba79017cc349317d258a3ea9de32f",
+  "cooldownContractHash": "8cf4bc5c6a7f7760e1f43c470ff798df104a1d691ec35a8df31d56ed735440c1",
+  "hostQuietWindowContractHash": "d0cb596e32be04e7641ac2918e41822b2ef2343a3e5599818a628f2352e51cb0",
+  "postgresIsolationContractHash": "c71c65c67d8844472d8dd07622a976eeaa615b2bd2b402ece3b1b2d88e0e676f",
+  "evidenceWriterContractHash": "fbc36f1ddee0236dff4843d1ceb4a68ecdbe76dcf29a780820736877271ea9e4",
+  "hostIsolationContractHash": "3c903d375899070d86478d071a667e0c6ab6fc9c7e7c77134d9db4473bfc706b",
+  "lifecycleStepSequenceHash": "5801f923b53673f8d4e0ce0e4fb41d80e1b810fa9827b348325ed455df1607a8",
+  "warmupSequenceHash": "08f25c5bd1a7c7b3372b097428b1021b672415aaca6eac08a7c79771df50063e",
+  "readinessThresholdHash": "a05b39c7454f7689c34b9d6dd6a03e2fd3297a5b2b85f9e67dec98ca33f8f076",
+  "predictiveHostStabilityBarrierHash": "7f0197a15051d563cc4c1747f7ab016db80a5ec3cfc551a81d76cf6b9899f005",
+  "predictiveReadinessThresholdHash": "90c8b57f05d5d3d61e629e63e9b86086fc5096b2fb1e30e61f40c7ffe60d4c04",
+  "postgresIsolationMode": "dedicated_ephemeral_postgres_instance_per_run",
+  "comparabilityVersion": 5,
+  "primaryHarnessSubRootCause": "A6_multiple_harness_isolation_factors",
+  "secondaryHarnessSubRootCauses": [
+    "A2_postgres_checkpoint_autovacuum_or_shared_instance_bias",
+    "A3_cache_and_warmup_asymmetry",
+    "A4_host_scheduler_cpu_or_io_contention",
+    "A5_baseline_current_lifecycle_asymmetry"
+  ],
+  "confidence": "medium",
+  "primaryHarnessSubRootCausePresent": true,
+  "repairMatchesEvidence": true,
+  "baselineCurrentLifecycleSymmetric": true,
+  "lifecycleStepSequenceHashMatch": true,
+  "datasetMeasurementSeparated": true,
+  "warmupEnabled": true,
+  "warmupSequenceBound": true,
+  "warmupExcludedFromMetrics": true,
+  "cooldownEnabled": true,
+  "hostQuietWindowEnabled": true,
+  "hostQuietWindowDeterministic": true,
+  "predictiveHostStabilityBarrierEnabled": true,
+  "predictiveHostStabilityBarrierBound": true,
+  "postgresIsolationContractPresent": true,
+  "backgroundProcessGateEnabled": true,
+  "evidenceIoIsolationEnabled": true,
+  "comparabilityV5BindingEnabled": true,
+  "runtimeFreezeBindingEnabled": true,
+  "businessRuntimeChanged": false,
+  "thresholdChanged": false,
+  "sloChanged": false,
+  "materialityChanged": false,
+  "vusChanged": false,
+  "stagesChanged": false,
+  "durationChanged": false,
+  "datasetChanged": false,
+  "inputSequenceChanged": false,
+  "failedChecks": [],
+  "failed": [],
+  "failedCount": 0,
+  "checks": [
+    {
+      "id": "formalHostIsolationVersion",
+      "status": "passed"
+    },
+    {
+      "id": "primaryHarnessSubRootCausePresent",
+      "status": "passed"
+    },
+    {
+      "id": "repairMatchesEvidence",
+      "status": "passed"
+    },
+    {
+      "id": "baselineCurrentLifecycleSymmetric",
+      "status": "passed"
+    },
+    {
+      "id": "lifecycleStepSequenceHashMatch",
+      "status": "passed"
+    },
+    {
+      "id": "datasetMeasurementSeparated",
+      "status": "passed"
+    },
+    {
+      "id": "warmupEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "warmupSequenceBound",
+      "status": "passed"
+    },
+    {
+      "id": "warmupExcludedFromMetrics",
+      "status": "passed"
+    },
+    {
+      "id": "cooldownEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "hostQuietWindowEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "hostQuietWindowDeterministic",
+      "status": "passed"
+    },
+    {
+      "id": "predictiveHostStabilityBarrierEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "predictiveHostStabilityBarrierBound",
+      "status": "passed"
+    },
+    {
+      "id": "postgresIsolationContractPresent",
+      "status": "passed"
+    },
+    {
+      "id": "backgroundProcessGateEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "evidenceIoIsolationEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "comparabilityV5BindingEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeFreezeBindingEnabled",
+      "status": "passed"
+    },
+    {
+      "id": "businessRuntimeChanged",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdChanged",
+      "status": "passed"
+    },
+    {
+      "id": "sloChanged",
+      "status": "passed"
+    },
+    {
+      "id": "materialityChanged",
+      "status": "passed"
+    },
+    {
+      "id": "vusChanged",
+      "status": "passed"
+    },
+    {
+      "id": "stagesChanged",
+      "status": "passed"
+    },
+    {
+      "id": "durationChanged",
+      "status": "passed"
+    },
+    {
+      "id": "datasetChanged",
+      "status": "passed"
+    },
+    {
+      "id": "inputSequenceChanged",
+      "status": "passed"
+    }
+  ],
+  "sourceContract": "docs/p7-v2-r3b-formal-host-isolation-contract.json",
+  "sourceRepair": "docs/p7-v2-r3b-formal-host-isolation-repair.json",
+  "generatedAt": "2026-07-20T05:41:38.501Z"
+}

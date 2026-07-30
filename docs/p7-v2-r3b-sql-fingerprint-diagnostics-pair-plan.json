@@ -1,0 +1,14 @@
+{
+  "phase": "P7-V2-R3B-SQL-FINGERPRINT-PG-WAIT-DIAGNOSTICS",
+  "formal": false,
+  "validForClosure": false,
+  "validForRegression": false,
+  "validForComparability": false,
+  "diagnosticOnly": true,
+  "formalRerunStarted": false,
+  "environmentStopTimeoutSec": 45,
+  "listenerReleaseVerificationSec": 30,
+  "diagnosticBaselineRunId": "p7v2-diag-baseline-sql-fingerprint-20260716160124",
+  "diagnosticCurrentRunId": "p7v2-diag-current-sql-fingerprint-20260716160124",
+  "diagnosticOutputDirectory": "/tmp/trademind-p7-sql-fingerprint"
+}

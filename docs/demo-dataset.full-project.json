@@ -1,0 +1,59 @@
+﻿{
+    "description":  "Full-project demo dataset index; run seed-demo-data and seed-demo-permissions",
+    "demo_dataset_seeded_at":  "2026-07-13T09:55:41.2147136Z",
+    "demo_dataset_checksum":  "script:p4-r-v1",
+    "phase":  "P4-R",
+    "generatedAt":  "2026-07-13T09:55:41.2147136Z",
+    "accounts":  {
+                     "admin":  "demo_admin@trademind.local",
+                     "operator":  "demo_operator@trademind.local",
+                     "readonly":  "demo_readonly@trademind.local"
+                 },
+    "datasets":  {
+                     "products":  "docs/demo-dataset.json",
+                     "customer":  "docs/demo-dataset.customer-service.json",
+                     "orders":  "docs/demo-dataset.orders.json",
+                     "dashboard":  "docs/demo-dataset.dashboard.json",
+                     "inventory":  "docs/demo-dataset.inventory.json",
+                     "permissions":  "docs/demo-dataset.permissions.json"
+                 },
+    "demo_dataset_version":  "p4-r-v1",
+    "dashboardSamples":  {
+                             "inventorySyncFailed":  "inventory sync failed sample",
+                             "customerAiSuggestion":  "customer AI suggestion pending",
+                             "customerSendFailed":  "customer send failed sample",
+                             "collectFailed":  "collect failed task sample",
+                             "storeIsolation":  "demo_operator first shop only",
+                             "orderPartialSuccess":  "order sync partial_success sample",
+                             "configRisk":  "config status risk items"
+                         },
+    "edgeCaseSeed":  {
+                         "phase":  "F8",
+                         "samples":  [
+                                         {
+                                             "tag":  "order_sync_partial_success",
+                                             "id":  "6d714641-dd37-4be4-94d0-8544da03df4d",
+                                             "note":  "订单同步 partial_success + 页级错误",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "inventory_sync_failed",
+                                             "id":  "28ae5f51-c25d-4dc1-a616-c8b3ea371bba",
+                                             "note":  "库存同步失败（SKU 未绑定）",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "customer_reply_send_failed",
+                                             "id":  "4e881a22-dec9-47b3-a5cc-c3ea1dfa4c5a",
+                                             "note":  "客服发送失败 + 失败任务中心",
+                                             "status":  "created"
+                                         },
+                                         {
+                                             "tag":  "platform_not_authorized",
+                                             "id":  "ba56a5b0-d748-4ce7-812e-6b6660bd0559",
+                                             "note":  "平台未授权店铺 + 客服失败分类",
+                                             "status":  "created"
+                                         }
+                                     ]
+                     }
+}

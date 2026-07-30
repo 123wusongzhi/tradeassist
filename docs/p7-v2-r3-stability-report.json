@@ -1,0 +1,12 @@
+{
+  "phase": "P7-V2-R3",
+  "status": "blocked",
+  "fullSuiteRuns": 0,
+  "fullSuitePassed": 0,
+  "highRiskPackageRuns": 0,
+  "highRiskPackageFailures": 0,
+  "reason": "Skipped: no valid baseline/current comparability chain; running final stability or race checks cannot close R3.",
+  "issues": [
+    "Skipped: no valid baseline/current comparability chain; running final stability or race checks cannot close R3."
+  ]
+}

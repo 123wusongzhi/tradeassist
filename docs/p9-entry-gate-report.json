@@ -1,0 +1,124 @@
+{
+  "phase": "P9",
+  "gate": "P9-ENTRY",
+  "status": "allowed",
+  "checkedAt": "2026-07-30T07:27:57.238Z",
+  "discoveryBaseHead": "313726f310f4d76f5967ef169b9c197488f8bed4",
+  "ownerDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "headDetached": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "discoveryHeadMatch": true,
+  "p8DevelopmentClosurePassed": true,
+  "p8FinalGatePassed": true,
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "planningFoundationCompleted": true,
+  "ownerScopeDecisionCreated": true,
+  "ownerDecisionApproved": true,
+  "ownerDecisionRequired": false,
+  "historicalP9ReferenceCount": 10,
+  "activeP9ReferenceCount": 5,
+  "completedHistoricalP9ReferenceCount": 3,
+  "supersededP9ReferenceCount": 0,
+  "conflictingP9ReferenceCount": 0,
+  "p9ProductImplementationFileCount": 1,
+  "implementationStarted": true,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "readyForPhaseP9Plan": true,
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "p8DevelopmentClosurePassed",
+      "status": "passed"
+    },
+    {
+      "id": "p8FinalGatePassed",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "headDetached",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "discoveryStatus",
+      "status": "passed"
+    },
+    {
+      "id": "discoveryHeadMatch",
+      "status": "passed"
+    },
+    {
+      "id": "ownerScopeDecisionCreated",
+      "status": "passed"
+    },
+    {
+      "id": "ownerDecisionApproved",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalScopeResolved",
+      "status": "passed"
+    },
+    {
+      "id": "scopeConfidence",
+      "status": "passed"
+    },
+    {
+      "id": "ownerDecisionRequired",
+      "status": "passed"
+    },
+    {
+      "id": "historicalPhase9Reused",
+      "status": "passed"
+    },
+    {
+      "id": "conflictingP9ReferenceCount",
+      "status": "passed"
+    },
+    {
+      "id": "referenceClassifications",
+      "status": "passed"
+    },
+    {
+      "id": "planningFoundationCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "fullImplementationPlanCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "p9ProductImplementationFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "implementationStarted",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    }
+  ]
+}

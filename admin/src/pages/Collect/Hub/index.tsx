@@ -1,0 +1,785 @@
+import {
+  CloudDownloadOutlined,
+  FileSearchOutlined,
+  HistoryOutlined,
+  LinkOutlined,
+  LoginOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  WarningOutlined,
+} from '@ant-design/icons';
+import { history } from '@umijs/max';
+import { Alert, Button, Col, List, Result, Row, Skeleton, Space, Tag, Typography, message } from 'antd';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { COLLECT_TARGET_SHOP_HINT, PAGE_COPY, commonStatusLabel } from '@/constants/copywriting';
+import { layoutTokens } from '@/constants/layoutTokens';
+import { EmptyState, MetricCard, OperationToolbar, SectionCard, TmPageContainer } from '@/components/ui';
+import { CustomCollectModal } from '@/pages/Collect/components/CustomCollectModal';
+import { PinduoduoCollectModal } from '@/pages/Collect/components/PinduoduoCollectModal';
+import { TaobaoTmallCollectModal } from '@/pages/Collect/components/TaobaoTmallCollectModal';
+import type { CollectProviderRow, CollectProviderStatus } from '@/services/collectProviders';
+import { queryCollectProviders } from '@/services/collectProviders';
+import { queryCollectRules } from '@/services/collectRules';
+import {
+  fetchCollectEnginesStatus,
+  fetchCollectTasks,
+  type CollectEnginesStatus,
+  type CollectTaskRow,
+} from '@/services/collectTasks';
+import { queryBrowserProfiles, type BrowserProfileRow } from '@/services/collectBrowserProfiles';
+import { formatDateTime } from '@/utils/formatTime';
+import {
+  COLLECT_HUB_TYPE_HINT,
+  CUSTOM_BATCH_DISABLED_TOOLTIP,
+  CUSTOM_COLLECT_CARD_DESCRIPTION,
+  CUSTOM_COLLECT_CARD_NOTES,
+} from '@/utils/customCollectPlatform';
+import {
+  collectProviderStatusPresentation,
+  CUSTOM_COLLECT_DISPLAY_FEATURES,
+  CUSTOM_COLLECT_FEATURE_LABEL,
+  NO_COLLECT_RULE_MESSAGE,
+} from '@/utils/collectProviderStatus';
+import { collectSettingsConfigButtonLabel, collectSettingsPath } from '@/utils/collectSettingsProvider';
+import { collectEngineLabel, findCollectEngineStatus, readCollectTaskEngine } from '@/utils/collectEngine';
+import CollectSourceCard, {
+  type CollectSourceCardCopy,
+  type CollectSourceCardFeature,
+} from './components/CollectSourceCard';
+import './index.less';
+
+const { Paragraph, Text, Title } = Typography;
+
+const DEDICATED_FEATURE_LABEL: Record<string, string> = {
+  title: '商品标题',
+  price: '商品价格',
+  mainImages: '商品主图',
+  descriptionImages: '详情图片',
+  attributes: '商品参数',
+  skus: '商品规格',
+  stock: '库存（尽力识别）',
+};
+
+const SOURCE_ORDER = ['1688', 'pinduoduo', 'pdd', 'taobao_tmall', 'taobao', 'aliexpress', 'shein_temu', 'custom'];
+
+const DEDICATED_HUB_DESCRIPTION: Record<string, string> = {
+  '1688': '采集 1688 商品详情，支持标题、主图、详情图、属性与 SKU。',
+  pinduoduo: '采集拼多多批发商品详情，支持标题、价格、主图、规格等；发布前请核对。',
+  pdd: '采集拼多多批发商品详情，支持标题、价格、主图、规格等；发布前请核对。',
+  taobao_tmall:
+    '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。',
+  taobao: '采集淘宝、天猫商品详情，支持标题、价格、主图、详情图、商品参数和商品规格。部分商品可能需要登录或人工确认。',
+  aliexpress: '采集速卖通商品详情，支持标题、图片、属性与 SKU（测试中）。',
+};
+
+type LoadState<T> = {
+  loading: boolean;
+  error?: string;
+  data: T;
+};
+
+function providerRunnableForSingleTask(status: CollectProviderStatus) {
+  return status === 'available' || status === 'beta';
+}
+
+function batchRowDisabledForProvider(p: CollectProviderRow): boolean {
+  return !providerRunnableForSingleTask(p.status) || !p.batchSupported;
+}
+
+function batchButtonTooltipForProvider(p: CollectProviderRow): string | undefined {
+  if (!providerRunnableForSingleTask(p.status)) return '当前版本暂未开放';
+  if (!p.batchSupported) {
+    if (p.source === 'custom') return CUSTOM_BATCH_DISABLED_TOOLTIP;
+    if (p.source === 'pinduoduo' || p.source === 'pdd') {
+      return '拼多多批量采集会自动限速，建议先少量测试。部分页面可能需要登录或触发验证。';
+    }
+    if (p.source === 'taobao_tmall' || p.source === 'taobao') {
+      return '淘宝/天猫批量采集会逐条打开商品页面，建议每批不要超过 20 条。遇到登录或安全验证时，请先完成验证后重试。';
+    }
+    return p.status === 'beta' ? '测试阶段暂未开放批量' : '该平台暂不支持批量采集';
+  }
+  return undefined;
+}
+
+function providerCardFeatures(p: CollectProviderRow): string[] {
+  if (p.source === 'custom') {
+    const fromApi = (p.features ?? []).filter((f) => f !== 'skus');
+    if (fromApi.length > 0) return fromApi;
+    return [...CUSTOM_COLLECT_DISPLAY_FEATURES];
+  }
+  if (p.source === 'pinduoduo' || p.source === 'pdd') {
+    const fromApi = p.features ?? [];
+    if (fromApi.length > 0) return fromApi;
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
+  }
+  if (p.source === 'taobao_tmall' || p.source === 'taobao') {
+    const fromApi = p.features ?? [];
+    if (fromApi.length > 0) return fromApi;
+    return ['title', 'price', 'mainImages', 'descriptionImages', 'attributes', 'skus'];
+  }
+  return p.features ?? [];
+}
+
+function featureLabelForProvider(p: CollectProviderRow, feature: string): string {
+  if (p.source === 'custom') {
+    return CUSTOM_COLLECT_FEATURE_LABEL[feature] ?? feature;
+  }
+  return DEDICATED_FEATURE_LABEL[feature] ?? feature;
+}
+
+function providerCardCopy(p: CollectProviderRow): CollectSourceCardCopy {
+  if (p.source === 'custom') {
+    return {
+      description: CUSTOM_COLLECT_CARD_DESCRIPTION,
+      notes: CUSTOM_COLLECT_CARD_NOTES,
+      typeLabel: COLLECT_HUB_TYPE_HINT.custom.title,
+      typeHint: COLLECT_HUB_TYPE_HINT.custom.summary,
+    };
+  }
+  const key = p.source.toLowerCase();
+  const description = DEDICATED_HUB_DESCRIPTION[key] ?? p.description?.trim() ?? '';
+  const notes = p.notes?.trim() ?? '';
+  return {
+    description,
+    notes,
+    typeLabel: COLLECT_HUB_TYPE_HINT.dedicated.title,
+    typeHint: '',
+  };
+}
+
+function sourceOrderValue(source: string) {
+  const index = SOURCE_ORDER.indexOf(source);
+  return index === -1 ? SOURCE_ORDER.length : index;
+}
+
+function isLoginSensitiveSource(source: string) {
+  const src = source.trim().toLowerCase();
+  return src === 'pinduoduo' || src === 'pdd' || src === 'taobao_tmall' || src === 'taobao' || src === 'custom';
+}
+
+function taskStatusTagColor(status: string) {
+  const key = status.trim().toLowerCase();
+  if (key === 'success') return 'success';
+  if (key === 'failed') return 'error';
+  if (key === 'running' || key === 'retrying') return 'processing';
+  if (key === 'pending') return 'default';
+  return 'default';
+}
+
+function taskEngineTag(task: CollectTaskRow) {
+  const engine = readCollectTaskEngine(task.requestOptions);
+  if (!engine) return null;
+  return <Tag color={engine === 'opencli' ? 'geekblue' : undefined}>{collectEngineLabel(engine)}</Tag>;
+}
+
+function loginRiskDescription(source: string) {
+  const normalized = source.trim().toLowerCase();
+  if (normalized === 'taobao_tmall' || normalized === 'taobao') {
+    return 'OpenCLI 使用宿主机登录状态；Playwright 备用引擎使用采集浏览器登录状态';
+  }
+  return '可能需要采集浏览器登录或人工验证';
+}
+
+async function openCustomCollectModal(setCustomModalOpen: (open: boolean) => void): Promise<void> {
+  try {
+    const res = await queryCollectRules({
+      page: 1,
+      pageSize: 1,
+      status: 'enabled',
+    });
+    if (!res.list?.length) {
+      message.warning(NO_COLLECT_RULE_MESSAGE);
+    }
+  } catch {
+    // 仍打开 Modal，由弹窗内引导创建规则
+  }
+  setCustomModalOpen(true);
+}
+
+function RecentTaskList({ loading, error, tasks }: { loading: boolean; error?: string; tasks: CollectTaskRow[] }) {
+  if (loading) {
+    return <Skeleton active paragraph={{ rows: 4 }} />;
+  }
+  if (error) {
+    return (
+      <Result
+        status="warning"
+        title="最近任务加载失败"
+        subTitle="可以进入采集任务列表查看任务状态，或稍后重新打开采集中心。"
+        extra={<Button onClick={() => history.push('/collect/tasks')}>查看采集任务</Button>}
+      />
+    );
+  }
+  if (!tasks.length) {
+    return (
+      <EmptyState
+        compact
+        title="暂无最近采集任务"
+        description="从上方选择采集来源并提交商品链接后，任务会出现在这里。"
+        actionLabel="开始采集商品"
+        actionPath="/collect/hub"
+      />
+    );
+  }
+
+  return (
+    <List
+      className="tm-collect-hub-task-list"
+      dataSource={tasks}
+      renderItem={(task) => (
+        <List.Item
+          actions={[
+            <Button
+              key="view"
+              type="link"
+              onClick={() => history.push(`/collect/tasks?source=${encodeURIComponent(task.source)}`)}
+            >
+              查看
+            </Button>,
+          ]}
+        >
+          <List.Item.Meta
+            title={
+              <Space wrap size={8}>
+                <Text strong>{task.source}</Text>
+                <Tag color={taskStatusTagColor(task.status)}>{commonStatusLabel(task.status)}</Tag>
+                {taskEngineTag(task)}
+              </Space>
+            }
+            description={
+              <Space direction="vertical" size={2}>
+                <Text type="secondary" ellipsis={{ tooltip: task.sourceUrl }}>
+                  {task.sourceUrl}
+                </Text>
+                <Text type="secondary">{formatDateTime(task.createdAt)}</Text>
+              </Space>
+            }
+          />
+        </List.Item>
+      )}
+    />
+  );
+}
+
+function BrowserProfileSummary({
+  loading,
+  error,
+  profiles,
+}: {
+  loading: boolean;
+  error?: string;
+  profiles: BrowserProfileRow[];
+}) {
+  if (loading) {
+    return <Skeleton active paragraph={{ rows: 3 }} />;
+  }
+  if (error) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message="登录状态加载失败"
+        description="需要登录或验证码的平台，请到采集浏览器登录状态页面重新检测后再采集。"
+        action={
+          <Button size="small" onClick={() => history.push('/collect/browser-profiles')}>
+            去处理
+          </Button>
+        }
+      />
+    );
+  }
+  if (!profiles.length) {
+    return (
+      <EmptyState
+        compact
+        title="暂无已保存登录状态"
+        description="Playwright 备用模式下的淘宝/天猫、拼多多或部分自定义网站可能需要登录后采集。"
+        actionLabel="管理登录状态"
+        actionPath="/collect/browser-profiles"
+      />
+    );
+  }
+  return (
+    <Space direction="vertical" size={10} className="tm-collect-hub-profile-list">
+      {profiles.map((profile) => (
+        <div className="tm-collect-hub-profile" key={profile.id}>
+          <div>
+            <Text strong>{profile.name}</Text>
+            <Text type="secondary" className="tm-collect-hub-profile__domain">
+              {profile.domain}
+            </Text>
+          </div>
+          <Tag color={profile.lastCheckStatus === 'public' ? 'success' : 'warning'}>
+            {profile.lastCheckStatus || profile.status}
+          </Tag>
+        </div>
+      ))}
+    </Space>
+  );
+}
+
+export default function CollectHubPage() {
+  const [providerState, setProviderState] = useState<LoadState<CollectProviderRow[]>>({
+    loading: true,
+    data: [],
+  });
+  const [recentState, setRecentState] = useState<LoadState<CollectTaskRow[]>>({
+    loading: true,
+    data: [],
+  });
+  const [failedTotal, setFailedTotal] = useState<number | undefined>();
+  const [profileState, setProfileState] = useState<LoadState<BrowserProfileRow[]>>({
+    loading: true,
+    data: [],
+  });
+  const [customModalOpen, setCustomModalOpen] = useState(false);
+  const [pddModalOpen, setPddModalOpen] = useState(false);
+  const [tbModalOpen, setTbModalOpen] = useState(false);
+  const [engineState, setEngineState] = useState<LoadState<CollectEnginesStatus | null>>({
+    loading: true,
+    data: null,
+  });
+
+  const loadProviders = useCallback(async (isActive: () => boolean = () => true) => {
+    setProviderState((state) => ({
+      ...state,
+      loading: true,
+      error: undefined,
+    }));
+    try {
+      const rows = await queryCollectProviders();
+      if (isActive()) {
+        setProviderState({
+          loading: false,
+          data: Array.isArray(rows) ? rows : [],
+        });
+      }
+    } catch (error) {
+      if (isActive()) {
+        setProviderState({
+          loading: false,
+          data: [],
+          error: error instanceof Error ? error.message : '采集来源加载失败',
+        });
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void loadProviders(() => active);
+    return () => {
+      active = false;
+    };
+  }, [loadProviders]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setRecentState((state) => ({
+        ...state,
+        loading: true,
+        error: undefined,
+      }));
+      try {
+        const [recent, failed] = await Promise.all([
+          fetchCollectTasks({ page: 1, pageSize: 5 }),
+          fetchCollectTasks({ page: 1, pageSize: 1, status: 'failed' }),
+        ]);
+        if (!cancelled) {
+          setRecentState({ loading: false, data: recent.list ?? [] });
+          setFailedTotal(failed.pagination?.total ?? 0);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRecentState({
+            loading: false,
+            data: [],
+            error: error instanceof Error ? error.message : '最近采集任务加载失败',
+          });
+          setFailedTotal(undefined);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCollectEnginesStatus()
+      .then((status) => {
+        if (!cancelled) setEngineState({ loading: false, data: status });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setEngineState({
+            loading: false,
+            data: null,
+            error: error instanceof Error ? error.message : '采集引擎状态加载失败',
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setProfileState((state) => ({
+        ...state,
+        loading: true,
+        error: undefined,
+      }));
+      try {
+        const res = await queryBrowserProfiles({
+          page: 1,
+          pageSize: 4,
+          status: 'active',
+        });
+        if (!cancelled) {
+          setProfileState({ loading: false, data: res.list ?? [] });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProfileState({
+            loading: false,
+            data: [],
+            error: error instanceof Error ? error.message : '登录状态加载失败',
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const sortedProviders = useMemo(
+    () =>
+      [...providerState.data].sort(
+        (a, b) => sourceOrderValue(a.source) - sourceOrderValue(b.source) || a.name.localeCompare(b.name),
+      ),
+    [providerState.data],
+  );
+
+  const runnableProviders = sortedProviders.filter((provider) => providerRunnableForSingleTask(provider.status));
+  const batchProviders = sortedProviders.filter(
+    (provider) => providerRunnableForSingleTask(provider.status) && provider.batchSupported,
+  );
+  const loginSensitiveProviders = sortedProviders.filter((provider) => isLoginSensitiveSource(provider.source));
+  const primaryProvider = runnableProviders[0];
+  const openCliStatus = findCollectEngineStatus(engineState.data, 'opencli');
+  const defaultEngine = engineState.data?.defaultEngine;
+
+  const openSingleCollect = (provider: CollectProviderRow) => {
+    if (provider.source === 'custom') {
+      void openCustomCollectModal(setCustomModalOpen);
+    } else if (provider.source === 'pinduoduo' || provider.source === 'pdd') {
+      setPddModalOpen(true);
+    } else if (provider.source === 'taobao_tmall' || provider.source === 'taobao') {
+      setTbModalOpen(true);
+    } else {
+      history.push(`/collect/tasks?source=${encodeURIComponent(provider.source)}`);
+    }
+  };
+
+  const pageExtra = (
+    <OperationToolbar>
+      <Button icon={<HistoryOutlined />} onClick={() => history.push('/collect/tasks')}>
+        采集任务
+      </Button>
+      <Button icon={<SettingOutlined />} onClick={() => history.push('/settings/collector')}>
+        采集设置
+      </Button>
+    </OperationToolbar>
+  );
+
+  return (
+    <TmPageContainer
+      title={PAGE_COPY.collectHub.title}
+      subTitle={PAGE_COPY.collectHub.description}
+      contentMaxWidth={layoutTokens.dashboardMaxWidth}
+      extra={pageExtra}
+    >
+      <div className="tm-collect-hub">
+        <section className="tm-collect-hub-hero">
+          <div className="tm-collect-hub-hero__main">
+            <Text className="tm-collect-hub-hero__eyebrow">跨境商品采集入口</Text>
+            <Title level={4} className="tm-collect-hub-hero__title">
+              先选择来源，再把商品链接转成可运营草稿
+            </Title>
+            <Paragraph className="tm-collect-hub-hero__desc">
+              采集任务会进入队列处理。淘宝/天猫优先使用 OpenCLI 宿主机登录态，Playwright
+              作为备用；遇到登录或验证时，请按所选引擎完成对应浏览器验证。
+            </Paragraph>
+            <OperationToolbar>
+              <Button
+                type="primary"
+                size="large"
+                icon={<CloudDownloadOutlined />}
+                disabled={!primaryProvider || providerState.loading}
+                onClick={() => primaryProvider && openSingleCollect(primaryProvider)}
+              >
+                开始采集商品
+              </Button>
+              <Button size="large" icon={<FileSearchOutlined />} onClick={() => history.push('/collect/batches')}>
+                批量采集
+              </Button>
+              <Button size="large" type="link" onClick={() => history.push('/collect/rules')}>
+                管理采集规则
+              </Button>
+            </OperationToolbar>
+          </div>
+          <div className="tm-collect-hub-hero__side">
+            <MetricCard
+              title="支持来源"
+              value={providerState.loading ? '—' : sortedProviders.length}
+              description="按接口返回的采集器列表"
+              intent="primary"
+              icon={<LinkOutlined />}
+            />
+            <MetricCard
+              title="可单条采集"
+              value={providerState.loading ? '—' : runnableProviders.length}
+              description="已可用或测试中"
+              intent="success"
+              icon={<CloudDownloadOutlined />}
+            />
+            <MetricCard
+              title="批量入口"
+              value={providerState.loading ? '—' : batchProviders.length}
+              description="支持批量提交的来源"
+              intent="data"
+              icon={<FileSearchOutlined />}
+            />
+            <MetricCard
+              title="失败待恢复"
+              value={recentState.loading ? '—' : (failedTotal ?? '—')}
+              description="来自采集任务接口"
+              intent="warning"
+              icon={<WarningOutlined />}
+              onClick={() => history.push('/collect/tasks?status=failed')}
+            />
+          </div>
+        </section>
+
+        <Alert
+          type={
+            engineState.error || (defaultEngine === 'opencli' && !openCliStatus?.ready)
+              ? 'warning'
+              : openCliStatus?.ready
+                ? 'success'
+                : 'info'
+          }
+          showIcon
+          message={
+            engineState.loading
+              ? '正在检测淘宝/天猫采集引擎'
+              : engineState.error
+                ? '暂时无法读取采集引擎状态'
+                : defaultEngine === 'opencli'
+                  ? openCliStatus?.ready
+                    ? '淘宝/天猫主引擎 OpenCLI 已就绪'
+                    : 'OpenCLI 当前不可用，Playwright 备用引擎不受影响'
+                  : '淘宝/天猫当前默认使用 Playwright'
+          }
+          description={
+            engineState.loading
+              ? '检测完成后会显示主引擎和备用引擎状态。'
+              : engineState.error
+                ? '可以进入采集设置重新查看；已有 Playwright 采集任务不会受 OpenCLI 状态影响。'
+                : openCliStatus?.ready
+                  ? '单条和批量任务会记录实际执行引擎，失败时不会静默切换。'
+                  : '启动宿主机 OpenCLI Bridge 后可继续使用 OpenCLI，或在提交前手动选择 Playwright。'
+          }
+          action={
+            <Button size="small" onClick={() => history.push(collectSettingsPath('taobao_tmall'))}>
+              查看引擎设置
+            </Button>
+          }
+        />
+
+        <Alert type="info" showIcon message="店铺归属与权限提示" description={COLLECT_TARGET_SHOP_HINT} />
+
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={16}>
+            <SectionCard
+              title="采集来源"
+              description="专用采集器优先用于已适配平台；自定义采集器适合未适配网站，使用前建议先测试规则。"
+              headerExtra={
+                <Button icon={<ReloadOutlined />} loading={providerState.loading} onClick={() => void loadProviders()}>
+                  重新加载
+                </Button>
+              }
+            >
+              {providerState.loading ? (
+                <Row gutter={[16, 16]}>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Col xs={24} md={12} xl={8} key={index}>
+                      <Skeleton active paragraph={{ rows: 6 }} />
+                    </Col>
+                  ))}
+                </Row>
+              ) : providerState.error ? (
+                <Result
+                  status="warning"
+                  title="采集来源加载失败"
+                  subTitle="请检查采集服务配置或稍后重试。已有任务可以继续在采集任务页面查看。"
+                  extra={
+                    <Space wrap>
+                      <Button type="primary" onClick={() => history.push('/settings/collector')}>
+                        检查采集设置
+                      </Button>
+                      <Button onClick={() => history.push('/collect/tasks')}>查看采集任务</Button>
+                    </Space>
+                  }
+                />
+              ) : sortedProviders.length === 0 ? (
+                <EmptyState
+                  title="暂无可用采集来源"
+                  description="请先到采集设置中检查采集服务配置，或确认后端已返回采集器列表。"
+                  actionLabel="检查采集设置"
+                  actionPath="/settings/collector"
+                />
+              ) : (
+                <Row gutter={[16, 16]}>
+                  {sortedProviders.map((provider) => {
+                    const statusTag = collectProviderStatusPresentation(provider.source, provider.status);
+                    const copy = providerCardCopy(provider);
+                    const features: CollectSourceCardFeature[] = providerCardFeatures(provider).map((feature) => ({
+                      key: feature,
+                      label: featureLabelForProvider(provider, feature),
+                    }));
+                    return (
+                      <Col xs={24} md={12} xl={8} key={provider.source}>
+                        <CollectSourceCard
+                          provider={provider}
+                          copy={copy}
+                          statusTag={statusTag}
+                          features={features}
+                          singleDisabled={!providerRunnableForSingleTask(provider.status)}
+                          singleTooltip={
+                            providerRunnableForSingleTask(provider.status) ? undefined : '当前版本暂未开放'
+                          }
+                          batchDisabled={batchRowDisabledForProvider(provider)}
+                          batchTooltip={batchButtonTooltipForProvider(provider)}
+                          onSingleCollect={() => openSingleCollect(provider)}
+                          onBatchCollect={() =>
+                            history.push(`/collect/batches?source=${encodeURIComponent(provider.source)}`)
+                          }
+                          onSettings={() => history.push(collectSettingsPath(provider.source))}
+                          settingsLabel={collectSettingsConfigButtonLabel(provider.status)}
+                        />
+                      </Col>
+                    );
+                  })}
+                </Row>
+              )}
+            </SectionCard>
+          </Col>
+
+          <Col xs={24} lg={8}>
+            <Space direction="vertical" size={16} className="tm-collect-hub__side-stack">
+              <SectionCard title="登录与验证风险" description="平台登录态和验证码会影响采集成功率。" compact>
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="不要承诺百分百采集成功"
+                  description="部分平台会触发登录、验证码、安全验证或页面结构变更。请先完成登录状态检测，失败后按任务提示重试。"
+                />
+                <div className="tm-collect-hub-risk-list">
+                  {loginSensitiveProviders.map((provider) => (
+                    <div className="tm-collect-hub-risk" key={provider.source}>
+                      <LoginOutlined />
+                      <div>
+                        <Text strong>{provider.name}</Text>
+                        <Text type="secondary">{loginRiskDescription(provider.source)}</Text>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="Playwright 浏览器登录状态"
+                description="仅用于 Playwright 采集及其他需要采集浏览器的来源。"
+                headerExtra={
+                  <Button type="link" onClick={() => history.push('/collect/browser-profiles')}>
+                    管理
+                  </Button>
+                }
+                compact
+              >
+                <BrowserProfileSummary
+                  loading={profileState.loading}
+                  error={profileState.error}
+                  profiles={profileState.data}
+                />
+              </SectionCard>
+
+              <SectionCard title="失败恢复" description="失败任务保留原因和重试入口。" compact>
+                <div className="tm-collect-hub-recovery">
+                  <SafetyCertificateOutlined />
+                  <div>
+                    <Text strong>{failedTotal ?? '—'} 个失败任务</Text>
+                    <Text type="secondary">进入任务列表查看原因、登录提示和重试入口。</Text>
+                  </div>
+                  <Button onClick={() => history.push('/collect/tasks?status=failed')}>去处理</Button>
+                </div>
+              </SectionCard>
+            </Space>
+          </Col>
+        </Row>
+
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={16}>
+            <SectionCard
+              title="最近采集任务"
+              description="用于确认任务是否已进入队列，以及失败后下一步处理方式。"
+              headerExtra={
+                <Button type="link" onClick={() => history.push('/collect/tasks')}>
+                  查看全部
+                </Button>
+              }
+            >
+              <RecentTaskList loading={recentState.loading} error={recentState.error} tasks={recentState.data} />
+            </SectionCard>
+          </Col>
+          <Col xs={24} lg={8}>
+            <SectionCard title="相关管理入口" description="采集前后的常用配置和记录。" compact>
+              <div className="tm-collect-hub-links">
+                <Button block onClick={() => history.push('/collect/tasks')}>
+                  采集任务
+                </Button>
+                <Button block onClick={() => history.push('/collect/batches')}>
+                  批量采集
+                </Button>
+                <Button block onClick={() => history.push('/collect/browser-profiles')}>
+                  浏览器登录状态
+                </Button>
+                <Button block onClick={() => history.push('/collect/rules')}>
+                  采集规则
+                </Button>
+                <Button block onClick={() => history.push('/collect/monitor')}>
+                  采集监控
+                </Button>
+                <Button block onClick={() => history.push('/settings/collector')}>
+                  采集设置
+                </Button>
+              </div>
+            </SectionCard>
+          </Col>
+        </Row>
+      </div>
+
+      <CustomCollectModal open={customModalOpen} onClose={() => setCustomModalOpen(false)} />
+      <PinduoduoCollectModal open={pddModalOpen} onClose={() => setPddModalOpen(false)} />
+      <TaobaoTmallCollectModal open={tbModalOpen} onClose={() => setTbModalOpen(false)} />
+    </TmPageContainer>
+  );
+}

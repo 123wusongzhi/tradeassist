@@ -1,0 +1,28 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "passed",
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery-20260714-1719",
+    "immutable": true,
+    "hashVerified": true,
+    "sha256": "c373a484b15737b8dbc479340ea35488f69de8968895586ec1378a26e0a1e709"
+  },
+  "current": {
+    "blockedRunId": "p7v2-current-r3b-recovery-20260714-1750",
+    "rawArtifactExists": false,
+    "freezeExists": false
+  },
+  "guards": {
+    "productionResourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "soakExecuted": false,
+    "demoExecuted": false,
+    "finalGateExecuted": false
+  },
+  "findings": [
+    "The restart evidence compares PID values and does not establish process identity.",
+    "The frozen artifact resolver conflicts with the recovery manifest raw-summary.json path.",
+    "Current and regression execution remain prohibited until baseline reuse is decided."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "phase": "P7-C",
+  "status": "blocked",
+  "generatedAt": "2026-07-13T13:35:49.237Z",
+  "lists": {
+    "product": "pending",
+    "order": "pending",
+    "inventory": "pending",
+    "task": "pending",
+    "webhook": "pending",
+    "operationLog": "pending"
+  },
+  "tamperedRejected": false,
+  "crossTenantRejected": false,
+  "crossShopRejected": false,
+  "deepOffsetRejected": false,
+  "issues": [
+    "Runtime pagination harness requires isolated Medium PostgreSQL data and repository wiring; no DB run was executed by this script."
+  ]
+}

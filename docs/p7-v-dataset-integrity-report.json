@@ -1,0 +1,30 @@
+{
+  "phase": "P7-V",
+  "status": "passed",
+  "runId": "p7v-medium-20260713",
+  "integrity": "passed",
+  "idempotency": "passed",
+  "resume": "pending",
+  "counts": {
+    "inventoryRows": 100000,
+    "operationLogs": 500000,
+    "orderItems": 500000,
+    "orders": 200000,
+    "products": 100000,
+    "shops": 100,
+    "skus": 100000,
+    "tasks": 200000,
+    "tenants": 50,
+    "users": 50,
+    "webhooks": 200000
+  },
+  "foreignKeys": "not_checked_by_script",
+  "tenantScope": "mock_tenant_distribution_checked_by_counts",
+  "shopScope": "mock_shop_distribution_checked_by_counts",
+  "auditHashChain": "not_checked_by_script",
+  "noRealPII": true,
+  "noRealPlatformCredentials": true,
+  "issues": [
+    "resume interruption drill not executed in this run"
+  ]
+}

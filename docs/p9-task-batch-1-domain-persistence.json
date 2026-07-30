@@ -1,0 +1,253 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "phaseStatus": "In Progress",
+  "batchId": "P9-TASK-BATCH-1",
+  "batchName": "Inventory Sync, SKU Binding Calibration and Manual Fallback",
+  "canonicalProductScope": "Douyin Shop inventory sync MVP with SKU binding calibration and manual binding fallback",
+  "scope": "Domain and Persistence Foundation",
+  "status": "completed_locally_verified_with_known_planning_gate_boundary",
+  "baseCheckpoint": "1ac652ac4797eee636bf615f1e9ed272f2b82f84",
+  "workingBranch": "dev",
+  "changesCommitted": false,
+  "checkpointCreated": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "tasks": {
+    "P9-501": {
+      "title": "Inventory Sync Run Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
+    },
+    "P9-502": {
+      "title": "Inventory Snapshot Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
+    },
+    "P9-503": {
+      "title": "SKU Binding Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
+    },
+    "P9-504": {
+      "title": "SKU Binding Calibration Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
+    },
+    "P9-505": {
+      "title": "Manual Binding Fallback Model",
+      "status": "completed",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
+    },
+    "P9-506": {
+      "title": "Migration, Repository and Persistence Verification",
+      "status": "completed_locally_verified_with_known_planning_gate_boundary",
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/migrate.go",
+        "backend/internal/modules/inventorysyncp9/repository.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go",
+        "backend/internal/modules/inventorysyncp9/scope_test.go",
+        "backend/internal/database/migrate.go"
+      ]
+    }
+  },
+  "domainModelConvention": "gorm_module_model_with_shared_uuid_hard_delete_base",
+  "repositoryConvention": "module_local_gorm_repository_with_stable_sentinel_domain_errors",
+  "migrationConvention": "auto_migrate_plus_p9_indexes_postgres_constraints_and_immutable_triggers",
+  "idConvention": "uuid_v4_shared_model_base",
+  "tenantIsolationConvention": "tenant_id_required_and_bound_on_every_repository_method_with_cross_model_reference_verification",
+  "jsonConvention": "gorm_datatypes_json_with_safe_json_normalization_and_sensitive_key_rejection",
+  "errorConvention": "stable_sentinel_domain_errors_without_sqlstate_sql_connection_string_or_db_stack_leakage",
+  "testDatabaseConvention": "real_gorm_sqlite_tempfile_integration_tests_no_sql_mock",
+  "models": [
+    "InventorySyncRun",
+    "InventorySnapshotItem",
+    "SKUBinding",
+    "SKUBindingCalibration",
+    "ManualBindingRequest"
+  ],
+  "tables": [
+    "p9_inventory_sync_runs",
+    "p9_inventory_snapshot_items",
+    "p9_sku_bindings",
+    "p9_sku_binding_calibrations",
+    "p9_manual_binding_requests"
+  ],
+  "inventorySyncRunModelPresent": true,
+  "inventorySnapshotModelPresent": true,
+  "skuBindingModelPresent": true,
+  "skuBindingCalibrationModelPresent": true,
+  "manualBindingRequestModelPresent": true,
+  "migrationPresent": true,
+  "autoMigrateRegistered": true,
+  "repositoryPresent": true,
+  "validationPresent": true,
+  "stableErrorsPresent": true,
+  "scopeProtectionTestsPresent": true,
+  "constraints": [
+    "p9_inventory_sync_runs.tenant_id_id.partial_unique",
+    "p9_inventory_sync_runs.tenant_id_idempotency_key_hash.partial_unique_non_empty",
+    "p9_inventory_snapshot_items.tenant_run_external_sku.unique",
+    "p9_sku_bindings.current_confirmed.partial_unique_tenant_shop_external_sku",
+    "p9_sku_binding_calibrations.candidate_version.unique",
+    "p9_manual_binding_requests.tenant_request_id.unique",
+    "p9_manual_binding_requests.pending.partial_unique_tenant_shop_external_sku",
+    "p9_manual_binding_requests.tenant_idempotency_key_hash.partial_unique_non_empty",
+    "postgres.status_source_strategy_provider_mode_checks",
+    "postgres.hash_format_checks",
+    "postgres.revision_confidence_quantity_non_negative_checks",
+    "sqlite_postgres.snapshot_calibration_immutable_triggers"
+  ],
+  "repositoryMethods": [
+    "InventorySyncRun.Create",
+    "InventorySyncRun.GetByID",
+    "InventorySyncRun.GetByIdempotency",
+    "InventorySyncRun.UpdateStatusWithRevision",
+    "InventorySnapshot.CreateBatch",
+    "InventorySnapshot.ListByRun",
+    "InventorySnapshot.GetByRunAndExternalSKU",
+    "InventorySnapshot.CountByRun",
+    "SKUBinding.CreateProposed",
+    "SKUBinding.GetCurrentConfirmed",
+    "SKUBinding.ListByExternalSKU",
+    "SKUBinding.ListByLocalSKU",
+    "SKUBinding.TransitionWithRevision",
+    "SKUBindingCalibration.CreateBatch",
+    "SKUBindingCalibration.ListBySnapshot",
+    "SKUBindingCalibration.ListByRun",
+    "SKUBindingCalibration.GetBestCandidate",
+    "ManualBindingRequest.Create",
+    "ManualBindingRequest.GetByID",
+    "ManualBindingRequest.GetPendingByExternalSKU",
+    "ManualBindingRequest.ListPending",
+    "ManualBindingRequest.ResolveWithRevision"
+  ],
+  "stableErrors": [
+    "validation_error",
+    "not_found",
+    "tenant_mismatch",
+    "revision_conflict",
+    "state_conflict",
+    "duplicate_external_sku",
+    "binding_conflict",
+    "binding_not_confirmed",
+    "manual_binding_already_pending",
+    "manual_binding_already_resolved",
+    "idempotency_payload_conflict",
+    "immutable_record"
+  ],
+  "tenantIsolationPassed": true,
+  "idempotencyTestsPassed": true,
+  "optimisticConcurrencyTestsPassed": true,
+  "immutableHistoryTestsPassed": true,
+  "batchAtomicityTestsPassed": true,
+  "repositoryTestsPassed": true,
+  "migrationTestsPassed": true,
+  "sqliteIntegrationTestsPassed": true,
+  "scopeProtectionTestsPassed": true,
+  "currentBatchRaceStatus": "passed",
+  "dataRaces": 0,
+  "postgresIntegrationStatus": "not_executed_test_database_url_not_set",
+  "fullVerificationStatus": "completed_with_known_planning_gate_boundary",
+  "verification": {
+    "inventorysyncp9ModuleTests": "passed",
+    "databasePackageTests": "passed_no_test_files",
+    "inventorysyncp9RaceTests": "passed",
+    "backendTestSuite": "passed",
+    "p9Batch1ScopeFixture": "passed",
+    "p9Batch1ScopeGate": "passed",
+    "p9Batch1DomainPersistenceFixture": "passed",
+    "p9Batch1DomainPersistenceGate": "passed",
+    "architectureBoundaryCheck": "passed_new_violations_0",
+    "sensitiveDiffScan": "passed_findings_0",
+    "contractTests": "passed",
+    "touchedGoFilesGofmt": "passed",
+    "p9EntryGate": "blocked_discovery_head_match_expected_planning_gate_boundary",
+    "p9PlanGate": "failed_discovery_head_match_expected_planning_gate_boundary",
+    "qualityBackend": "failed_existing_full_repo_gofmt_baseline_456_files_touched_go_files_passed",
+    "architectureAffected": "failed_architecture_test_invalid_token_existing_vitest_import_issue",
+    "postgresRevalidation": "passed",
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "testDatabaseUrl": "set_not_recorded"
+  },
+  "quantityRelationshipContract": "provider_defined_safe_observation",
+  "rawProviderResponseStored": false,
+  "safeMetadataSensitiveKeyRejected": true,
+  "shopAuthTokenCredentialFieldsRead": false,
+  "sqlStateExposed": false,
+  "sqlTextExposed": false,
+  "connectionStringExposed": false,
+  "databaseStackTraceExposed": false,
+  "calibrationServiceImplemented": false,
+  "matchingAlgorithmServiceImplemented": false,
+  "automaticConfirmationThresholdImplemented": false,
+  "syncOrchestratorImplemented": false,
+  "syncWorkerImplemented": false,
+  "cronImplemented": false,
+  "tickerImplemented": false,
+  "queueConsumerImplemented": false,
+  "apiImplemented": false,
+  "httpHandlerImplemented": false,
+  "ginRouterImplemented": false,
+  "restApiImplemented": false,
+  "adminUiImplemented": false,
+  "frontendApiClientImplemented": false,
+  "realDouyinProviderImplemented": false,
+  "oauthImplemented": false,
+  "realCredentialsEnabled": false,
+  "realPlatformNetworkEnabled": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "realInventoryReadEnabled": false,
+  "realInventoryWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "humanConfirmationRequired": true,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "tagDeferred": true,
+  "releaseDeferred": true,
+  "p9Complete": false,
+  "nextBatch": {
+    "taskIds": [
+      "P9-601",
+      "P9-602",
+      "P9-603",
+      "P9-604",
+      "P9-605",
+      "P9-606"
+    ],
+    "status": "notStarted"
+  },
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed",
+  "postgresIntegrationPassed": false,
+  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
+  "p9FinalClosureBlocker": true
+}

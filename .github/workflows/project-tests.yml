@@ -1,0 +1,321 @@
+name: Project Tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+      - "feat/**"
+      - "fix/**"
+      - "release/**"
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+      - dev
+  schedule:
+    - cron: "17 19 * * *"
+
+jobs:
+  architecture:
+    name: architecture boundaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Workflow trigger check
+        run: pnpm workflow:check
+
+      - name: Workflow trigger tests
+        run: pnpm workflow:test
+
+      - name: Resolve architecture diff base
+        id: architecture-base
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "base=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Architecture tests
+        run: pnpm architecture:test
+
+      - name: Architecture boundary ratchet
+        run: pnpm architecture:check
+
+      - name: Affected architecture checks
+        env:
+          ARCHITECTURE_BASE_SHA: ${{ steps.architecture-base.outputs.base }}
+          ARCHITECTURE_HEAD_SHA: ${{ steps.architecture-base.outputs.head }}
+        run: pnpm architecture:ci
+
+      - name: Architecture summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Architecture Gate"
+            echo "- Diff base: ${{ steps.architecture-base.outputs.base }}"
+            echo "- Diff head: ${{ steps.architecture-base.outputs.head }}"
+            echo "- Baseline update: disabled in CI"
+            echo "- Checks: module boundaries, TypeScript cycles, Go layer boundaries, cross-app dependencies"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  code-quality:
+    name: code quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Resolve quality diff base
+        id: quality-base
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+            echo "base=${{ github.event.before }}" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+            echo "head=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Diff hygiene
+        run: git diff --check ${{ steps.quality-base.outputs.base }} ${{ steps.quality-base.outputs.head }}
+
+      - name: Changed-file sensitive check
+        env:
+          QUALITY_BASE_SHA: ${{ steps.quality-base.outputs.base }}
+          QUALITY_HEAD_SHA: ${{ steps.quality-base.outputs.head }}
+        run: pnpm quality:sensitive
+
+      - name: Admin TypeScript baseline ratchet
+        run: pnpm quality:baseline:admin-ts
+
+      - name: Collector quality
+        run: pnpm quality:collector
+
+      - name: Go formatting and vet
+        run: node scripts/quality/check-go.mjs --fmt --vet
+
+      - name: API contracts
+        run: pnpm quality:contracts
+
+      - name: Affected quality checks
+        env:
+          QUALITY_BASE_SHA: ${{ steps.quality-base.outputs.base }}
+          QUALITY_HEAD_SHA: ${{ steps.quality-base.outputs.head }}
+        run: pnpm quality:ci
+
+      - name: Code quality summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Code Quality"
+            echo "- Diff base: ${{ steps.quality-base.outputs.base }}"
+            echo "- Diff head: ${{ steps.quality-base.outputs.head }}"
+            echo "- Baseline update: disabled in CI"
+            echo "- Sensitive scan: changed lines only, high-confidence patterns"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  node-unit-and-contracts:
+    name: node unit and API contracts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Frontend unit and component tests
+        run: pnpm test:frontend
+
+      - name: Collector unit tests
+        run: pnpm test:collector
+
+      - name: API contract tests
+        run: pnpm test:contracts
+
+  backend-unit:
+    name: backend unit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Backend unit tests
+        run: pnpm test:backend
+
+  backend-integration:
+    name: backend PostgreSQL and Redis integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trademind
+          POSTGRES_PASSWORD: trademind
+          POSTGRES_DB: trademind_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: PostgreSQL migration tests
+        env:
+          TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
+        run: pnpm test:db
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: P9 PostgreSQL gate fixtures
+        run: pnpm test:p9-postgres-gate-fixtures
+
+      - name: P9 PostgreSQL integration baseline
+        env:
+          APP_ENV: test
+          TEST_DATABASE_URL: postgres://trademind:trademind@127.0.0.1:5432/trademind_test?sslmode=disable
+        run: pnpm test:p9-postgres-integration
+
+      - name: Upload sanitized P9 PostgreSQL runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: p9-postgres-runtime
+          path: |
+            artifacts/p9-postgres-runtime.json
+            artifacts/p9-postgres-runtime.jsonl
+            artifacts/p9-postgres-race.jsonl
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Redis queue tests
+        env:
+          TEST_REDIS_URL: redis://127.0.0.1:6379/15
+        run: pnpm test:redis

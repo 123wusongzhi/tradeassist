@@ -1,0 +1,15 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE",
+  "status": "passed",
+  "frozenAt": "2026-07-15T07:58:56.391Z",
+  "runtimeSourceTreeHash": "d02c6303766ed63fc2277c8a2223731c3663d95f2a64c72b4220e3cd48940d49",
+  "evidenceToolingHash": "95f3e8a3803f7636b0979a6df69cb0f4b3f719bd96618613bd8fc2489a342b23",
+  "loadScriptsHash": "dcf2b20629048d46190a18891fdf39d5d524fa41a4914c4af853a83cb75c1b37",
+  "metricSemanticsHash": "390927919d640caf34d2abeb6715d7874cb948d53d90ccb6693a500501c65a54",
+  "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+  "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+  "configFingerprint": "19a31a354f7de07e74ada09929b83131c6fbe28d39b7b07bff3b5c08089fe0c9",
+  "loadProfileFingerprint": "",
+  "sloFingerprint": "",
+  "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37"
+}

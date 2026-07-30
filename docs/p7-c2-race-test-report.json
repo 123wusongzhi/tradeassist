@@ -1,0 +1,193 @@
+{
+  "phase": "P7-C2",
+  "status": "passed",
+  "generatedAt": "2026-07-13T15:56:20.136Z",
+  "environmentBlocked": false,
+  "environment": [
+    {
+      "command": "uname -a",
+      "exitCode": 0,
+      "output": "Linux SK-20250814VKAY 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux"
+    },
+    {
+      "command": "cat /etc/os-release",
+      "exitCode": 0,
+      "output": "PRETTY_NAME=\"Ubuntu 22.04.5 LTS\"\nNAME=\"Ubuntu\"\nVERSION_ID=\"22.04\"\nVERSION=\"22.04.5 LTS (Jammy Jellyfish)\"\nVERSION_CODENAME=jammy\nID=ubuntu\nID_LIKE=debian\nHOME_URL=\"https://www.ubuntu.com/\"\nSUPPORT_URL=\"https://help.ubuntu.com/\"\nBUG_REPORT_URL=\"https://bugs.launchpad.net/ubuntu/\"\nPRIVACY_POLICY_URL=\"https://www.ubuntu.com/legal/terms-and-policies/privacy-policy\"\nUBUNTU_CODENAME=jammy"
+    },
+    {
+      "command": "which go",
+      "exitCode": 0,
+      "output": "/usr/local/go/bin/go"
+    },
+    {
+      "command": "go version",
+      "exitCode": 0,
+      "output": "go version go1.25.12 linux/amd64"
+    },
+    {
+      "command": "go env GOOS GOARCH CGO_ENABLED",
+      "exitCode": 0,
+      "output": "linux\namd64\n1"
+    },
+    {
+      "command": "gcc --version | head -1",
+      "exitCode": 0,
+      "output": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+    }
+  ],
+  "preflight": [
+    {
+      "command": "go mod verify",
+      "exitCode": 0,
+      "outputTail": "all modules verified\n\n"
+    },
+    {
+      "command": "go test ./...",
+      "exitCode": 0,
+      "outputTail": "\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/security\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/storagepublic\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tasklease\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/taskretry\t(cached)\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tasktenant\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tenantquery\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/tracing\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/compatclient\t(cached)\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/deepseek\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/errmap\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/openai\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/openai_compatible\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ai/qwen\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/collector\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/email\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/email/smtp\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/comfyui\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/dashscopeimage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/openaiimage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/image/removebg\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/aliyun\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/paddleocr\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/ocr/tencent\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/amazon\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop\t(cached)\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/lazada\t(cached)\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/shopee\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/cos\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/keypath\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/local\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/localroot\t(cached)\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/oss\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/providers/storage/s3store\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/queue\t[no test files]\n?   \tgithub.com/trademind-ai/trademind/backend/internal/rdb\t[no test files]\nok  \tgithub.com/trademind-ai/trademind/backend/internal/securitytests/idor\t0.631s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/securitytests/shopscope\t0.243s\n\n"
+    },
+    {
+      "command": "go build ./cmd/server/... ./cmd/p7load",
+      "exitCode": 0,
+      "outputTail": "\n"
+    },
+    {
+      "command": "test ! -d ./cmd/p7verify || go build ./cmd/p7verify",
+      "exitCode": 0,
+      "outputTail": "\n"
+    }
+  ],
+  "mapped": 11,
+  "executed": 11,
+  "passed": 11,
+  "failed": 0,
+  "skipped": 0,
+  "dataRaces": 0,
+  "deadlocks": 0,
+  "combinedMatrix": "passed",
+  "combinedExitCode": 0,
+  "packages": [
+    {
+      "capability": "pagination/cursor",
+      "expectedPackage": "./internal/pkg/pagination/...",
+      "actualPackage": "./internal/pkg/pagination/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/pkg/pagination/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/pagination\t1.010s\n\n"
+    },
+    {
+      "capability": "ratelimit",
+      "expectedPackage": "./internal/pkg/ratelimit/...",
+      "actualPackage": "./internal/pkg/ratelimit/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/pkg/ratelimit/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/ratelimit\t1.009s\n\n"
+    },
+    {
+      "capability": "cache/singleflight",
+      "expectedPackage": "./internal/pkg/cache/...",
+      "actualPackage": "./internal/pkg/cache/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/pkg/cache/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/cache\t1.020s\n\n"
+    },
+    {
+      "capability": "httpclient/provider limiter",
+      "expectedPackage": "./internal/pkg/httpclient/...",
+      "actualPackage": "./internal/pkg/httpclient/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/pkg/httpclient/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/pkg/httpclient\t1.040s\n\n"
+    },
+    {
+      "capability": "taskcenter/worker",
+      "expectedPackage": "./internal/modules/taskcenter/...",
+      "actualPackage": "./internal/modules/taskcenter/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/taskcenter/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter\t1.028s\nok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/failureclassifier\t(cached)\n?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/taskcenter/notify\t[no test files]\n\n"
+    },
+    {
+      "capability": "webhook",
+      "expectedPackage": "./internal/modules/webhook/...",
+      "actualPackage": "./internal/modules/webhook/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/webhook/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/webhook\t1.789s\n\n"
+    },
+    {
+      "capability": "inventory",
+      "expectedPackage": "./internal/modules/inventory/...",
+      "actualPackage": "./internal/modules/inventory/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/inventory/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/inventory\t1.037s\n\n"
+    },
+    {
+      "capability": "auth",
+      "expectedPackage": "./internal/modules/admin/...",
+      "actualPackage": "./internal/modules/admin/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/admin/...",
+      "outputTail": "ok  \tgithub.com/trademind-ai/trademind/backend/internal/modules/admin\t1.668s\n\n"
+    },
+    {
+      "capability": "export/files",
+      "expectedPackage": "./internal/modules/exportmod/...",
+      "actualPackage": "./internal/modules/exportmod/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/exportmod/...",
+      "outputTail": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/exportmod\t[no test files]\n\n"
+    },
+    {
+      "capability": "operationlog",
+      "expectedPackage": "./internal/modules/operationlog/...",
+      "actualPackage": "./internal/modules/operationlog/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./internal/modules/operationlog/...",
+      "outputTail": "?   \tgithub.com/trademind-ai/trademind/backend/internal/modules/operationlog\t[no test files]\n\n"
+    },
+    {
+      "capability": "dataset generator runtime",
+      "expectedPackage": "./cmd/p7load/...",
+      "actualPackage": "./cmd/p7load/...",
+      "mandatory": true,
+      "mappingStatus": "mapped",
+      "executionStatus": "passed",
+      "exitCode": 0,
+      "command": "CGO_ENABLED=1 go test -race -timeout=15m ./cmd/p7load/...",
+      "outputTail": "?   \tgithub.com/trademind-ai/trademind/backend/cmd/p7load\t[no test files]\n\n"
+    }
+  ],
+  "issues": []
+}

@@ -1,0 +1,226 @@
+{
+  "phase": "P9",
+  "gate": "P9-TASK-BATCH-1-SCOPE",
+  "status": "passed",
+  "checkedAt": "2026-07-30T07:27:59.816Z",
+  "ownerDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
+  "batchId": "P9-TASK-BATCH-1",
+  "batchName": "Inventory Sync, SKU Binding Calibration and Manual Fallback",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "headDetached": false,
+  "stagedFileCount": 0,
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "taskIds": [
+    "P9-501",
+    "P9-502",
+    "P9-503",
+    "P9-504",
+    "P9-505",
+    "P9-506"
+  ],
+  "taskCount": 6,
+  "batch1TaskIdsMatchPlan": true,
+  "batch1TaskCount": 6,
+  "domainModelsIncluded": true,
+  "migrationsIncluded": true,
+  "repositoriesIncluded": true,
+  "constraintsIncluded": true,
+  "persistenceTestsIncluded": true,
+  "calibrationServiceExcluded": true,
+  "syncOrchestratorExcluded": true,
+  "workerExcluded": true,
+  "apiExcluded": true,
+  "adminUiExcluded": true,
+  "realProviderExcluded": true,
+  "realOAuthExcluded": true,
+  "realCredentialsExcluded": true,
+  "realInventoryReadExcluded": true,
+  "realInventoryWriteExcluded": true,
+  "batch1ScopeReady": true,
+  "implementationStarted": false,
+  "productCodeChanged": false,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "failedCount": 0,
+  "failed": [],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "ownerDecisionApproved",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalScopeResolved",
+      "status": "passed"
+    },
+    {
+      "id": "scopeConfidence",
+      "status": "passed"
+    },
+    {
+      "id": "batchId",
+      "status": "passed"
+    },
+    {
+      "id": "batchName",
+      "status": "passed"
+    },
+    {
+      "id": "canonicalProductScope",
+      "status": "passed"
+    },
+    {
+      "id": "taskIds",
+      "status": "passed"
+    },
+    {
+      "id": "exactTaskCount",
+      "status": "passed"
+    },
+    {
+      "id": "domainModelsIncluded",
+      "status": "passed"
+    },
+    {
+      "id": "migrationsIncluded",
+      "status": "passed"
+    },
+    {
+      "id": "repositoriesIncluded",
+      "status": "passed"
+    },
+    {
+      "id": "constraintsIncluded",
+      "status": "passed"
+    },
+    {
+      "id": "persistenceTestsIncluded",
+      "status": "passed"
+    },
+    {
+      "id": "calibrationServiceExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "syncOrchestratorExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "workerExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "apiExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "adminUiExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "realProviderExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "realOAuthExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "realCredentialsExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "realInventoryReadExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "realInventoryWriteExcluded",
+      "status": "passed"
+    },
+    {
+      "id": "batch1ScopeReady",
+      "status": "passed"
+    },
+    {
+      "id": "implementationStarted",
+      "status": "passed"
+    },
+    {
+      "id": "productCodeChanged",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "allowedAreas",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenAreas",
+      "status": "passed"
+    },
+    {
+      "id": "testingRequirements",
+      "status": "passed"
+    },
+    {
+      "id": "gateRequirements",
+      "status": "passed"
+    },
+    {
+      "id": "evidenceRequirements",
+      "status": "passed"
+    },
+    {
+      "id": "notDoing",
+      "status": "passed"
+    },
+    {
+      "id": "p10ReservedBoundary",
+      "status": "passed"
+    },
+    {
+      "id": "gitOperationConstraints",
+      "status": "passed"
+    },
+    {
+      "id": "taskMetadataCoverage",
+      "status": "passed"
+    },
+    {
+      "id": "taskStatusCoverage",
+      "status": "passed"
+    },
+    {
+      "id": "planBatch1Aligned",
+      "status": "passed"
+    },
+    {
+      "id": "planBatch1Count",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "headDetached",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-INPUT-SEQUENCE-BINDING-V1",
+  "status": "passed",
+  "fixtures": 6,
+  "sameSeedHashMatch": true,
+  "seedDriftNotComparable": true,
+  "webhookDuplicateDriftNotComparable": true,
+  "authBranchMixDriftNotComparable": true,
+  "branchCountDeviationSemanticGateFailed": true,
+  "requestListDriftNotComparable": true
+}

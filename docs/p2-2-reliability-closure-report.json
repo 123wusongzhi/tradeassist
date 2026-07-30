@@ -1,0 +1,443 @@
+{
+  "generatedAt": "2026-07-13T09:30:18.192Z",
+  "phase": "P2.2",
+  "status": "passed",
+  "overall": "passed",
+  "summary": {
+    "passed": 59,
+    "warnings": 0,
+    "failed": 0,
+    "total": 59
+  },
+  "aiApply": {
+    "status": "passed",
+    "textApply": "passed",
+    "textUndo": "passed",
+    "imageApply": "passed",
+    "imageUndo": "passed",
+    "versionConflicts": "passed"
+  },
+  "webhook": {
+    "status": "passed",
+    "route": "passed",
+    "signature": "passed",
+    "replay": "passed",
+    "asyncWorker": "passed",
+    "sensitiveLogging": "passed"
+  },
+  "workers": {
+    "status": "passed",
+    "modules": [
+      {
+        "id": "collect",
+        "leaseFile": "backend/internal/modules/collect/lease.go",
+        "staleTest": "backend/internal/modules/collect/lease_stale_worker_test.go"
+      },
+      {
+        "id": "imagetask",
+        "leaseFile": "backend/internal/modules/imagetask/lease.go",
+        "staleTest": "backend/internal/modules/imagetask/lease_stale_worker_test.go"
+      },
+      {
+        "id": "customersync",
+        "leaseFile": "backend/internal/modules/customersync/lease.go",
+        "staleTest": "backend/internal/modules/customersync/lease_stale_worker_test.go"
+      },
+      {
+        "id": "ordersync",
+        "leaseFile": "backend/internal/modules/ordersync/lease.go",
+        "staleTest": null
+      },
+      {
+        "id": "inventory",
+        "leaseFile": "backend/internal/modules/inventory/lease.go",
+        "staleTest": null
+      },
+      {
+        "id": "productpublish",
+        "leaseFile": "backend/internal/modules/productpublish/lease.go",
+        "staleTest": null
+      }
+    ]
+  },
+  "race": {
+    "status": "passed",
+    "report": "docs/P2_2_RACE_TEST_REPORT.md",
+    "note": "WSL2 Linux CGO race executed 2026-07-11; see P2_2_RACE_TEST_REPORT.md"
+  },
+  "environment": {
+    "scanner": "scripts/p2-2-reliability-closure-check.mjs",
+    "node": "v22.15.0",
+    "cwd": "D:\\project\\trademind-ai",
+    "note": "Static scan only; not Production Ready; not real-platform E2E"
+  },
+  "docs": {
+    "status": "passed",
+    "required": [
+      "docs/AI_RESULT_APPLY_IDEMPOTENCY.md",
+      "docs/AI_RESULT_UNDO_DESIGN.md",
+      "docs/WEBHOOK_HTTP_RECEIVER_DESIGN.md",
+      "docs/WEBHOOK_SIGNATURE_AND_REPLAY_PROTECTION.md",
+      "docs/P2_2_WORKER_LEASE_ADOPTION_MATRIX.md",
+      "docs/P2_2_RACE_TEST_REPORT.md",
+      "docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md"
+    ]
+  },
+  "issues": [],
+  "checks": [
+    {
+      "id": "ai-text-idempotency-apply",
+      "status": "passed",
+      "message": "AI text idempotency_apply.go exists",
+      "detail": "backend/internal/modules/aiproducttext/idempotency_apply.go"
+    },
+    {
+      "id": "ai-text-apply-service",
+      "status": "passed",
+      "message": "AI text apply uses idempotency.Service (AITextApply + Acquire)",
+      "detail": "backend/internal/modules/aiproducttext/idempotency_apply.go"
+    },
+    {
+      "id": "ai-text-undo",
+      "status": "passed",
+      "message": "AI text undo uses AITextUndo",
+      "detail": "backend/internal/modules/aiproducttext/idempotency_apply.go"
+    },
+    {
+      "id": "ai-text-version-conflict",
+      "status": "passed",
+      "message": "AI text version conflict codes",
+      "detail": "backend/internal/modules/aiproducttext/model.go"
+    },
+    {
+      "id": "ai-image-idempotency-apply",
+      "status": "passed",
+      "message": "AI image idempotency_apply.go exists",
+      "detail": "backend/internal/modules/aiproductimage/idempotency_apply.go"
+    },
+    {
+      "id": "ai-image-apply-service",
+      "status": "passed",
+      "message": "AI image apply uses AIImageApply + Acquire",
+      "detail": "backend/internal/modules/aiproductimage/idempotency_apply.go"
+    },
+    {
+      "id": "ai-image-undo",
+      "status": "passed",
+      "message": "AI image undo uses AIImageUndo",
+      "detail": "backend/internal/modules/aiproductimage/idempotency_apply.go"
+    },
+    {
+      "id": "ai-image-version-conflict",
+      "status": "passed",
+      "message": "AI image version conflict codes",
+      "detail": "backend/internal/modules/aiproductimage/model.go"
+    },
+    {
+      "id": "keys-apply-builders",
+      "status": "passed",
+      "message": "idempotency key builders for apply/undo/webhook-process",
+      "detail": "backend/internal/modules/idempotency/keys.go"
+    },
+    {
+      "id": "webhook-register-public",
+      "status": "passed",
+      "message": "Webhook RegisterPublic route",
+      "detail": "backend/internal/modules/webhook/router.go"
+    },
+    {
+      "id": "router-webhook-register",
+      "status": "passed",
+      "message": "router.go wires webhook.RegisterPublic",
+      "detail": null
+    },
+    {
+      "id": "webhook-body-limit",
+      "status": "passed",
+      "message": "Webhook body limit (MaxBytesReader / maxPayload)",
+      "detail": "backend/internal/modules/webhook/handler.go"
+    },
+    {
+      "id": "webhook-max-body-config",
+      "status": "passed",
+      "message": "WEBHOOK_MAX_BODY_KB / MaxPayloadBytes config",
+      "detail": "backend/internal/config/config.go"
+    },
+    {
+      "id": "webhook-signature-verifier",
+      "status": "passed",
+      "message": "SignatureVerifier exists",
+      "detail": "backend/internal/modules/webhook/signature.go"
+    },
+    {
+      "id": "webhook-clock-skew",
+      "status": "passed",
+      "message": "MaxClockSkew / timestamp validation",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "webhook-replay",
+      "status": "passed",
+      "message": "Replay protection (duplicate / OnConflict)",
+      "detail": "backend/internal/modules/webhook/service.go"
+    },
+    {
+      "id": "webhook-fast-ack",
+      "status": "passed",
+      "message": "Fast ACK (accepted / Ingest)",
+      "detail": "backend/internal/modules/webhook/handler.go"
+    },
+    {
+      "id": "webhook-async-process",
+      "status": "passed",
+      "message": "Async ProcessEvent / ProcessQueuedEvents",
+      "detail": "backend/internal/modules/webhook/processor.go"
+    },
+    {
+      "id": "webhook-start-worker",
+      "status": "passed",
+      "message": "Webhook StartWorker",
+      "detail": "backend/internal/modules/webhook/worker.go"
+    },
+    {
+      "id": "webhook-bypass-forbidden",
+      "status": "passed",
+      "message": "Production signature bypass forbidden",
+      "detail": "backend/internal/modules/webhook/signature.go"
+    },
+    {
+      "id": "webhook-sensitive-logging",
+      "status": "passed",
+      "message": "Webhook modules avoid logging raw secrets; truncateSummary present",
+      "detail": null
+    },
+    {
+      "id": "worker-collect-claim",
+      "status": "passed",
+      "message": "collect uses tasklease claim",
+      "detail": "backend/internal/modules/collect/lease.go"
+    },
+    {
+      "id": "worker-collect-validate-finish",
+      "status": "passed",
+      "message": "collect ValidateLease + finishCollectTask",
+      "detail": "backend/internal/modules/collect/lease.go"
+    },
+    {
+      "id": "worker-collect-renewal",
+      "status": "passed",
+      "message": "collect heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/collect/lease.go"
+    },
+    {
+      "id": "worker-collect-stale-test",
+      "status": "passed",
+      "message": "collect lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/collect/lease_stale_worker_test.go"
+    },
+    {
+      "id": "worker-imagetask-claim",
+      "status": "passed",
+      "message": "imagetask uses tasklease claim",
+      "detail": "backend/internal/modules/imagetask/lease.go"
+    },
+    {
+      "id": "worker-imagetask-validate-finish",
+      "status": "passed",
+      "message": "imagetask ValidateLease + finishImageTask",
+      "detail": "backend/internal/modules/imagetask/lease.go"
+    },
+    {
+      "id": "worker-imagetask-renewal",
+      "status": "passed",
+      "message": "imagetask heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/imagetask/lease.go"
+    },
+    {
+      "id": "worker-imagetask-stale-test",
+      "status": "passed",
+      "message": "imagetask lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/imagetask/lease_stale_worker_test.go"
+    },
+    {
+      "id": "worker-customersync-claim",
+      "status": "passed",
+      "message": "customersync uses tasklease claim",
+      "detail": "backend/internal/modules/customersync/lease.go"
+    },
+    {
+      "id": "worker-customersync-validate-finish",
+      "status": "passed",
+      "message": "customersync ValidateLease + finishCustomerSyncTask",
+      "detail": "backend/internal/modules/customersync/lease.go"
+    },
+    {
+      "id": "worker-customersync-renewal",
+      "status": "passed",
+      "message": "customersync heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/customersync/lease.go"
+    },
+    {
+      "id": "worker-customersync-stale-test",
+      "status": "passed",
+      "message": "customersync lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/customersync/lease_stale_worker_test.go"
+    },
+    {
+      "id": "worker-ordersync-claim",
+      "status": "passed",
+      "message": "ordersync uses tasklease claim",
+      "detail": "backend/internal/modules/ordersync/lease.go"
+    },
+    {
+      "id": "worker-ordersync-validate-finish",
+      "status": "passed",
+      "message": "ordersync ValidateLease + finishOrderSyncTask",
+      "detail": "backend/internal/modules/ordersync/lease.go"
+    },
+    {
+      "id": "worker-ordersync-renewal",
+      "status": "passed",
+      "message": "ordersync heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/ordersync/lease.go"
+    },
+    {
+      "id": "worker-inventory-claim",
+      "status": "passed",
+      "message": "inventory uses tasklease claim",
+      "detail": "backend/internal/modules/inventory/lease.go"
+    },
+    {
+      "id": "worker-inventory-validate-finish",
+      "status": "passed",
+      "message": "inventory ValidateLease + finishInventorySyncTask",
+      "detail": "backend/internal/modules/inventory/lease.go"
+    },
+    {
+      "id": "worker-inventory-renewal",
+      "status": "passed",
+      "message": "inventory heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/inventory/lease.go"
+    },
+    {
+      "id": "worker-productpublish-claim",
+      "status": "passed",
+      "message": "productpublish uses tasklease claim",
+      "detail": "backend/internal/modules/productpublish/lease.go"
+    },
+    {
+      "id": "worker-productpublish-validate-finish",
+      "status": "passed",
+      "message": "productpublish ValidateLease + finishProductPublishTask",
+      "detail": "backend/internal/modules/productpublish/lease.go"
+    },
+    {
+      "id": "worker-productpublish-renewal",
+      "status": "passed",
+      "message": "productpublish heartbeat renewal / execution_id",
+      "detail": "backend/internal/modules/productpublish/lease.go"
+    },
+    {
+      "id": "stale-collect",
+      "status": "passed",
+      "message": "lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/collect/lease_stale_worker_test.go"
+    },
+    {
+      "id": "stale-imagetask",
+      "status": "passed",
+      "message": "lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/imagetask/lease_stale_worker_test.go"
+    },
+    {
+      "id": "stale-customersync",
+      "status": "passed",
+      "message": "lease_stale_worker_test.go exists",
+      "detail": "backend/internal/modules/customersync/lease_stale_worker_test.go"
+    },
+    {
+      "id": "test-ai-text-apply",
+      "status": "passed",
+      "message": "AI text apply_idempotency_test.go exists",
+      "detail": "backend/internal/modules/aiproducttext/apply_idempotency_test.go"
+    },
+    {
+      "id": "test-ai-image-apply",
+      "status": "passed",
+      "message": "AI image apply_idempotency_test.go exists",
+      "detail": "backend/internal/modules/aiproductimage/apply_idempotency_test.go"
+    },
+    {
+      "id": "test-webhook",
+      "status": "passed",
+      "message": "Webhook handler_test.go exists",
+      "detail": "backend/internal/modules/webhook/handler_test.go"
+    },
+    {
+      "id": "doc-race-report",
+      "status": "passed",
+      "message": "P2_2_RACE_TEST_REPORT.md exists",
+      "detail": "docs/P2_2_RACE_TEST_REPORT.md"
+    },
+    {
+      "id": "doc-AI_RESULT_APPLY_IDEMPOTENCY.md",
+      "status": "passed",
+      "message": "docs/AI_RESULT_APPLY_IDEMPOTENCY.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-AI_RESULT_UNDO_DESIGN.md",
+      "status": "passed",
+      "message": "docs/AI_RESULT_UNDO_DESIGN.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-WEBHOOK_HTTP_RECEIVER_DESIGN.md",
+      "status": "passed",
+      "message": "docs/WEBHOOK_HTTP_RECEIVER_DESIGN.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-WEBHOOK_SIGNATURE_AND_REPLAY_PROTECTION.md",
+      "status": "passed",
+      "message": "docs/WEBHOOK_SIGNATURE_AND_REPLAY_PROTECTION.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-P2_2_WORKER_LEASE_ADOPTION_MATRIX.md",
+      "status": "passed",
+      "message": "docs/P2_2_WORKER_LEASE_ADOPTION_MATRIX.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-P2_2_RACE_TEST_REPORT.md",
+      "status": "passed",
+      "message": "docs/P2_2_RACE_TEST_REPORT.md exists",
+      "detail": null
+    },
+    {
+      "id": "doc-P2_2_RELIABILITY_CLOSURE_MATRIX.md",
+      "status": "passed",
+      "message": "docs/P2_2_RELIABILITY_CLOSURE_MATRIX.md exists",
+      "detail": null
+    },
+    {
+      "id": "p21-warning-webhook-router",
+      "status": "passed",
+      "message": "P2.1 former warning cleared: webhook route in router",
+      "detail": null
+    },
+    {
+      "id": "p21-warning-ai-text-apply",
+      "status": "passed",
+      "message": "P2.1 former warning cleared: AI text apply idempotency",
+      "detail": null
+    },
+    {
+      "id": "p21-warning-ai-image-apply",
+      "status": "passed",
+      "message": "P2.1 former warning cleared: AI image apply idempotency",
+      "detail": null
+    }
+  ]
+}

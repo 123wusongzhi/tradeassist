@@ -1,0 +1,12 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "blocked",
+  "currentRunId": "p7v2-current-r3b-recovery-20260715-0203",
+  "currentRawArtifactExists": false,
+  "currentRawArtifactHashVerified": false,
+  "currentRawArtifactSizeVerified": false,
+  "currentImmutable": false,
+  "currentValidForRegression": false,
+  "currentRegistryEntryExists": false,
+  "reason": "baselineReuseDecision=rebaseline_required"
+}

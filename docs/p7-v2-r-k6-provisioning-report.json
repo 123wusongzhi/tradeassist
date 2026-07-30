@@ -1,0 +1,22 @@
+{
+  "phase": "P7-V2-R",
+  "component": "k6-provisioning",
+  "status": "passed",
+  "generatedAt": "2026-07-14T06:35:30.000Z",
+  "mode": "binary",
+  "path": "/mnt/d/project/trademind-ai/tools/k6/k6",
+  "version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+  "platform": "linux",
+  "architecture": "amd64",
+  "sha256": "37211ff6f8051077a68f81a74bb9cc9f4b5c544ef06df96eed62c777a42ca22e",
+  "dockerImage": "",
+  "dockerDigest": "",
+  "source": "go-install-goproxy-cn",
+  "installMethod": "go-install",
+  "priorBlockers": [
+    "github-release-download-timeout",
+    "docker-hub-pull-timeout",
+    "apt-package-missing"
+  ],
+  "executable": true
+}

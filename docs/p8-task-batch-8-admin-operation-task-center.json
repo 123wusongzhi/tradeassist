@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "phase": "P8",
+  "phaseStatus": "In Progress",
+  "batchId": "P8-TASK-BATCH-8",
+  "title": "Admin Operation Task Center",
+  "baseBranch": "dev",
+  "currentBranch": "dev",
+  "currentHead": "73c12f12b0503aed654d0adbcc5cc8bc5be2073d",
+  "headDetached": false,
+  "batch8StartBackupDirectory": "/d/project-backups/trademind-p8-before-batch8-20260726090723",
+  "batch8StartPatchSha256": "9e6b975068ffd5ac16412233dc15c55d4dc610c57ef47086492da135b7353caa",
+  "tasks": {
+    "P8-601": {
+      "title": "Task List",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/index.tsx",
+        "admin/src/services/operationTasks.ts"
+      ]
+    },
+    "P8-602": {
+      "title": "Task Detail",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/Detail.tsx",
+        "admin/src/pages/TaskCenter/OperationTasks/components/OperationTaskShared.tsx"
+      ]
+    },
+    "P8-603": {
+      "title": "Draft Preview and Edit",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/Detail.tsx",
+        "admin/src/pages/TaskCenter/OperationTasks/__tests__/OperationTaskShared.test.tsx"
+      ]
+    },
+    "P8-604": {
+      "title": "Approval Actions",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/Detail.tsx",
+        "admin/src/services/__tests__/operationTasks.test.ts"
+      ]
+    },
+    "P8-605": {
+      "title": "Execution and Retry Actions",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/Detail.tsx",
+        "admin/src/services/__tests__/operationTasks.test.ts"
+      ]
+    },
+    "P8-606": {
+      "title": "Audit Timeline",
+      "status": "completed",
+      "evidence": [
+        "admin/src/pages/TaskCenter/OperationTasks/Detail.tsx",
+        "admin/src/pages/TaskCenter/OperationTasks/components/OperationTaskShared.tsx"
+      ]
+    }
+  },
+  "adminRoutesPresent": true,
+  "existingAdminFrameworkReused": true,
+  "apiServiceLayerPresent": true,
+  "apiClientExtendedSafely": true,
+  "noRawFetchOrAxios": true,
+  "allowedActionsUsed": true,
+  "backendRBACBoundaryPreserved": true,
+  "operationTaskPermissionsWired": true,
+  "idempotencyHeadersForWrites": true,
+  "duplicateClickGuardPresent": true,
+  "revisionConflictRefresh": true,
+  "keysetPagination": true,
+  "eventSequencePagination": true,
+  "loadingEmptyErrorStates": true,
+  "safeMetadataRedaction": true,
+  "payloadNotRenderedAsHTML": true,
+  "historicalDraftPayloadNotFabricated": true,
+  "nonProductionBoundaryVisible": true,
+  "safeAdapterModesOnly": true,
+  "urlStateCursorKeys": true,
+  "frontendTestsPresent": true,
+  "docsPresent": true,
+  "backendBusinessLogicNotDuplicated": true,
+  "adminRuntimeI18nIntroduced": false,
+  "localizedLabelConstantsPresent": true,
+  "realDouyinApiImplemented": false,
+  "oauthImplemented": false,
+  "networkAccessEnabled": false,
+  "realCredentialsEnabled": false,
+  "realPlatformWriteImplemented": false,
+  "realPlatformWriteEnabled": false,
+  "automaticPublishImplemented": false,
+  "automaticListingImplemented": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "backgroundAutoRetryImplemented": false,
+  "backgroundAutoRetryEnabled": false,
+  "scheduledExecutionImplemented": false,
+  "productionQueueWorkerImplemented": false,
+  "humanConfirmationRequired": true,
+  "productionReady": false,
+  "changesCommitted": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "checkpointCreated": false,
+  "checkpointStatus": "not_created_by_owner_instruction",
+  "minimumRepairAction": "Keep Batch 8 limited to Admin UI over Batch 7 API; keep P8 in progress and production boundaries false.",
+  "downstreamTasksNotExecuted": [
+    "P8-701 Integration Fixtures",
+    "P8-702 API/Admin E2E Fixtures",
+    "P8-703 Platform Boundary Gate",
+    "P8-704 P8 Final Gate",
+    "P8-705 Closure Evidence",
+    "real platform write",
+    "automatic publish",
+    "automatic listing",
+    "production gray",
+    "Production Tag",
+    "Production Release",
+    "Final Production Acceptance"
+  ],
+  "currentBatchValidation": {
+    "frontendUnitTests": "passed",
+    "adminBuild": "passed",
+    "uiCopyStrict": "passed",
+    "taskBatch8Fixture": "passed",
+    "taskBatch8Gate": "passed",
+    "sensitiveDiffScan": "passed",
+    "operationTaskBackendRegression": "passed",
+    "gitDiffCheck": "passed_with_line_ending_warnings_only",
+    "browserRouteValidation": "partial_pass_login_redirect_verified_backend_8080_unavailable_for_authenticated_api_golden_path"
+  },
+  "p7CapacityAcceptanceDeferredPreserved": true,
+  "p7PerformanceRepeatabilityDeferredToP10Preserved": true,
+  "finalProductionAcceptanceDeferredToP10": true
+}

@@ -1,0 +1,77 @@
+{
+  "title": "TradeMind Alerts and SLO",
+  "uid": "trademind-alerts-slo",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": ["trademind", "p5.1", "observability"],
+  "timezone": "browser",
+  "panels": [
+    {
+      "title": "Alert Delivery Attempts",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(telemetry_export_failures_total[5m]))",
+          "legendFormat": "telemetry export failures"
+        }
+      ]
+    },
+    {
+      "title": "Telemetry Dropped Items",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "sum(telemetry_dropped_items_total)",
+          "legendFormat": "dropped"
+        }
+      ]
+    },
+    {
+      "title": "SLO Compliance",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "slo_compliance_ratio",
+          "legendFormat": "{{slo_id}} {{window}}"
+        }
+      ]
+    },
+    {
+      "title": "SLO Error Budget Remaining",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "slo_error_budget_remaining_ratio",
+          "legendFormat": "{{slo_id}} {{window}}"
+        }
+      ]
+    },
+    {
+      "title": "SLO Burn Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "slo_burn_rate",
+          "legendFormat": "{{slo_id}} {{window}}"
+        }
+      ]
+    },
+    {
+      "title": "DB Pool",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "db_connections_open",
+          "legendFormat": "open {{db_role}}"
+        },
+        {
+          "expr": "db_connections_in_use",
+          "legendFormat": "in use {{db_role}}"
+        }
+      ]
+    }
+  ],
+  "annotations": {
+    "list": []
+  }
+}

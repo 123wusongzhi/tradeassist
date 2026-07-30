@@ -1,0 +1,107 @@
+{
+  "phase": "P7-V2-R3B-FINAL-CLOSE-PORT-RECOVERY",
+  "status": "failed",
+  "port": 18080,
+  "windows": {
+    "listenerFound": false,
+    "pid": null,
+    "classification": "no_listener",
+    "initialListener": {
+      "pid": 23696,
+      "processName": "wslrelay.exe",
+      "executablePath": "C:\\Program Files\\WSL\\wslrelay.exe",
+      "commandLine": " --mode 2 --vm-id {fe6c8894-e68a-425b-bf66-3aab7b08fe18} --handle 2124",
+      "classification": "windows_portproxy"
+    },
+    "portProxyFor18080": false,
+    "dockerMappingFor18080": false
+  },
+  "wsl": {
+    "listenerFound": false,
+    "pid": null,
+    "classification": "no_listener",
+    "initialListener": {
+      "pid": 1131,
+      "parentPid": 1116,
+      "executablePath": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "commandLine": "/mnt/d/project/trademind-ai/artifacts/p7-v2/server",
+      "workingDirectory": "/mnt/d/project/trademind-ai",
+      "processStartTicks": "2231",
+      "executableSha256": "55f996055d28ad5cf327e898e344f91150543aefd687f6f41478a888dd5ba91e",
+      "dbName": "trademind_p7v2_p7v2_baseline_r3b_recovery5_20260715091700",
+      "classification": "verified_trademind_stale_process"
+    },
+    "dockerMappingFor18080": false
+  },
+  "cleanup": {
+    "processStopped": true,
+    "identityVerified": true,
+    "verifiedPid": 1131,
+    "identityRevalidatedBeforeStop": true,
+    "stopSignal": "SIGTERM",
+    "gracefulStopSucceeded": true,
+    "forceStopRequired": false,
+    "unknownProcessesKilled": 0,
+    "droppedDatabase": "trademind_p7v2_p7v2_baseline_r3b_recovery6_20260715103749"
+  },
+  "residuals": {
+    "environmentStartCompleted": false,
+    "datasetExecuted": false,
+    "k6Executed": false,
+    "rawArtifactExists": false,
+    "frozenArtifactExists": false,
+    "baselineRegistryEntryExists": false,
+    "baselineRegistryActive": false,
+    "currentRegistryEntryExists": false,
+    "databaseCreated": true,
+    "databaseDropped": true,
+    "databaseDoesNotExist": true,
+    "apiProcessExists": false,
+    "workerProcessExists": false,
+    "k6ProcessExists": false,
+    "redisStateCreated": false,
+    "mockProviderStateCreated": false
+  },
+  "reuse": {
+    "runtimeFreezeStillValid": false,
+    "executionCodeChanged": false,
+    "formalConfigChanged": true,
+    "baselineRunIdReusable": false,
+    "currentRunIdReusable": false,
+    "newRuntimeFreezeRequired": true,
+    "newRecovery6PlanRequired": true
+  },
+  "runtimeFreeze": {
+    "runtimeFreezeId": "9c6ac077f03c76a978cefa76c624a08ca774039a91c9408599623dc4f1bec522",
+    "runtimeSourceTreeHashMatch": true,
+    "evidenceToolingHashMatch": true,
+    "loadScriptsHashMatch": true,
+    "metricSemanticsHashMatch": true,
+    "datasetGeneratorHashMatch": true,
+    "configFingerprintMatch": false,
+    "sloFingerprintMatch": true,
+    "routeCredentialMatrixFingerprintMatch": true,
+    "regressionPolicyFingerprintMatch": true,
+    "canonicalLoadProfileFingerprintMatch": true,
+    "trackedDiffHashMatch": false
+  },
+  "gate": {
+    "failed": 2,
+    "windowsListenerCount": 0,
+    "wslListenerCount": 0,
+    "portProxyFor18080": false,
+    "dockerMappingFor18080": false,
+    "bindProbePassed": true,
+    "probeListenerReleased": true,
+    "unknownProcessesKilled": 0,
+    "productionResourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinCalls": 0,
+    "platformWrites": 0,
+    "autoListingTriggered": false
+  },
+  "issues": [
+    "runtime_freeze_config_fingerprint_mismatch",
+    "runtime_freeze_tracked_diff_hash_mismatch"
+  ]
+}

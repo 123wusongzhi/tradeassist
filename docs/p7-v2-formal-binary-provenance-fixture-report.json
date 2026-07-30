@@ -1,0 +1,15 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-BINARY-PROVENANCE-V2",
+  "status": "passed",
+  "fixtures": 10,
+  "correctBaselineCurrentPassed": true,
+  "binaryReplacedBlocked": true,
+  "receiptMissingBlocked": true,
+  "runtimeCommitMismatchBlocked": true,
+  "baselineCurrentSwapBlocked": true,
+  "dirtyRuntimeWorktreeBlocked": true,
+  "freezeAfterRebuildBlocked": true,
+  "processExecutableMismatchGateCovered": true,
+  "migrationSetMismatchBlocked": true,
+  "windowsBinaryRejected": true
+}

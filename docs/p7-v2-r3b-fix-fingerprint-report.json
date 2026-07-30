@@ -1,0 +1,69 @@
+{
+  "phase": "P7-V2-R3B-FIX",
+  "currentRuntimeSourceTreeHash": "0638a517d0a1c297adffd1a580281ef57619cdb67efc2c55bc34a1bd9a791b87",
+  "baselineRuntimeSourceTreeHash": "b7fe3eb3698ba3f40ae74878f7c666afbcdbd6fccf27220813bca2aa738cc282",
+  "runtimeSourceTreeChanged": true,
+  "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
+  "measurementSemanticsHash": "ad2c50e7f143ddcc7dc6f5106688555d0fbc65231452fcfa9b951512eaa73df9",
+  "gateLogicHash": "53f7ac80d3dbcc9f333c3ecbc8a7eb22a97491d65dcf23845c771cf1057833af",
+  "datasetGeneratorHash": "8d43635470dae01ac305b461e9b6fa9ef4d72a149c2c74a80619de3d1d92496f",
+  "backendRuntimeChanged": false,
+  "loadGenerationSemanticsChanged": true,
+  "measurementSemanticsChanged": true,
+  "gateOnlyChanged": true,
+  "datasetGeneratorChanged": true,
+  "SLOChanged": false,
+  "credentialMatrixChanged": false,
+  "changes": [
+    {
+      "path": "scripts/p7-v2-evidence-resolver.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-gate-lib.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-fix-final-gate.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p7-v2-r3b-dry-gate.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p1-p7-final-gate.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p7-v2-final-closure-gate.mjs",
+      "classification": "gate_only"
+    },
+    {
+      "path": "scripts/p7-v2-soak.mjs",
+      "classification": "measurement_semantics_impacting"
+    },
+    {
+      "path": "scripts/p7-v2-restart-environment.mjs",
+      "classification": "measurement_semantics_impacting"
+    },
+    {
+      "path": "scripts/p7-v2-current.mjs",
+      "classification": "measurement_semantics_impacting"
+    },
+    {
+      "path": "tests/load/p7v2-current.js",
+      "classification": "load_semantics_impacting"
+    },
+    {
+      "path": "docs/",
+      "classification": "documentation_only"
+    },
+    {
+      "path": "tests/gates/p7-v2/",
+      "classification": "gate_only"
+    }
+  ],
+  "baselineReuseDecision": "rebaseline_required",
+  "reason": "The frozen raw artifact is absent, and R3B changes measurement and current-load semantic inputs; a strict comparison cannot be proven."
+}

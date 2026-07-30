@@ -1,0 +1,20 @@
+{
+  "phase": "P7-C",
+  "status": "blocked",
+  "runId": "p7-c-resume-1783949749214",
+  "plannedRows": 0,
+  "rowsBeforeInterruption": 0,
+  "completedBatchesBeforeInterruption": 0,
+  "interruptionExitCode": null,
+  "resumeInsertedRows": 0,
+  "resumeExistingRows": 0,
+  "finalActualRows": 0,
+  "duplicateRows": null,
+  "failedRows": null,
+  "fingerprintBefore": "",
+  "fingerprintAfter": "",
+  "cleanupStatus": "not_started",
+  "issues": [
+    "Set P7_C_EXECUTE_RESUME_DRILL=true with isolated performance PostgreSQL env to execute the real drill."
+  ]
+}

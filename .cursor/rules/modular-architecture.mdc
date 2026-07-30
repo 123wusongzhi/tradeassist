@@ -1,0 +1,47 @@
+---
+description: Modular architecture automatic rules for module boundaries, cycles, baseline ratchet, affected architecture checks, and CI gates
+globs: admin/src/**,collector/src/**,backend/**,scripts/**,tests/**,backend/migrations/**,tests/contracts/**,contracts/**,shared/**,common/**,package.json,admin/package.json,collector/package.json,pnpm-lock.yaml,pnpm-workspace.yaml,go.work,backend/go.mod,backend/go.sum,.github/workflows/**,.agents/skills/**,.cursor/rules/**
+alwaysApply: false
+---
+
+# Modular Architecture 自动规则
+
+涉及以下任务时必须自动读取并遵循：
+
+- `.agents/skills/modular-architecture/SKILL.md`
+- `.agents/skills/code-quality/SKILL.md`
+
+用户无需显式要求“模块化”“架构设计”或“检查依赖”。不得在本 Cursor rule 中复制完整主 Skill。
+
+## 自动触发
+
+以下情况自动触发 modular-architecture：
+
+- 新模块、完整页面体系、领域模型、repository、数据库领域模型。
+- 跨模块修改、跨三个以上模块、大型重构、大量移动文件。
+- shared/common、公共 API/type/DTO/enum、模块公共入口修改。
+- 新平台 adapter、worker、queue consumer、scheduler/cron、后台任务体系。
+- migration、repository、handler/service 边界、Redis/queue/worker 变更。
+- 循环依赖、越层依赖、shared 反向依赖、生产代码依赖 tests/e2e/mock/fixture。
+- 大型页面/service 拆分，尤其 DraftDetail 七个 Tab 拆分或平台逻辑收敛。
+
+## 小修改不过度触发
+
+按钮间距、文案、局部样式、单个空值、单个类型错误、单表格列、单接口字段映射、单文件内部小重构、README 文档修改，通常不触发完整深度架构审查。
+
+但只要小修改引入新跨模块 import、新 shared 依赖、新公共类型、新平台判断、新 repository 调用、新 worker 逻辑或新循环依赖，仍必须触发架构检查。
+
+## 联动规则
+
+- UI 相关任务根据影响范围读取 `.agents/skills/frontend-design/SKILL.md`。
+- 测试选择读取 `.agents/skills/project-testing/SKILL.md`。
+- 后端边界读取 `.agents/skills/backend-testing/SKILL.md`。
+- API/DTO/contract 修改读取 `.agents/skills/api-contract-testing/SKILL.md`。
+
+## Baseline/Ratchet
+
+不允许新增 baseline 外架构违规，不允许自动扩大 baseline。普通检查和 CI 只运行 ratchet；baseline 更新必须显式执行 `pnpm architecture:baseline -- --update` 并审查 diff。
+
+## 禁止项
+
+不得为架构评分大规模修改无关生产代码；不得未经确认移动大量生产文件；不得修改 API、payload、权限、状态机或业务语义；未运行必要架构检查不得声明完成；未经用户要求不得 commit/push。

@@ -1,0 +1,24 @@
+{
+  "phase": "P7-V2-R3B-FAST-CLOSE",
+  "component": "preflight-audit",
+  "status": "passed",
+  "baselineRunId": "p7v2-baseline-r3b-recovery4-20260715072627",
+  "baselineStatus": "passed",
+  "baselineImmutable": true,
+  "baselineValidForRegression": true,
+  "baselineRequests": 29407,
+  "baselineArtifactHashVerified": true,
+  "expectedRuntimeSourceTreeHash": "a6096003ddf18de050f7b44b9ba5e714c230159cf511ff7add2fcacf6049a07a",
+  "currentRuntimeSourceTreeHash": "d02c6303766ed63fc2277c8a2223731c3663d95f2a64c72b4220e3cd48940d49",
+  "runtimeSourceTreeMatch": false,
+  "recovery4Required": true,
+  "currentExecutionAllowed": false,
+  "execution": {
+    "currentStarted": false,
+    "regressionStarted": false,
+    "soakStarted": false,
+    "demoStarted": false
+  },
+  "issues": [],
+  "nextRequiredAction": "Recovery4 baseline is required and may begin; Current remains prohibited until that baseline is frozen."
+}

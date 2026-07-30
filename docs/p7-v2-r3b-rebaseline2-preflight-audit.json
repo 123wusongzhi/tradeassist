@@ -1,0 +1,17 @@
+{
+  "phase": "P7-V2-R3B-REBASELINE2",
+  "status": "passed",
+  "fixtures": {
+    "processIdentityFixturesPassed": true,
+    "currentIndependenceFixturesPassed": true,
+    "artifactFreezeFixturesPassed": true,
+    "regressionV2FixturesPassed": true
+  },
+  "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+  "hostGuardPassed": true,
+  "appEnv": "performance",
+  "performanceTestMode": true,
+  "production": false,
+  "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+  "currentRunId": "p7v2-current-r3b-recovery3-20260715-131400"
+}

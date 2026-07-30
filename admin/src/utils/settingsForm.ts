@@ -1,0 +1,49 @@
+import type { SettingPutItem, SettingRow } from '@/services/settings';
+
+export function pickGroup(items: SettingRow[] | undefined, groupKey: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!items?.length) return out;
+  for (const it of items) {
+    if (it.groupKey === groupKey) {
+      out[it.itemKey] = it.itemValue ?? '';
+    }
+  }
+  return out;
+}
+
+/** Merge settings rows: non-empty `primaryKey` wins per item key, else `fallbackKey` (e.g. mail + legacy email). */
+export function mergeSettingsPrimaryFallback(
+  items: SettingRow[] | undefined,
+  primaryKey: string,
+  fallbackKey: string,
+): Record<string, string> {
+  const fb = pickGroup(items, fallbackKey);
+  const pr = pickGroup(items, primaryKey);
+  const keys = new Set([...Object.keys(fb), ...Object.keys(pr)]);
+  const out: Record<string, string> = {};
+  for (const k of keys) {
+    const pv = (pr[k] ?? '').trim();
+    out[k] = pv !== '' ? (pr[k] ?? '') : (fb[k] ?? '');
+  }
+  return out;
+}
+
+export type FieldSpec = { encrypted?: boolean; valueType?: string };
+
+/** Build PUT items from form values; `specs` maps itemKey -> { encrypted }. */
+export function toPutItems(
+  groupKey: string,
+  specs: Record<string, FieldSpec>,
+  values: Record<string, unknown>,
+  tenantId = 0,
+): SettingPutItem[] {
+  return Object.keys(specs).map((itemKey) => ({
+    tenantId,
+    groupKey,
+    itemKey,
+    itemValue: values[itemKey] == null ? '' : String(values[itemKey]),
+    valueType: specs[itemKey]?.valueType ?? 'string',
+    isEncrypted: !!specs[itemKey]?.encrypted,
+    remark: '',
+  }));
+}

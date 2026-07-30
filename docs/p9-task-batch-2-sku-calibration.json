@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "phaseStatus": "In Progress",
+  "batchId": "P9-TASK-BATCH-2",
+  "batchName": "SKU Calibration and Manual Binding Services",
+  "canonicalProductScope": "Douyin Shop inventory sync MVP with SKU binding calibration and manual binding fallback",
+  "scope": "SKU calibration and manual binding services only",
+  "status": "completed_locally_verified_postgres_deferred_to_p9_final_development_closure",
+  "currentHead": "1ac652ac4797eee636bf615f1e9ed272f2b82f84",
+  "workingBranch": "dev",
+  "changesCommitted": false,
+  "checkpointCreated": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "tasks": {
+    "P9-601": {
+      "status": "completed"
+    },
+    "P9-602": {
+      "status": "completed"
+    },
+    "P9-603": {
+      "status": "completed"
+    },
+    "P9-604": {
+      "status": "completed"
+    },
+    "P9-605": {
+      "status": "completed"
+    },
+    "P9-606": {
+      "status": "completed"
+    }
+  },
+  "normalizerImplemented": true,
+  "normalizationVersion": "sku-normalization-v1",
+  "barcodeLeadingZeroPreserved": true,
+  "exactMatcherImplemented": true,
+  "scoringImplemented": true,
+  "scoreBreakdownImplemented": true,
+  "reasonCodesImplemented": true,
+  "calibrationVersion": 1,
+  "thresholdPolicyImplemented": true,
+  "thresholdPolicyVersion": "calibration-threshold-policy-v1",
+  "defaultHighConfidenceThreshold": 9500,
+  "autoConfirmationEnabled": false,
+  "lowConfidenceManualReviewRequired": true,
+  "conflictDetectionImplemented": true,
+  "manualBindingServiceImplemented": true,
+  "authorizerRequired": true,
+  "defaultAllow": false,
+  "trustedActorRequired": true,
+  "manualConfirmImplemented": true,
+  "manualRejectImplemented": true,
+  "idempotencyTestsPassed": true,
+  "optimisticConcurrencyTestsPassed": true,
+  "transactionAtomicityTestsPassed": true,
+  "manualDecisionHistoryImplemented": true,
+  "stableErrorsPresent": true,
+  "stableErrors": [
+    "invalid_identifier",
+    "normalization_failed",
+    "no_binding_candidate",
+    "multiple_binding_candidates",
+    "binding_conflict",
+    "calibration_policy_invalid",
+    "calibration_threshold_not_met",
+    "manual_review_required",
+    "manual_binding_already_pending",
+    "manual_binding_already_resolved",
+    "candidate_local_sku_not_found",
+    "candidate_local_sku_tenant_mismatch",
+    "permission_denied",
+    "revision_conflict",
+    "idempotency_payload_conflict",
+    "immutable_record"
+  ],
+  "testsPassed": true,
+  "raceTestsPassed": true,
+  "sqliteIntegrationTestsPassed": true,
+  "postgresIntegrationStatus": "not_run",
+  "postgresIntegrationPassed": false,
+  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
+  "p9FinalClosureBlocker": true,
+  "verification": {
+    "gofmtTouchedGoFiles": "passed",
+    "inventorysyncp9ModuleTests": "passed",
+    "inventorysyncp9RaceTests": "passed",
+    "p9EntryFixture": "passed",
+    "p9PlanFixture": "passed",
+    "p9Batch1DomainPersistenceFixture": "passed",
+    "p9Batch2SKUCalibrationFixture": "passed",
+    "gitDiffCheck": "passed",
+    "testDatabaseUrl": "set_not_recorded",
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "postgresRevalidation": "passed"
+  },
+  "aiMatchingImplemented": false,
+  "vectorMatchingImplemented": false,
+  "llmMatchingImplemented": false,
+  "syncOrchestratorImplemented": false,
+  "syncWorkerImplemented": false,
+  "cronImplemented": false,
+  "tickerImplemented": false,
+  "queueConsumerImplemented": false,
+  "apiImplemented": false,
+  "httpHandlerImplemented": false,
+  "ginRouterImplemented": false,
+  "restApiImplemented": false,
+  "adminUiImplemented": false,
+  "frontendApiClientImplemented": false,
+  "realDouyinProviderImplemented": false,
+  "oauthImplemented": false,
+  "realCredentialsEnabled": false,
+  "realPlatformNetworkEnabled": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "realInventoryReadEnabled": false,
+  "realInventoryWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "p9Complete": false,
+  "nextBatch": {
+    "taskIds": [
+      "P9-701",
+      "P9-702",
+      "P9-703",
+      "P9-704",
+      "P9-705",
+      "P9-706"
+    ],
+    "status": "notStarted"
+  },
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed"
+}

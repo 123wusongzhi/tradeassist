@@ -1,0 +1,10 @@
+{
+  "title": "P7 Rate Limit And Backpressure",
+  "tags": ["trademind", "p7", "ratelimit"],
+  "panels": [
+    { "title": "Rate Limit Rejections", "type": "timeseries" },
+    { "title": "Retry-After Responses", "type": "timeseries" },
+    { "title": "Provider Wait / 429", "type": "timeseries" },
+    { "title": "Backpressure State", "type": "stat" }
+  ]
+}

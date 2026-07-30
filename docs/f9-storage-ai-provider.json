@@ -1,0 +1,27 @@
+{
+  "phase": "F9.3",
+  "generatedAt": "2026-07-07T04:40:00Z",
+  "conclusion": "passed_with_warning",
+  "storage": {
+    "provider": "local",
+    "upload": "passed_local",
+    "publicUrl": "blocked_by_environment",
+    "publicAccessTest": "skipped",
+    "mimeAndSize": "passed_code_review",
+    "privateUrlBlocked": "not_tested_preprod",
+    "douyinImagePrecheck": "blocked_by_environment"
+  },
+  "aiProviders": {
+    "textProvider": { "status": "passed", "detail": "ai-text-trial-run 16/16" },
+    "imageProvider": { "status": "passed_with_warning", "detail": "dashscope_image configured, hasApiKey=false, 14/16" },
+    "ocrProvider": { "status": "passed_with_warning", "detail": "aliyun OCR key pending" },
+    "dashscopeKeyConfigured": false,
+    "imageTrialConclusion": "passed_with_warning"
+  },
+  "warnings": [
+    "ENV-02 Storage public_base_url not configured",
+    "dashscope white-background key missing",
+    "AI image trial 14/16 passed_with_warning"
+  ],
+  "blockers": []
+}

@@ -1,0 +1,20 @@
+{
+  "phase": "P7-V2-R3B-WEBHOOK-P99-FIXTURE",
+  "status": "passed",
+  "normalInsertReloadQueryCount": 0,
+  "normalInsertTotalRelevantQueryCount": 1,
+  "normalInsertQueryCount": 1,
+  "duplicateReloadQueryCount": 1,
+  "duplicatePathTotalRelevantQueryCount": 2,
+  "duplicatePathQueryCount": 2,
+  "freshDuplicateReloadStruct": true,
+  "losingInsertUUIDInDuplicateSelect": false,
+  "duplicateConsistencyErrorTestPassed": true,
+  "businessSemanticsUnchanged": true,
+  "idempotencySemanticsUnchanged": true,
+  "transactionSemanticsUnchanged": true,
+  "auditSemanticsUnchanged": true,
+  "taskEnqueueSemanticsUnchanged": true,
+  "command": "go test ./internal/modules/webhook/... -run TestWebhook(NormalInsertDoesNotReloadEvent|ConflictDuplicateReloadsExistingEventOnce|ConflictReloadMissingReturnsConsistencyError)$ -count=1",
+  "exitCode": 0
+}

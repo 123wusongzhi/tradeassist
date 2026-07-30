@@ -1,0 +1,31 @@
+{
+  "phase": "P7-V2-R3B-SOAK-SEMANTICS-FIX",
+  "status": "passed",
+  "stage": "A",
+  "diagnosticOnly": true,
+  "formalExecutionStarted": false,
+  "newRuntimeFreezeCreated": false,
+  "oldRecovery6PairReusableForFinalClosure": false,
+  "requiredNewFreezeAfterFix": true,
+  "formalMetricRegistryHash": "007b936da729c167154dc265037f95d95fa894b790c1be0e7cf6e770f04ca89a",
+  "soakSemanticsHash": "4a3f7e2c5e92e23c53c0ad2da8bcec671dbc47ea8b14cce64823ce2b5ad50d48",
+  "checks": {
+    "sharedFormalMetricRegistryIntroduced": true,
+    "baselineUsesSharedRegistry": true,
+    "soakUsesSharedRegistry": true,
+    "formalMetricSetMatchesRegressionMatrix": true,
+    "soakRecordsAllFormalMetrics": true,
+    "missingMetricNotZero": true,
+    "zeroSampleNotSuccess": true,
+    "insufficientSampleNotSuccess": true,
+    "absoluteSloMissingNotFalse": true,
+    "absoluteSloRealFailureSeparated": true,
+    "absoluteSloEvaluationStatusExported": true,
+    "targetReachedSplit": true,
+    "wrapperSelfReferenceFixed": true,
+    "wrapperAutoExitEvidenceContract": true,
+    "processExitAvoidedInWrapper": true
+  },
+  "failedChecks": [],
+  "scenarioMetricCount": 10
+}

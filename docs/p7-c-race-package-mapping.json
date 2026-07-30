@@ -1,0 +1,94 @@
+{
+  "phase": "P7-C",
+  "status": "mapped",
+  "packages": [
+    {
+      "capability": "pagination/cursor",
+      "expectedPackage": "./internal/pkg/pagination/...",
+      "actualPackage": "./internal/pkg/pagination/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "ratelimit",
+      "expectedPackage": "./internal/pkg/ratelimit/...",
+      "actualPackage": "./internal/pkg/ratelimit/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "cache/singleflight",
+      "expectedPackage": "./internal/pkg/cache/...",
+      "actualPackage": "./internal/pkg/cache/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "httpclient/provider limiter",
+      "expectedPackage": "./internal/pkg/httpclient/...",
+      "actualPackage": "./internal/pkg/httpclient/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "taskcenter/worker",
+      "expectedPackage": "./internal/modules/taskcenter/...",
+      "actualPackage": "./internal/modules/taskcenter/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "webhook",
+      "expectedPackage": "./internal/modules/webhook/...",
+      "actualPackage": "./internal/modules/webhook/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "inventory",
+      "expectedPackage": "./internal/modules/inventory/...",
+      "actualPackage": "./internal/modules/inventory/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "auth",
+      "expectedPackage": "./internal/modules/admin/...",
+      "actualPackage": "./internal/modules/admin/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "export/files",
+      "expectedPackage": "./internal/modules/exportmod/...",
+      "actualPackage": "./internal/modules/exportmod/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "operationlog",
+      "expectedPackage": "./internal/modules/operationlog/...",
+      "actualPackage": "./internal/modules/operationlog/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    },
+    {
+      "capability": "dataset generator runtime",
+      "expectedPackage": "./cmd/p7load/...",
+      "actualPackage": "./cmd/p7load/...",
+      "status": "mapped",
+      "reason": "Existing package mapped for race execution.",
+      "mandatory": true
+    }
+  ]
+}

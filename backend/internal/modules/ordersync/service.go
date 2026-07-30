@@ -1,0 +1,856 @@
+package ordersync
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/modules/inventory"
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/order"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	"github.com/trademind-ai/trademind/backend/internal/rdb"
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
+)
+
+// QueueMessage is Redis LIST payload for workers.
+type QueueMessage struct {
+	TaskID string `json:"taskId"`
+}
+
+// SyncOrdersBody POST /shops/:id/sync-orders.
+type SyncOrdersBody struct {
+	Mode     string `json:"mode"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Cursor   string `json:"cursor"`
+	Limit    int    `json:"limit"`
+	MaxPages int    `json:"maxPages"`
+	ForceNew bool   `json:"forceNew"`
+}
+
+type syncInputSnapshot struct {
+	Mode           string `json:"mode"`
+	Start          string `json:"start"`
+	End            string `json:"end"`
+	Cursor         string `json:"cursor"`
+	Limit          int    `json:"limit"`
+	MaxPages       int    `json:"maxPages"`
+	RetryPagesOnly []int  `json:"retryPagesOnly,omitempty"`
+}
+
+// ListQuery filters GET /order-sync/tasks.
+type ListQuery struct {
+	Page     int
+	PageSize int
+	ShopID   *uuid.UUID
+	Platform string
+	Status   string
+	Start    *time.Time
+	End      *time.Time
+}
+
+// TaskDTO API projection for one sync task.
+type TaskDTO struct {
+	ID           uuid.UUID  `json:"id"`
+	ShopID       uuid.UUID  `json:"shopId"`
+	ShopName     string     `json:"shopName,omitempty"`
+	Platform     string     `json:"platform"`
+	TaskType     string     `json:"taskType"`
+	Status       string     `json:"status"`
+	Mode         string     `json:"mode"`
+	Cursor       string     `json:"cursor,omitempty"`
+	StartedAt    *time.Time `json:"startedAt,omitempty"`
+	FinishedAt   *time.Time `json:"finishedAt,omitempty"`
+	TotalCount   int        `json:"totalCount"`
+	SuccessCount int        `json:"successCount"`
+	FailedCount  int        `json:"failedCount"`
+	ErrorMessage string     `json:"errorMessage,omitempty"`
+	Input        any        `json:"input,omitempty"`
+	Output       any        `json:"output,omitempty"`
+	CreatedBy    *uuid.UUID `json:"createdBy,omitempty"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	UpdatedAt    time.Time  `json:"updatedAt"`
+}
+
+// ListResult paginates tasks.
+type ListResult struct {
+	Items      []TaskDTO
+	Total      int64
+	Page       int
+	PageSize   int
+	TotalPages int
+}
+
+func pagesOf(total int64, ps int) int {
+	if ps < 1 {
+		ps = 20
+	}
+	pages := int(total) / ps
+	if int(total)%ps != 0 {
+		pages++
+	}
+	if pages == 0 && total > 0 {
+		pages = 1
+	}
+	return pages
+}
+
+// Service orchestrates order_sync_tasks + Platform Provider SyncOrders + order upserts.
+type Service struct {
+	DB          *gorm.DB
+	Redis       *rdb.Client
+	Shops       *shop.Service
+	Orders      *order.Service
+	Inventory   *inventory.Service
+	OpLog       *operationlog.Service
+	Idempotency *idempotency.Service
+	Metrics     *metrics.Catalog
+
+	QueueEnabled bool
+	QueueName    string
+	TaskTimeout  time.Duration
+}
+
+func (s *Service) normalizedQueueName() string {
+	q := strings.TrimSpace(s.QueueName)
+	if q == "" {
+		return "order:sync:tasks"
+	}
+	return q
+}
+
+func parseRFC3339Ptr(raw string) (*time.Time, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid time (RFC3339 expected)")
+	}
+	return &t, nil
+}
+
+func normalizeMode(mode string) string {
+	m := strings.TrimSpace(strings.ToLower(mode))
+	switch m {
+	case "", ModeIncremental:
+		return ModeIncremental
+	case ModeManual, ModeFull:
+		return m
+	default:
+		return ModeIncremental
+	}
+}
+
+func (s *Service) bindInput(body SyncOrdersBody) (syncInputSnapshot, datatypes.JSON, error) {
+	mode := normalizeMode(body.Mode)
+	lim := body.Limit
+	if lim <= 0 {
+		lim = 50
+	}
+	if lim > 200 {
+		lim = 200
+	}
+	if strings.TrimSpace(body.Start) != "" {
+		if _, err := time.Parse(time.RFC3339, strings.TrimSpace(body.Start)); err != nil {
+			return syncInputSnapshot{}, nil, fmt.Errorf("invalid start time (RFC3339 expected)")
+		}
+	}
+	if strings.TrimSpace(body.End) != "" {
+		if _, err := time.Parse(time.RFC3339, strings.TrimSpace(body.End)); err != nil {
+			return syncInputSnapshot{}, nil, fmt.Errorf("invalid end time (RFC3339 expected)")
+		}
+	}
+
+	maxPages := body.MaxPages
+	if maxPages < 0 {
+		maxPages = 0
+	}
+	if maxPages > 50 {
+		maxPages = 50
+	}
+
+	snap := syncInputSnapshot{
+		Mode:     mode,
+		Start:    strings.TrimSpace(body.Start),
+		End:      strings.TrimSpace(body.End),
+		Cursor:   strings.TrimSpace(body.Cursor),
+		Limit:    lim,
+		MaxPages: maxPages,
+	}
+	b, err := json.Marshal(snap)
+	if err != nil {
+		return syncInputSnapshot{}, nil, err
+	}
+	return snap, b, nil
+}
+
+func snapFromJSON(raw datatypes.JSON) syncInputSnapshot {
+	var snap syncInputSnapshot
+	if len(raw) == 0 {
+		snap.Mode = ModeIncremental
+		snap.Limit = 50
+		return snap
+	}
+	_ = json.Unmarshal(raw, &snap)
+	if snap.Limit <= 0 {
+		snap.Limit = 50
+	}
+	if strings.TrimSpace(snap.Mode) == "" {
+		snap.Mode = ModeIncremental
+	}
+	return snap
+}
+
+// ValidateShopPlatform performs capability / rollout checks before enqueue.
+func ValidateShopPlatform(row *shop.Shop, prov platformp.Provider) error {
+	if row == nil {
+		return fmt.Errorf("shop not found")
+	}
+	if strings.TrimSpace(row.Platform) == "manual" {
+		return platformp.ErrManualOrderSyncUnsupported
+	}
+	if prov == nil {
+		return fmt.Errorf("unknown platform")
+	}
+	if !platformp.HasCapability(prov, platformp.CapOrderSync) {
+		return fmt.Errorf("platform does not support order_sync capability")
+	}
+	switch prov.Status() {
+	case platformp.StatusPlanned, platformp.StatusDisabled:
+		return platformp.ErrOrderSyncNotImplemented
+	default:
+		return nil
+	}
+}
+
+// CreateShopSync starts a sync task from HTTP (optional Redis enqueue).
+func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrdersBody, adminID *uuid.UUID) (*TaskDTO, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("ordersync: no db")
+	}
+	var row shop.Shop
+	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(row.Status) != shop.StatusActive {
+		return nil, fmt.Errorf("shop is not active")
+	}
+	prov := platformp.Get(row.Platform)
+	if err := ValidateShopPlatform(&row, prov); err != nil {
+		return nil, err
+	}
+
+	snap, inputJSON, err := s.bindInput(body)
+	if err != nil {
+		return nil, err
+	}
+
+	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "order-sync-create")
+	jobAcquire, replayRes, acqErr := s.acquireSyncJob(c.Request.Context(), strings.TrimSpace(row.Platform), shopID, snap, inputJSON, body.ForceNew, owner)
+	if acqErr != nil {
+		return nil, acqErr
+	}
+	if jobAcquire == nil && replayRes != nil {
+		return s.resolveExistingSyncTask(c, replayRes)
+	}
+
+	task := OrderSyncTask{
+		ShopID:    shopID,
+		Platform:  strings.TrimSpace(row.Platform),
+		TaskType:  TaskTypeOrderSync,
+		Status:    StatusPending,
+		Mode:      snap.Mode,
+		Cursor:    snap.Cursor,
+		Input:     inputJSON,
+		CreatedBy: adminID,
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Create(&task).Error; err != nil {
+		s.failSyncJobCreate(c.Request.Context(), jobAcquire, "ORDER_SYNC_CREATE_FAILED", true)
+		return nil, err
+	}
+	if jobAcquire != nil {
+		if err := s.completeSyncJobCreate(c.Request.Context(), jobAcquire, task.ID); err != nil {
+			return nil, err
+		}
+	}
+
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "order.sync.create",
+			Resource:    "order_sync_task",
+			ResourceID:  task.ID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s mode=%s", task.ID.String(), shopID.String(), task.Platform, task.Mode),
+		})
+	}
+
+	runInline := func() error {
+		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+	}
+
+	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
+		if err := s.enqueue(c.Request.Context(), task.ID); err != nil {
+			slog.Warn("order_sync_enqueue_failed_run_inline", "taskId", task.ID.String(), "error", err)
+			if err := runInline(); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		if err := runInline(); err != nil {
+			return nil, err
+		}
+	}
+
+	out, err := s.GetDTO(c, task.ID)
+	return &out, err
+}
+
+func (s *Service) enqueue(ctx context.Context, taskID uuid.UUID) error {
+	if s.Redis == nil || s.Redis.Client == nil {
+		return ErrRedisQueueUnavailable
+	}
+	msg := QueueMessage{TaskID: taskID.String()}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return s.Redis.LPush(ctx, s.normalizedQueueName(), string(b)).Err()
+}
+
+// ProcessQueuedTask executes one task (worker or inline dev mode).
+func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, workerID string) error {
+	start := time.Now()
+	if s == nil || s.DB == nil {
+		return fmt.Errorf("ordersync: no db")
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.handleOrderSyncPanic(ctx, taskID, workerID, r)
+		}
+	}()
+
+	lease := s.orderSyncLeaseTTL()
+	task, claim, ok, err := s.tryClaimOrderSyncTask(ctx, taskID, workerID, lease)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	if err := s.guardDouyinOrderWorker(ctx, taskID, task); err != nil {
+		return err
+	}
+
+	stopRen := s.startOrderSyncLeaseRenewal(ctx, taskID, workerID, claim, lease)
+	defer stopRen()
+
+	if s.OpLog != nil {
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: task.CreatedBy,
+			Action:      "order.sync.running",
+			Resource:    "order_sync_task",
+			ResourceID:  taskID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
+		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.start",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
+	}
+
+	fail := func(msg string) error {
+		fin := time.Now().UTC()
+		_ = s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":        StatusFailed,
+			"error_message": msg,
+			"finished_at":   &fin,
+		})
+		if s.OpLog != nil {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "order.sync.failed",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "failed",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s error=%s", taskID.String(), task.ShopID.String(), task.Platform, msg),
+			})
+			if task.Platform == "douyin_shop" {
+				_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+					AdminUserID: task.CreatedBy,
+					Action:      "douyin.order.sync.failed",
+					Resource:    "order_sync_task",
+					ResourceID:  taskID.String(),
+					Status:      "failed",
+					Message:     fmt.Sprintf("taskId=%s shopId=%s error=%s", taskID.String(), task.ShopID.String(), msg),
+				})
+			}
+		}
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "failure", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
+		s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "failure", classifyOrderSyncError(msg), 1, time.Since(start), 0)
+		return fmt.Errorf("%s", msg)
+	}
+
+	shopRow, authReq, err := s.Shops.PlainAuthForProviderCtx(ctx, task.ShopID)
+	if err != nil {
+		return fail(err.Error())
+	}
+	prov := platformp.Get(shopRow.Platform)
+	syncer, ok := platformp.AsOrderSync(prov)
+	if !ok || syncer == nil {
+		return fail("platform does not implement order sync")
+	}
+
+	snap := snapFromJSON(task.Input)
+	st, _ := parseRFC3339Ptr(snap.Start)
+	et, _ := parseRFC3339Ptr(snap.End)
+
+	timeout := s.TaskTimeout
+	if timeout <= 0 {
+		timeout = 120 * time.Second
+	}
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	previousOutput := task.Output
+	isPageRetry := len(snap.RetryPagesOnly) > 0
+
+	res, err := syncer.SyncOrders(runCtx, platformp.SyncOrdersRequest{
+		ShopID:     task.ShopID,
+		Platform:   shopRow.Platform,
+		Auth:       authReq,
+		Mode:       snap.Mode,
+		StartTime:  st,
+		EndTime:    et,
+		Cursor:     snap.Cursor,
+		Limit:      snap.Limit,
+		MaxPages:   snap.MaxPages,
+		RetryPages: snap.RetryPagesOnly,
+	})
+	if err != nil {
+		return fail(err.Error())
+	}
+
+	payloads := ToSyncedPayloads(res.Orders)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "received", "success", "", len(payloads), 0, 0)
+	orderIDs, successN, failedN, createdN, updatedN, errUp := s.Orders.UpsertPlatformOrders(ctx, task.ShopID, shopRow.Platform, order.UpsertSourcePolling, payloads)
+	if errUp != nil {
+		return fail(errUp.Error())
+	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "created", "success", "", createdN, 0, 0)
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "updated", "success", "", updatedN, 0, 0)
+
+	ordersSeen := 0
+	linesTotal := 0
+	matchedN := 0
+	unmatchedN := 0
+	ambiguousN := 0
+	skippedN := 0
+	manualBoundN := 0
+	preservedN := 0
+	for _, oid := range orderIDs {
+		if oid == uuid.Nil || s.Orders == nil {
+			continue
+		}
+		ms, errM := s.Orders.MatchOrderItemsForOrder(ctx, oid, order.MatchOrderItemsOptions{
+			Source:    "order_sync",
+			CreatedBy: task.CreatedBy,
+		})
+		if errM != nil {
+			slog.Warn("order_sku_match_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", errM.Error())
+			continue
+		}
+		if ms != nil {
+			ordersSeen++
+			linesTotal += ms.ItemsTotal
+			matchedN += ms.Matched
+			unmatchedN += ms.Unmatched
+			ambiguousN += ms.Ambiguous
+			skippedN += ms.Skipped
+			manualBoundN += ms.ManualBound
+			preservedN += ms.Preserved
+		}
+	}
+	skuAgg := map[string]any{
+		"ordersProcessed": ordersSeen,
+		"linesTotal":      linesTotal,
+		"matched":         matchedN,
+		"unmatched":       unmatchedN,
+		"ambiguous":       ambiguousN,
+		"skipped":         skippedN,
+		"manualBound":     manualBoundN,
+		"preserved":       preservedN,
+	}
+
+	autoDeductPair := false
+	if s.Inventory != nil {
+		pol, polErr := s.Inventory.InventoryPolicy(ctx)
+		if polErr != nil {
+			slog.Warn("order_sync_inventory_policy", "taskId", taskID.String(), "err", polErr.Error())
+		} else {
+			autoDeductPair = pol.AutoDeductPlatformOrders && pol.AutoDeductAfterSKUMatch
+		}
+	}
+
+	deductedStockItems := 0
+	for _, oid := range orderIDs {
+		if oid == uuid.Nil || s.Inventory == nil {
+			continue
+		}
+		if !autoDeductPair {
+			continue
+		}
+		ds, dex := s.Inventory.DeductInventoryForOrder(ctx, oid, inventory.OrderInventoryOptions{
+			Reason:       "order_synced",
+			PlatformAuto: true,
+		})
+		if dex != nil {
+			slog.Warn("order_inventory_deduct_failed", "taskId", taskID.String(), "orderId", oid.String(), "err", dex.Error())
+			continue
+		}
+		if ds != nil {
+			if ds.Skipped {
+				slog.Info("order_inventory_deduct_skipped", "taskId", taskID.String(), "orderId", oid.String(), "reason", ds.SkipReason)
+			} else {
+				deductedStockItems += ds.LinesSynced
+			}
+		}
+	}
+
+	totalFetched := res.TotalFetched
+	if totalFetched <= 0 {
+		totalFetched = len(res.Orders)
+	}
+	nextCur := strings.TrimSpace(res.NextCursor)
+	nextPage := strings.TrimSpace(res.NextPage)
+	if nextPage == "" {
+		nextPage = nextCur
+	}
+
+	outMap := map[string]any{
+		"totalFetched":       totalFetched,
+		"totalPages":         res.TotalPages,
+		"successPages":       res.SuccessPages,
+		"failedPages":        res.FailedPages,
+		"nextCursor":         nextCur,
+		"nextPage":           nextPage,
+		"createdOrders":      createdN,
+		"updatedOrders":      updatedN,
+		"matchedItems":       matchedN,
+		"unmatchedItems":     unmatchedN,
+		"deductedStockItems": deductedStockItems,
+		"receivedOrders":     len(res.Orders),
+		"upsertSuccess":      successN,
+		"upsertFailed":       failedN,
+		"hasMore":            res.HasMore,
+		"skuMatch":           skuAgg,
+	}
+	if len(res.PageErrors) > 0 {
+		outMap["pageErrors"] = res.PageErrors
+	}
+	if isPageRetry {
+		outMap["retryPagesOnly"] = snap.RetryPagesOnly
+	}
+	if len(res.RawSummary) > 0 {
+		outMap["providerSummary"] = res.RawSummary
+	}
+	var outJSON datatypes.JSON
+	if isPageRetry && len(previousOutput) > 0 {
+		outJSON = mergeSyncOutput(previousOutput, outMap)
+	} else {
+		b, _ := json.Marshal(outMap)
+		outJSON = datatypes.JSON(b)
+	}
+
+	fin := time.Now().UTC()
+	finalStatus := resolveFinalSyncStatus(res, failedN)
+	if err := s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		"status":        finalStatus,
+		"finished_at":   &fin,
+		"total_count":   len(res.Orders),
+		"success_count": successN,
+		"failed_count":  failedN,
+		"cursor":        nextCur,
+		"output":        datatypes.JSON(outJSON),
+		"error_message": "",
+	}); err != nil {
+		slog.Warn("order_sync_success_lease_lost", "taskId", taskID.String(), "error", err.Error())
+		return err
+	}
+
+	if s.OpLog != nil {
+		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+			AdminUserID: task.CreatedBy,
+			Action:      "order.sync.success",
+			Resource:    "order_sync_task",
+			ResourceID:  taskID.String(),
+			Status:      "success",
+			Message: fmt.Sprintf("taskId=%s shopId=%s platform=%s successCount=%d failedCount=%d",
+				taskID.String(), task.ShopID.String(), task.Platform, successN, failedN),
+		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
+				AdminUserID: task.CreatedBy,
+				Action:      "douyin.order.sync.success",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message: fmt.Sprintf("taskId=%s shopId=%s successCount=%d failedCount=%d matched=%d unmatched=%d ambiguous=%d",
+					taskID.String(), task.ShopID.String(), successN, failedN, matchedN, unmatchedN, ambiguousN),
+			})
+			douyinmetrics.RecordOrderSyncOutcome(totalFetched, createdN, updatedN, finalStatus == StatusPartialSuccess, unmatchedN, deductedStockItems)
+		}
+	}
+	s.ObserveOrder(task.Platform, sourceFromMode(task.Mode), "run", "success", "", 1, time.Since(start), 0)
+	return nil
+}
+
+func (s *Service) taskToDTO(ctx context.Context, t *OrderSyncTask, shopName string) TaskDTO {
+	var input any
+	if len(t.Input) > 0 {
+		_ = json.Unmarshal(t.Input, &input)
+	}
+	var output any
+	if len(t.Output) > 0 {
+		_ = json.Unmarshal(t.Output, &output)
+	}
+	return TaskDTO{
+		ID:           t.ID,
+		ShopID:       t.ShopID,
+		ShopName:     shopName,
+		Platform:     t.Platform,
+		TaskType:     t.TaskType,
+		Status:       t.Status,
+		Mode:         t.Mode,
+		Cursor:       t.Cursor,
+		StartedAt:    t.StartedAt,
+		FinishedAt:   t.FinishedAt,
+		TotalCount:   t.TotalCount,
+		SuccessCount: t.SuccessCount,
+		FailedCount:  t.FailedCount,
+		ErrorMessage: t.ErrorMessage,
+		Input:        input,
+		Output:       output,
+		CreatedBy:    t.CreatedBy,
+		CreatedAt:    t.CreatedAt,
+		UpdatedAt:    t.UpdatedAt,
+	}
+}
+
+func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
+	var sh shop.Shop
+	if err := s.DB.WithContext(ctx).First(&sh, "id = ?", shopID).Error; err != nil {
+		return ""
+	}
+	return sh.ShopName
+}
+
+// GetDTO loads one task by id with tenant scope.
+func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
+	var zero TaskDTO
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
+	var t OrderSyncTask
+	if err := repository.FindByID(c.Request.Context(), s.DB, &t, tid, id); err != nil {
+		return zero, err
+	}
+	name := s.shopNameLookup(c.Request.Context(), t.ShopID)
+	return s.taskToDTO(c.Request.Context(), &t, name), nil
+}
+
+// List paginates sync tasks with tenant scope.
+func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("ordersync: no db")
+	}
+	page := q.Page
+	if page < 1 {
+		page = 1
+	}
+	ps := q.PageSize
+	if ps < 1 {
+		ps = 20
+	}
+	if ps > 100 {
+		ps = 100
+	}
+
+	tx := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
+	if q.ShopID != nil && *q.ShopID != uuid.Nil {
+		tx = tx.Where("shop_id = ?", *q.ShopID)
+		if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+			return nil, err
+		} else {
+			tx = scoped
+		}
+	}
+	if v := strings.TrimSpace(q.Platform); v != "" {
+		tx = tx.Where("platform = ?", v)
+	}
+	if v := strings.TrimSpace(q.Status); v != "" {
+		tx = tx.Where("status = ?", v)
+	}
+	if q.Start != nil {
+		tx = tx.Where("created_at >= ?", *q.Start)
+	}
+	if q.End != nil {
+		tx = tx.Where("created_at <= ?", *q.End)
+	}
+
+	var total int64
+	if err := tx.Count(&total).Error; err != nil {
+		return nil, err
+	}
+	offset := (page - 1) * ps
+	var rows []OrderSyncTask
+	if err := tx.Order("created_at DESC").Offset(offset).Limit(ps).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	shopIDs := make([]uuid.UUID, 0)
+	for _, r := range rows {
+		shopIDs = append(shopIDs, r.ShopID)
+	}
+	sm := map[uuid.UUID]string{}
+	ctx := c.Request.Context()
+	if len(shopIDs) > 0 && s.Shops != nil {
+		// Batch summaries require gin.Context — fall back to per-row lookup via DB when unavailable.
+		for _, sid := range shopIDs {
+			sm[sid] = s.shopNameLookup(ctx, sid)
+		}
+	}
+
+	out := make([]TaskDTO, len(rows))
+	for i := range rows {
+		out[i] = s.taskToDTO(ctx, &rows[i], sm[rows[i].ShopID])
+	}
+
+	return &ListResult{
+		Items:      out,
+		Total:      total,
+		Page:       page,
+		PageSize:   ps,
+		TotalPages: pagesOf(total, ps),
+	}, nil
+}
+
+// RetryFailed resets a failed task and re-runs or re-enqueues it.
+func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUID) (*TaskDTO, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("ordersync: no db")
+	}
+	var task OrderSyncTask
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
+		return nil, err
+	}
+	st := strings.TrimSpace(task.Status)
+	if st != StatusFailed && st != StatusPartialSuccess {
+		return nil, fmt.Errorf("only failed or partial_success tasks can be retried")
+	}
+
+	reset := time.Now().UTC()
+	retrySnap, retryInput, partialRetry, err := buildRetrySnapshotFromTask(&task)
+	if err != nil {
+		return nil, err
+	}
+	updates := map[string]any{
+		"status":        StatusPending,
+		"error_message": "",
+		"started_at":    nil,
+		"finished_at":   nil,
+		"locked_by":     nil,
+		"locked_until":  nil,
+		"updated_at":    reset,
+	}
+	if partialRetry {
+		updates["input"] = retryInput
+	} else {
+		updates["total_count"] = 0
+		updates["success_count"] = 0
+		updates["failed_count"] = 0
+		updates["output"] = datatypes.JSON(nil)
+	}
+	_ = retrySnap // snapshot validated
+
+	if err := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{}).Where("id = ?", taskID).
+		Updates(updates).Error; err != nil {
+		return nil, err
+	}
+
+	if s.OpLog != nil {
+		_ = s.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminID,
+			Action:      "order.sync.retry",
+			Resource:    "order_sync_task",
+			ResourceID:  taskID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
+		})
+		if task.Platform == "douyin_shop" {
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "douyin.order.sync.retry",
+				Resource:    "order_sync_task",
+				ResourceID:  taskID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("taskId=%s shopId=%s", taskID.String(), task.ShopID.String()),
+			})
+		}
+	}
+
+	runInline := func() error {
+		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+	}
+
+	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
+		if err := s.enqueue(c.Request.Context(), taskID); err != nil {
+			slog.Warn("order_sync_retry_enqueue_failed_run_inline", "taskId", taskID.String(), "error", err)
+			if err := runInline(); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		if err := runInline(); err != nil {
+			return nil, err
+		}
+	}
+
+	out, err := s.GetDTO(c, taskID)
+	return &out, err
+}

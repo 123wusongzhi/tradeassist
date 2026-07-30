@@ -1,0 +1,110 @@
+package collect
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
+)
+
+func normalizeCollectConcurrency(n int) int {
+	if n < 1 {
+		return 1
+	}
+	if n > 32 {
+		return 32
+	}
+	return n
+}
+
+// StartWorker runs BRPOP consumers until ctx is cancelled.
+func StartWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Logger, svc *Service, queueName string, concurrency int, reg *worker.Registry) {
+	if svc == nil || svc.Redis == nil || svc.Redis.Client == nil {
+		return
+	}
+	if queueName == "" {
+		queueName = "collect:tasks"
+	}
+	concurrency = normalizeCollectConcurrency(concurrency)
+
+	SetCollectWorkersRunning(true)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		go func(slot int) {
+			defer wg.Done()
+			var wid string
+			if reg != nil {
+				inst := reg.Register(ctx, worker.TypeCollect, fmt.Sprintf("collect-%d", slot), map[string]any{"queue": queueName})
+				if inst != nil {
+					defer inst.Stop(context.Background())
+					wid = inst.WorkerID()
+				}
+			}
+			if wid == "" {
+				wid = worker.GenerateWorkerID(worker.TypeCollect)
+			}
+			runCollectWorker(ctx, log, svc, queueName, slot, wid)
+		}(i + 1)
+	}
+}
+
+func runCollectWorker(ctx context.Context, log *slog.Logger, svc *Service, queueName string, slot int, workerLeaseID string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
+		res, err := svc.Redis.BRPop(ctx, 5*time.Second, queueName).Result()
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			continue
+		}
+		if len(res) < 2 {
+			continue
+		}
+		payload := res[1]
+
+		var msg QueueMessage
+		if err := json.Unmarshal([]byte(payload), &msg); err != nil {
+			if log != nil {
+				log.Warn("collect_worker_bad_message", "worker", slot, "error", err)
+			}
+			continue
+		}
+		tid, err := uuid.Parse(strings.TrimSpace(msg.TaskID))
+		if err != nil {
+			if log != nil {
+				log.Warn("collect_worker_bad_task_id", "worker", slot, "error", err)
+			}
+			continue
+		}
+
+		jobCtx := context.Background()
+		if svc.DB != nil {
+			var probe CollectTask
+			if err := svc.DB.WithContext(jobCtx).Select("tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
+				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, uuid.Nil, "collect")
+				if terr != nil {
+					if log != nil {
+						log.Warn("collect_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+					}
+					continue
+				}
+				jobCtx = wctx
+			}
+		}
+		svc.RunCollectJob(jobCtx, tid, workerLeaseID)
+	}
+}

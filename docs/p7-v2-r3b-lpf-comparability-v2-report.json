@@ -1,0 +1,172 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+  "currentRunId": "p7v2-current-r3b-recovery3-20260715-131400",
+  "baseline": {
+    "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
+    "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
+    "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+    "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+    "configFingerprint": "8b7d7af89215a75e",
+    "loadProfileFingerprint": "818ce231b0091774",
+    "loadProfileFingerprintV2": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683",
+    "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
+    "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+    "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "hostClass": "wsl2_local_postgresql_socket",
+    "selectedHost": "127.0.0.1",
+    "selectedPort": "18080",
+    "baseUrl": "http://127.0.0.1:18080/"
+  },
+  "current": {
+    "runtimeSourceTreeHash": "b4dbe841d7ba70c691d43bddbf26af9aa2b084ccba6e1dced9fde5facf1234a4",
+    "loadScriptsHash": "a8ea65b2d995566e09c80a9aa236c4c5ba19bf66fd6c7c2d37aaa6304ecef39c",
+    "metricSemanticsHash": "91ff96bf17153a63bfc96a0bdde75fefcf9a6bf096cd3bccf36cd9874c0b6f68",
+    "datasetFingerprint": "a3a77845644ba799a439d1f45195039bfcbeecb902afc842d7ab8da195e7e50d",
+    "configFingerprint": "8b7d7af89215a75e",
+    "loadProfileFingerprint": "ae4c862477ca18d0",
+    "loadProfileFingerprintV2": "b2104ff4259eff7e202562d3dc23452b836b530508f71a4f3daeea8576ccf683",
+    "sloFingerprint": "7045791c5d4478ca41227917c350dac19e252fabda52dc9d29492fd306638c40",
+    "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37",
+    "regressionPolicyFingerprint": "d3640ee6991308a2d20ac49940f1f9a4f1113a2d183bc73e3d62c1e9544ca402",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "hostClass": "wsl2_local_postgresql_socket",
+    "selectedHost": "127.0.0.1",
+    "selectedPort": "18080",
+    "baseUrl": "http://127.0.0.1:18080/"
+  },
+  "mismatchCount": 0,
+  "notComparableCount": 0,
+  "previousComparabilityStatus": "not_comparable",
+  "previousMismatchField": "loadProfileFingerprint",
+  "previousFingerprintVersion": 1,
+  "currentFingerprintVersion": 2,
+  "loadProfileFingerprintMatch": true,
+  "checks": [
+    {
+      "id": "baseline-registry",
+      "status": "passed"
+    },
+    {
+      "id": "current-registry",
+      "status": "passed"
+    },
+    {
+      "id": "baseline-manifest",
+      "status": "passed"
+    },
+    {
+      "id": "current-manifest",
+      "status": "passed"
+    },
+    {
+      "id": "different-run-id",
+      "status": "passed"
+    },
+    {
+      "id": "different-artifact",
+      "status": "passed"
+    },
+    {
+      "id": "current-independent",
+      "status": "passed"
+    },
+    {
+      "id": "baseline-v2-sidecar",
+      "status": "passed"
+    },
+    {
+      "id": "current-v2-sidecar",
+      "status": "passed"
+    },
+    {
+      "id": "baseline-canonical-profile",
+      "status": "passed"
+    },
+    {
+      "id": "current-canonical-profile",
+      "status": "passed"
+    },
+    {
+      "id": "v2-fingerprint-shape",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeSourceTreeHash",
+      "status": "passed"
+    },
+    {
+      "id": "loadScriptsHash",
+      "status": "passed"
+    },
+    {
+      "id": "metricSemanticsHash",
+      "status": "passed"
+    },
+    {
+      "id": "datasetFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "configFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "loadProfileFingerprintV2",
+      "status": "passed"
+    },
+    {
+      "id": "sloFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "routeCredentialMatrixFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "regressionPolicyFingerprint",
+      "status": "passed"
+    },
+    {
+      "id": "k6Version",
+      "status": "passed"
+    },
+    {
+      "id": "goVersion",
+      "status": "passed"
+    },
+    {
+      "id": "postgresVersion",
+      "status": "passed"
+    },
+    {
+      "id": "redisVersion",
+      "status": "passed"
+    },
+    {
+      "id": "hostClass",
+      "status": "passed"
+    },
+    {
+      "id": "selectedHost",
+      "status": "passed"
+    },
+    {
+      "id": "selectedPort",
+      "status": "passed"
+    },
+    {
+      "id": "baseUrl",
+      "status": "passed"
+    }
+  ],
+  "issues": []
+}

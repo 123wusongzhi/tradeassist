@@ -1,0 +1,82 @@
+{
+  "status": "passed",
+  "positiveScenariosFailed": 0,
+  "negativeScenariosUnexpected": 0,
+  "tokenLeaks": 0,
+  "scenarios": [
+    {
+      "accountRole": "system_admin",
+      "loginStatus": "200",
+      "tokenPresent": true,
+      "passed": true,
+      "kind": "positive"
+    },
+    {
+      "accountRole": "tenant_admin",
+      "loginStatus": "200",
+      "tokenPresent": true,
+      "passed": true,
+      "kind": "positive"
+    },
+    {
+      "accountRole": "operator",
+      "loginStatus": "200",
+      "tokenPresent": true,
+      "passed": true,
+      "kind": "positive"
+    },
+    {
+      "accountRole": "readonly",
+      "loginStatus": "200",
+      "tokenPresent": true,
+      "passed": true,
+      "kind": "positive"
+    },
+    {
+      "accountRole": "disabled",
+      "loginStatus": "401",
+      "tokenPresent": false,
+      "passed": true,
+      "kind": "negative",
+      "scenario": "disabled_login"
+    },
+    {
+      "accountRole": "operator",
+      "kind": "negative",
+      "scenario": "wrong_password",
+      "loginStatus": "401",
+      "tokenPresent": false,
+      "passed": true
+    },
+    {
+      "route": "Product List",
+      "method": "GET",
+      "accountRole": "tenant_admin",
+      "statusCode": 200,
+      "expectedStatus": 200,
+      "passed": true,
+      "kind": "positive",
+      "scenario": "Product List"
+    },
+    {
+      "route": "Operation Log List",
+      "method": "GET",
+      "accountRole": "system_admin",
+      "statusCode": 200,
+      "expectedStatus": 200,
+      "passed": true,
+      "kind": "positive",
+      "scenario": "Operation Log List"
+    },
+    {
+      "route": "Operation Log Denied",
+      "method": "GET",
+      "accountRole": "operator",
+      "statusCode": 200,
+      "expectedStatus": 200,
+      "passed": true,
+      "kind": "negative",
+      "scenario": "Operation Log Denied"
+    }
+  ]
+}

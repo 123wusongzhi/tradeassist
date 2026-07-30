@@ -1,0 +1,56 @@
+{
+  "phase": "P7-V2-R3",
+  "component": "preflight-audit",
+  "status": "passed",
+  "baselineExists": true,
+  "baselineStatus": "passed",
+  "baselineRunId": "p7v2-baseline-20260714181000",
+  "baselineImmutable": true,
+  "baselineComparable": false,
+  "baselineRebuildRequired": true,
+  "rawK6SummaryPath": "artifacts/p7-v2/baseline/p7v2-baseline-20260714181000/baseline.summary.json",
+  "historicalRawTraffic": 0,
+  "k6Available": true,
+  "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+  "currentHarnessAvailable": true,
+  "regressionHarnessAvailable": true,
+  "soakHarnessAvailable": true,
+  "demoHarnessAvailable": true,
+  "finalGatesAvailable": true,
+  "currentRuntime": {
+    "trackedDiffHash": "037fbc778251bc1c419e33878d47dba950b2991c768ffbced0c78773390d80be",
+    "untrackedRuntimeManifestHash": "dd6cef051efe98501ad6404c022b3786917c5eb044dddc8bdbf52b1bca3e243c",
+    "runtimeSourceTreeHash": "c87d513fc04171f8bd073197dd81150b00abaa80d23877986bdc71448b4897a7",
+    "runtimeSourceFileCount": 1081,
+    "datasetFingerprint": "0dd02fbd730cba2e8503690ccaf7a1104f88d35d77cd94a7bd8016efd0a340be",
+    "sloFingerprint": "82c910c5485226a2f3f063f92c6689e939a6df1e158cc068bfae48e1fccaa75f",
+    "routeCredentialMatrixFingerprint": "96f31fdba82f753f272ab7ce52a15a1c1499bc688b54619b633ea251556aef37"
+  },
+  "environmentFingerprint": {
+    "runId": "p7v2-r3-preflight-1784034252387",
+    "runType": "r3-preflight",
+    "gitCommit": "e3831acb0359a895152e4cf98e120a001820398a",
+    "gitDirty": true,
+    "os": "win32",
+    "kernel": "10.0.19045",
+    "cpuModel": "12th Gen Intel(R) Core(TM) i5-12490F",
+    "cpuCores": 12,
+    "memoryTotal": 17010700288,
+    "goVersion": "go version go1.25.12 linux/amd64",
+    "nodeVersion": "v22.22.1",
+    "pnpmVersion": "9.15.4",
+    "k6Version": "k6 v0.57.0 (go1.25.12, linux/amd64)",
+    "postgresVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+    "redisVersion": "redis-cli 6.0.16",
+    "startedAt": "2026-07-14T13:04:14.249Z",
+    "endedAt": ""
+  },
+  "existingUntrackedExcluded": [
+    ".agents/",
+    "skills-lock.json"
+  ],
+  "issues": [
+    "historical baseline lacks immutable fingerprints: trackedDiffHash, untrackedRuntimeManifestHash, runtimeSourceTreeHash, apiSourceHash, loadScriptHash, sloFingerprint, routeCredentialMatrixFingerprint",
+    "historical baseline does not prove non-zero k6 traffic"
+  ]
+}

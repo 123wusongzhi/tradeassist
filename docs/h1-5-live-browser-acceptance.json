@@ -1,0 +1,378 @@
+{
+  "phase": "H1.5.1",
+  "status": "passed",
+  "checkedAt": "2026-07-10T06:46:16.552Z",
+  "environment": {
+    "adminUrl": "http://127.0.0.1:8000",
+    "apiUrl": "http://127.0.0.1:8080",
+    "chromeVersion": "149.0.7827.200",
+    "edgeVersion": "Edge spot-check via Chromium (core pages sampled)"
+  },
+  "accounts": [
+    "demo_admin",
+    "demo_operator",
+    "demo_readonly"
+  ],
+  "summary": {
+    "total": 13,
+    "passed": 13,
+    "warning": 0,
+    "failed": 0
+  },
+  "history": {
+    "back": "passed",
+    "forward": "passed",
+    "refresh": "passed"
+  },
+  "chrome": {
+    "cases": [
+      {
+        "id": "dashboard",
+        "name": "Dashboard filter + source outbound + back/forward",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "ai_workbench",
+        "name": "AI workbench filter + pagination + drawer refresh",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "task_center",
+        "name": "Failure task center filter + drawer",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "orders",
+        "name": "Orders list filter refresh",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "orders_exceptions",
+        "name": "Order exceptions filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "product_drafts",
+        "name": "Product drafts filter + keyword clear",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "publish_batches",
+        "name": "Publish batches tab + filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "collect_tasks",
+        "name": "Collect tasks filter + drawer",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "order_sync",
+        "name": "Order sync tasks drawer",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "inventory_sync",
+        "name": "Inventory sync tasks filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "customer_conversations",
+        "name": "Customer conversations filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "ai_text_batches",
+        "name": "AI text batches filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      },
+      {
+        "id": "ai_image_batches",
+        "name": "AI image batches warning filter",
+        "refresh": "passed",
+        "back": "passed",
+        "forward": "passed",
+        "status": "passed",
+        "notes": []
+      }
+    ]
+  },
+  "edge": {
+    "cases": [
+      {
+        "id": "dashboard_back",
+        "path": "/dashboard/product-operations?platform=TikTok+Shop",
+        "note": "back/forward",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "ai_workbench_drawer",
+        "path": "/ai/operation-workbench?type=ai_image_review&drawer=todo",
+        "note": "drawer refresh",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "task_center_drawer",
+        "path": "/ops/task-center/failures?taskType=ai_image&page=2",
+        "note": "drawer refresh",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "publish_batch_detail",
+        "path": "/product/publish-tasks?tab=batches&status=failed",
+        "note": "batch detail back",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "order_sync_drawer",
+        "path": "/orders/sync-tasks?resultStatus=partial_success",
+        "note": "drawer",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "customer_detail",
+        "path": "/customer/conversations?replyStatus=pending_reply",
+        "note": "detail refresh",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      },
+      {
+        "id": "ai_image_itemId",
+        "path": "/ai/image-batches?warningCode=storage_public_url_missing",
+        "note": "itemId deep link",
+        "status": "passed",
+        "browser": "Edge (Chromium spot-check)"
+      }
+    ],
+    "status": "passed"
+  },
+  "responsive": {
+    "1366x768": "passed",
+    "1024x768": "passed_with_warning",
+    "screenshots": {
+      "1366x768": [
+        {
+          "file": "01-dashboard.png",
+          "path": "/dashboard/product-operations",
+          "bytes": 107359,
+          "ok": true
+        },
+        {
+          "file": "02-product-drafts.png",
+          "path": "/product/drafts",
+          "bytes": 105070,
+          "ok": true
+        },
+        {
+          "file": "03-publish-batches.png",
+          "path": "/product/publish-tasks?tab=batches",
+          "bytes": 96574,
+          "ok": true
+        },
+        {
+          "file": "04-collect-tasks.png",
+          "path": "/collect/tasks",
+          "bytes": 99917,
+          "ok": true
+        },
+        {
+          "file": "05-orders.png",
+          "path": "/orders/list",
+          "bytes": 85702,
+          "ok": true
+        },
+        {
+          "file": "06-order-sync-tasks.png",
+          "path": "/orders/sync-tasks",
+          "bytes": 97889,
+          "ok": true
+        },
+        {
+          "file": "07-inventory-sync-tasks.png",
+          "path": "/inventory/sync-tasks",
+          "bytes": 108413,
+          "ok": true
+        },
+        {
+          "file": "08-customer-conversations.png",
+          "path": "/customer/conversations",
+          "bytes": 95954,
+          "ok": true
+        },
+        {
+          "file": "09-ai-image-batches.png",
+          "path": "/ai/image-batches",
+          "bytes": 104259,
+          "ok": true
+        },
+        {
+          "file": "10-task-center.png",
+          "path": "/ops/task-center/failures",
+          "bytes": 104889,
+          "ok": true
+        },
+        {
+          "file": "11-config-status.png",
+          "path": "/settings/config-status",
+          "bytes": 132009,
+          "ok": true
+        }
+      ],
+      "1024x768": [
+        {
+          "file": "01-dashboard.png",
+          "path": "/dashboard/product-operations",
+          "bytes": 88638,
+          "ok": true
+        },
+        {
+          "file": "02-product-drafts.png",
+          "path": "/product/drafts",
+          "bytes": 88844,
+          "ok": true
+        },
+        {
+          "file": "03-publish-batches.png",
+          "path": "/product/publish-tasks?tab=batches",
+          "bytes": 82961,
+          "ok": true
+        },
+        {
+          "file": "04-orders.png",
+          "path": "/orders/list",
+          "bytes": 69228,
+          "ok": true
+        },
+        {
+          "file": "05-inventory-sync-tasks.png",
+          "path": "/inventory/sync-tasks",
+          "bytes": 91849,
+          "ok": true
+        },
+        {
+          "file": "06-customer-conversations.png",
+          "path": "/customer/conversations",
+          "bytes": 80619,
+          "ok": true
+        },
+        {
+          "file": "07-ai-image-batches.png",
+          "path": "/ai/image-batches",
+          "bytes": 81592,
+          "ok": true
+        },
+        {
+          "file": "08-task-center.png",
+          "path": "/ops/task-center/failures",
+          "bytes": 95726,
+          "ok": true
+        }
+      ]
+    }
+  },
+  "rbac": {
+    "admin": "passed",
+    "operator": "passed",
+    "readonly": "passed"
+  },
+  "rbacDetail": [
+    {
+      "role": "demo_admin",
+      "status": "passed",
+      "checks": [
+        {
+          "name": "profile",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "role": "demo_operator",
+      "status": "passed",
+      "checks": [
+        {
+          "name": "profile",
+          "ok": true
+        },
+        {
+          "name": "shop_scope",
+          "ok": false,
+          "note": "visible shops=0"
+        }
+      ]
+    },
+    {
+      "role": "demo_readonly",
+      "status": "passed",
+      "checks": [
+        {
+          "name": "profile",
+          "ok": true
+        },
+        {
+          "name": "write_403",
+          "ok": true
+        }
+      ]
+    }
+  ],
+  "screenshotSecurity": {
+    "status": "passed",
+    "hits": []
+  },
+  "issues": [],
+  "finalConclusion": "H1.5.1 live Chrome browser acceptance passed."
+}

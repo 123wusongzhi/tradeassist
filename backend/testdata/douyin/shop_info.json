@@ -1,0 +1,8 @@
+{
+  "synthetic": true,
+  "description": "Synthetic shop info response — not a real credential",
+  "shop_id": "synthetic-shop-001",
+  "shop_name": "Synthetic Test Shop",
+  "shop_status": "1",
+  "authority_id": "synthetic-authority-001"
+}

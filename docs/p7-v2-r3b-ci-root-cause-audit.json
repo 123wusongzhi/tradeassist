@@ -1,0 +1,26 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "passed",
+  "rootCauseClassification": "process_identity_insufficient",
+  "evidence": {
+    "previousApiPid": "1100",
+    "newApiPid": "1100",
+    "pidFileObserved": true,
+    "pidFileFreshnessVerified": false,
+    "oldProcessStoppedVerified": false,
+    "portReleasedVerified": false,
+    "portOwnerVerified": false,
+    "healthProbeBoundToInstance": false,
+    "serverBinaryVerified": false,
+    "workerTopology": "embedded_in_api",
+    "redisIsolationMethod": "flushall",
+    "mockProviderTopology": "in_memory_mock"
+  },
+  "conclusion": "The old harness compared PID-like values only. It neither captured start ticks/executable identity nor proved stop, port ownership, binary identity, or instance nonce. Equal PID is not evidence that the process did not change.",
+  "requiredRepair": [
+    "capture Linux process identity using boot ID, PID, start ticks and executable SHA-256",
+    "prove old process disappearance and port release before start",
+    "verify current listener owner, binary hash and launch nonce",
+    "derive worker, Redis and mock evidence from topology"
+  ]
+}

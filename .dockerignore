@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/dist
+backend
+data
+docs
+scripts/*
+!scripts/patch-pro-field-antd-select.mjs
+.env

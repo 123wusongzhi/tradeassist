@@ -1,0 +1,59 @@
+---
+description: Admin UI 自动识别入口；页面、显示、布局、样式、组件、交互、状态、文案和可访问性任务自动读取 frontend-design skill
+globs: admin/src/**/*.{ts,tsx,jsx,less,css,scss}
+alwaysApply: false
+---
+
+# Admin UI 自动识别与规范入口
+
+当用户问题语义涉及 Admin 前端的页面、显示、布局、样式、组件、表格、表单、弹窗、抽屉、按钮、响应式、移动端、对齐、溢出、交互、文案、状态或可访问性时，自动视为 UI 任务，必须先读取：
+
+- `.agents/skills/frontend-design/SKILL.md`
+
+不要求用户显式提到“UI 规范”“UI 优化”“响应式验收”或“frontend-design skill”。该 skill 是 TradeMind Admin UI 设计规范、共享组件规范、布局规范、响应式验收和 AI 实施流程的唯一完整来源。本规则只做 Cursor 自动入口，不复制完整规范。
+
+## 自动触发条件
+
+出现以下任一情况，必须自动应用主规范。典型用户描述包括但不限于：“修复这个页面显示问题”“新增一个 Admin 页面”“表格在手机上溢出”“按钮点击两次”“改个按钮”“改个表格”“优化页面”。
+
+- 页面视觉：不好看、样式调整、对齐、间距、字号、颜色、卡片层级、拥挤、过空、内容区域过窄、页面宽度异常、按钮层级、状态展示不清楚。
+- 页面布局：Header / Content / Breadcrumb 对齐、padding / margin、Flex / Grid、页面根节点横向滚动、表格撑破页面、Tabs 溢出、Card 宽度、侧边栏展开或收起后异常、固定栏 / 工具栏 / 分页错位。
+- 响应式和移动端：手机端、平板、小屏幕、Modal 超屏、Drawer 宽度、按钮截断、表格移动端不可用、长文本撑破布局、视口切换错位。
+- 组件与交互：Button、Form、Table / ProTable、Card、Tabs、Modal、Drawer、Popconfirm、Tooltip、Select、Upload、Pagination、EmptyState、Alert、Tag、Toolbar、PageContainer、Dashboard 卡片、状态面板。
+- 页面状态：loading、empty、error、readonly、disabled、submitting、refreshing、success、failure、partial data、无权限、无数据、请求失败。
+- 用户交互：点击无反应、点击两次、重复提交、Modal 无法关闭、Drawer 再次打开异常、表单默认值、表单校验、按钮 disabled、Tab 状态、深链、浏览器刷新后状态、键盘操作、focus。
+- UI 文案：按钮文案、页面标题、页面描述、状态文案、空状态、错误提示、风险提示、创建草稿与正式发布语义、任务创建与任务完成语义、用户可执行建议。
+- 可访问性：aria-selected、aria-label、role、键盘导航、focus、表单错误关联、图标按钮无名称、Tab、Modal / Drawer 可访问性。
+
+涉及 `admin/src/**/*.tsx`、`admin/src/**/*.jsx`、`admin/src/**/*.less`、`admin/src/**/*.css`、`admin/src/**/*.scss` 时，不能只依赖扩展名判断；只要包含页面渲染、组件结构、`className`、样式、交互或状态展示，就必须自动应用主规范。
+
+## 自动排除条件
+
+只有确认完全不影响 DOM、`className`、样式、用户交互、UI 状态、loading / error / empty 和响应式时，才可以不执行完整 UI 工作流。可排除场景包括纯 TypeScript 类型修复、纯 service 封装、纯 API 参数修复、纯数据转换、纯工具函数、纯构建配置、纯测试配置、纯依赖升级、纯性能计算逻辑和不影响 DOM / 样式 / 交互的内部重构。
+
+## 混合任务
+
+任务同时包含 UI、前端业务逻辑、API、后端或数据库时，必须拆分处理：UI 部分按 `.agents/skills/frontend-design/SKILL.md` 执行；接口和业务部分按现有 service、DTO、权限和业务规则执行。不得因为任务包含 API 就跳过 UI 规范，也不得以 UI 优化为名修改 API、payload、权限、readonly 或状态机。
+
+## 硬规则摘要
+
+必须：
+
+- 优先复用 `TmPageContainer`、`SectionCard`、`MetricCard`、`OperationToolbar`、`TmProTable`、`EmptyState`、`AppDrawer`、`layoutTokens`、Ant Design Token 和 Pro Components。
+- Header 和 Content 使用同一内容轨道；标准页面容器优先使用 `TmPageContainer`，并使用 `layoutTokens.pageMaxWidth`。
+- 表格优先使用 `TmProTable`，使用稳定唯一 `rowKey`，表格只在自身容器内部横向滚动。
+- 区分 loading、empty、error、readonly、disabled、submitting，错误不得伪装为空状态。
+- 五档视口验收：1440×900、1280×800、1024×768、768×900、375×812。
+- 检查根节点横向溢出：`documentElement.scrollWidth <= clientWidth` 且 `body.scrollWidth <= clientWidth`。
+- 非 GET 写请求验收必须用 `browser_route` 拦截，不得执行真实平台写操作。
+- 文案修改后执行 `pnpm.cmd check:ui-copy --strict`。
+
+禁止：
+
+- Tailwind、shadcn、新增 UI 框架或新增与 Ant Design 重复的依赖。
+- 大面积全局 CSS 覆盖、全局 `.ant-*` 魔改、`!important`、负 margin、`transform` 位移修布局、写死侧边栏宽度、重复页面 gutter。
+- 卡片套卡片、所有按钮都 `primary`、所有状态都 `MetricCard`、虚假数据或虚假指标。
+- UI 任务中顺手修改 API、payload、权限、readonly、状态机、业务判断或写请求语义。
+- 未拦截时执行真实写操作，未验收就声明完成，未获授权时 commit 或 push。
+
+新增页面和修改已有页面的完整流程、异常停止条件、Modal / Drawer / Popconfirm 检查、业务保护规则和最终输出要求见 `.agents/skills/frontend-design/SKILL.md`。

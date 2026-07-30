@@ -1,0 +1,32 @@
+{
+  "phase": "P7-C2",
+  "status": "passed",
+  "generatedAt": "2026-07-13T15:45:43.525Z",
+  "runId": "p7c2-20260713154542",
+  "hostClass": "wsl2_local_postgresql_socket",
+  "port": 5432,
+  "databaseNameHash": "90e543577c3eeee1",
+  "postgreSQLVersion": "PostgreSQL 14.23 (Ubuntu 14.23-0ubuntu0.22.04.1) on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0, 64-bit",
+  "gitCommit": "c6389bf66f6590d2e59546deba452922dd8469a9",
+  "schemaVersion": "AutoMigrate",
+  "migrationVersion": "AutoMigrate+p7",
+  "datasetProfile": "medium",
+  "env": {
+    "APP_ENV": "performance",
+    "PERFORMANCE_TEST_MODE": "true",
+    "ALLOW_PERFORMANCE_DATASET": "true",
+    "EXTERNAL_PROVIDER_MODE": "mock",
+    "DOUYIN_WRITE_ENABLED": "false",
+    "AUTO_LISTING_ENABLED": "false",
+    "DB_DRIVER": "postgres",
+    "DB_HOST": "/var/run/postgresql",
+    "DB_PORT": "5432",
+    "DB_USER": "root",
+    "DB_NAME": "trademind_p7c2_p7c2_20260713154542"
+  },
+  "secretsRecorded": false,
+  "productionResourceAccess": false,
+  "realProviderAccess": false,
+  "realDouyinWrite": false,
+  "issues": []
+}

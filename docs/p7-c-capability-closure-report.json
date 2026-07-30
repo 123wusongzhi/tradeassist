@@ -1,0 +1,140 @@
+{
+  "phase": "P7-C",
+  "status": "passed_ready_for_p7_v2",
+  "generatedAt": "2026-07-14T04:54:37.356Z",
+  "evidenceSource": "P7-C4 + preserved P7-C2 dataset resume",
+  "failed": 0,
+  "passed": 10,
+  "checks": [
+    {
+      "id": "p7-c2-classification-count-33",
+      "status": "passed",
+      "detail": "classification=33"
+    },
+    {
+      "id": "mandatory-partial-zero",
+      "status": "passed",
+      "detail": "mandatoryPartial=0"
+    },
+    {
+      "id": "mandatory-missing-zero",
+      "status": "passed",
+      "detail": "mandatoryMissing=0"
+    },
+    {
+      "id": "dataset-resume-passed",
+      "status": "passed",
+      "detail": "dataset resume status=passed"
+    },
+    {
+      "id": "pagination-runtime-passed",
+      "status": "passed",
+      "detail": "pagination status=passed"
+    },
+    {
+      "id": "query-plan-passed",
+      "status": "passed",
+      "detail": "query plan status=passed"
+    },
+    {
+      "id": "nplusone-passed",
+      "status": "passed",
+      "detail": "n+1 status=passed"
+    },
+    {
+      "id": "race-executed-packages",
+      "status": "passed",
+      "detail": "executed=13"
+    },
+    {
+      "id": "linux-race-passed",
+      "status": "passed",
+      "detail": "race status=passed"
+    },
+    {
+      "id": "p7-c4-gate-passed",
+      "status": "passed",
+      "detail": "p7-c4=passed_ready_for_p7_v2"
+    }
+  ],
+  "capabilityAudit": {
+    "mandatoryPartial": 0,
+    "mandatoryMissing": 0,
+    "items": [
+      {
+        "id": "product_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "order_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "inventory_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "task_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "webhook_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "operation_log_keyset_pagination",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "pagination_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "query_plan_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "nplusone_runtime",
+        "mandatory": true,
+        "status": "passed"
+      },
+      {
+        "id": "provider_full_wiring",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "permission_cache_invalidation",
+        "mandatory": true,
+        "status": "implemented"
+      },
+      {
+        "id": "linux_race_incremental",
+        "mandatory": true,
+        "status": "passed"
+      }
+    ]
+  },
+  "runtime": {
+    "datasetResume": "passed",
+    "pagination": "passed",
+    "queryPlan": "passed",
+    "nPlusOne": "passed",
+    "race": "passed"
+  },
+  "loadSoakFinalVerification": "pending_p7_v2",
+  "realProductionPerformanceVerification": "deferred",
+  "realProductionCapacityVerification": "deferred",
+  "realProductionPeakLoadVerification": "deferred",
+  "douyinRealCredentialVerification": "deferred",
+  "tag": "deferred",
+  "productionReady": false
+}

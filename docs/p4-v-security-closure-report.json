@@ -1,0 +1,158 @@
+{
+  "phase": "P4-V",
+  "status": "passed_with_warnings",
+  "generatedAt": "2026-07-13T09:30:18.467Z",
+  "platform": "win32",
+  "tenantIsolation": {
+    "sqlScopeReport": true,
+    "idorCases": 55,
+    "shopScopeCases": 21
+  },
+  "secretRotation": {
+    "targetsVerified": true,
+    "coverageReport": true
+  },
+  "race": {
+    "status": "passed"
+  },
+  "realEnvironmentSecurityVerification": "deferred",
+  "realCredentialVerification": "deferred",
+  "checks": [
+    {
+      "id": "doc-P4_V_SECURITY_CLOSURE_AUDIT",
+      "status": "passed",
+      "message": "docs/P4_V_SECURITY_CLOSURE_AUDIT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_V_SECRET_TARGET_COVERAGE",
+      "status": "passed",
+      "message": "docs/P4_V_SECRET_TARGET_COVERAGE.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_V_KEY_ROTATION_VERIFY_REPORT",
+      "status": "passed",
+      "message": "docs/P4_V_KEY_ROTATION_VERIFY_REPORT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_V_SQL_TENANT_SCOPE_REPORT",
+      "status": "passed",
+      "message": "docs/P4_V_SQL_TENANT_SCOPE_REPORT.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_V_ACCESS_CONTROL_REGRESSION",
+      "status": "passed",
+      "message": "docs/P4_V_ACCESS_CONTROL_REGRESSION.md",
+      "detail": ""
+    },
+    {
+      "id": "doc-P4_V_RACE_TEST_REPORT",
+      "status": "passed",
+      "message": "docs/P4_V_RACE_TEST_REPORT.md",
+      "detail": ""
+    },
+    {
+      "id": "secret-target-adapters",
+      "status": "passed",
+      "message": "SettingsSecretTarget + ShopAuthTokenTarget defined",
+      "detail": ""
+    },
+    {
+      "id": "verify-rotation-all-targets",
+      "status": "passed",
+      "message": "VerifyRotation aggregates all secret targets",
+      "detail": ""
+    },
+    {
+      "id": "inventory-tenant",
+      "status": "passed",
+      "message": "queries.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "ordersync-tenant",
+      "status": "passed",
+      "message": "service.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "productpublish-tenant",
+      "status": "passed",
+      "message": "service_queries.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "customerchat-tenant",
+      "status": "passed",
+      "message": "service.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "taskcenter-tenant",
+      "status": "passed",
+      "message": "service.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "webhook-tenant",
+      "status": "passed",
+      "message": "processor.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "exportmod-tenant",
+      "status": "passed",
+      "message": "service.go tenant scope",
+      "detail": ""
+    },
+    {
+      "id": "system-repository-naming",
+      "status": "passed",
+      "message": "SystemFindByID requires system context",
+      "detail": ""
+    },
+    {
+      "id": "production-tenant-fallback",
+      "status": "warning",
+      "message": "tenant config has dev fallback — verify production blocks tenant_id=0",
+      "detail": ""
+    },
+    {
+      "id": "idor-55-cases",
+      "status": "passed",
+      "message": "55 IDOR test cases",
+      "detail": ""
+    },
+    {
+      "id": "shop-scope-21-cases",
+      "status": "passed",
+      "message": "21 shop scope test cases",
+      "detail": ""
+    },
+    {
+      "id": "linux-race-passed",
+      "status": "passed",
+      "message": "Linux race verification passed",
+      "detail": ""
+    },
+    {
+      "id": "demo-auto-acceptance-report",
+      "status": "passed",
+      "message": "demo:auto-acceptance report present",
+      "detail": ""
+    },
+    {
+      "id": "rotation-unit-tests",
+      "status": "passed",
+      "message": "securitymod rotation tests present",
+      "detail": ""
+    }
+  ],
+  "issues": [],
+  "warnings": [
+    "tenant config has dev fallback — verify production blocks tenant_id=0"
+  ]
+}

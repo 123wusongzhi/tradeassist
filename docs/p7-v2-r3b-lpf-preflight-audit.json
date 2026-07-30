@@ -1,0 +1,29 @@
+{
+  "phase": "P7-V2-R3B-LPF-V2",
+  "status": "passed",
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+    "rawArtifactPath": "docs/baselines/frozen/p7v2-baseline-r3b-recovery3-20260715-131400/raw-summary.json",
+    "sha256": "a04a39d4aa5e1cf8a951e9195af894e2a03df185c360e7652e4eacd7770aeaa9",
+    "sizeBytes": 10156,
+    "requests": 29439,
+    "jsonParseable": true,
+    "scenarioCoverage": true,
+    "verified": true
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+    "rawArtifactPath": "docs/currents/frozen/p7v2-current-r3b-recovery3-20260715-131400/raw-summary.json",
+    "sha256": "19aaa21b4094ee14147621b47b7370003b9a4dbaec12b24f64a32a66162af4c5",
+    "sizeBytes": 10164,
+    "requests": 29313,
+    "jsonParseable": true,
+    "scenarioCoverage": true,
+    "verified": true
+  },
+  "registry": {
+    "baselineValid": true,
+    "currentValid": true
+  },
+  "sourceArtifactsModified": false
+}

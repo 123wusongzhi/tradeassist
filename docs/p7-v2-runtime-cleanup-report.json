@@ -1,0 +1,20 @@
+{
+  "cleanupContractVersion": 2,
+  "latestAttemptId": "cleanup-v2-20260719074841-4a77775b",
+  "latestAttemptPath": "artifacts/p7-v2/cleanup-attempts/cleanup-v2-20260719074841-4a77775b.json",
+  "historicalAttemptCount": 11,
+  "latestStatus": "passed",
+  "latestMode": "check",
+  "semanticGatePassed": true,
+  "currentFormalResidualCount": 0,
+  "unknownDatabaseCount": 0,
+  "unknownProcessCount": 0,
+  "unknownConnectionCount": 0,
+  "listener18080Count": 0,
+  "knownRetainedDiagnosticDatabaseCount": 1,
+  "completedDiagnosticEphemeralCount": 0,
+  "destructiveActionCount": 0,
+  "droppedDatabases": [],
+  "actionHistoryPreserved": true,
+  "checkDoesNotOverwriteExecute": true
+}

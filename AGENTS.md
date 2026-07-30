@@ -1,0 +1,126 @@
+# AGENTS.md
+
+本文件是 TradeMind 给 AI 编程工具和协作开发者的通用入口。无论使用 Cursor、Claude Code、Copilot、Continue、Windsurf、Trae 或其他 AI 编辑器，都应先阅读本文件和下方必读文档。
+
+## 项目定位
+
+贸灵 TradeMind 是一个开源 AI 跨境电商运营平台，当前优先服务两条主线：
+
+1. **AI 商品运营工具**
+2. **多平台跨境 ERP MVP**
+
+不要主动把项目扩展成重型完整 ERP。多仓、采购、财务、WMS / OMS、复杂 BI 等能力后置。
+
+## 必读文档
+
+开始开发前请阅读：
+
+| 文档 | 用途 |
+| --- | --- |
+| [README.md](README.md) | 项目首页、能力概览、启动方式 |
+| [docs/README.md](docs/README.md) | 文档中心 |
+| [docs/ai-workflow.md](docs/ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀机制 |
+| [.agents/skills/code-quality/SKILL.md](.agents/skills/code-quality/SKILL.md) | 全项目代码质量自动适用、轻量检查、深度审查、Baseline/Ratchet 和 CI 门禁的唯一完整主规范 |
+| [.agents/skills/modular-architecture/SKILL.md](.agents/skills/modular-architecture/SKILL.md) | 模块化架构、模块边界、循环依赖、Architecture Baseline/Ratchet、受影响架构检查和 CI 门禁的唯一完整主规范 |
+| [.agents/skills/frontend-design/SKILL.md](.agents/skills/frontend-design/SKILL.md) | Admin UI 设计规范、共享组件规范、响应式验收和 AI 实施流程的唯一完整来源 |
+| [.agents/skills/project-testing/SKILL.md](.agents/skills/project-testing/SKILL.md) | 全项目自动化测试总控规范，覆盖前端、Node、后端、API 契约、数据库、Redis、队列和 CI |
+| [docs/ai-coding-rules.md](docs/ai-coding-rules.md) | AI 编程规则与文档同步要求 |
+| [docs/module-map.md](docs/module-map.md) | 模块关联索引，说明改动一个模块时必须检查哪些关联文件 |
+| [docs/task-checklist.md](docs/task-checklist.md) | 任务完成前按类型自查的检查清单 |
+| [docs/env.md](docs/env.md) | 环境变量、Docker 配置和敏感配置说明 |
+| [docs/collector-engines.md](docs/collector-engines.md) | Playwright / OpenCLI 采集引擎、部署边界、端口与故障隔离 |
+| [docs/api.md](docs/api.md) | API 公共契约、统一返回、鉴权和前后端同步要求 |
+| [docs/branching.md](docs/branching.md) | 分支策略与 PR 规则 |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | 当前进度、已完成事项、遗留问题 |
+| [.cursor/rules/README.md](.cursor/rules/README.md) | Cursor rules 索引，可作为更细的工程规则参考 |
+
+## 技术栈
+
+- 后端：Go + Gin + GORM
+- 管理端：React + TypeScript + Ant Design Pro
+- 采集服务：Node.js + TypeScript + Playwright；淘宝/天猫可选宿主机 OpenCLI Bridge
+- 数据库：PostgreSQL 默认
+- 队列 / 缓存：Redis
+- 包管理：pnpm workspace
+- 部署：Docker Compose
+
+## 开发规则
+
+- 任何代码新增、修改、重构或 Bug 修复，均自动视为代码质量任务，必须读取并遵循 `.agents/skills/code-quality/SKILL.md`；用户无需显式要求代码质量检查。
+- 新模块、跨模块修改、shared/common、新平台 adapter、worker/queue/scheduler、migration/repository、公共 API/type、大型页面或 service 拆分、循环依赖、越层依赖和大型重构，必须自动读取并遵循 `.agents/skills/modular-architecture/SKILL.md`；用户无需显式要求模块化审查。
+- 普通小修改不强制大规模架构设计；新增架构违规不得扩大 baseline，历史问题按 Architecture Baseline/Ratchet 管理，未运行必要架构检查不得声明完成。
+- 不得以架构优化为名修改 API、payload、权限、状态机或业务语义；不得未经确认进行大规模文件迁移；未经用户要求不得 commit 或 push。
+- 所有代码修改自动执行轻量代码质量检查；认证、权限、库存、发布、第三方平台、数据库事务、Redis、队列、worker、并发、文件上传、Token、API envelope、shared type、migration、跨模块重构等高风险修改自动执行深度审查。
+- 新代码不得增加 baseline 外的新 TypeScript、Go、lint 或安全问题；Bug 修复优先补回归测试；未运行必要检查不得声明完成，无法运行必须说明阻塞原因。
+- 不得用 skip、ignore、宽泛 allowlist 或自动扩大 baseline 掩盖失败；未经用户要求不得 commit 或 push。
+- 任何新功能、Bug 修复、前端、后端、API、DTO、数据库、Redis、队列、路由、业务状态机、依赖、构建或 CI 变更，均自动视为全项目测试任务，必须读取并遵循 `.agents/skills/project-testing/SKILL.md`；无需用户显式指定。
+- 根据变更范围继续读取 `.agents/skills/frontend-design/SKILL.md`、`.agents/skills/frontend-unit-testing/SKILL.md`、`.agents/skills/admin-e2e-testing/SKILL.md`、`.agents/skills/backend-testing/SKILL.md`、`.agents/skills/api-contract-testing/SKILL.md` 与既有专项 Skill。
+- 任何涉及 Admin 前端页面、组件、样式、布局、响应式、交互、路由、状态展示、文案、可访问性或写操作的任务，均自动视为 Admin UI / 测试任务，必须读取并遵循 `.agents/skills/frontend-design/SKILL.md` 与 `.agents/skills/admin-e2e-testing/SKILL.md`；无需用户显式指定。
+- UI 开发规范和自动化测试规范同时适用；新增页面、修改页面、UI Bug 修复、视觉问题、响应式、组件交互、路由、状态展示、写操作和混合任务中的 UI 部分都适用。
+- Admin UI 任务未完成五档视口、状态、根节点横向溢出、必要写请求拦截和相关 E2E 测试时，不得声明可签收；测试阻塞时必须说明原因和首个根因。
+- Admin UI 任务默认不得修改 API URL、HTTP method、payload、权限、readonly、状态机或业务协议；不得在未拦截时执行真实写请求。混合任务必须拆分 UI 和业务部分，确需修改业务行为必须先说明影响并获得确认。
+- 未经用户明确要求，不得 commit 或 push。
+- 不直接在 `main` 上开发。
+- 日常功能从 `dev` 创建 `feat/*` 或 `fix/*` 分支。
+- 功能完成后 PR 到 `dev`，稳定后再从 `dev` PR 到 `main`。
+- 后端业务遵循 handler → service → provider / repository / queue 分层。
+- AI、存储、图片、平台、采集能力必须优先通过 Provider 抽象扩展。
+- 耗时任务必须使用任务状态和队列，不要在 HTTP 请求里长时间同步阻塞。
+- 敏感配置必须加密存储、脱敏展示，日志中不得输出完整密钥或 Token。
+
+## 文档同步要求
+
+代码变更必须同步相关文档：
+
+- 新增环境变量：更新 `.env.example`。
+- Docker 也需要该变量：更新 `.env.docker.example` 和 `docker-compose.full.yml`。
+- 修改启动命令：更新 `README.md`、`README.en.md`、`docs/development.md`。
+- 修改 Docker 部署：更新 `docs/docker-deployment.md`。
+- 新增 API / Provider / 队列 / 页面 / 数据表：先查 `docs/module-map.md`，再更新 `docs/api.md`、`docs/provider.md` 或对应模块文档。
+- 较大模块或阶段性变更：更新 `docs/PROGRESS.md`。
+- 分支、CI、PR 流程变更：更新 `docs/branching.md`、`CONTRIBUTING.md`、PR 模板。
+
+## 检查命令
+
+按改动范围执行：
+
+```bash
+pnpm check:dev
+pnpm check:ui-copy --strict
+pnpm test:frontend
+pnpm test:collector
+pnpm test:contracts
+pnpm build:admin
+pnpm build:collector
+```
+
+修改后端 Go 代码时，在 `backend` 目录执行：
+
+```bash
+go fmt ./...
+go test ./...
+# 安全测试库/Redis 可用时：pnpm test:backend:integration、pnpm test:db、pnpm test:redis
+```
+
+如果没有执行某项检查，需要在最终说明或 PR 中写明原因。
+
+## 禁止事项
+
+- 不提交 `.env`、真实密钥、Token、Cookie、平台凭证或生产数据。
+- 不把第三方平台逻辑写进核心业务层。
+- 不让前端直接调用第三方 AI、平台或存储 API。
+- 不默认引入 Kubernetes、Kafka、复杂微服务治理等重型架构。
+- 不在 MVP 阶段默认实现 AI 客服自动外发，必须人工确认。
+
+## 给 AI Agent 的工作方式
+
+1. 先读 `docs/ai-workflow.md`，把用户需求改写成短执行提示词，再形成任务目标、改动类型、关联入口、验证方式和风险的最小上下文包。
+2. 按上下文预算读取相关代码、配置和文档，不全量吞上下文，不凭空假设脚本、端口、路径、字段或变量。
+3. 明确影响范围，再编辑文件。
+4. 保持修改小而聚焦。
+5. 不回滚用户已有修改，除非用户明确要求。
+6. 用 `docs/module-map.md` 检查关联内容，避免漏改配置、前端、Docker、CI 或文档。
+7. 用 `docs/task-checklist.md` 做收尾自查。
+8. 把可复用经验沉淀到对应文档、pitfalls、`docs/PROGRESS.md` 或工具规则中，避免只留在单次对话里。
+9. 最终说明改了什么、验证了什么、还有什么风险。

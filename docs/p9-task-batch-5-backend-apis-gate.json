@@ -1,0 +1,204 @@
+{
+  "status": "passed",
+  "failed": [],
+  "failedCount": 0,
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "requiredFiles": [
+    "backend/internal/pkg/httpapi/strict_json.go",
+    "backend/internal/modules/inventorysyncp9/api_dto.go",
+    "backend/internal/modules/inventorysyncp9/api_errors.go",
+    "backend/internal/modules/inventorysyncp9/api_validation.go",
+    "backend/internal/modules/inventorysyncp9/api_repository.go",
+    "backend/internal/modules/inventorysyncp9/api_service.go",
+    "backend/internal/modules/inventorysyncp9/api_handler.go",
+    "backend/internal/modules/inventorysyncp9/api_router.go",
+    "backend/internal/modules/inventorysyncp9/api_handler_test.go",
+    "backend/internal/pkg/httpapi/strict_json_test.go",
+    "backend/internal/api/router.go",
+    "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+    "docs/p9-task-batch-5-backend-apis.json"
+  ],
+  "forbiddenPaths": [
+    "admin/src/pages/inventorysyncp9",
+    "admin/src/services/inventorysyncp9",
+    "backend/internal/api/inventorysyncp9",
+    "backend/internal/modules/inventorysyncp9/handler.go",
+    "backend/internal/modules/inventorysyncp9/router.go",
+    "backend/internal/modules/inventorysyncp9/worker.go",
+    "backend/internal/modules/inventorysyncp9/cron.go",
+    "backend/internal/providers/douyin/inventorysyncp9"
+  ],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenPathsAbsent",
+      "status": "passed"
+    },
+    {
+      "id": "batchId",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "currentHeadPresent",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "workingTreeDirtyRecorded",
+      "status": "passed"
+    },
+    {
+      "id": "changesCommitted",
+      "status": "passed"
+    },
+    {
+      "id": "P9-901 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-902 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-903 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-904 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-905 status",
+      "status": "passed"
+    },
+    {
+      "id": "apiImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "authenticatedRoutes",
+      "status": "passed"
+    },
+    {
+      "id": "singleRegisteredRouter",
+      "status": "passed"
+    },
+    {
+      "id": "existingConventionsReused",
+      "status": "passed"
+    },
+    {
+      "id": "thinHandlers",
+      "status": "passed"
+    },
+    {
+      "id": "strictJSONContract",
+      "status": "passed"
+    },
+    {
+      "id": "trustedActorTenantScope",
+      "status": "passed"
+    },
+    {
+      "id": "callerSuppliedContextRejected",
+      "status": "passed"
+    },
+    {
+      "id": "idempotencyAndRequestId",
+      "status": "passed"
+    },
+    {
+      "id": "keysetPagination",
+      "status": "passed"
+    },
+    {
+      "id": "safeDTO",
+      "status": "passed"
+    },
+    {
+      "id": "safeOutputRedaction",
+      "status": "passed"
+    },
+    {
+      "id": "apiCoverage",
+      "status": "passed"
+    },
+    {
+      "id": "allowedActions",
+      "status": "passed"
+    },
+    {
+      "id": "rbacReused",
+      "status": "passed"
+    },
+    {
+      "id": "writesUseDomainServices",
+      "status": "passed"
+    },
+    {
+      "id": "recalibrationHistory",
+      "status": "passed"
+    },
+    {
+      "id": "auditHistory",
+      "status": "passed"
+    },
+    {
+      "id": "verificationCoverage",
+      "status": "passed"
+    },
+    {
+      "id": "noRealProviderWorkerUI",
+      "status": "passed"
+    },
+    {
+      "id": "productionProviderGuard",
+      "status": "passed"
+    },
+    {
+      "id": "noRealCredentialsOrOAuth",
+      "status": "passed"
+    },
+    {
+      "id": "noMutationRoutes",
+      "status": "passed"
+    },
+    {
+      "id": "secretFreeEvidence",
+      "status": "passed"
+    },
+    {
+      "id": "testsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "sqliteIntegration",
+      "status": "passed"
+    },
+    {
+      "id": "postgresDeferred",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "packageScripts",
+      "status": "passed"
+    }
+  ]
+}

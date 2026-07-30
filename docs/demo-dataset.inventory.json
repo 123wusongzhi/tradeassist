@@ -1,0 +1,48 @@
+﻿{
+    "samples":  [
+                    {
+                        "productId":  "ffdee459-b0ee-45a5-bc3b-3ea2ca9c0325",
+                        "note":  "local stock 120",
+                        "tag":  "normal_stock_sku"
+                    },
+                    {
+                        "productId":  "9b59625e-900f-4833-bdeb-1d7ab684934a",
+                        "note":  "stock below warning line",
+                        "tag":  "low_stock_sku"
+                    },
+                    {
+                        "productId":  "2e018f84-8ef5-4554-8dd1-a90d2e030889",
+                        "note":  "stock is 0",
+                        "tag":  "zero_stock_sku"
+                    },
+                    {
+                        "orderId":  "40c6870c-ab1a-4aa4-8809-9cc81faca5f7",
+                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
+                        "note":  "manual deduct attempt on F2 normal order",
+                        "tag":  "deduct_success_order"
+                    },
+                    {
+                        "orderId":  "ec5600fa-f4d6-44a2-b6ad-38be336ae834",
+                        "deductResult":  "The remote server returned an error: (400) Bad Request.",
+                        "note":  "SKU not matched blocks deduct",
+                        "tag":  "deduct_blocked_unmatched_order"
+                    },
+                    {
+                        "probe":  "settings.platforms",
+                        "note":  "inventory_sync_enabled defaults off in platform config",
+                        "tag":  "inventory_sync_disabled_default"
+                    },
+                    {
+                        "alertCount":  5,
+                        "note":  "GET /inventory/alerts reachable",
+                        "tag":  "inventory_alerts_api"
+                    },
+                    {
+                        "note":  "GET /inventory center reachable",
+                        "tag":  "inventory_center_api",
+                        "centerCount":  5
+                    }
+                ],
+    "generatedAt":  "2026-07-13T09:55:40.6210383Z",
+    "note":  "F3 inventory demo samples; sync task failures may require publication SKU binding in dev DB"
+}

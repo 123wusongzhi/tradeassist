@@ -1,0 +1,12 @@
+{
+  "synthetic": true,
+  "description": "Synthetic inventory query result via product.detail (no dedicated stock API)",
+  "product_id": "synthetic-product-001",
+  "skus": [
+    {
+      "sku_id": "synthetic-sku-001",
+      "outer_sku_id": "MY-SKU-001",
+      "stock": 42
+    }
+  ]
+}

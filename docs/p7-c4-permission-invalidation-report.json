@@ -1,0 +1,33 @@
+{
+  "phase": "P7-C4",
+  "status": "passed",
+  "generatedAt": "2026-07-14T04:29:53Z",
+  "tenantId": 1,
+  "userId": "8d978cf9-5bed-4319-84a8-9aeb8eb52ec0",
+  "cacheKey": "tenantId + userId + tokenVersion + status + role + grants",
+  "ttl": "2m",
+  "cacheHitObserved": true,
+  "cacheMissObserved": true,
+  "invalidationObserved": true,
+  "roleChangeReflectsAfterInvalidate": true,
+  "failureSafe": true,
+  "implemented": [
+    "versioned local principal cache",
+    "disabled principal denies all permissions",
+    "explicit local user invalidation entrypoint"
+  ],
+  "gaps": [
+    "multi-instance Redis/event-bus invalidation is not implemented"
+  ],
+  "durationMs": 57,
+  "guards": [
+    "no production datasets",
+    "requires APP_ENV=performance",
+    "requires PERFORMANCE_TEST_MODE=true",
+    "requires ALLOW_PERFORMANCE_DATASET=true",
+    "requires EXTERNAL_PROVIDER_MODE=mock",
+    "requires PostgreSQL database name prefix trademind_p7c4_",
+    "requires DB host localhost or 127.0.0.1"
+  ],
+  "issues": null
+}

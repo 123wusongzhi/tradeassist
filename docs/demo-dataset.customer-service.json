@@ -1,0 +1,42 @@
+﻿{
+    "samples":  [
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "ec569dc5-e3b3-46b5-8e72-47ba81ecde27",
+                        "note":  "customer conversation",
+                        "tag":  "pending_reply_conversation"
+                    },
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "36ed063e-4c89-42a6-84a2-db1e9fdf375d",
+                        "note":  "customer conversation",
+                        "tag":  "order_linked_conversation"
+                    },
+                    {
+                        "status":  "open",
+                        "platform":  "manual",
+                        "conversationId":  "42b75126-30d2-412a-82f6-7a4e0f614ceb",
+                        "note":  "customer conversation",
+                        "tag":  "inventory_consult_conversation"
+                    },
+                    {
+                        "probe":  "settings/platforms",
+                        "note":  "shops without auth show pending authorization in UI",
+                        "tag":  "unauthorized_platform_hint"
+                    },
+                    {
+                        "detail":  "use mock shop + externalConversationId to exercise send",
+                        "note":  "send failures recorded when platform send fails",
+                        "tag":  "send_failure_requires_platform"
+                    },
+                    {
+                        "error":  "The remote server returned an error: (400) Bad Request.",
+                        "note":  "AI provider not configured or generate failed",
+                        "tag":  "ai_suggestion_skipped"
+                    }
+                ],
+    "generatedAt":  "2026-07-13T09:55:41.2117118Z",
+    "note":  "F4+F7 customer service demo samples"
+}

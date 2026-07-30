@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "discoveryStatus": "completed",
+  "status": "scope_discovery_resolved",
+  "p9DiscoveryBaseHead": "313726f310f4d76f5967ef169b9c197488f8bed4",
+  "currentHead": "af1a4da8ca22d0f5477828540d5caa5d22f72a75",
+  "currentBranch": "dev",
+  "headDetached": false,
+  "changesCommitted": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "p8DevelopmentClosurePassed": true,
+  "p8FinalGatePassed": true,
+  "ownerScopeDecisionCreated": true,
+  "ownerScopeDecisionApproved": true,
+  "ownerScopeDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
+  "canonicalScopeResolved": true,
+  "scopeConfidence": "high",
+  "ownerDecisionRequired": false,
+  "decisionReason": "single_authoritative_scope_across_repo",
+  "historicalP9ReferenceCount": 10,
+  "activeP9ReferenceCount": 5,
+  "completedHistoricalP9ReferenceCount": 3,
+  "supersededP9ReferenceCount": 0,
+  "conflictingP9ReferenceCount": 0,
+  "historicalPhase9Reused": false,
+  "planningFoundationCompleted": true,
+  "fullImplementationPlanCompleted": true,
+  "implementationStarted": true,
+  "productImplementationStarted": true,
+  "p9ProductImplementationFileCount": 1,
+  "p10BoundaryPreserved": true,
+  "productionReady": false,
+  "realCredentialsEnabled": false,
+  "realPlatformNetworkEnabled": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "automaticPublishEnabled": false,
+  "automaticListingEnabled": false,
+  "references": [
+    {
+      "sourcePath": "docs/provider.md",
+      "sourceType": "doc",
+      "authorityLevel": "authoritative",
+      "classification": "current"
+    },
+    {
+      "sourcePath": "docs/api.md",
+      "sourceType": "doc",
+      "authorityLevel": "authoritative",
+      "classification": "current"
+    },
+    {
+      "sourcePath": "docs/PROGRESS.md",
+      "sourceType": "doc",
+      "authorityLevel": "authoritative",
+      "classification": "current"
+    },
+    {
+      "sourcePath": "docs/DOUYIN_E2E_CHECKLIST.md",
+      "sourceType": "doc",
+      "authorityLevel": "validation",
+      "classification": "current"
+    },
+    {
+      "sourcePath": "DEMO_CHECKLIST.md",
+      "sourceType": "doc",
+      "authorityLevel": "validation",
+      "classification": "current"
+    },
+    {
+      "sourcePath": "backend/internal/providers/platform/douyinshop/product.go",
+      "sourceType": "code_comment",
+      "authorityLevel": "implementation_evidence",
+      "classification": "completed"
+    },
+    {
+      "sourcePath": "backend/internal/providers/platform/douyinshop/inventory.go",
+      "sourceType": "code_comment",
+      "authorityLevel": "implementation_evidence",
+      "classification": "completed"
+    },
+    {
+      "sourcePath": "backend/internal/modules/productpublish/douyin_sku_manual_bind.go",
+      "sourceType": "code_path",
+      "authorityLevel": "implementation_evidence",
+      "classification": "completed"
+    },
+    {
+      "sourcePath": "docs/DOUYIN_E2E_REPORT_TEMPLATE.md",
+      "sourceType": "doc",
+      "authorityLevel": "supporting",
+      "classification": "historical"
+    },
+    {
+      "sourcePath": "docs/github-repo-presentation.md",
+      "sourceType": "doc",
+      "authorityLevel": "supporting",
+      "classification": "historical"
+    }
+  ]
+}

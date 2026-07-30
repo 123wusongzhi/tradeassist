@@ -1,0 +1,25 @@
+[Unit]
+Description=TradeMind API Server
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=trademind
+Group=trademind
+WorkingDirectory=/opt/trademind/current/backend
+EnvironmentFile=-/etc/trademind/trademind.env
+# P6 release note: /opt/trademind/current is a controlled release link. Rollback
+# switches it back to previous application artifacts; database restore is manual.
+ExecStartPre=/opt/trademind/current/deploy/scripts/check-readiness.sh --pre-start
+ExecStart=/opt/trademind/current/backend/bin/server
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

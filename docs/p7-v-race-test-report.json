@@ -1,0 +1,176 @@
+{
+  "phase": "P7-V",
+  "status": "failed",
+  "runner": "wsl",
+  "os": "win32",
+  "packages": [
+    "./internal/pkg/ratelimit/...",
+    "./internal/pkg/cache/...",
+    "./internal/pkg/httpclient/...",
+    "./internal/modules/taskcenter/...",
+    "./internal/modules/webhook/...",
+    "./internal/modules/inventory/...",
+    "./internal/modules/exportmod/...",
+    "./internal/modules/auth/...",
+    "./internal/modules/observabilitymod/..."
+  ],
+  "packageMapping": [
+    {
+      "requested": "./internal/pkg/ratelimit/...",
+      "exists": true,
+      "actual": "./internal/pkg/ratelimit/..."
+    },
+    {
+      "requested": "./internal/pkg/cache/...",
+      "exists": false,
+      "actual": ""
+    },
+    {
+      "requested": "./internal/pkg/httpclient/...",
+      "exists": true,
+      "actual": "./internal/pkg/httpclient/..."
+    },
+    {
+      "requested": "./internal/modules/taskcenter/...",
+      "exists": true,
+      "actual": "./internal/modules/taskcenter/..."
+    },
+    {
+      "requested": "./internal/modules/webhook/...",
+      "exists": true,
+      "actual": "./internal/modules/webhook/..."
+    },
+    {
+      "requested": "./internal/modules/inventory/...",
+      "exists": true,
+      "actual": "./internal/modules/inventory/..."
+    },
+    {
+      "requested": "./internal/modules/exportmod/...",
+      "exists": true,
+      "actual": "./internal/modules/exportmod/..."
+    },
+    {
+      "requested": "./internal/modules/auth/...",
+      "exists": true,
+      "actual": "./internal/modules/auth/..."
+    },
+    {
+      "requested": "./internal/modules/observabilitymod/...",
+      "exists": true,
+      "actual": "./internal/modules/observabilitymod/..."
+    }
+  ],
+  "commands": [
+    {
+      "id": "environment",
+      "command": "wsl.exe bash -lc \"uname -a && go version && gcc --version | head -1 && go env CGO_ENABLED\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "package_missing:./internal/pkg/cache/...",
+      "command": "package exists check ./internal/pkg/cache/...",
+      "exitCode": 1,
+      "stdout": "",
+      "stderr": "package directory does not exist; mapped as missing P7-V race coverage"
+    },
+    {
+      "id": "go mod verify",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && go mod verify\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "go test ./...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && go test ./...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "go build ./cmd/server/... ./cmd/p7load",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && go build ./cmd/server/... ./cmd/p7load\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/ratelimit/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/ratelimit/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/httpclient/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/httpclient/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/taskcenter/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/taskcenter/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/webhook/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/webhook/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/inventory/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/inventory/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/exportmod/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/exportmod/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/auth/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/auth/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/observabilitymod/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/modules/observabilitymod/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "id": "CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/ratelimit/... ./internal/pkg/httpclient/... ./internal/modules/taskcenter/... ./internal/modules/webhook/... ./internal/modules/inventory/... ./internal/modules/exportmod/... ./internal/modules/auth/... ./internal/modules/observabilitymod/...",
+      "command": "wsl.exe bash -lc \"cd \\\"/mnt/d/project/trademind-ai/backend\\\" && CGO_ENABLED=1 go test -race -timeout=20m ./internal/pkg/ratelimit/... ./internal/pkg/httpclient/... ./internal/modules/taskcenter/... ./internal/modules/webhook/... ./internal/modules/inventory/... ./internal/modules/exportmod/... ./internal/modules/auth/... ./internal/modules/observabilitymod/...\"",
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "environment": {
+    "raw": "Linux SK-20250814VKAY 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux\ngo version go1.25.12 linux/amd64\ngcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0\n1"
+  },
+  "dataRaces": 0,
+  "deadlocks": 0,
+  "goroutineLeaks": 0,
+  "issues": [
+    "package_missing: ./internal/pkg/cache/..."
+  ],
+  "productionReady": false,
+  "realProductionPerformanceVerification": "deferred",
+  "finishedAt": "2026-07-13T12:07:10.994Z"
+}

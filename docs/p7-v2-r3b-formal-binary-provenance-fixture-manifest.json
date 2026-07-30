@@ -1,0 +1,129 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-BINARY-PROVENANCE-V2",
+  "status": "passed",
+  "formalBinaryProvenanceVersion": 2,
+  "baselineRuntimeCommit": "0d9d5eee8961f4e11a01753eb65a4bc92e636ab4",
+  "currentRuntimeCommit": "a4bcc5dcd98ea3a7044ae27713e9728c699732ea",
+  "baselineBinarySha256": "2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba",
+  "currentBinarySha256": "2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d",
+  "baselineBinaryPath": "artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/server",
+  "currentBinaryPath": "artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/server",
+  "baselineBinaryReceiptPath": "artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/provenance.json",
+  "currentBinaryReceiptPath": "artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/provenance.json",
+  "baselineBinaryProvenanceHash": "ae3c05f59f0c6cf888fe0db6e51246361f1c63f97f032f96838351e211f932ff",
+  "currentBinaryProvenanceHash": "e3dfe0a1b979293bfb64d5aa60ca8a02968cca56e562beb58ee9776d662f2fc1",
+  "binaryProvenance": {
+    "baseline": {
+      "formalBinaryProvenanceVersion": 2,
+      "role": "baseline",
+      "runtimeCommit": "0d9d5eee8961f4e11a01753eb65a4bc92e636ab4",
+      "sourceTreeHash": "dc959e7ada6c2ec2bcc00481f8a46de7b2aca9d4a73c4a976b6072418dffd94a",
+      "sourceWorkingTreeClean": true,
+      "buildCommand": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/.build/baseline-1316-1784344598671/server",
+        "./cmd/server"
+      ],
+      "buildWorkingDirectory": "/tmp/p7-bin-baseline-4TA8jI/backend",
+      "goVersion": "go version go1.25.12 linux/amd64",
+      "goEnv": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "1",
+        "CC": "gcc"
+      },
+      "buildTags": [],
+      "ldflags": [],
+      "binaryPath": "artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/server",
+      "binarySha256": "2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba",
+      "binarySizeBytes": 2250055,
+      "goVersionM": [
+        "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/server: go1.25.12",
+        "\tpath\texample.invalid/baseline/cmd/server",
+        "\tmod\texample.invalid/baseline\t(devel)\t",
+        "\tbuild\t-buildmode=exe",
+        "\tbuild\t-compiler=gc",
+        "\tbuild\t-trimpath=true",
+        "\tbuild\tDefaultGODEBUG=asynctimerchan=1,containermaxprocs=0,decoratemappings=0,gotestjsonbuildtext=1,gotypesalias=0,httpcookiemaxnum=0,httpservecontentkeepheaders=1,multipathtcp=0,randseednop=0,rsa1024min=0,tls3des=1,tlsmlkem=0,tlssha1=1,updatemaxprocs=0,urlmaxqueryparams=0,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509sha256skid=0,x509usepolicies=0",
+        "\tbuild\tCGO_ENABLED=1",
+        "\tbuild\tGOARCH=amd64",
+        "\tbuild\tGOOS=linux",
+        "\tbuild\tGOAMD64=v1",
+        "\tbuild\tvcs=git",
+        "\tbuild\tvcs.revision=0d9d5eee8961f4e11a01753eb65a4bc92e636ab4",
+        "\tbuild\tvcs.time=2026-07-18T03:16:38Z",
+        "\tbuild\tvcs.modified=false"
+      ],
+      "fileOutput": "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/server: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, BuildID[sha1]=6ac83e798f9c97c07f577594db5ae3f54093b0be, with debug_info, not stripped",
+      "dynamicLibraryDependencies": [
+        "\tnot a dynamic executable"
+      ],
+      "migrationSetHash": "85730cebbfc6ac470be6d84ecfc359fe2625197eb3c9e57b9df9f7d46e47ef6c",
+      "runtimeConfigSchemaHash": "6959ea5fcb44c3020e0fd3a604725489ddf81139d05968aa13f2333c2f5e3989",
+      "builtAt": "2026-07-18T00:00:00.000Z",
+      "verifiedAt": "2026-07-18T03:16:39.159Z",
+      "immutable": true,
+      "receiptPath": "artifacts/p7-v2/formal-binaries/baseline/2b5b37e504e7a47ebabce49d23a13fac580f7bd64ec72cbb6188411cffb568ba/provenance.json"
+    },
+    "current": {
+      "formalBinaryProvenanceVersion": 2,
+      "role": "current",
+      "runtimeCommit": "a4bcc5dcd98ea3a7044ae27713e9728c699732ea",
+      "sourceTreeHash": "f28b046214c9c8217696b4532950242be452fc5602e2ca4f3642e4363492ab37",
+      "sourceWorkingTreeClean": true,
+      "buildCommand": [
+        "go",
+        "build",
+        "-trimpath",
+        "-o",
+        "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/.build/current-1316-1784344599254/server",
+        "./cmd/server"
+      ],
+      "buildWorkingDirectory": "/tmp/p7-bin-current-jU6xeJ/backend",
+      "goVersion": "go version go1.25.12 linux/amd64",
+      "goEnv": {
+        "GOOS": "linux",
+        "GOARCH": "amd64",
+        "CGO_ENABLED": "1",
+        "CC": "gcc"
+      },
+      "buildTags": [],
+      "ldflags": [],
+      "binaryPath": "artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/server",
+      "binarySha256": "2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d",
+      "binarySizeBytes": 2250055,
+      "goVersionM": [
+        "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/server: go1.25.12",
+        "\tpath\texample.invalid/current/cmd/server",
+        "\tmod\texample.invalid/current\t(devel)\t",
+        "\tbuild\t-buildmode=exe",
+        "\tbuild\t-compiler=gc",
+        "\tbuild\t-trimpath=true",
+        "\tbuild\tDefaultGODEBUG=asynctimerchan=1,containermaxprocs=0,decoratemappings=0,gotestjsonbuildtext=1,gotypesalias=0,httpcookiemaxnum=0,httpservecontentkeepheaders=1,multipathtcp=0,randseednop=0,rsa1024min=0,tls3des=1,tlsmlkem=0,tlssha1=1,updatemaxprocs=0,urlmaxqueryparams=0,winreadlinkvolume=0,winsymlink=0,x509keypairleaf=0,x509negativeserial=1,x509rsacrt=0,x509sha256skid=0,x509usepolicies=0",
+        "\tbuild\tCGO_ENABLED=1",
+        "\tbuild\tGOARCH=amd64",
+        "\tbuild\tGOOS=linux",
+        "\tbuild\tGOAMD64=v1",
+        "\tbuild\tvcs=git",
+        "\tbuild\tvcs.revision=a4bcc5dcd98ea3a7044ae27713e9728c699732ea",
+        "\tbuild\tvcs.time=2026-07-18T03:16:38Z",
+        "\tbuild\tvcs.modified=false"
+      ],
+      "fileOutput": "/home/root/worktrees/trademind-ai-p7-binary-provenance-20260718024603/artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/server: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), statically linked, BuildID[sha1]=2dc80ab44bcf105933cdc15775d80ba93ad67e15, with debug_info, not stripped",
+      "dynamicLibraryDependencies": [
+        "\tnot a dynamic executable"
+      ],
+      "migrationSetHash": "85730cebbfc6ac470be6d84ecfc359fe2625197eb3c9e57b9df9f7d46e47ef6c",
+      "runtimeConfigSchemaHash": "6959ea5fcb44c3020e0fd3a604725489ddf81139d05968aa13f2333c2f5e3989",
+      "builtAt": "2026-07-18T00:00:01.000Z",
+      "verifiedAt": "2026-07-18T03:16:39.436Z",
+      "immutable": true,
+      "receiptPath": "artifacts/p7-v2/formal-binaries/current/2284eacfb9432ec737b2084e31452f54e7a6f24fd2c9f8219982e6be2249583d/provenance.json"
+    }
+  },
+  "issues": [],
+  "generatedAt": "2026-07-18T03:16:39.885Z"
+}

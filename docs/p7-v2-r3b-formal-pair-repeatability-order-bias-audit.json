@@ -1,0 +1,132 @@
+{
+  "phase": "P7-V2-R3B-FORMAL-PAIR-REPEATABILITY-ORDER-BIAS-AND-WSL-PROBE-V2-AUDIT",
+  "status": "incomplete",
+  "diagnosticOnly": true,
+  "formal": false,
+  "validForClosure": false,
+  "validForRegression": false,
+  "formalRerunStarted": false,
+  "failedFormalBaselineRunId": "p7v2-baseline-r3b-recovery6-20260718001301",
+  "failedFormalCurrentRunId": "p7v2-current-r3b-recovery6-20260718001301",
+  "failedFormalRuntimeFreezeId": "2af8b39b123a132b56b983ab4de0d4181771b794d817ff1f406b512fd927217d",
+  "failedFormalPair": {
+    "status": "failed_regression",
+    "active": false,
+    "validForAudit": true,
+    "validForClosure": false,
+    "validForSoak": false,
+    "runIdsConsumed": true,
+    "failedMetricCount": 3,
+    "failedMetrics": [
+      {
+        "scenario": "Webhook Ingestion",
+        "aggregation": "p95",
+        "baselineMs": 16.44,
+        "currentMs": 26.94,
+        "relativeDeltaPct": 63.83,
+        "finalVerdict": "failed_material_regression"
+      },
+      {
+        "scenario": "Webhook Ingestion",
+        "aggregation": "p99",
+        "baselineMs": 27.43,
+        "currentMs": 71.29,
+        "relativeDeltaPct": 159.87,
+        "finalVerdict": "failed_material_regression"
+      },
+      {
+        "scenario": "Auth Invalid Login",
+        "aggregation": "p99",
+        "baselineMs": 31.99,
+        "currentMs": 39.86,
+        "relativeDeltaPct": 24.6,
+        "finalVerdict": "failed_material_regression"
+      }
+    ]
+  },
+  "runtimeFreeze": {
+    "runtimeFreezeId": "2af8b39b123a132b56b983ab4de0d4181771b794d817ff1f406b512fd927217d",
+    "validForHistoricalAudit": true,
+    "validForFutureFormalExecution": false
+  },
+  "processIdentity": {
+    "processIdentityProbeVersion": 2,
+    "probePlatform": "linux",
+    "probeMethod": "linux_procfs",
+    "externalShimUsed": false,
+    "semanticFixturesPassed": true,
+    "linuxProcfsFixturePassed": true,
+    "windowsWslFixturePassed": true,
+    "pidReuseFixturePassed": true,
+    "externalShimRejected": true,
+    "semanticFailureExitCodePassed": true
+  },
+  "binaryProvenancePassed": false,
+  "binaryProvenanceStatus": "not_audited_in_this_turn",
+  "baselineBinarySha256": "",
+  "currentBinarySha256": "",
+  "requestSequenceComparabilityProven": false,
+  "branchMixMatch": null,
+  "inputSequenceHashMatch": false,
+  "branchMixFingerprintMatch": false,
+  "orderDependentHostStateDetected": null,
+  "repeatabilityMatrix": {
+    "order": "B-C-C-B",
+    "runCount": 0,
+    "runs": [],
+    "B1RunId": "",
+    "C1RunId": "",
+    "C2RunId": "",
+    "B2RunId": "",
+    "allRunsIndependent": false,
+    "allDatasetRows": false
+  },
+  "variance": {
+    "baselineSelfVarianceCalculated": false,
+    "currentSelfVarianceCalculated": false,
+    "crossVersionVarianceCalculated": false,
+    "baselineSelfVariance": null,
+    "currentSelfVariance": null,
+    "crossVersionVariance": null
+  },
+  "rootCauseClassified": false,
+  "primaryRootCause": "not_classified_bccb_repeatability_matrix_not_executed",
+  "secondaryRootCauses": [
+    "formal_request_sequence_comparability_not_proven_from_frozen_artifacts",
+    "binary_build_provenance_not_yet_audited"
+  ],
+  "confidence": "low",
+  "repairPath": "run_bounded_non_formal_bccb_repeatability_diagnostics_after_probe_checkpoint",
+  "minimumRepairAction": "Complete read-only binary/input binding audit, then run exactly four diagnostic runs in B-C-C-B order with identical medium dataset, load profile, seeds, request sequence, and branch mix.",
+  "guardrails": {
+    "thresholdChanged": false,
+    "sloChanged": false,
+    "vusChanged": false,
+    "datasetChanged": false,
+    "stagesChanged": false,
+    "durationChanged": false,
+    "materialityChanged": false,
+    "formalPairRerunStarted": false,
+    "businessCodeChanged": false
+  },
+  "downstreamStepsNotExecuted": [
+    "full Formal Pair rerun",
+    "Soak",
+    "Demo Run 1",
+    "Demo Run 2",
+    "Stability",
+    "Final Race",
+    "Final Cleanup",
+    "P1-P7 Final Gates",
+    "P7-V2 Final Gates",
+    "P7 Capacity Final Gate"
+  ],
+  "p7Status": {
+    "phaseP7V2R3BProbeV2": "completed_at_tooling_fixture_level",
+    "phaseP7V2R3BRepeatabilityAudit": "incomplete",
+    "phaseP7V2": "incomplete",
+    "phaseP7DevelopmentClosure": "incomplete",
+    "tagDeferred": true,
+    "productionReady": false
+  }
+}

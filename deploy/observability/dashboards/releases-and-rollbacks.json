@@ -1,0 +1,11 @@
+{
+  "title": "TradeMind Releases and Rollbacks",
+  "description": "P6 controlled release dashboard definition without credentials.",
+  "panels": [
+    { "title": "Release success rate", "metric": "release_runs_total", "labels": ["strategy", "result", "environment_class"] },
+    { "title": "Release step duration", "metric": "release_step_duration_seconds", "labels": ["step", "strategy", "result", "environment_class"] },
+    { "title": "Rollback count", "metric": "release_rollbacks_total", "labels": ["strategy", "result", "environment_class"] },
+    { "title": "Current version", "metric": "release_current_version_info", "labels": ["strategy", "environment_class"] },
+    { "title": "Health check failures", "metric": "release_health_check_failures_total", "labels": ["strategy", "result", "environment_class"] }
+  ]
+}

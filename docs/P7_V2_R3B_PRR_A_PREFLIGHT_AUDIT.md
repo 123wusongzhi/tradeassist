@@ -1,0 +1,44 @@
+# P7-V2-R3B PRR-A Preflight Audit
+
+```json
+{
+  "phase": "P7-V2-R3B-PRR-A",
+  "status": "passed",
+  "artifactIntegrityPassed": true,
+  "sourceArtifactsModified": false,
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+    "expectedSha256": "a04a39d4aa5e1cf8a951e9195af894e2a03df185c360e7652e4eacd7770aeaa9",
+    "actualSha256": "a04a39d4aa5e1cf8a951e9195af894e2a03df185c360e7652e4eacd7770aeaa9",
+    "sizeBytes": 10156,
+    "requests": 29439,
+    "scenarioMetricsPresent": true
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery3-20260715-131400",
+    "expectedSha256": "19aaa21b4094ee14147621b47b7370003b9a4dbaec12b24f64a32a66162af4c5",
+    "actualSha256": "19aaa21b4094ee14147621b47b7370003b9a4dbaec12b24f64a32a66162af4c5",
+    "sizeBytes": 10164,
+    "requests": 29313,
+    "scenarioMetricsPresent": true,
+    "independentRun": true
+  },
+  "regressionArchive": {
+    "archiveJson": "docs\\regressions\\p7-v2-r3b-recovery3-regression-v2-failed.json",
+    "archiveMd": "docs\\regressions\\P7_V2_R3B_RECOVERY3_REGRESSION_V2_FAILED.md",
+    "originalReportSha256": "6ceeae419a52700f7c0c55f6242c8cb9fa8ec2ca1f09498708371388105bc7e7",
+    "baselineRunId": "p7v2-baseline-r3b-recovery3-20260715-131400",
+    "currentRunId": "p7v2-current-r3b-recovery3-20260715-131400",
+    "evaluationVersion": 2,
+    "policyVersion": 2,
+    "failedMetricCount": 3,
+    "p95FailedMetricCount": 3,
+    "p99ZeroViolationCount": 9
+  },
+  "comparabilityV2": {
+    "status": "passed",
+    "mismatchCount": 0,
+    "notComparableCount": 0
+  }
+}
+```

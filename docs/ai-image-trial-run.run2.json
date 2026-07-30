@@ -1,0 +1,41 @@
+﻿{
+    "evidence":  {
+                     "providerState":  "dashscope_image",
+                     "status":  "running",
+                     "batchId":  "32eeb46c-897c-4f12-85e4-c86738d0f5ea",
+                     "lastErrorCode":  "provider_timeout"
+                 },
+    "finalStatus":  "passed_with_warning",
+    "providerStatus":  {
+                           "configured":  true,
+                           "provider":  "dashscope_image",
+                           "hasApiKey":  false,
+                           "overview":  {
+                                            "providerCurrent":  "dashscope_image",
+                                            "removebg":  false,
+                                            "openaiImage":  false,
+                                            "comfyui":  false
+                                        }
+                       },
+    "conclusion":  "passed_with_warning",
+    "error":  "Batch 32eeb46c-897c-4f12-85e4-c86738d0f5ea did not finish within 600s",
+    "batches":  [
+
+                ],
+    "generatedAt":  "2026-07-13T05:05:20.4946013Z",
+    "reasonCode":  "provider_timeout",
+    "lastCompletedStage":  "worker_claimed",
+    "checkResults":  [
+                         {
+                             "summary":  {
+                                             "productCount":  5,
+                                             "imageCount":  51,
+                                             "itemCount":  51,
+                                             "readyCount":  0,
+                                             "warningCount":  51,
+                                             "blockedCount":  0
+                                         },
+                             "label":  "quality_check"
+                         }
+                     ]
+}

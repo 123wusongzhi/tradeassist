@@ -1,0 +1,116 @@
+{
+  "phase": "P7-V2-R3B-PREFREEZE-WORKTREE-CLASSIFICATION",
+  "status": "passed",
+  "createdAt": "2026-07-16T13:03:32.7193409+08:00",
+  "headCommit": "dc9df79b61d2effd7b5b3938f24249be6adb05ba",
+  "branch": "dev",
+  "headSummary": "dc9df79 perf(webhook): avoid redundant event reload on insert",
+  "initialWorktreeSnapshot": {
+    "gitStatusPorcelain": "",
+    "gitDiffNameStatus": "",
+    "gitDiffStat": "",
+    "gitDiffCachedNameStatus": "",
+    "gitLsFilesOthersExcludeStandard": ""
+  },
+  "fileCount": 6,
+  "classifications": {
+    "immutableRuntimeInput": 0,
+    "immutableTestOrGate": 2,
+    "formalEvidenceOutput": 4,
+    "historicalEvidence": 0,
+    "mutableExecutionState": 0,
+    "generatedArtifact": 0,
+    "unrelatedChange": 0
+  },
+  "unclassifiedFileCount": 0,
+  "files": [
+    {
+      "path": "scripts/p7-v2-r3b-prefreeze-worktree-final-gate.mjs",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "immutable_test_or_gate",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "computed_by_git_after_report_creation",
+      "reason": "Stage A worktree classification gate for the P7-V2-R3B pre-freeze checkpoint."
+    },
+    {
+      "path": "scripts/p7-v2-r3b-prefreeze-checkpoint-final-gate.mjs",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "immutable_test_or_gate",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "computed_by_git_after_report_creation",
+      "reason": "Pre-freeze checkpoint gate that verifies classification, repair evidence, clean worktree, and no formal execution."
+    },
+    {
+      "path": "docs/P7_V2_R3B_PREFREEZE_WORKTREE_CLASSIFICATION.md",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "formal_evidence_output",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "self_referential_generated_report",
+      "reason": "Human-readable Stage A classification evidence generated from the clean worktree snapshot."
+    },
+    {
+      "path": "docs/p7-v2-r3b-prefreeze-worktree-classification.json",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "formal_evidence_output",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "self_referential_generated_report",
+      "reason": "Machine-readable Stage A classification evidence."
+    },
+    {
+      "path": "docs/P7_V2_R3B_PREFREEZE_CHECKPOINT_FINAL_GATE.md",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "formal_evidence_output",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "self_referential_generated_report",
+      "reason": "Human-readable checkpoint gate evidence for the already-created webhook repair checkpoint."
+    },
+    {
+      "path": "docs/p7-v2-r3b-prefreeze-checkpoint-final-gate.json",
+      "gitStatus": "??",
+      "changeType": "untracked",
+      "classification": "formal_evidence_output",
+      "includedInCheckpoint": true,
+      "includedInRuntimeFreezeScope": false,
+      "contentSha256": "self_referential_generated_report",
+      "reason": "Machine-readable checkpoint gate evidence."
+    }
+  ],
+  "eligibilityInputs": {
+    "allFilesClassified": true,
+    "unrelatedChangeCount": 0,
+    "unclassifiedFileCount": 0,
+    "historicalEvidencePreserved": true,
+    "blockedRunsStillBlocked": true,
+    "mutableExecutionStateAccurate": true
+  },
+  "guardrails": {
+    "noResetPerformed": true,
+    "noCleanPerformed": true,
+    "noStashPerformed": true,
+    "noUnknownFileDeleted": true,
+    "gitPushPerformed": false,
+    "tagCreated": false,
+    "productionResourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinCalls": 0
+  },
+  "checkpointEligible": true,
+  "checkpoint": {
+    "existingCheckpointCommit": "dc9df79b61d2effd7b5b3938f24249be6adb05ba",
+    "existingCheckpointCommitSummary": "perf(webhook): avoid redundant event reload on insert",
+    "checkpointCommit": "dc9df79b61d2effd7b5b3938f24249be6adb05ba",
+    "checkpointCommitCreatedThisRun": false,
+    "reason": "The worktree was already clean at Stage A start and HEAD already contained the webhook p99 repair and verification commit."
+  },
+  "issues": []
+}

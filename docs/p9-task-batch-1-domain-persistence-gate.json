@@ -1,0 +1,233 @@
+{
+  "phase": "P9",
+  "gate": "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE",
+  "status": "passed",
+  "checkedAt": "2026-07-30T07:28:00.742Z",
+  "batchId": "P9-TASK-BATCH-1",
+  "batchName": "Inventory Sync, SKU Binding Calibration and Manual Fallback",
+  "baseCheckpoint": "1ac652ac4797eee636bf615f1e9ed272f2b82f84",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "tasks": [
+    "P9-501",
+    "P9-502",
+    "P9-503",
+    "P9-504",
+    "P9-505",
+    "P9-506"
+  ],
+  "models": [
+    "InventorySyncRun",
+    "InventorySnapshotItem",
+    "SKUBinding",
+    "SKUBindingCalibration",
+    "ManualBindingRequest"
+  ],
+  "tables": [
+    "p9_inventory_sync_runs",
+    "p9_inventory_snapshot_items",
+    "p9_sku_bindings",
+    "p9_sku_binding_calibrations",
+    "p9_manual_binding_requests"
+  ],
+  "tenantIsolationImplemented": true,
+  "idempotencyImplemented": true,
+  "optimisticConcurrencyImplemented": true,
+  "immutableHistoryImplemented": true,
+  "batchAtomicityImplemented": true,
+  "repositoryTestsPassed": true,
+  "migrationTestsPassed": true,
+  "sqliteIntegrationTestsPassed": true,
+  "scopeProtectionTestsPassed": true,
+  "currentBatchRaceStatus": "passed",
+  "postgresIntegrationStatus": "not_executed_test_database_url_not_set",
+  "fullVerificationStatus": "completed_with_known_planning_gate_boundary",
+  "calibrationServiceImplemented": false,
+  "syncOrchestratorImplemented": false,
+  "syncWorkerImplemented": false,
+  "apiImplemented": false,
+  "adminUiImplemented": false,
+  "realDouyinProviderImplemented": false,
+  "oauthImplemented": false,
+  "realCredentialsEnabled": false,
+  "realPlatformNetworkEnabled": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "productionReady": false,
+  "p10BoundaryPreserved": true,
+  "failedCount": 0,
+  "failed": [],
+  "missingFiles": [],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "batchId",
+      "status": "passed"
+    },
+    {
+      "id": "baseCheckpoint",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "currentHeadPresent",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "workingTreeDirtyRecorded",
+      "status": "passed"
+    },
+    {
+      "id": "changesCommitted",
+      "status": "passed"
+    },
+    {
+      "id": "checkpointCreated",
+      "status": "passed"
+    },
+    {
+      "id": "P9-501 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-502 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-503 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-504 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-505 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-506 status",
+      "status": "passed"
+    },
+    {
+      "id": "allModelsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "allTablesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "autoMigrateRegistered",
+      "status": "passed"
+    },
+    {
+      "id": "repositoryPresent",
+      "status": "passed"
+    },
+    {
+      "id": "repositoryMethods",
+      "status": "passed"
+    },
+    {
+      "id": "stableErrorsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "tenantIsolationImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "idempotencyImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "optimisticConcurrencyImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "immutableHistoryImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "batchAtomicityImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "constraintsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "safeJSONValidationPresent",
+      "status": "passed"
+    },
+    {
+      "id": "rawProviderResponseNotStored",
+      "status": "passed"
+    },
+    {
+      "id": "shopAuthTokenCredentialFieldsNotRead",
+      "status": "passed"
+    },
+    {
+      "id": "sqlLeakageDisabled",
+      "status": "passed"
+    },
+    {
+      "id": "repositoryTestsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "migrationTestsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "scopeProtectionTestsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenPathsAbsent",
+      "status": "passed"
+    },
+    {
+      "id": "modelCredentialFieldsAbsent",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenImplementationFlags",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "humanConfirmationRequired",
+      "status": "passed"
+    },
+    {
+      "id": "tagDeferred",
+      "status": "passed"
+    },
+    {
+      "id": "releaseDeferred",
+      "status": "passed"
+    },
+    {
+      "id": "nextBatchNotStarted",
+      "status": "passed"
+    }
+  ]
+}

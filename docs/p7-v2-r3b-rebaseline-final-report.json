@@ -1,0 +1,37 @@
+{
+  "phase": "P7-V2-R3B-REBASELINE",
+  "status": "incomplete",
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery-20260714-1719",
+    "status": "passed",
+    "rawArtifactFrozen": true,
+    "sha256": "c373a484b15737b8dbc479340ea35488f69de8968895586ec1378a26e0a1e709"
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery-20260714-1750",
+    "status": "blocked_before_k6",
+    "rawArtifactFrozen": false,
+    "independentRun": false,
+    "reason": "apiProcessChanged=false"
+  },
+  "regression": {
+    "evaluationVersion": 2,
+    "executed": false,
+    "reason": "Current raw Artifact was not created and frozen"
+  },
+  "execution": {
+    "soakExecuted": false,
+    "demoExecuted": false,
+    "stabilityExecuted": false,
+    "raceExecuted": false,
+    "finalGateExecuted": false
+  },
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "nextAction": "Repair the isolated restart identity probe, then begin a new Baseline/Current pair; do not reuse the frozen Baseline for a Current run."
+}

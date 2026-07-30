@@ -1,0 +1,28 @@
+{
+  "phase": "P4.1",
+  "status": "passed_with_real_environment_verification_deferred",
+  "tenantIsolation": {
+    "repositoryCoverage": "passed",
+    "workerCoverage": "passed",
+    "idorTests": "passed",
+    "productionFallback": "disabled"
+  },
+  "keyRotation": {
+    "reencryptWorker": "passed",
+    "verify": "passed"
+  },
+  "fileSecurity": {
+    "scanner": "passed",
+    "stateMachine": "passed",
+    "privateAccess": "passed"
+  },
+  "ui": {
+    "securityCenter": "passed",
+    "sessions": "passed"
+  },
+  "race": {
+    "status": "deferred_on_windows"
+  },
+  "realEnvironmentVerification": "deferred",
+  "issues": []
+}

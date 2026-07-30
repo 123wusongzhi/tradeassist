@@ -1,0 +1,244 @@
+import { Link } from '@umijs/renderer-react';
+import { formatDateTime } from '@/utils/formatTime';
+import { TechnicalDetails, TaskJsonBlock } from '@/components/ui';
+import { Descriptions, Drawer, Space, Spin, Tag, Timeline, Typography, message } from 'antd';
+import { useEffect, useState } from 'react';
+import { COLLECT_TASK_STATUS, collectTaskEventLabel, collectTaskStatusTransition } from '@/constants/status';
+import {
+  mapCollectErrorMessage,
+  mapCollectorErrorCodeDetail,
+  mapCollectorErrorCodeLabel,
+} from '@/constants/collectErrors';
+import { collectEngineLabel, readCollectTaskEngine } from '@/utils/collectEngine';
+import {
+  fetchCollectTask,
+  queryCollectTaskEvents,
+  type CollectTaskEventRow,
+  type CollectTaskRow,
+} from '@/services/collectTasks';
+
+export type CollectTaskEventDrawerProps = {
+  taskId: string | null;
+  open: boolean;
+  onClose: () => void;
+};
+
+function eventTagColor(ev: string): string | undefined {
+  switch (ev) {
+    case 'task.success':
+      return 'success';
+    case 'task.failed':
+    case 'task.retry_exhausted':
+      return 'error';
+    case 'task.running':
+      return 'processing';
+    case 'task.auto_retry_scheduled':
+    case 'task.auto_retry_enqueued':
+    case 'task.manual_retry':
+    case 'batch.delay.applied':
+      return 'warning';
+    default:
+      return undefined;
+  }
+}
+
+function statusTag(status?: string | null) {
+  if (!status) return '—';
+  const m = COLLECT_TASK_STATUS[status as keyof typeof COLLECT_TASK_STATUS];
+  return <Tag color={m?.color}>{m?.text ?? status}</Tag>;
+}
+
+export function CollectTaskEventDrawer(props: CollectTaskEventDrawerProps) {
+  const { taskId, open, onClose } = props;
+  const [loading, setLoading] = useState(false);
+  const [task, setTask] = useState<CollectTaskRow | null>(null);
+  const [events, setEvents] = useState<CollectTaskEventRow[]>([]);
+
+  useEffect(() => {
+    if (!open || !taskId) {
+      setTask(null);
+      setEvents([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      try {
+        const [tRow, ev] = await Promise.all([
+          fetchCollectTask(taskId),
+          queryCollectTaskEvents(taskId, { page: 1, pageSize: 100 }),
+        ]);
+        if (!cancelled) {
+          setTask(tRow);
+          setEvents(ev.list ?? []);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          message.error(e instanceof Error ? e.message : '加载失败');
+          setTask(null);
+          setEvents([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, taskId]);
+
+  const taskEngine = task ? readCollectTaskEngine(task.requestOptions) : null;
+  const displayError = task?.errorMessage ? mapCollectErrorMessage(task.errorMessage, task.source, taskEngine) : '';
+  const failureLabel = task?.collectorErrorCode ? mapCollectorErrorCodeLabel(task.collectorErrorCode, taskEngine) : '';
+  const failureDetail = task?.collectorErrorCode
+    ? mapCollectorErrorCodeDetail(task.collectorErrorCode, task.source, taskEngine)
+    : '';
+
+  return (
+    <Drawer
+      title={task ? `任务事件 · ${task.id.slice(0, 8)}…` : '任务事件'}
+      open={open && !!taskId}
+      onClose={onClose}
+      destroyOnHidden
+    >
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin />
+        </div>
+      ) : task ? (
+        <Space direction="vertical" style={{ width: '100%' }} size="middle">
+          <Descriptions column={1} size="small" bordered>
+            <Descriptions.Item label="来源">{task.source}</Descriptions.Item>
+            <Descriptions.Item label="执行引擎">
+              {taskEngine ? (
+                <Tag color={taskEngine === 'opencli' ? 'geekblue' : undefined}>{collectEngineLabel(taskEngine)}</Tag>
+              ) : task.source === 'taobao_tmall' ? (
+                <Typography.Text type="secondary">历史任务未记录</Typography.Text>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="链接">
+              <Typography.Paragraph style={{ marginBottom: 0 }} copyable ellipsis={{ rows: 2 }}>
+                {task.sourceUrl}
+              </Typography.Paragraph>
+            </Descriptions.Item>
+            <Descriptions.Item label="批次">
+              {task.batchId ? (
+                <Link to={`/collect/batches?batchId=${encodeURIComponent(task.batchId)}`}>{task.batchId}</Link>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="状态">{statusTag(task.status)}</Descriptions.Item>
+            <Descriptions.Item label="草稿">
+              {task.resultProductId ? (
+                <Link to={`/product/drafts/${task.resultProductId}`}>{task.resultProductId}</Link>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            <Descriptions.Item label="自动重试">
+              {(task.retryCount ?? 0).toString()}/{task.maxRetries ?? '—'} · 下次{' '}
+              <Typography.Text type="secondary">{formatDateTime(task.nextRetryAt)}</Typography.Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="当前错误">
+              {task.errorMessage ? (
+                <div>
+                  <Typography.Text type="danger">{displayError}</Typography.Text>
+                  {displayError !== task.errorMessage ? (
+                    <TechnicalDetails label="技术详情">
+                      <Typography.Text code>{task.errorMessage}</Typography.Text>
+                    </TechnicalDetails>
+                  ) : null}
+                </div>
+              ) : (
+                '—'
+              )}
+            </Descriptions.Item>
+            {task.collectorErrorCode ? (
+              <Descriptions.Item label="失败原因">
+                <div>
+                  <Typography.Text strong>{failureLabel || task.collectorErrorCode}</Typography.Text>
+                  {failureDetail ? (
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 4 }}>
+                      {failureDetail}
+                    </Typography.Paragraph>
+                  ) : null}
+                  <TechnicalDetails label="错误码">
+                    <Typography.Text code>{task.collectorErrorCode}</Typography.Text>
+                  </TechnicalDetails>
+                </div>
+              </Descriptions.Item>
+            ) : null}
+            {task.retryable !== undefined ? (
+              <Descriptions.Item label="可自动重试">{task.retryable ? '是' : '否'}</Descriptions.Item>
+            ) : null}
+            {task.failureHint ? <Descriptions.Item label="排查提示">{task.failureHint}</Descriptions.Item> : null}
+          </Descriptions>
+
+          <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>
+            事件时间线
+          </Typography.Title>
+
+          {!events?.length ? (
+            <Typography.Text type="secondary">暂无事件记录</Typography.Text>
+          ) : (
+            <Timeline
+              items={events.map((ev) => {
+                const eventDisplayError = ev.errorMessage
+                  ? mapCollectErrorMessage(ev.errorMessage, task.source, taskEngine)
+                  : '';
+                return {
+                  color: eventTagColor(ev.eventType),
+                  children: (
+                    <div>
+                      <Space wrap align="center" style={{ marginBottom: 6 }}>
+                        <Typography.Text strong type="secondary">
+                          {formatDateTime(ev.createdAt)}
+                        </Typography.Text>
+                        <Tag color={eventTagColor(ev.eventType)}>{collectTaskEventLabel(ev.eventType)}</Tag>
+                        <Typography.Text type="secondary">
+                          {collectTaskStatusTransition(ev.fromStatus, ev.toStatus)}
+                        </Typography.Text>
+                      </Space>
+                      {ev.message ? (
+                        <Typography.Paragraph style={{ marginBottom: 4 }}>{ev.message}</Typography.Paragraph>
+                      ) : null}
+                      {(ev.retryCount != null || ev.maxRetries != null || ev.nextRetryAt) && (
+                        <Typography.Paragraph type="secondary" style={{ marginBottom: 4, fontSize: 12 }}>
+                          重试 {ev.retryCount ?? '—'} / {ev.maxRetries ?? '—'}
+                          {ev.nextRetryAt ? ` · 下次 ${formatDateTime(ev.nextRetryAt)}` : ''}
+                        </Typography.Paragraph>
+                      )}
+                      {ev.errorMessage ? (
+                        <div style={{ marginBottom: 6 }}>
+                          <Typography.Text type="danger">{eventDisplayError}</Typography.Text>
+                          {eventDisplayError !== ev.errorMessage ? (
+                            <TechnicalDetails label="技术详情">
+                              <Typography.Text code>{ev.errorMessage}</Typography.Text>
+                            </TechnicalDetails>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {ev.payload !== undefined &&
+                      ev.payload !== null &&
+                      typeof ev.payload === 'object' &&
+                      Object.keys(ev.payload as object).length ? (
+                        <TechnicalDetails label="事件详情">
+                          <TaskJsonBlock title="原始信息" value={ev.payload} last />
+                        </TechnicalDetails>
+                      ) : null}
+                    </div>
+                  ),
+                };
+              })}
+            />
+          )}
+        </Space>
+      ) : (
+        <Typography.Text type="secondary">无数据</Typography.Text>
+      )}
+    </Drawer>
+  );
+}

@@ -1,0 +1,71 @@
+{
+  "phase": "P7-V2-R3B-CI-RG",
+  "status": "incomplete",
+  "blocker": {
+    "id": "baseline_reuse_decision",
+    "rootCauseClassification": "process_identity_insufficient",
+    "reason": "rebaseline_required because the strict runtimeSourceTreeHash includes repaired harness files"
+  },
+  "baseline": {
+    "runId": "p7v2-baseline-r3b-recovery-20260714-1719",
+    "status": "passed",
+    "immutable": true,
+    "sha256": "c373a484b15737b8dbc479340ea35488f69de8968895586ec1378a26e0a1e709",
+    "reuseDecision": "rebaseline_required"
+  },
+  "current": {
+    "runId": "p7v2-current-r3b-recovery-20260715-0203",
+    "status": "not_executed",
+    "oldProcessIdentity": null,
+    "newProcessIdentity": null,
+    "portOwner": null,
+    "serverBinaryHash": "",
+    "instanceNonce": "",
+    "databaseReset": false,
+    "datasetFingerprint": "",
+    "rawArtifact": "",
+    "artifactSha256": ""
+  },
+  "comparability": {
+    "status": "blocked",
+    "mismatchCount": 1,
+    "notComparableCount": 1
+  },
+  "regression": {
+    "status": "not_executed",
+    "evaluationVersion": 2,
+    "failedMetricCount": 0,
+    "notComparableCount": 0,
+    "invalidMetricCount": 0,
+    "insufficientSampleCount": 0
+  },
+  "next": {
+    "soak": "pending",
+    "demoRun1": "pending",
+    "demoRun2": "pending",
+    "finalGates": "pending"
+  },
+  "commands": [
+    {
+      "command": "node --check scripts/p7-v2-process-identity.mjs and related CI-RG scripts",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm test:p7-v2-gates; pnpm test:p7-v2-process-identity; pnpm test:p7-v2-current-independence; pnpm test:p7-v2-artifact-freeze",
+      "exitCode": 0
+    },
+    {
+      "command": "pnpm p7-v2:r3b:ci-rg-gate",
+      "exitCode": 1,
+      "result": "blocked as expected by baselineReuseDecision=rebaseline_required"
+    }
+  ],
+  "production": {
+    "resourcesAccessed": false,
+    "realProviderCalls": 0,
+    "realDouyinWrites": 0,
+    "tagCreated": false,
+    "productionReady": false
+  },
+  "nextAction": "Create a new immutable Baseline using the repaired harness, then create a new independent Current and run the frozen-artifact comparability and Regression V2 chain."
+}

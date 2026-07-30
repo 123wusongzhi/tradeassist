@@ -1,0 +1,10 @@
+{
+  "title": "P7 Performance Overview",
+  "tags": ["trademind", "p7", "performance"],
+  "panels": [
+    { "title": "API p50 / p95 / p99", "type": "timeseries" },
+    { "title": "Throughput", "type": "timeseries" },
+    { "title": "Error Rate", "type": "timeseries" },
+    { "title": "Memory / Goroutines / GC", "type": "timeseries" }
+  ]
+}

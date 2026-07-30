@@ -1,0 +1,7 @@
+{
+  "phase": "P9",
+  "batchId": "P9-TASK-BATCH-1",
+  "gate": "P9-TASK-BATCH-1-DOMAIN-PERSISTENCE-FIXTURE",
+  "status": "passed",
+  "fixtureAssertions": 35
+}

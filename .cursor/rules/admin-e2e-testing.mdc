@@ -1,0 +1,34 @@
+---
+description: Admin E2E testing rules for Playwright MCP, Playwright Test, UI interactions, routes, responsive changes, and write safety
+globs: admin/src/**/*.{ts,tsx,jsx,less,css,scss},admin/e2e/**,playwright.config.*,package.json,admin/package.json,.github/workflows/*e2e*
+alwaysApply: false
+---
+
+# Admin E2E Testing 自动规则
+
+任何涉及 Admin 页面、组件、样式、布局、响应式、交互、路由、URL 状态、Tabs、Modal、Drawer、Popconfirm、loading、empty、error、readonly、disabled、写操作、请求 payload、Console warning 或测试文件的任务，必须读取并遵循：
+
+- `.agents/skills/admin-e2e-testing/SKILL.md`
+
+如果任务包含 UI、交互、布局、样式、响应式或可访问性，还必须同时读取：
+
+- `.agents/skills/frontend-design/SKILL.md`
+
+用户无需显式提到“测试”“E2E”或“Playwright”。不得复制主 Skill 的完整规范到本规则。
+
+## 自动选择测试范围
+
+1. 页面或组件修改：至少运行 P0 smoke、目标页面 spec 和相关响应式测试。
+2. `TmPageContainer`、`layoutTokens`、`global.less`、共享布局修改：运行全页面基础路由 smoke、Header / Content 对齐和五档 overflow。
+3. `Product/DraftDetail` 修改：运行 `product-draft`、`publish-safety`、`responsive`；涉及 envelope 时加 `contracts`。
+4. `MultiPlatformPublishCenter`、inventory、publish 写操作修改：运行写请求安全测试，确认取消 0 请求、确认 1 请求、快速重复提交仍 1 请求。
+5. 路由、Tab、section、URL 参数或 history 修改：运行 deep-link、refresh restore 和 navigation 测试。
+6. 响应式样式修改：运行五档视口。
+7. API envelope 或 service response 修改：运行 contract tests 和受影响页面 smoke。
+8. Modal / Drawer / Popconfirm 修改：运行对应交互测试和 375px 视口。
+9. 未运行必要测试不得声明完成。
+10. 测试无法运行时必须明确阻塞原因、命令和首个根因。
+
+## 写请求安全
+
+所有 API 非 GET 请求必须由测试显式允许并 Mock。不得未拦截就访问真实写接口、真实店铺、真实平台或生产后端。

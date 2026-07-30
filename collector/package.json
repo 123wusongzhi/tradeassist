@@ -1,0 +1,25 @@
+{
+  "name": "@trademind/collector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "dev:opencli-bridge": "tsx watch src/opencli-bridge/index.ts",
+    "install:opencli-adapter": "tsx src/scripts/install-opencli-adapter.ts",
+    "collect:test": "tsx src/scripts/collect-test.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "start:opencli-bridge": "node dist/opencli-bridge/index.js",
+    "install:browsers": "playwright install chromium",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  }
+}

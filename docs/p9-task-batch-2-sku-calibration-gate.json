@@ -1,0 +1,172 @@
+{
+  "phase": "P9",
+  "gate": "P9-TASK-BATCH-2-SKU-CALIBRATION",
+  "status": "passed",
+  "checkedAt": "2026-07-30T07:28:01.680Z",
+  "batchId": "P9-TASK-BATCH-2",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "tasks": [
+    "P9-601",
+    "P9-602",
+    "P9-603",
+    "P9-604",
+    "P9-605",
+    "P9-606"
+  ],
+  "normalizerImplemented": true,
+  "exactMatcherImplemented": true,
+  "scoringImplemented": true,
+  "thresholdPolicyImplemented": true,
+  "manualBindingServiceImplemented": true,
+  "authorizerRequired": true,
+  "defaultAllow": false,
+  "postgresIntegrationStatus": "not_run",
+  "syncOrchestratorImplemented": false,
+  "syncWorkerImplemented": false,
+  "apiImplemented": false,
+  "adminUiImplemented": false,
+  "realDouyinProviderImplemented": false,
+  "realPlatformNetworkEnabled": false,
+  "productionReady": false,
+  "p10BoundaryPreserved": true,
+  "failedCount": 0,
+  "failed": [],
+  "missingFiles": [],
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "batchId",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "currentHeadPresent",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "workingTreeDirtyRecorded",
+      "status": "passed"
+    },
+    {
+      "id": "changesCommitted",
+      "status": "passed"
+    },
+    {
+      "id": "P9-601 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-602 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-603 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-604 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-605 status",
+      "status": "passed"
+    },
+    {
+      "id": "P9-606 status",
+      "status": "passed"
+    },
+    {
+      "id": "normalizerImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "barcodeLeadingZeroPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "exactMatcherImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "scoringImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "thresholdPolicyImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "manualBindingServiceImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "authorizerDefaultDeny",
+      "status": "passed"
+    },
+    {
+      "id": "trustedActorImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "idempotencyImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "optimisticConcurrencyImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "transactionAtomicityImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "manualDecisionHistoryImplemented",
+      "status": "passed"
+    },
+    {
+      "id": "stableErrorsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "testsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "noAIOrVectorMatching",
+      "status": "passed"
+    },
+    {
+      "id": "forbiddenPathsAbsent",
+      "status": "passed"
+    },
+    {
+      "id": "scopeProtectionFlags",
+      "status": "passed"
+    },
+    {
+      "id": "realBoundaryFlags",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    }
+  ]
+}

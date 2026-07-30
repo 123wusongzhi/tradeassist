@@ -1,0 +1,144 @@
+---
+description: Collector engine rules for Node.js, TypeScript, Playwright, OpenCLI Bridge, source providers, task routing, and normalized product output
+globs: collector/**/*.{ts,tsx,js,json}
+alwaysApply: false
+---
+
+# Playwright + OpenCLI 采集引擎规则
+
+## 采集服务定位
+
+采集运行时独立于 Go 主服务，用于处理商品页面采集、浏览器自动化和结构化解析。
+Playwright Collector 是基础服务；OpenCLI Bridge 是淘宝/天猫的可选宿主机引擎。
+
+当前范围：
+
+```text
+available：1688、拼多多、淘宝/天猫
+beta：AliExpress、自定义规则
+planned：SHEIN / Temu
+```
+
+## 技术栈
+
+- Node.js
+- TypeScript
+- Playwright
+- OpenCLI CLI / Chrome 扩展连接（可选，当前仅淘宝/天猫）
+
+## 服务边界
+
+- 采集服务不得直接操作主业务数据库。
+- 采集服务通过 Redis Queue 或内部 API 接收任务。
+- 采集完成后返回结构化 JSON。
+- Go 主服务负责保存商品草稿和任务状态。
+- Playwright Collector 固定使用 `3001`；OpenCLI Bridge 独立使用 `3100`。
+- backend 按任务持久化的 `engine` 选择客户端，运行失败不静默跨引擎回退。
+- OpenCLI Bridge 故障不得影响 Playwright、backend 健康检查或其他采集来源。
+
+## 采集源 Provider 规则
+
+每个采集源必须独立 Provider。
+
+推荐结构：
+
+```text
+collector/src/
+├── providers/
+│   ├── source1688/
+│   ├── sourceTaobaoTmall/
+│   └── sourceCustom/
+├── browser/
+├── opencli-bridge/
+├── normalizer/
+└── index.ts
+
+collector/opencli-adapters/
+└── tmall/                  # TradeMind 受管 OpenCLI 适配器
+```
+
+## 统一采集输出结构
+
+无论来源是什么，最终都必须转换为：
+
+```json
+{
+  "source": "1688",
+  "sourceUrl": "",
+  "title": "",
+  "currency": "CNY",
+  "mainImages": [],
+  "descriptionImages": [],
+  "attributes": {},
+  "skus": [],
+  "raw": {}
+}
+```
+
+## raw 原始数据规则
+
+必须保留 `raw` 字段，用于：
+
+- 复盘采集问题
+- 后期重新解析
+- 兼容新增字段
+- 定位平台页面结构变化
+
+## 任务状态
+
+采集任务状态统一：
+
+```text
+pending
+running
+success
+failed
+cancelled
+retrying
+```
+
+采集失败必须返回明确错误原因，例如：
+
+- 页面加载超时
+- 商品不存在
+- 需要登录
+- 触发验证码
+- SKU 解析失败
+- 图片提取失败
+
+## Playwright 规则
+
+- 浏览器启动参数统一封装。
+- 页面超时时间可配置。
+- User-Agent / 代理 / Cookie 支持配置预留。
+- 不要在 Provider 里到处创建浏览器实例，优先统一管理。
+- 图片懒加载需要滚动触发。
+- 采集完成必须关闭 page/context，避免资源泄漏。
+
+## OpenCLI 规则
+
+- OpenCLI 当前只接受 `taobao_tmall` 商品详情链接。
+- Bridge 保持最小化，不加载 `BrowserManager` 或 Playwright。
+- 非回环监听必须配置 Bearer Token，Token 不得写入日志、API 响应或仓库。
+- 受管适配器同步必须幂等，且不得覆盖没有 TradeMind 标记的用户同名适配器。
+- `EMPTY_RESULT` 归类为可恢复解析失败，不得直接推断商品下架；只有明确
+  `ITEM_NOT_FOUND` 才使用商品不存在分类。
+- 完整部署、迁移与排错见
+  **[`docs/collector-engines.md`](../../docs/collector-engines.md)**。
+
+### `page.evaluate` 注入（1688 必读）
+
+- **禁止** `fn.toString()` + `eval` 注入页面脚本（tsx/esbuild 会生成 `__name`，浏览器无此 helper → **`ReferenceError: __name is not defined`**）。
+- **必须**使用 Playwright 原生 `page.evaluate(fn, arg)`；函数内 helper 自包含，不引用 Node 模块或外部 closure。
+- 复杂解析：**Browser 只读 DOM/script 文本**，**Node 侧做 JSON 解析**（见 `browser-extract-1688.ts`）。
+- 完整已知坑清单：**[`docs/collector-1688-pitfalls.md`](../../docs/collector-1688-pitfalls.md)**。
+
+## 禁止事项
+
+- 不要把 1688 逻辑写到核心框架中。
+- 不要直接把采集结果写数据库。
+- 不要在失败时只返回 unknown error。
+- 不要忽略 SKU、属性、图片的结构化输出。
+- 不要移除 raw 字段。
+- 不要用 `COLLECTOR_BASE_URL` 在 Playwright 与 OpenCLI 之间做全局切换。
+- 不要在任务执行失败后自动换引擎。
