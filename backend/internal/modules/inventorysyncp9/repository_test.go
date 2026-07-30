@@ -138,6 +138,13 @@ func TestSnapshotUniquenessTenantIsolationAndImmutability(t *testing.T) {
 	require.ErrorIs(t, err, ErrNotFound)
 	require.ErrorIs(t, repo.CreateBatch(ctx, 201, []InventorySnapshotItem{validSnapshot(201, run, "remote-sku-1")}), ErrDuplicateExternalSKU)
 
+	secondRun, err := NewInventorySyncRunRepository(db).Create(ctx, ptr(validRun(201, storeA.ID, testHashC, testHashA)))
+	require.NoError(t, err)
+	require.NotEqual(t, run.ID, secondRun.ID)
+	firstInMixedBatch := validSnapshot(201, run, "shared-across-runs")
+	secondInMixedBatch := validSnapshot(201, secondRun, "shared-across-runs")
+	require.NoError(t, repo.CreateBatch(ctx, 201, []InventorySnapshotItem{firstInMixedBatch, secondInMixedBatch}))
+
 	stored, err := repo.GetByRunAndExternalSKU(ctx, 201, run.ID, "remote-sku-1")
 	require.NoError(t, err)
 	require.Error(t, db.Model(stored).Update("total_quantity", 9).Error)

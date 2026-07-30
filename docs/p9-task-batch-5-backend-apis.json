@@ -20,33 +20,77 @@
   "tasks": {
     "P9-901": {
       "status": "completed",
-      "deliverables": ["POST/GET run list and detail", "safe statistics and retry state", "manual rerun"],
-      "evidencePaths": ["docs/P9_TASK_BATCH_5_BACKEND_APIS.md", "docs/p9-task-batch-5-backend-apis.json"],
-      "gateIds": ["P9-TASK-BATCH-5-BACKEND-APIS"]
+      "deliverables": [
+        "POST/GET run list and detail",
+        "safe statistics and retry state",
+        "manual rerun"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
     },
     "P9-902": {
       "status": "completed",
-      "deliverables": ["tenant-scoped snapshot list/detail", "binding-result filters", "signed keyset cursor"],
-      "evidencePaths": ["docs/P9_TASK_BATCH_5_BACKEND_APIS.md", "docs/p9-task-batch-5-backend-apis.json"],
-      "gateIds": ["P9-TASK-BATCH-5-BACKEND-APIS"]
+      "deliverables": [
+        "tenant-scoped snapshot list/detail",
+        "binding-result filters",
+        "signed keyset cursor"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
     },
     "P9-903": {
       "status": "completed",
-      "deliverables": ["binding/calibration DTOs", "controlled immutable recalibration version", "binding history"],
-      "evidencePaths": ["docs/P9_TASK_BATCH_5_BACKEND_APIS.md", "docs/p9-task-batch-5-backend-apis.json"],
-      "gateIds": ["P9-TASK-BATCH-5-BACKEND-APIS"]
+      "deliverables": [
+        "binding/calibration DTOs",
+        "controlled immutable recalibration version",
+        "binding history"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
     },
     "P9-904": {
       "status": "completed",
-      "deliverables": ["pending request list/detail", "revision-checked confirm/reject"],
-      "evidencePaths": ["docs/P9_TASK_BATCH_5_BACKEND_APIS.md", "docs/p9-task-batch-5-backend-apis.json"],
-      "gateIds": ["P9-TASK-BATCH-5-BACKEND-APIS"]
+      "deliverables": [
+        "pending request list/detail",
+        "revision-checked confirm/reject"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
     },
     "P9-905": {
       "status": "completed",
-      "deliverables": ["run history projection", "safe error summary", "tenant-scoped audit timeline"],
-      "evidencePaths": ["docs/P9_TASK_BATCH_5_BACKEND_APIS.md", "docs/p9-task-batch-5-backend-apis.json"],
-      "gateIds": ["P9-TASK-BATCH-5-BACKEND-APIS"]
+      "deliverables": [
+        "run history projection",
+        "safe error summary",
+        "tenant-scoped audit timeline"
+      ],
+      "evidencePaths": [
+        "docs/P9_TASK_BATCH_5_BACKEND_APIS.md",
+        "docs/p9-task-batch-5-backend-apis.json"
+      ],
+      "gateIds": [
+        "P9-TASK-BATCH-5-BACKEND-APIS"
+      ]
     }
   },
   "apiImplemented": true,
@@ -153,13 +197,34 @@
     "p9PlanGate": "passed_failed_count_0",
     "qualityBackend": "blocked_by_existing_454_unformatted_go_files_affected_files_formatted",
     "architectureAffected": "blocked_by_existing_vitest_mjs_import_syntax_loader_error_boundary_check_passed",
-    "postgresIntegration": "not_run_deferred_to_P9_Final_Development_Closure",
-    "testDatabaseUrl": "unset"
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "testDatabaseUrl": "set_not_recorded",
+    "postgresRevalidation": "passed"
   },
   "nextBatch": {
-    "taskIds": ["P9-1001", "P9-1002", "P9-1003", "P9-1004", "P9-1005", "P9-1006"],
+    "taskIds": [
+      "P9-1001",
+      "P9-1002",
+      "P9-1003",
+      "P9-1004",
+      "P9-1005",
+      "P9-1006"
+    ],
     "status": "planned",
     "name": "Admin Inventory Sync and Binding Center"
   },
-  "p9Complete": false
+  "p9Complete": false,
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed"
 }

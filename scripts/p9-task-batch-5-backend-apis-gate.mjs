@@ -159,7 +159,7 @@ export function validateP9Batch5BackendAPIsBundle({ evidence = {}, sources = {},
       && evidence.resourceOperationsReauthorize === true
       && hasAll(dto + service, ['AllowedActions', 'CanRerun', 'CanConfirm', 'CanReject'])],
     ['rbacReused', evidence.existingRBACReused === true && hasAll(matrix, PERMISSIONS)],
-    ['writesUseDomainServices', evidence.domainServicesReused === true && hasAll(service, ['Orchestrator.Run', 'Orchestrator.ManualRerun', 'Calibration.RecalibrateSnapshotItem', 'ManualBinding.ConfirmBinding', 'ManualBinding.RejectBinding'])],
+    ['writesUseDomainServices', evidence.domainServicesReused === true && hasAll(service, ['Orchestrator.Run', 'Orchestrator.ManualRerun', 'Calibration.recalibrateSnapshotItemWithDB', 'ManualBinding.ConfirmBinding', 'ManualBinding.RejectBinding'])],
     ['recalibrationHistory', evidence.controlledRecalibrationHistory === true && hasAll(service, ['p9.inventory-sync.recalibrate', 'ResponseSummary'])],
     ['auditHistory', evidence.auditTimelineImplemented === true && hasAll(repository + service, ['operationlog.OperationLog', 'ListRunAuditEvents'])],
     ['verificationCoverage', evidence.testsPassed === true

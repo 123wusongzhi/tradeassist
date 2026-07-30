@@ -136,12 +136,14 @@ func TestInventorySyncOrchestratorFailureCancellationIdempotencyAndRerun(t *test
 	require.NoError(t, err)
 	require.Equal(t, failed.InventorySyncRunID, same.InventorySyncRunID)
 
+	failedRun, err := NewInventorySyncRunRepository(db).GetByID(ctx, 702, failed.InventorySyncRunID)
+	require.NoError(t, err)
 	denied := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: false})
-	_, err = denied.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, ActorID: uuid.New(), RequestID: "req-b3-rerun-deny"})
+	_, err = denied.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, SourceRunRevision: failedRun.Revision, ActorID: uuid.New(), RequestID: "req-b3-rerun-deny"})
 	require.ErrorIs(t, err, ErrPermissionDenied)
 
 	allowed := NewInventorySyncOrchestrator(db, registry, service, testSyncAuthorizer{allowed: true})
-	rerun, err := allowed.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, ActorID: uuid.New(), RequestID: "req-b3-rerun-allow"})
+	rerun, err := allowed.ManualRerun(ctx, InventorySyncOrchestratorInput{TenantID: 702, ShopConnectionID: store.ID, Platform: PlatformDouyin, ProviderMode: ProviderModeMock, FixtureScenario: FixtureScenarioSuccessSinglePage, PageSize: 1, SourceRunID: failed.InventorySyncRunID, SourceRunRevision: failedRun.Revision, ActorID: uuid.New(), RequestID: "req-b3-rerun-allow"})
 	require.NoError(t, err)
 	require.NotEqual(t, failed.InventorySyncRunID, rerun.InventorySyncRunID)
 	require.Equal(t, InventorySyncRunStatusSucceeded, rerun.Status)

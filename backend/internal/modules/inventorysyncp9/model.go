@@ -84,6 +84,8 @@ type InventorySyncRun struct {
 	RequestID             string         `gorm:"size:128" json:"requestId,omitempty"`
 	IdempotencyKeyHash    string         `gorm:"size:64" json:"idempotencyKeyHash,omitempty"`
 	InputFingerprint      string         `gorm:"size:64" json:"inputFingerprint,omitempty"`
+	RerunOfRunID          *uuid.UUID     `gorm:"type:char(36);index" json:"rerunOfRunId,omitempty"`
+	RerunSourceRevision   int            `gorm:"not null;default:0" json:"rerunSourceRevision,omitempty"`
 	Revision              int            `gorm:"not null;default:1" json:"revision"`
 	StartedAt             *time.Time     `json:"startedAt,omitempty"`
 	FinishedAt            *time.Time     `json:"finishedAt,omitempty"`

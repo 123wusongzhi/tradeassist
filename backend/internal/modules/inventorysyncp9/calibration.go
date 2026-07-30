@@ -426,34 +426,42 @@ func (s *SKUBindingCalibrationService) RecalibrateSnapshotItem(ctx context.Conte
 	if s == nil || s.DB == nil || s.CandidateProvider == nil {
 		return nil, 0, fmt.Errorf("sku binding calibration service: dependencies are nil")
 	}
-	if validateTenantID(tenantID) != nil || runID == zeroUUID || snapshotID == zeroUUID {
-		return nil, 0, ErrValidation
-	}
 	var result *CalibrationServiceResult
 	version := 0
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var snapshot InventorySnapshotItem
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND inventory_sync_run_id = ? AND id = ?", tenantID, runID, snapshotID).First(&snapshot).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrNotFound
-			}
-			return stableError(err, ErrStateConflict)
-		}
-		var current int
-		if err := tx.Model(&SKUBindingCalibration{}).Where("tenant_id = ? AND inventory_snapshot_item_id = ?", tenantID, snapshotID).Select("COALESCE(MAX(calibration_version), 0)").Scan(&current).Error; err != nil {
-			return stableError(err, ErrStateConflict)
-		}
-		if expectedVersion > 0 && current != expectedVersion {
-			return ErrRevisionConflict
-		}
-		version = current + 1
-		calibrated, err := s.calibrateSnapshotWithDBVersion(ctx, tx, snapshot, version, true)
-		if err != nil {
-			return err
-		}
-		result = calibrated
-		return nil
+		var err error
+		result, version, err = s.recalibrateSnapshotItemWithDB(ctx, tx, tenantID, runID, snapshotID, expectedVersion)
+		return err
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return result, version, nil
+}
+
+func (s *SKUBindingCalibrationService) recalibrateSnapshotItemWithDB(ctx context.Context, tx *gorm.DB, tenantID int64, runID uuid.UUID, snapshotID uuid.UUID, expectedVersion int) (*CalibrationServiceResult, int, error) {
+	if s == nil || tx == nil || s.CandidateProvider == nil {
+		return nil, 0, fmt.Errorf("sku binding calibration service: dependencies are nil")
+	}
+	if validateTenantID(tenantID) != nil || runID == zeroUUID || snapshotID == zeroUUID {
+		return nil, 0, ErrValidation
+	}
+	var snapshot InventorySnapshotItem
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND inventory_sync_run_id = ? AND id = ?", tenantID, runID, snapshotID).First(&snapshot).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, 0, ErrNotFound
+		}
+		return nil, 0, stableError(err, ErrStateConflict)
+	}
+	var current int
+	if err := tx.Model(&SKUBindingCalibration{}).Where("tenant_id = ? AND inventory_snapshot_item_id = ?", tenantID, snapshotID).Select("COALESCE(MAX(calibration_version), 0)").Scan(&current).Error; err != nil {
+		return nil, 0, stableError(err, ErrStateConflict)
+	}
+	if expectedVersion > 0 && current != expectedVersion {
+		return nil, 0, ErrRevisionConflict
+	}
+	version := current + 1
+	result, err := s.calibrateSnapshotWithDBVersion(ctx, tx, snapshot, version, true)
 	if err != nil {
 		return nil, 0, err
 	}

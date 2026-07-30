@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "phase": "P9",
+  "closureType": "postgresql_integration_baseline",
+  "status": "passed",
+  "baseBranch": "dev",
+  "baseCheckpoint": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "headDetached": false,
+  "changesCommitted": false,
+  "checkpointCreated": false,
+  "stagedFileCount": 0,
+  "workingTreeDirty": true,
+  "testDatabaseDriver": "postgresql",
+  "testDatabasePurpose": "test",
+  "testDatabaseHostCategory": "local",
+  "testDatabaseUrlRecorded": false,
+  "testDatabaseNameSafe": true,
+  "productionDatabaseRejected": true,
+  "postgresServerVersion": "17.9",
+  "connectionPassed": true,
+  "postgresConnectionPassed": true,
+  "migrationPassed": true,
+  "migrationUpPassed": true,
+  "migrationIdempotencyPassed": true,
+  "schemaVerificationPassed": true,
+  "repositoryTestsPassed": true,
+  "constraintTestsPassed": true,
+  "idempotencyTestsPassed": true,
+  "optimisticConcurrencyPassed": true,
+  "transactionTestsPassed": true,
+  "transactionAtomicityPassed": true,
+  "concurrencyTestsPassed": true,
+  "paginationTestsPassed": true,
+  "jsonContractPassed": true,
+  "timestampContractPassed": true,
+  "apiIntegrationTestsPassed": true,
+  "fixtureGoldenPathPassed": true,
+  "sqliteFallbackUsed": false,
+  "sqliteFastTestsPreserved": true,
+  "fixtureProviderNetworkCalls": 0,
+  "realPlatformNetworkCalls": 0,
+  "realCredentialsUsed": false,
+  "inventoryMutationCalls": 0,
+  "racePassed": true,
+  "dataRaces": 0,
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z"
+  },
+  "currentPostgresIntegrationStatus": "passed",
+  "postgresIntegrationStatus": "passed",
+  "postgresIntegrationPassed": true,
+  "postgresIntegrationDeferredTo": null,
+  "p9FinalClosureBlocker": false,
+  "batchRevalidations": [
+    {
+      "batchId": "P9-TASK-BATCH-1",
+      "initialPostgresVerification": {
+        "status": "not_run",
+        "reason": "TEST_DATABASE_URL_not_set"
+      },
+      "postgresRevalidation": {
+        "status": "passed",
+        "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+        "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+        "verifiedAt": "2026-07-30T07:47:32.008Z",
+        "runId": "p9pg-20260730074632-3b1bbb38",
+        "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+      },
+      "currentPostgresIntegrationStatus": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-2",
+      "initialPostgresVerification": {
+        "status": "not_run",
+        "reason": "TEST_DATABASE_URL_not_set"
+      },
+      "postgresRevalidation": {
+        "status": "passed",
+        "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+        "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+        "verifiedAt": "2026-07-30T07:47:32.008Z",
+        "runId": "p9pg-20260730074632-3b1bbb38",
+        "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+      },
+      "currentPostgresIntegrationStatus": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-3",
+      "initialPostgresVerification": {
+        "status": "not_run",
+        "reason": "TEST_DATABASE_URL_not_set"
+      },
+      "postgresRevalidation": {
+        "status": "passed",
+        "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+        "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+        "verifiedAt": "2026-07-30T07:47:32.008Z",
+        "runId": "p9pg-20260730074632-3b1bbb38",
+        "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+      },
+      "currentPostgresIntegrationStatus": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-4",
+      "initialPostgresVerification": {
+        "status": "not_run",
+        "reason": "TEST_DATABASE_URL_not_set"
+      },
+      "postgresRevalidation": {
+        "status": "passed",
+        "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+        "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+        "verifiedAt": "2026-07-30T07:47:32.008Z",
+        "runId": "p9pg-20260730074632-3b1bbb38",
+        "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+      },
+      "currentPostgresIntegrationStatus": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-5",
+      "initialPostgresVerification": {
+        "status": "not_run",
+        "reason": "TEST_DATABASE_URL_not_set"
+      },
+      "postgresRevalidation": {
+        "status": "passed",
+        "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+        "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+        "verifiedAt": "2026-07-30T07:47:32.008Z",
+        "runId": "p9pg-20260730074632-3b1bbb38",
+        "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+      },
+      "currentPostgresIntegrationStatus": "passed"
+    }
+  ],
+  "adminUiImplemented": false,
+  "backgroundSyncWorkerImplemented": false,
+  "automaticRetryWorkerImplemented": false,
+  "realDouyinProviderImplemented": false,
+  "oauthImplemented": false,
+  "realPlatformReadEnabled": false,
+  "realPlatformWriteEnabled": false,
+  "inventoryMutationEnabled": false,
+  "productionReady": false,
+  "p10BoundaryPreserved": true,
+  "batch6ReadyToStart": true,
+  "p9Complete": false,
+  "verifiedAt": "2026-07-30T07:47:32.008Z",
+  "historicalGateFailureCount": 0,
+  "runtimeEvidence": {
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "summaryPath": "artifacts/p9-postgres-runtime.json",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6",
+    "sourceManifestSha256": "e366293850a4ffdbb22901683c79a80e77922b2acee17a31c03a588e481c7f7a",
+    "finishedAt": "2026-07-30T07:47:32.008Z"
+  },
+  "qualityBackendStatus": "blocked_by_existing_baseline",
+  "qualityBackendExitCode": 1,
+  "repositoryUnformattedGoFileCount": 450,
+  "newPostgresClosureFormattingViolationCount": 0,
+  "architectureAffectedStatus": "blocked_by_existing_test_baseline",
+  "architectureAffectedExitCode": 1,
+  "directArchitectureCheckPassed": true,
+  "newArchitectureViolationCount": 0
+}

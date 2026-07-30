@@ -4,7 +4,7 @@ Status: **passed**
 
 - Batch id: P9-TASK-BATCH-3
 - Current branch: dev
-- Current head: af1a4da8ca22d0f5477828540d5caa5d22f72a75
+- Current head: 80fab97663cee3a3b02c7172474190e587ad4461
 - Staged files: 0
 - Working tree dirty: true
 - Tasks: P9-701, P9-702, P9-703, P9-704, P9-705, P9-706

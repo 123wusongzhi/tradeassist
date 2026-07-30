@@ -75,6 +75,15 @@ function git(args) {
   }
 }
 
+function gitIsAncestor(ancestor, descendant) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: REPO_ROOT, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function nonEmptyArray(value) {
   return Array.isArray(value) && value.length > 0;
 }
@@ -170,6 +179,7 @@ export function validateP9PlanBundle({
   currentHead,
   headDetached,
   stagedFileCount,
+  discoveryHeadIsAncestor,
 } = {}) {
   const workstreams = Array.isArray(plan.workstreams) ? plan.workstreams : [];
   const allTasks = flattenTasks(workstreams);
@@ -206,7 +216,11 @@ export function validateP9PlanBundle({
   const productStatusCompatible = productImplementationStarted ? product.every((task) => ['planned', 'in_progress', 'completed'].includes(taskStatus(task))) : productPlanned;
   const productCompletedTaskCountCompatible = productImplementationStarted ? productCompletedTaskCount > 0 : productCompletedTaskCount === 0;
   const productImplementationFileCountCompatible = productImplementationStarted ? Number(plan.p9ProductImplementationFileCount || 0) > 0 : Number(plan.p9ProductImplementationFileCount || 0) === 0;
-  const discoveryHeadCompatible = productImplementationStarted ? plan.currentHead === head && String(plan.p9DiscoveryBaseHead || '').length > 0 : plan.p9DiscoveryBaseHead === head;
+  const recordedPlanHead = String(plan.currentHead || plan.p9DiscoveryBaseHead || '').trim();
+  const ancestryCompatible = discoveryHeadIsAncestor ?? (recordedPlanHead !== '' && gitIsAncestor(recordedPlanHead, head));
+  const discoveryHeadCompatible = productImplementationStarted
+    ? recordedPlanHead !== '' && String(plan.p9DiscoveryBaseHead || '').length > 0 && ancestryCompatible
+    : plan.p9DiscoveryBaseHead === head;
   const duplicateTaskIdCount = allTasks.length - unique(allTasks.map(taskId)).length;
   const planningProductOverlap = product.map(taskId).filter((id) => PLANNING_TASK_IDS.includes(id)).length;
   const batch1Ids = batchTaskIds(product, 1);
@@ -338,6 +352,7 @@ export function buildP9PlanGateReport(bundle = {}) {
     currentHead: bundle.currentHead,
     headDetached: bundle.headDetached,
     stagedFileCount: bundle.stagedFileCount,
+    discoveryHeadIsAncestor: bundle.discoveryHeadIsAncestor,
   });
 
   return {

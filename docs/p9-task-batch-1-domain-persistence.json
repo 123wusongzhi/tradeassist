@@ -17,32 +17,53 @@
     "P9-501": {
       "title": "Inventory Sync Run Model",
       "status": "completed",
-      "evidence": ["backend/internal/modules/inventorysyncp9/model.go", "backend/internal/modules/inventorysyncp9/repository_test.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
     },
     "P9-502": {
       "title": "Inventory Snapshot Model",
       "status": "completed",
-      "evidence": ["backend/internal/modules/inventorysyncp9/model.go", "backend/internal/modules/inventorysyncp9/repository_test.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
     },
     "P9-503": {
       "title": "SKU Binding Model",
       "status": "completed",
-      "evidence": ["backend/internal/modules/inventorysyncp9/model.go", "backend/internal/modules/inventorysyncp9/repository_test.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
     },
     "P9-504": {
       "title": "SKU Binding Calibration Model",
       "status": "completed",
-      "evidence": ["backend/internal/modules/inventorysyncp9/model.go", "backend/internal/modules/inventorysyncp9/repository_test.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
     },
     "P9-505": {
       "title": "Manual Binding Fallback Model",
       "status": "completed",
-      "evidence": ["backend/internal/modules/inventorysyncp9/model.go", "backend/internal/modules/inventorysyncp9/repository_test.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/model.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go"
+      ]
     },
     "P9-506": {
       "title": "Migration, Repository and Persistence Verification",
       "status": "completed_locally_verified_with_known_planning_gate_boundary",
-      "evidence": ["backend/internal/modules/inventorysyncp9/migrate.go", "backend/internal/modules/inventorysyncp9/repository.go", "backend/internal/modules/inventorysyncp9/repository_test.go", "backend/internal/modules/inventorysyncp9/scope_test.go", "backend/internal/database/migrate.go"]
+      "evidence": [
+        "backend/internal/modules/inventorysyncp9/migrate.go",
+        "backend/internal/modules/inventorysyncp9/repository.go",
+        "backend/internal/modules/inventorysyncp9/repository_test.go",
+        "backend/internal/modules/inventorysyncp9/scope_test.go",
+        "backend/internal/database/migrate.go"
+      ]
     }
   },
   "domainModelConvention": "gorm_module_model_with_shared_uuid_hard_delete_base",
@@ -159,7 +180,10 @@
     "p9EntryGate": "blocked_discovery_head_match_expected_planning_gate_boundary",
     "p9PlanGate": "failed_discovery_head_match_expected_planning_gate_boundary",
     "qualityBackend": "failed_existing_full_repo_gofmt_baseline_456_files_touched_go_files_passed",
-    "architectureAffected": "failed_architecture_test_invalid_token_existing_vitest_import_issue"
+    "architectureAffected": "failed_architecture_test_invalid_token_existing_vitest_import_issue",
+    "postgresRevalidation": "passed",
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "testDatabaseUrl": "set_not_recorded"
   },
   "quantityRelationshipContract": "provider_defined_safe_observation",
   "rawProviderResponseStored": false,
@@ -200,7 +224,30 @@
   "releaseDeferred": true,
   "p9Complete": false,
   "nextBatch": {
-    "taskIds": ["P9-601", "P9-602", "P9-603", "P9-604", "P9-605", "P9-606"],
+    "taskIds": [
+      "P9-601",
+      "P9-602",
+      "P9-603",
+      "P9-604",
+      "P9-605",
+      "P9-606"
+    ],
     "status": "notStarted"
-  }
+  },
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed",
+  "postgresIntegrationPassed": false,
+  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
+  "p9FinalClosureBlocker": true
 }

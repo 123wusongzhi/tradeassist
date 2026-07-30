@@ -264,3 +264,19 @@ p10BoundaryPreserved=true
 ## Next Batch Boundary
 
 `P9-601` through `P9-606` remain **notStarted**. Batch 1 completion does not mean P9 is complete, production-ready, real Douyin sync capable, or authorized for APIs/Admin UI/workers/services.
+
+## PostgreSQL Revalidation
+
+The original Batch evidence remains unchanged: PostgreSQL was not run because `TEST_DATABASE_URL` was unset. The Batch was revalidated later against an isolated PostgreSQL test database.
+
+```text
+initialPostgresVerification.status=not_run
+initialPostgresVerification.reason=TEST_DATABASE_URL_not_set
+postgresRevalidation.status=passed
+postgresRevalidation.evidencePath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md
+postgresRevalidation.gateReportPath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md
+postgresRevalidation.verifiedAt=2026-07-30T07:47:32.008Z
+postgresRevalidation.runId=p9pg-20260730074632-3b1bbb38
+postgresRevalidation.runtimeSummarySha256=bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6
+currentPostgresIntegrationStatus=passed
+```

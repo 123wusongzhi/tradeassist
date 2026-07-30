@@ -53,7 +53,7 @@ const evidence = {
 const sources = {
   dto: 'AllowedActions CanRerun CanConfirm CanReject',
   matrix: permissions.join('\n'),
-  service: 'Orchestrator.Run Orchestrator.ManualRerun Calibration.RecalibrateSnapshotItem ManualBinding.ConfirmBinding ManualBinding.RejectBinding p9.inventory-sync.recalibrate ResponseSummary inventory_sync.read inventory_sync.run inventory_sync.rerun inventory_snapshot.read sku_binding.read sku_binding.manage sku_binding.resolve_manual inventory_sync.audit.read',
+  service: 'Orchestrator.Run Orchestrator.ManualRerun Calibration.recalibrateSnapshotItemWithDB ManualBinding.ConfirmBinding ManualBinding.RejectBinding p9.inventory-sync.recalibrate ResponseSummary inventory_sync.read inventory_sync.run inventory_sync.rerun inventory_snapshot.read sku_binding.read sku_binding.manage sku_binding.resolve_manual inventory_sync.audit.read',
   handler: 'TenantIDFromGin AdminID Idempotency-Key TraceID tenant_id = ? ErrNotFound',
   validation: 'Idempotency-Key IdempotencyKeyHash TraceID',
   repository: 'DecodeCursor ApplyDescKeyset BuildNextCursor Limit(params.Limit + 1) operationlog.OperationLog ListRunAuditEvents',

@@ -31,6 +31,13 @@ type Service struct {
 	DB *gorm.DB
 }
 
+func (s *Service) WithDB(db *gorm.DB) *Service {
+	if db == nil {
+		return s
+	}
+	return &Service{DB: db}
+}
+
 // Acquire attempts to obtain execution rights for scope+key.
 func (s *Service) Acquire(ctx context.Context, scope, key, requestHash, owner string, lease time.Duration) (*AcquireResult, error) {
 	if s == nil || s.DB == nil {

@@ -130,3 +130,19 @@ p9Complete=false
 ```
 
 Batch 4 does not authorize P9-901 through P9-1105, Backend APIs, Admin UI, workers, automatic retries, real Douyin/OAuth/credentials, real platform network, real inventory reads/writes, inventory mutation, release, tag, P9 completion, or Production Ready.
+
+## PostgreSQL Revalidation
+
+The original Batch evidence remains unchanged: PostgreSQL was not run because `TEST_DATABASE_URL` was unset. The Batch was revalidated later against an isolated PostgreSQL test database.
+
+```text
+initialPostgresVerification.status=not_run
+initialPostgresVerification.reason=TEST_DATABASE_URL_not_set
+postgresRevalidation.status=passed
+postgresRevalidation.evidencePath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md
+postgresRevalidation.gateReportPath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md
+postgresRevalidation.verifiedAt=2026-07-30T07:47:32.008Z
+postgresRevalidation.runId=p9pg-20260730074632-3b1bbb38
+postgresRevalidation.runtimeSummarySha256=bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6
+currentPostgresIntegrationStatus=passed
+```

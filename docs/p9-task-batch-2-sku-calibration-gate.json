@@ -2,10 +2,10 @@
   "phase": "P9",
   "gate": "P9-TASK-BATCH-2-SKU-CALIBRATION",
   "status": "passed",
-  "checkedAt": "2026-07-29T04:44:52.508Z",
+  "checkedAt": "2026-07-30T07:28:01.680Z",
   "batchId": "P9-TASK-BATCH-2",
   "currentBranch": "dev",
-  "currentHead": "af1a4da8ca22d0f5477828540d5caa5d22f72a75",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
   "stagedFileCount": 0,
   "workingTreeDirty": true,
   "tasks": [

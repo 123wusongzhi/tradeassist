@@ -306,7 +306,7 @@ assert.equal(
       currentHead: 'head-02-live',
       plan: {
         p9DiscoveryBaseHead: 'head-02-base',
-        currentHead: 'head-02-live',
+        currentHead: 'head-02-recorded',
         productImplementationStarted: true,
         p9ProductImplementationFileCount: 1,
         workstreams: validBundle().plan.workstreams.map((ws) =>
@@ -315,14 +315,16 @@ assert.equal(
             : ws,
         ),
       },
+      discoveryHeadIsAncestor: true,
     }),
   ).status,
   'passed',
-  'HEAD-02 product implementation may advance beyond discovery base when current HEAD is recorded',
+  'HEAD-02 product implementation may advance beyond discovery base when the recorded HEAD is an ancestor',
 );
 assertFails('discoveryHeadMatch', { currentHead: 'head-03-live', plan: { p9DiscoveryBaseHead: 'head-03-base' } });
 assertFails('discoveryHeadMatch', {
   currentHead: 'head-04-live',
+  discoveryHeadIsAncestor: false,
   plan: {
     p9DiscoveryBaseHead: 'head-04-base',
     currentHead: 'head-04-old',

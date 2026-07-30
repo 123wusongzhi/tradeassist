@@ -92,8 +92,9 @@
     "p9Batch1DomainPersistenceFixture": "passed",
     "p9Batch2SKUCalibrationFixture": "passed",
     "gitDiffCheck": "passed",
-    "testDatabaseUrl": "unset",
-    "postgresIntegration": "not_run_deferred_to_P9_Final_Development_Closure"
+    "testDatabaseUrl": "set_not_recorded",
+    "postgresIntegration": "passed_on_isolated_postgresql_test_database",
+    "postgresRevalidation": "passed"
   },
   "aiMatchingImplemented": false,
   "vectorMatchingImplemented": false,
@@ -132,5 +133,18 @@
       "P9-706"
     ],
     "status": "notStarted"
-  }
+  },
+  "initialPostgresVerification": {
+    "status": "not_run",
+    "reason": "TEST_DATABASE_URL_not_set"
+  },
+  "postgresRevalidation": {
+    "status": "passed",
+    "evidencePath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+    "gateReportPath": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md",
+    "verifiedAt": "2026-07-30T07:47:32.008Z",
+    "runId": "p9pg-20260730074632-3b1bbb38",
+    "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6"
+  },
+  "currentPostgresIntegrationStatus": "passed"
 }

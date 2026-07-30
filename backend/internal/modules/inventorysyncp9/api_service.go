@@ -126,6 +126,7 @@ func (s *APIService) Rerun(ctx context.Context, actor APIActor, runID uuid.UUID,
 		RequestID:          requestID,
 		IdempotencyKeyHash: idemHash,
 		SourceRunID:        source.ID,
+		SourceRunRevision:  req.ExpectedRevision,
 	})
 	if err != nil && result == nil {
 		return nil, err
@@ -287,27 +288,36 @@ func (s *APIService) Recalibrate(ctx context.Context, actor APIActor, snapshotID
 		}
 		return nil, err
 	}
-	result, version, err := s.Calibration.RecalibrateSnapshotItem(ctx, actor.TenantID, snapshot.InventorySyncRunID, snapshot.ID, req.ExpectedCalibrationVersion)
-	if err != nil {
-		_ = s.Idempotency.Fail(ctx, acquired.Record.ID, owner, errorCode(err), false)
-		return nil, err
-	}
-	rows, err := s.Repo.ListCalibrations(ctx, actor.TenantID, snapshotID, version)
-	if err != nil {
-		_ = s.Idempotency.Fail(ctx, acquired.Record.ID, owner, errorCode(err), false)
-		return nil, err
-	}
-	response := &RecalibrationResponse{SnapshotID: snapshotID, CalibrationVersion: version, Candidates: mapCalibrations(rows)}
-	summary, _ := json.Marshal(map[string]any{"version": version})
-	if err := s.Idempotency.Complete(ctx, acquired.Record.ID, owner, idempotency.CompleteResult{ResponseCode: "ok", ResponseSummary: string(summary), ResourceType: "p9_snapshot_calibration", ResourceID: snapshotID.String()}); err != nil {
-		return nil, err
-	}
-	if s.Audit != nil {
-		if err := s.Audit.Write(ctx, InventorySyncAuditEvent{TenantID: actor.TenantID, ActorID: actor.ActorID, Action: "sku_binding.recalibrated", Resource: inventorySyncAuditResourceRun, ResourceID: snapshot.InventorySyncRunID.String(), ShopID: snapshot.ShopConnectionID, Platform: snapshot.Platform, Permission: adminperm.PermSKUBindingManage, Status: inventorySyncAuditStatusSuccess, RequestID: requestID, Metadata: map[string]any{"calibrationVersion": version, "reasonCodes": []string{strings.TrimSpace(req.Reason)}}}); err != nil {
-			return nil, err
+	var response *RecalibrationResponse
+	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result, version, recalibrateErr := s.Calibration.recalibrateSnapshotItemWithDB(ctx, tx, actor.TenantID, snapshot.InventorySyncRunID, snapshot.ID, req.ExpectedCalibrationVersion)
+		if recalibrateErr != nil {
+			return recalibrateErr
 		}
+		var rows []SKUBindingCalibration
+		if listErr := tx.Where("tenant_id = ? AND inventory_snapshot_item_id = ? AND calibration_version = ?", actor.TenantID, snapshotID, version).Order("confidence DESC, candidate_local_sku_id ASC, id ASC").Find(&rows).Error; listErr != nil {
+			return stableError(listErr, ErrStateConflict)
+		}
+		response = &RecalibrationResponse{SnapshotID: snapshotID, CalibrationVersion: version, Candidates: mapCalibrations(rows)}
+		summary, marshalErr := json.Marshal(map[string]any{"version": version})
+		if marshalErr != nil {
+			return stableError(marshalErr, ErrStateConflict)
+		}
+		if completeErr := s.Idempotency.WithDB(tx).Complete(ctx, acquired.Record.ID, owner, idempotency.CompleteResult{ResponseCode: "ok", ResponseSummary: string(summary), ResourceType: "p9_snapshot_calibration", ResourceID: snapshotID.String()}); completeErr != nil {
+			return completeErr
+		}
+		if s.Audit != nil {
+			if auditErr := s.Audit.WithDB(tx).Write(ctx, InventorySyncAuditEvent{TenantID: actor.TenantID, ActorID: actor.ActorID, Action: "sku_binding.recalibrated", Resource: inventorySyncAuditResourceRun, ResourceID: snapshot.InventorySyncRunID.String(), ShopID: snapshot.ShopConnectionID, Platform: snapshot.Platform, Permission: adminperm.PermSKUBindingManage, Status: inventorySyncAuditStatusSuccess, RequestID: requestID, Metadata: map[string]any{"calibrationVersion": version, "reasonCodes": []string{strings.TrimSpace(req.Reason)}}}); auditErr != nil {
+				return auditErr
+			}
+		}
+		_ = result
+		return nil
+	})
+	if err != nil {
+		_ = s.Idempotency.Fail(ctx, acquired.Record.ID, owner, errorCode(err), false)
+		return nil, err
 	}
-	_ = result
 	return response, nil
 }
 

@@ -201,7 +201,10 @@ func validateInventorySyncRun(run *InventorySyncRun) error {
 	if run.Platform == "" || !allowedProviderModes[run.ProviderMode] || !allowedRunStatuses[run.Status] || run.Revision < 1 {
 		return ErrValidation
 	}
-	if run.SnapshotCount < 0 || run.CalibrationCount < 0 || run.ManualRequestCount < 0 {
+	if run.SnapshotCount < 0 || run.CalibrationCount < 0 || run.ManualRequestCount < 0 || run.RerunSourceRevision < 0 {
+		return ErrValidation
+	}
+	if (run.RerunOfRunID == nil) != (run.RerunSourceRevision == 0) {
 		return ErrValidation
 	}
 	if err := validateHashField(run.IdempotencyKeyHash, false); err != nil {

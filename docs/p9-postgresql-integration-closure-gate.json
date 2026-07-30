@@ -1,0 +1,356 @@
+{
+  "phase": "P9",
+  "gate": "P9-POSTGRES-INTEGRATION",
+  "checkedAt": "2026-07-30T07:49:25.045Z",
+  "status": "passed",
+  "failed": [],
+  "failedCount": 0,
+  "currentBranch": "dev",
+  "currentHead": "80fab97663cee3a3b02c7172474190e587ad4461",
+  "headDetached": false,
+  "stagedFileCount": 0,
+  "runtimeRunId": "p9pg-20260730074632-3b1bbb38",
+  "runtimeSummarySha256": "bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6",
+  "testDatabase": {
+    "driver": "postgresql",
+    "purpose": "test",
+    "urlRecorded": false,
+    "hostCategory": "local",
+    "nameSafe": true,
+    "productionRejected": true,
+    "serverVersion": "17.9"
+  },
+  "contracts": {
+    "postgresConnectionPassed": true,
+    "sqliteFallbackUsed": false,
+    "migrationUpPassed": true,
+    "migrationIdempotencyPassed": true,
+    "schemaVerificationPassed": true,
+    "foreignKeysPresent": true,
+    "checkConstraintsPresent": true,
+    "partialUniqueIndexesPresent": true,
+    "snapshotUniquenessPassed": true,
+    "confirmedBindingUniquenessPassed": true,
+    "pendingManualRequestUniquenessPassed": true,
+    "snapshotImmutabilityPassed": true,
+    "calibrationImmutabilityPassed": true,
+    "decisionHistoryImmutabilityPassed": true,
+    "auditHistoryImmutabilityPassed": true,
+    "repositoryTestsPassed": true,
+    "tenantIsolationPassed": true,
+    "idempotencyTestsPassed": true,
+    "optimisticConcurrencyPassed": true,
+    "transactionAtomicityPassed": true,
+    "concurrencyTestsPassed": true,
+    "keysetPaginationPassed": true,
+    "jsonContractPassed": true,
+    "timestampContractPassed": true,
+    "postgresApiIntegrationPassed": true,
+    "postgresFixtureGoldenPathPassed": true,
+    "allRequiredTestsPassed": true,
+    "packagesPassed": true,
+    "postgresIntegrationPassed": true
+  },
+  "racePassed": true,
+  "dataRaces": 0,
+  "platformBoundary": {
+    "fixtureProviderNetworkCalls": 0,
+    "realPlatformNetworkCalls": 0,
+    "realCredentialsUsed": false,
+    "inventoryMutationCalls": 0
+  },
+  "historicalGateFailureCount": 0,
+  "historicalGates": [
+    {
+      "path": "docs/p9-entry-gate-report.json",
+      "status": "allowed"
+    },
+    {
+      "path": "docs/p9-plan-final-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-1-scope-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-1-domain-persistence-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-2-sku-calibration-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-3-sync-orchestration-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-4-permissions-audit-safety-gate.json",
+      "status": "passed"
+    },
+    {
+      "path": "docs/p9-task-batch-5-backend-apis-gate.json",
+      "status": "passed"
+    }
+  ],
+  "batchRevalidations": [
+    {
+      "batchId": "P9-TASK-BATCH-1",
+      "status": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-2",
+      "status": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-3",
+      "status": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-4",
+      "status": "passed"
+    },
+    {
+      "batchId": "P9-TASK-BATCH-5",
+      "status": "passed"
+    }
+  ],
+  "p9FinalClosureBlocker": false,
+  "productionReady": false,
+  "batch6ReadyToStart": true,
+  "checks": [
+    {
+      "id": "requiredFilesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "packageScriptsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "currentBranch",
+      "status": "passed"
+    },
+    {
+      "id": "headDetached",
+      "status": "passed"
+    },
+    {
+      "id": "stagedFileCount",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeGitBinding",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeSummaryHashVerified",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeRawArtifactHashesVerified",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeSourceManifestVerified",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeCompleted",
+      "status": "passed"
+    },
+    {
+      "id": "testDatabaseUrlPresent",
+      "status": "passed"
+    },
+    {
+      "id": "testDatabaseUrlValid",
+      "status": "passed"
+    },
+    {
+      "id": "testDatabaseDriver",
+      "status": "passed"
+    },
+    {
+      "id": "testDatabaseNameSafe",
+      "status": "passed"
+    },
+    {
+      "id": "productionDatabaseRejected",
+      "status": "passed"
+    },
+    {
+      "id": "actualDatabaseMatched",
+      "status": "passed"
+    },
+    {
+      "id": "sqliteFallbackUsed",
+      "status": "passed"
+    },
+    {
+      "id": "postgresConnectionPassed",
+      "status": "passed"
+    },
+    {
+      "id": "migrationUpPassed",
+      "status": "passed"
+    },
+    {
+      "id": "migrationIdempotencyPassed",
+      "status": "passed"
+    },
+    {
+      "id": "schemaVerificationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "foreignKeysPresent",
+      "status": "passed"
+    },
+    {
+      "id": "checkConstraintsPresent",
+      "status": "passed"
+    },
+    {
+      "id": "partialUniqueIndexesPresent",
+      "status": "passed"
+    },
+    {
+      "id": "snapshotUniquenessPassed",
+      "status": "passed"
+    },
+    {
+      "id": "confirmedBindingUniquenessPassed",
+      "status": "passed"
+    },
+    {
+      "id": "pendingManualRequestUniquenessPassed",
+      "status": "passed"
+    },
+    {
+      "id": "snapshotImmutabilityPassed",
+      "status": "passed"
+    },
+    {
+      "id": "calibrationImmutabilityPassed",
+      "status": "passed"
+    },
+    {
+      "id": "decisionHistoryImmutabilityPassed",
+      "status": "passed"
+    },
+    {
+      "id": "auditHistoryImmutabilityPassed",
+      "status": "passed"
+    },
+    {
+      "id": "repositoryTestsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "tenantIsolationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "idempotencyTestsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "optimisticConcurrencyPassed",
+      "status": "passed"
+    },
+    {
+      "id": "transactionAtomicityPassed",
+      "status": "passed"
+    },
+    {
+      "id": "concurrencyTestsPassed",
+      "status": "passed"
+    },
+    {
+      "id": "keysetPaginationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "jsonContractPassed",
+      "status": "passed"
+    },
+    {
+      "id": "timestampContractPassed",
+      "status": "passed"
+    },
+    {
+      "id": "postgresApiIntegrationPassed",
+      "status": "passed"
+    },
+    {
+      "id": "postgresFixtureGoldenPathPassed",
+      "status": "passed"
+    },
+    {
+      "id": "racePassed",
+      "status": "passed"
+    },
+    {
+      "id": "fixtureProviderNetworkCalls",
+      "status": "passed"
+    },
+    {
+      "id": "realPlatformNetworkCalls",
+      "status": "passed"
+    },
+    {
+      "id": "realCredentialsUsed",
+      "status": "passed"
+    },
+    {
+      "id": "inventoryMutationCalls",
+      "status": "passed"
+    },
+    {
+      "id": "historicalGatesPassed",
+      "status": "passed"
+    },
+    {
+      "id": "batchRevalidations",
+      "status": "passed"
+    },
+    {
+      "id": "runtimeEvidenceBinding",
+      "status": "passed"
+    },
+    {
+      "id": "closureStatus",
+      "status": "passed"
+    },
+    {
+      "id": "p9FinalClosureBlocker",
+      "status": "passed"
+    },
+    {
+      "id": "productionReady",
+      "status": "passed"
+    },
+    {
+      "id": "p10BoundaryPreserved",
+      "status": "passed"
+    },
+    {
+      "id": "batch6ReadyToStart",
+      "status": "passed"
+    },
+    {
+      "id": "p9Complete",
+      "status": "passed"
+    },
+    {
+      "id": "scopeBoundary",
+      "status": "passed"
+    },
+    {
+      "id": "secretLeakFree",
+      "status": "passed"
+    }
+  ]
+}

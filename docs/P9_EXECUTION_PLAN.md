@@ -51,6 +51,23 @@ The existing `P9-101` through `P9-402` tasks remain the planning / governance fo
 | `P9-401` | Publish discovery and plan artifacts in docs | completed | discovery docs, plan docs, gate reports |
 | `P9-402` | Refresh the docs index and progress summary | completed | docs index update, progress summary update |
 
+## PostgreSQL Integration Baseline
+
+Status: **Passed**
+
+```text
+postgresIntegrationStatus=passed
+postgresIntegrationPassed=true
+postgresIntegrationDeferredTo=null
+p9FinalClosureBlocker=false
+postgresIntegrationEvidence=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md
+postgresIntegrationGateStatus=passed
+P9 Product Batch 1–5 Completed
+P9 Product Batch 6 Ready to Start
+P9 Product Batch 6 Started=false
+productionReady=false
+```
+
 ## Product Implementation Workstreams
 
 ### WS-05 Domain and Persistence

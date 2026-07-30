@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "phase": "P9",
-  "status": "batch_5_completed_locally_verified_postgres_deferred",
+  "status": "batch_5_completed_postgresql_baseline_passed_batch_6_ready",
   "executionStatus": "in_progress",
   "ownerScopeDecisionId": "P9-OWNER-SCOPE-DECISION-20260728T0440Z",
   "ownerScopeDecisionApproved": true,
@@ -1740,8 +1740,16 @@
     "docs/P9_TASK_BATCH_5_BACKEND_APIS_GATE.md",
     "docs/p9-task-batch-5-backend-apis-gate.json"
   ],
-  "postgresIntegrationStatus": "not_run",
-  "postgresIntegrationPassed": false,
-  "postgresIntegrationDeferredTo": "P9_Final_Development_Closure",
-  "p9FinalClosureBlocker": true
+  "postgresIntegrationStatus": "passed",
+  "postgresIntegrationPassed": true,
+  "postgresIntegrationDeferredTo": null,
+  "p9FinalClosureBlocker": false,
+  "postgresIntegrationEvidence": "docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md",
+  "postgresIntegrationGateStatus": "passed",
+  "postgresIntegrationBaselinePassed": true,
+  "batch6ReadyToStart": true,
+  "p9Complete": false,
+  "postgresRuntimeEvidence": "artifacts/p9-postgres-runtime.json",
+  "postgresRuntimeRunId": "p9pg-20260730074632-3b1bbb38",
+  "historicalGateFailureCount": 0
 }

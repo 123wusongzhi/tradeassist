@@ -89,11 +89,12 @@ assert.equal(
       currentHead: 'head-02-live',
       discovery: {
         p9DiscoveryBaseHead: 'head-02-base',
-        currentHead: 'head-02-live',
+        currentHead: 'head-02-recorded',
         implementationStarted: true,
         productImplementationStarted: true,
         p9ProductImplementationFileCount: 1,
       },
+      discoveryHeadIsAncestor: true,
     }),
   ).status,
   'allowed',
@@ -103,6 +104,7 @@ assertFails('discoveryHeadMatch', { currentHead: 'head-03-live', discovery: { p9
 assertFails('discoveryHeadMatch', {
   currentHead: 'head-04-live',
   discovery: { p9DiscoveryBaseHead: 'head-04-base', currentHead: 'head-04-old', implementationStarted: true, productImplementationStarted: true, p9ProductImplementationFileCount: 1 },
+  discoveryHeadIsAncestor: false,
 });
 assertFails('p9ProductImplementationFileCount', { discovery: { p9ProductImplementationFileCount: 1 } });
 assertFails('implementationStarted', { discovery: { implementationStarted: true, productImplementationStarted: false, p9ProductImplementationFileCount: 1, currentHead: 'abc123' } });

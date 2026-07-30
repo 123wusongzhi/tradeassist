@@ -51,6 +51,15 @@ function git(args) {
   }
 }
 
+function gitIsAncestor(ancestor, descendant) {
+  try {
+    execFileSync('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: REPO_ROOT, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function counts(references = []) {
   return references.reduce(
     (acc, ref) => {
@@ -73,6 +82,7 @@ export function validateP9EntryBundle({
   currentHead,
   headDetached,
   stagedFileCount,
+  discoveryHeadIsAncestor,
 } = {}) {
   const refs = Array.isArray(discovery.references) ? discovery.references : [];
   const refCounts = counts(refs);
@@ -96,7 +106,11 @@ export function validateP9EntryBundle({
     p8TaskBatch9Gate.status === 'passed' && p8TaskBatch9Gate.productionReady === false;
   const productImplementationStarted = discovery.implementationStarted === true || discovery.productImplementationStarted === true;
   const implementationStartedCompatible = productImplementationStarted ? discovery.implementationStarted === true && discovery.productImplementationStarted === true : discovery.implementationStarted === false && discovery.productImplementationStarted !== true;
-  const discoveryHeadMatch = productImplementationStarted ? discovery.currentHead === head && String(discovery.p9DiscoveryBaseHead || '').length > 0 : discovery.p9DiscoveryBaseHead === head;
+  const recordedDiscoveryHead = String(discovery.currentHead || discovery.p9DiscoveryBaseHead || '').trim();
+  const ancestryCompatible = discoveryHeadIsAncestor ?? (recordedDiscoveryHead !== '' && gitIsAncestor(recordedDiscoveryHead, head));
+  const discoveryHeadMatch = productImplementationStarted
+    ? recordedDiscoveryHead !== '' && String(discovery.p9DiscoveryBaseHead || '').length > 0 && ancestryCompatible
+    : discovery.p9DiscoveryBaseHead === head;
   const productImplementationFileCountCompatible = productImplementationStarted ? Number(discovery.p9ProductImplementationFileCount || 0) > 0 : Number(discovery.p9ProductImplementationFileCount || 0) === 0;
 
   const checks = [
@@ -172,6 +186,7 @@ export function buildP9EntryGateReport(bundle = {}) {
     currentHead: bundle.currentHead,
     headDetached: bundle.headDetached,
     stagedFileCount: bundle.stagedFileCount,
+    discoveryHeadIsAncestor: bundle.discoveryHeadIsAncestor,
   });
 
   return {

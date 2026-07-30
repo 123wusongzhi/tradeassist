@@ -55,6 +55,7 @@ type InventorySyncOrchestratorInput struct {
 	RequestID          string
 	IdempotencyKeyHash string
 	SourceRunID        uuid.UUID
+	SourceRunRevision  int
 }
 
 type InventorySyncOrchestratorResult struct {
@@ -126,18 +127,22 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 	defer unlock()
 	fingerprint := inventorySyncInputFingerprint(input)
 	run := &InventorySyncRun{
-		TenantID:           input.TenantID,
-		ShopConnectionID:   input.ShopConnectionID,
-		Platform:           input.Platform,
-		ProviderMode:       input.ProviderMode,
-		Status:             InventorySyncRunStatusPending,
-		Cursor:             datatypes.JSON([]byte(`{}`)),
-		Checkpoint:         datatypes.JSON([]byte(`{}`)),
-		SafeErrorMetadata:  datatypes.JSON([]byte(`{}`)),
-		RequestID:          input.RequestID,
-		IdempotencyKeyHash: input.IdempotencyKeyHash,
-		InputFingerprint:   fingerprint,
-		Revision:           1,
+		TenantID:            input.TenantID,
+		ShopConnectionID:    input.ShopConnectionID,
+		Platform:            input.Platform,
+		ProviderMode:        input.ProviderMode,
+		Status:              InventorySyncRunStatusPending,
+		Cursor:              datatypes.JSON([]byte(`{}`)),
+		Checkpoint:          datatypes.JSON([]byte(`{}`)),
+		SafeErrorMetadata:   datatypes.JSON([]byte(`{}`)),
+		RequestID:           input.RequestID,
+		IdempotencyKeyHash:  input.IdempotencyKeyHash,
+		InputFingerprint:    fingerprint,
+		RerunSourceRevision: input.SourceRunRevision,
+		Revision:            1,
+	}
+	if input.SourceRunID != zeroUUID {
+		run.RerunOfRunID = &input.SourceRunID
 	}
 	if err := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := validateInventorySyncRun(run); err != nil {
@@ -145,6 +150,21 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 		}
 		if err := verifyShopConnection(ctx, tx, run.TenantID, run.ShopConnectionID, run.Platform); err != nil {
 			return err
+		}
+		if run.RerunOfRunID != nil {
+			var source InventorySyncRun
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("tenant_id = ? AND id = ?", run.TenantID, *run.RerunOfRunID).First(&source).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrNotFound
+				}
+				return stableError(err, ErrStateConflict)
+			}
+			if source.Revision != run.RerunSourceRevision {
+				return ErrRevisionConflict
+			}
+			if source.Status != InventorySyncRunStatusFailed && source.Status != InventorySyncRunStatusCancelled {
+				return ErrRetryNotAllowed
+			}
 		}
 		if existing, err := getRunByIdempotency(ctx, tx, run.TenantID, run.IdempotencyKeyHash); err == nil {
 			if existing.InputFingerprint != run.InputFingerprint {
@@ -155,11 +175,33 @@ func (o *InventorySyncOrchestrator) Run(ctx context.Context, input InventorySync
 		} else if !errors.Is(err, ErrNotFound) {
 			return err
 		}
-		if err := tx.Create(run).Error; err != nil {
-			if isUniqueViolation(err) {
-				return stableError(err, ErrIdempotencyPayloadConflict)
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(run)
+		if result.Error != nil {
+			return stableError(result.Error, ErrStateConflict)
+		}
+		if result.RowsAffected == 0 {
+			existing, err := getRunByIdempotency(ctx, tx, run.TenantID, run.IdempotencyKeyHash)
+			if err == nil {
+				if existing.InputFingerprint != run.InputFingerprint {
+					return ErrIdempotencyPayloadConflict
+				}
+				*run = *existing
+				return nil
 			}
-			return stableError(err, ErrStateConflict)
+			if !errors.Is(err, ErrNotFound) {
+				return stableError(err, ErrStateConflict)
+			}
+			if run.RerunOfRunID != nil {
+				var claimed InventorySyncRun
+				claimErr := tx.Where("tenant_id = ? AND rerun_of_run_id = ? AND rerun_source_revision = ?", run.TenantID, *run.RerunOfRunID, run.RerunSourceRevision).First(&claimed).Error
+				if claimErr == nil {
+					return ErrRevisionConflict
+				}
+				if !errors.Is(claimErr, gorm.ErrRecordNotFound) {
+					return stableError(claimErr, ErrStateConflict)
+				}
+			}
+			return ErrStateConflict
 		}
 		return o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.run_created", Resource: inventorySyncAuditResourceRun, ResourceID: run.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"runStatusAfter": InventorySyncRunStatusPending})})
 	}); err != nil {
@@ -261,6 +303,8 @@ func (o *InventorySyncOrchestrator) ManualRerun(ctx context.Context, input Inven
 }
 
 func (o *InventorySyncOrchestrator) commitPage(ctx context.Context, input InventorySyncOrchestratorInput, run *InventorySyncRun, page InventoryFetchPageResult, checkpoint *inventorySyncCheckpoint) (*InventorySyncRun, error) {
+	workingCheckpoint := *checkpoint
+	workingCheckpoint.BindingResults = append([]BindingResolutionItemResult(nil), checkpoint.BindingResults...)
 	var updated *InventorySyncRun
 	err := o.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var current InventorySyncRun
@@ -295,16 +339,16 @@ func (o *InventorySyncOrchestrator) commitPage(ctx context.Context, input Invent
 		if err != nil {
 			return err
 		}
-		checkpoint.TotalRecordCount += pageResolution.TotalRecordCount
-		checkpoint.MatchedRecordCount += pageResolution.MatchedRecordCount
-		checkpoint.UnmatchedRecordCount += pageResolution.UnmatchedRecordCount
-		checkpoint.ConflictRecordCount += pageResolution.ConflictRecordCount
-		checkpoint.FailedRecordCount += pageResolution.FailedRecordCount
-		checkpoint.ManualBindingRequestCount += pageResolution.ManualBindingRequestCount
-		checkpoint.ConfirmedBindingCount += pageResolution.ConfirmedBindingCount
-		checkpoint.PagesProcessed++
-		checkpoint.BindingResults = append(checkpoint.BindingResults, pageResolution.Results...)
-		checkpointJSON, err := safeCheckpointJSON(*checkpoint)
+		workingCheckpoint.TotalRecordCount += pageResolution.TotalRecordCount
+		workingCheckpoint.MatchedRecordCount += pageResolution.MatchedRecordCount
+		workingCheckpoint.UnmatchedRecordCount += pageResolution.UnmatchedRecordCount
+		workingCheckpoint.ConflictRecordCount += pageResolution.ConflictRecordCount
+		workingCheckpoint.FailedRecordCount += pageResolution.FailedRecordCount
+		workingCheckpoint.ManualBindingRequestCount += pageResolution.ManualBindingRequestCount
+		workingCheckpoint.ConfirmedBindingCount += pageResolution.ConfirmedBindingCount
+		workingCheckpoint.PagesProcessed++
+		workingCheckpoint.BindingResults = append(workingCheckpoint.BindingResults, pageResolution.Results...)
+		checkpointJSON, err := safeCheckpointJSON(workingCheckpoint)
 		if err != nil {
 			return err
 		}
@@ -315,7 +359,7 @@ func (o *InventorySyncOrchestrator) commitPage(ctx context.Context, input Invent
 		if err != nil {
 			return err
 		}
-		if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.page_processed", Resource: inventorySyncAuditResourceRun, ResourceID: current.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"pageNumber": checkpoint.PagesProcessed, "pageItemCount": len(stored), "totalRecordCount": checkpoint.TotalRecordCount, "matchedRecordCount": checkpoint.MatchedRecordCount, "unmatchedRecordCount": checkpoint.UnmatchedRecordCount, "conflictRecordCount": checkpoint.ConflictRecordCount, "failedRecordCount": checkpoint.FailedRecordCount, "cursorHash": safeCursorHash(page.NextCursor), "pagesProcessed": checkpoint.PagesProcessed})}); err != nil {
+		if err := o.writeAuditWithDB(ctx, tx, InventorySyncAuditEvent{TenantID: input.TenantID, ActorID: input.ActorID, Action: "inventory_sync.page_processed", Resource: inventorySyncAuditResourceRun, ResourceID: current.ID.String(), ShopID: input.ShopConnectionID, Platform: input.Platform, Permission: inventorySyncPermission(input), Status: inventorySyncAuditStatusSuccess, RequestID: input.RequestID, Metadata: inventorySyncAuditMetadata(input, map[string]any{"pageNumber": workingCheckpoint.PagesProcessed, "pageItemCount": len(stored), "totalRecordCount": workingCheckpoint.TotalRecordCount, "matchedRecordCount": workingCheckpoint.MatchedRecordCount, "unmatchedRecordCount": workingCheckpoint.UnmatchedRecordCount, "conflictRecordCount": workingCheckpoint.ConflictRecordCount, "failedRecordCount": workingCheckpoint.FailedRecordCount, "cursorHash": safeCursorHash(page.NextCursor), "pagesProcessed": workingCheckpoint.PagesProcessed})}); err != nil {
 			return err
 		}
 		updated = patched
@@ -324,6 +368,7 @@ func (o *InventorySyncOrchestrator) commitPage(ctx context.Context, input Invent
 	if err != nil {
 		return nil, err
 	}
+	*checkpoint = workingCheckpoint
 	return updated, nil
 }
 
@@ -364,7 +409,7 @@ func normalizeOrchestratorInput(input *InventorySyncOrchestratorInput) error {
 	if err := validateHashField(input.IdempotencyKeyHash, true); err != nil {
 		return err
 	}
-	if input.TriggerType == InventorySyncTriggerManualRerun && input.SourceRunID == zeroUUID {
+	if input.TriggerType == InventorySyncTriggerManualRerun && (input.SourceRunID == zeroUUID || input.SourceRunRevision < 1) {
 		return ErrValidation
 	}
 	return nil
@@ -556,7 +601,7 @@ func syncErrorRetryable(err error) bool {
 }
 
 func inventorySyncInputFingerprint(input InventorySyncOrchestratorInput) string {
-	return hashString(input.TenantID, input.ShopConnectionID.String(), input.Platform, input.ProviderMode, input.FixtureScenario, input.TriggerType, input.PageSize, input.MaxPagesPerRun, input.MaxItemsPerPage, input.MaxItemsPerRun, input.SourceRunID.String())
+	return hashString(input.TenantID, input.ShopConnectionID.String(), input.Platform, input.ProviderMode, input.FixtureScenario, input.TriggerType, input.PageSize, input.MaxPagesPerRun, input.MaxItemsPerPage, input.MaxItemsPerRun, input.SourceRunID.String(), input.SourceRunRevision)
 }
 
 func hashString(parts ...any) string {

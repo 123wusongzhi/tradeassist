@@ -54,6 +54,7 @@ func migrateIndexes(db *gorm.DB) error {
 	case "postgres", "sqlite":
 		stmts = append(stmts,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_inventory_sync_runs_tenant_idempotency ON p9_inventory_sync_runs (tenant_id, idempotency_key_hash) WHERE idempotency_key_hash IS NOT NULL AND idempotency_key_hash <> ''`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_inventory_sync_runs_rerun_claim ON p9_inventory_sync_runs (tenant_id, rerun_of_run_id, rerun_source_revision) WHERE rerun_of_run_id IS NOT NULL AND rerun_source_revision > 0`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_sku_bindings_current_confirmed ON p9_sku_bindings (tenant_id, shop_connection_id, external_sku_id) WHERE binding_status = 'confirmed'`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_manual_binding_requests_pending ON p9_manual_binding_requests (tenant_id, shop_connection_id, external_sku_id) WHERE status = 'pending'`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_manual_binding_requests_tenant_idempotency ON p9_manual_binding_requests (tenant_id, idempotency_key_hash) WHERE idempotency_key_hash IS NOT NULL AND idempotency_key_hash <> ''`,
@@ -61,6 +62,7 @@ func migrateIndexes(db *gorm.DB) error {
 	default:
 		stmts = append(stmts,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_inventory_sync_runs_tenant_idempotency ON p9_inventory_sync_runs (tenant_id, idempotency_key_hash)`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_inventory_sync_runs_rerun_claim ON p9_inventory_sync_runs (tenant_id, rerun_of_run_id, rerun_source_revision)`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_sku_bindings_current_confirmed ON p9_sku_bindings (tenant_id, shop_connection_id, external_sku_id, binding_status)`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_manual_binding_requests_pending ON p9_manual_binding_requests (tenant_id, shop_connection_id, external_sku_id, status)`,
 			`CREATE UNIQUE INDEX IF NOT EXISTS ux_p9_manual_binding_requests_tenant_idempotency ON p9_manual_binding_requests (tenant_id, idempotency_key_hash)`,
@@ -167,6 +169,8 @@ func migrateSQLiteImmutableGuards(db *gorm.DB) error {
 		`CREATE TRIGGER IF NOT EXISTS trg_p9_sku_binding_calibrations_no_delete BEFORE DELETE ON p9_sku_binding_calibrations BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
 		`CREATE TRIGGER IF NOT EXISTS trg_p9_manual_binding_decisions_no_update BEFORE UPDATE ON p9_manual_binding_decisions BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
 		`CREATE TRIGGER IF NOT EXISTS trg_p9_manual_binding_decisions_no_delete BEFORE DELETE ON p9_manual_binding_decisions BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
+		`CREATE TRIGGER IF NOT EXISTS trg_p9_operation_logs_no_update BEFORE UPDATE ON operation_logs WHEN OLD.resource IN ('inventory_sync','sku_binding') BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
+		`CREATE TRIGGER IF NOT EXISTS trg_p9_operation_logs_no_delete BEFORE DELETE ON operation_logs WHEN OLD.resource IN ('inventory_sync','sku_binding') BEGIN SELECT RAISE(ABORT, 'immutable_record'); END;`,
 	}
 	for _, stmt := range stmts {
 		if err := db.Exec(stmt).Error; err != nil {
@@ -200,6 +204,12 @@ func migratePostgresImmutableGuards(db *gorm.DB) error {
 		EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
 		`DO $$ BEGIN
 			CREATE TRIGGER trg_p9_manual_binding_decisions_no_delete BEFORE DELETE ON p9_manual_binding_decisions FOR EACH ROW EXECUTE FUNCTION inventorysyncp9_reject_immutable_change();
+		EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+		`DO $$ BEGIN
+			CREATE TRIGGER trg_p9_operation_logs_no_update BEFORE UPDATE ON operation_logs FOR EACH ROW WHEN (OLD.resource IN ('inventory_sync','sku_binding')) EXECUTE FUNCTION inventorysyncp9_reject_immutable_change();
+		EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+		`DO $$ BEGIN
+			CREATE TRIGGER trg_p9_operation_logs_no_delete BEFORE DELETE ON operation_logs FOR EACH ROW WHEN (OLD.resource IN ('inventory_sync','sku_binding')) EXECUTE FUNCTION inventorysyncp9_reject_immutable_change();
 		EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
 	}
 	for _, stmt := range stmts {

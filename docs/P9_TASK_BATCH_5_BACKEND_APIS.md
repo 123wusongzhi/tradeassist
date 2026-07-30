@@ -36,3 +36,19 @@ Two repository-level orchestrators remain blocked by pre-existing baseline/tooli
 Git state is intentionally uncommitted and unstaged on `dev`; no commit, push, tag, or branch creation was performed.
 
 See also: [`p9-task-batch-5-backend-apis.json`](p9-task-batch-5-backend-apis.json), [`P9_TASK_BATCH_5_BACKEND_APIS_GATE.md`](P9_TASK_BATCH_5_BACKEND_APIS_GATE.md).
+
+## PostgreSQL Revalidation
+
+The original Batch evidence remains unchanged: PostgreSQL was not run because `TEST_DATABASE_URL` was unset. The Batch was revalidated later against an isolated PostgreSQL test database.
+
+```text
+initialPostgresVerification.status=not_run
+initialPostgresVerification.reason=TEST_DATABASE_URL_not_set
+postgresRevalidation.status=passed
+postgresRevalidation.evidencePath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE.md
+postgresRevalidation.gateReportPath=docs/P9_POSTGRESQL_INTEGRATION_CLOSURE_GATE.md
+postgresRevalidation.verifiedAt=2026-07-30T07:47:32.008Z
+postgresRevalidation.runId=p9pg-20260730074632-3b1bbb38
+postgresRevalidation.runtimeSummarySha256=bf2427b1a6e2961b19298afbf1d77784ef12333cbe465a410d96a441d77f23f6
+currentPostgresIntegrationStatus=passed
+```

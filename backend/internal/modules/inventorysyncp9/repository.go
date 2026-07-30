@@ -43,11 +43,19 @@ func (r *InventorySyncRunRepository) Create(ctx context.Context, run *InventoryS
 		} else if !errors.Is(err, ErrNotFound) {
 			return err
 		}
-		if err := tx.Create(run).Error; err != nil {
-			if isUniqueViolation(err) {
-				return stableError(err, ErrIdempotencyPayloadConflict)
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(run)
+		if result.Error != nil {
+			return stableError(result.Error, ErrStateConflict)
+		}
+		if result.RowsAffected == 0 {
+			existing, err := getRunByIdempotency(ctx, tx, run.TenantID, run.IdempotencyKeyHash)
+			if err != nil {
+				return stableError(err, ErrStateConflict)
 			}
-			return stableError(err, ErrStateConflict)
+			if existing.InputFingerprint != run.InputFingerprint {
+				return ErrIdempotencyPayloadConflict
+			}
+			*run = *existing
 		}
 		return nil
 	}); err != nil {
@@ -235,10 +243,11 @@ func (r *InventorySnapshotRepository) CreateBatch(ctx context.Context, tenantID 
 			if err := validateInventorySnapshotItem(&items[idx]); err != nil {
 				return err
 			}
-			if seen[items[idx].ExternalSKUID] {
+			uniqueKey := items[idx].InventorySyncRunID.String() + "\x00" + items[idx].ExternalSKUID
+			if seen[uniqueKey] {
 				return ErrDuplicateExternalSKU
 			}
-			seen[items[idx].ExternalSKUID] = true
+			seen[uniqueKey] = true
 			if err := verifyRun(ctx, tx, tenantID, items[idx].InventorySyncRunID, items[idx].ShopConnectionID, items[idx].Platform); err != nil {
 				return err
 			}
@@ -591,11 +600,23 @@ func (r *ManualBindingRequestRepository) Create(ctx context.Context, request *Ma
 				return err
 			}
 		}
-		if err := tx.Create(request).Error; err != nil {
-			if isUniqueViolation(err) {
-				return stableError(err, ErrManualBindingAlreadyPending)
+		result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(request)
+		if result.Error != nil {
+			return stableError(result.Error, ErrStateConflict)
+		}
+		if result.RowsAffected == 0 {
+			existing, lookupErr := getManualRequestByIdempotency(ctx, tx, request.TenantID, request.IdempotencyKeyHash)
+			if lookupErr == nil {
+				if existing.InputFingerprint != request.InputFingerprint {
+					return ErrIdempotencyPayloadConflict
+				}
+				*request = *existing
+				return nil
 			}
-			return stableError(err, ErrStateConflict)
+			if !errors.Is(lookupErr, ErrNotFound) {
+				return lookupErr
+			}
+			return ErrManualBindingAlreadyPending
 		}
 		return nil
 	}); err != nil {

@@ -215,7 +215,7 @@ export function validateP9Batch4PermissionsAuditSafetyBundle({ evidence = {}, so
   const productionSource = [providerText, orchestratorText, manualBindingText, rbacText, auditText, redactionText, configText].join('\n');
   const authorizeRunIndex = orchestratorText.indexOf('o.authorizeRun');
   const providerResolveIndex = orchestratorText.indexOf('o.Registry.Resolve');
-  const txCreateRunIndex = orchestratorText.indexOf('tx.Create(run)');
+  const txCreateRunIndex = Math.max(orchestratorText.indexOf('tx.Create(run)'), orchestratorText.indexOf('Create(run)'));
   const repositoryCreateIndex = txCreateRunIndex > -1 ? txCreateRunIndex : orchestratorText.indexOf('Create(ctx');
   const missingFiles = sources.requiredFilesPresent === true ? [] : REQUIRED_FILES.filter((rel) => !fs.existsSync(rootPath(rel)));
   const branch = gitState.currentBranch ?? git(['branch', '--show-current']);

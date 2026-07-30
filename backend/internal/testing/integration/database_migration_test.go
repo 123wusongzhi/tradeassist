@@ -11,6 +11,7 @@ import (
 )
 
 func TestAutoMigrateAgainstIsolatedPostgres(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
 	cfg, ok, err := safeenv.TestDatabaseURLFromEnv()
 	require.NoError(t, err)
 	if !ok {
