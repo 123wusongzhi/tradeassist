@@ -65,14 +65,14 @@ const (
 	PermOperationTaskRetry     = "operationtask.retry"
 	PermOperationTaskAuditRead = "operationtask.audit.read"
 	// P9 inventory sync permissions
-	PermInventorySyncRead      = "inventory_sync.read"
-	PermInventorySyncRun       = "inventory_sync.run"
-	PermInventorySyncRerun     = "inventory_sync.rerun"
-	PermInventorySnapshotRead  = "inventory_snapshot.read"
-	PermSKUBindingRead         = "sku_binding.read"
-	PermSKUBindingManage       = "sku_binding.manage"
+	PermInventorySyncRead       = "inventory_sync.read"
+	PermInventorySyncRun        = "inventory_sync.run"
+	PermInventorySyncRerun      = "inventory_sync.rerun"
+	PermInventorySnapshotRead   = "inventory_snapshot.read"
+	PermSKUBindingRead          = "sku_binding.read"
+	PermSKUBindingManage        = "sku_binding.manage"
 	PermSKUBindingResolveManual = "sku_binding.resolve_manual"
-	PermInventorySyncAuditRead = "inventory_sync.audit.read"
+	PermInventorySyncAuditRead  = "inventory_sync.audit.read"
 )
 
 var allPermissions = []string{
