@@ -19,6 +19,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -588,6 +589,11 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 		}
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
+
 	var reqOpts datatypes.JSON
 	if strings.EqualFold(strings.TrimSpace(source), "custom") {
 		if s.Rules == nil {
@@ -628,6 +634,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 	}
 
 	task := &CollectTask{
+		TenantID:       tid,
 		Source:         source,
 		SourceURL:      url,
 		Status:         StatusPending,

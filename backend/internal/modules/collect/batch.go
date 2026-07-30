@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) batchMaxURLs() int {
@@ -187,6 +188,11 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		return zero, fmt.Errorf("taobao_tmall batch collect is disabled in settings")
 	}
 
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return zero, err
+	}
+
 	var skippedURLs []string
 	rawURLs := body.URLs
 	if isTaobaoTmallCollectSource(source) {
@@ -212,6 +218,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		batch = CollectBatch{
+			TenantID:       tid,
 			Source:         source,
 			TotalCount:     len(urls),
 			PendingCount:   0,
@@ -242,6 +249,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
 			}
 			task := CollectTask{
+				TenantID:       tid,
 				BatchID:        &bid,
 				Source:         source,
 				SourceURL:      u,

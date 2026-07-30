@@ -22,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 )
@@ -713,6 +714,13 @@ func (s *Service) ImportDraft(c *gin.Context, adminID *uuid.UUID, p ImportDraftP
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if p.TenantID == 0 {
+		p.TenantID = tid
+	}
 	out, err := s.importDraftCore(c.Request.Context(), adminID, p)
 	if err != nil {
 		return nil, err
@@ -737,6 +745,11 @@ func (s *Service) ImportDraftWithContext(ctx context.Context, adminID *uuid.UUID
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if p.TenantID == 0 {
+		if tc := security.FromContext(ctx); tc != nil {
+			p.TenantID = tc.TenantID
+		}
 	}
 	out, err := s.importDraftCore(ctx, adminID, p)
 	if err != nil {
@@ -773,7 +786,7 @@ func (s *Service) importDraftCore(ctx context.Context, adminID *uuid.UUID, p Imp
 	var out *Product
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		pr := &Product{
-			TenantID:      0,
+			TenantID:      p.TenantID,
 			CreatedBy:     adminID,
 			Source:        strings.TrimSpace(p.Source),
 			SourceURL:     strings.TrimSpace(p.SourceURL),

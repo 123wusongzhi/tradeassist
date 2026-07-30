@@ -232,6 +232,9 @@ type DetailDTO struct {
 
 // ImportDraftParams converts collector output into a product draft (no collect package import).
 type ImportDraftParams struct {
+	// TenantID 由调用边界解析后显式传入：HTTP 入口取 gin 上下文，worker 入口取任务租户上下文。
+	// 为 0 时入口会尝试从上下文补全；上下文也没有租户时保持 0（legacy 单租户开发语义）。
+	TenantID           int64
 	Source             string
 	SourceURL          string
 	Title              string
