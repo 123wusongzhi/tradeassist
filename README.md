@@ -171,7 +171,9 @@ OpenCLI 当前只支持淘宝/天猫，且任务执行失败不会自动切换�
 淘宝/天猫单商品采集还可直接使用随仓库维护的浏览器侧边栏扩展：在已登录的
 Chrome / Edge 商品详情页点击一次即可采集标题、图片、属性与完整 SKU（券后价、
 原价、库存、发货时间），无需额外浏览器或 OpenCLI Bridge。构建、安装、配对与
-风控说明见 [浏览器侧边栏采集](docs/browser-extension-collector.md)。
+风控说明见 [浏览器侧边栏采集](docs/browser-extension-collector.md)。它与
+Playwright Collector、OpenCLI Bridge 是三条互不强制、互不依赖的采集入口，按场景
+三选一即可。
 
 ### Docker 部署
 

@@ -6,6 +6,15 @@
 
 ## 适用场景
 
+浏览器侧边栏扩展、Playwright Collector 与 OpenCLI Bridge 是三条互相独立的采集
+入口，全部可选，用户按场景选择其一即可，没有任何一个被强制要求：
+
+- 只用本扩展即可完成淘宝/天猫单商品采集，不需要启动 Playwright Collector、
+  不需要 OpenCLI daemon 或宿主机 Bridge；
+- 后台任务、批量采集建议使用 Playwright；需要复用宿主机 Chrome 登录态时可选
+  OpenCLI；
+- 三条入口共享同一个 backend，采集结果都进入 TradeMind 商品草稿，互不冲突。
+
 浏览器侧边栏是淘宝/天猫日常单商品采集的推荐入口。用户继续使用自己已经登录的平台
 页面，在侧边栏点击一次即可创建 TradeMind 商品草稿，不需要：
 

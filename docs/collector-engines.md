@@ -1,8 +1,8 @@
 # 采集引擎与部署指南
 
-> 状态：2026-07-31。本文是 Playwright Collector 与 OpenCLI Bridge 的权威说明。
-> 端口、路由、启动方式或引擎支持范围发生变化时，应优先更新本文，再同步
-> `README`、开发、Docker、环境变量、Provider 与 API 文档。
+> 状态：2026-07-31。本文是浏览器侧边栏扩展、Playwright Collector 与 OpenCLI
+> Bridge 三条采集入口的权威说明。端口、路由、启动方式或引擎支持范围发生变化时，
+> 应优先更新本文，再同步 `README`、开发、Docker、环境变量、Provider 与 API 文档。
 
 ## 先看结论
 
@@ -23,6 +23,24 @@
 因此，本地与 Docker 的核心功能没有两套实现：两者使用同一个 backend、同一个任务
 模型和同一个 Playwright Collector。唯一部署差异是 OpenCLI 必须复用宿主机上的
 OpenCLI、Chrome 扩展连接和登录态，目前不放进 Compose。
+
+## 三条采集入口：都可选，用户按场景三选一
+
+| 入口 | 运行位置 | 适用场景 | 前置依赖 |
+| --- | --- | --- | --- |
+| 浏览器侧边栏扩展 | 用户当前 Chrome / Edge 标签页 | 淘宝/天猫单商品、当前页面即时采集 | 只需 TradeMind backend；不需要 Playwright Collector、OpenCLI Bridge 或第二套浏览器 |
+| Playwright Collector | 本地进程或 Compose `collector` 容器（`3001`） | 后台任务、批量采集、全平台来源 | backend 可达即可，不要求浏览器扩展或 OpenCLI |
+| OpenCLI Bridge | 宿主机可选进程（`3100`） | 复用宿主机 Chrome 登录态的淘宝/天猫采集 | 宿主机已装 `opencli` 并完成适配器同步 |
+
+三条入口互不强制、互不依赖，用户按场景选择其一或组合使用：
+
+- 只用扩展：不启动 Playwright Collector、不开启 OpenCLI Bridge，扩展即可在
+  当前商品页采集并提交 backend 创建草稿。
+- 只用 Playwright：不安装浏览器扩展、不装 OpenCLI，后台任务与批量采集照常运行。
+- 只用 OpenCLI：Playwright 未启动时，淘宝/天猫显式选 `engine=opencli` 的任务
+  仍可执行；其他采集来源不受影响。
+- 混合使用：三个入口共享同一个 backend 与任务模型，可同时存在；每个任务或场景
+  单独选择入口，没有全局强制启用项。
 
 ## 运行结构
 
@@ -61,6 +79,11 @@ Playwright 任务和其他采集来源不应访问 `3100`。
 | AliExpress `aliexpress` | 支持 | 不支持 | Playwright |
 | SHEIN / Temu `shein_temu` | 规划中，当前不可创建任务 | 不支持 | 当前不可用 |
 | 自定义规则 `custom` | 支持 | 不支持 | Playwright |
+
+浏览器侧边栏扩展是第三条独立入口，不走 backend 的 `engine` 路由：扩展任务由
+扩展直接创建/完成，不投递 Redis，也不经过 Playwright 或 OpenCLI，只用于用户
+当前打开的淘宝/天猫商品页。它与 Playwright / OpenCLI 互不依赖，选择扩展采集时
+无需为它准备任何采集服务。
 
 对非淘宝/天猫来源显式传 `engine=opencli` 时，backend 会返回
 `COLLECT_ENGINE_SOURCE_UNSUPPORTED`，不会改走 Playwright。

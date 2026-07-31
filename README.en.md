@@ -180,7 +180,9 @@ Chrome / Edge product page captures the title, images, attributes, and full SKU
 details (after-coupon price, original price, stock, logistics time) without an
 extra browser or the OpenCLI Bridge. See the
 [browser side-panel collector guide](docs/browser-extension-collector.md) for
-build, install, pairing, and risk-control details.
+build, install, pairing, and risk-control details. The extension, Playwright
+Collector, and OpenCLI Bridge are three independent, optional entries — pick
+the one that fits your scenario; none of them is required.
 
 ### Docker Deployment
 
