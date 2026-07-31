@@ -266,6 +266,11 @@ export default [
         component: './Collect/Batches',
       },
       {
+        path: '/collect/browser-extension',
+        name: '浏览器扩展',
+        component: './Collect/BrowserExtension',
+      },
+      {
         path: '/collect/browser-profiles',
         name: '采集浏览器登录状态',
         component: './Collect/BrowserProfiles',

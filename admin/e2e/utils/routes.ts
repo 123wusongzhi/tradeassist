@@ -33,6 +33,33 @@ export async function routeAdminApi(page: Page) {
     const response =
       (path === '/api/v1/auth/profile' ? ok(e2eUser) : null) ??
       (path === '/api/v1/image/providers' ? ok(imageProviderCapabilities) : null) ??
+      (path === '/api/v1/collect/engines/status'
+        ? ok({
+            defaultEngine: 'playwright',
+            engines: [
+              {
+                engine: 'playwright',
+                enabled: true,
+                configured: true,
+                reachable: true,
+                ready: true,
+                status: 'ready',
+                message: 'ok',
+                supportedSources: ['taobao_tmall', '1688', 'pinduoduo', 'aliexpress', 'custom'],
+              },
+              {
+                engine: 'opencli',
+                enabled: false,
+                configured: false,
+                reachable: false,
+                ready: false,
+                status: 'disabled',
+                message: 'opencli bridge is disabled',
+                supportedSources: ['taobao_tmall'],
+              },
+            ],
+          })
+        : null) ??
       productsResponse(path) ??
       readinessResponse(path) ??
       publishResponse(path) ??

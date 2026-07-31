@@ -27,7 +27,7 @@
 | Platform Provider | 店铺授权、Token 加密、平台配置、订单/库存/客服调用方、`docs/provider.md`、`SECURITY.md` |
 | 多平台 / 批量刊登 | `backend/internal/modules/productpublish`、`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`、`docs/PUBLISH_BATCH_MIGRATION.md`、`docs/api.md`（batch-targets / batches）、`admin/src/pages/Product/PublishBatch*`、`admin/src/pages/Product/PublishTasks`、`admin/src/constants/publishLabels.ts`、`admin/src/constants/publishLimits.ts`、`scripts/publish-batch-perf.ps1` |
 | Collector Provider / Engine | `collector/`、`collector/src/opencli-bridge/`、`collector/opencli-adapters/`、`backend/internal/modules/collect/`、采集任务 API、队列、`.env*.example`、`docker-compose.full.yml`、raw 原始数据、`docs/collector-engines.md`、`docs/provider.md`、`docs/api.md`、`docs/development.md`、`docs/docker-deployment.md`、**1688 改解析时必读 [`docs/collector-1688-pitfalls.md`](collector-1688-pitfalls.md)** |
-| 浏览器扩展采集 | `browser-extension/`、`backend/internal/modules/collectextension/`、`collect/browser_extension_task.go`、配对/设备令牌接口、`docs/browser-extension-collector.md`、`docs/api.md`（浏览器扩展采集小节） |
+| 浏览器扩展采集 | `browser-extension/`、`backend/internal/modules/collectextension/`、`collect/browser_extension_task.go`、配对/设备令牌接口、`admin/src/pages/Collect/BrowserExtension`（采集 → 浏览器扩展配对页）、`docs/browser-extension-collector.md`、`docs/api.md`（浏览器扩展采集小节） |
 | 安全 / 密钥 / Token | 加密、脱敏、日志、环境模板、`SECURITY.md`、相关 settings 文档 |
 | CI / 分支 / PR 流程 | `.github/workflows`、`docs/branching.md`、`CONTRIBUTING.md`、`.github/PULL_REQUEST_TEMPLATE.md` |
 | 开源治理 | `README.md`、`README.en.md`、`docs/README.md`、`CHANGELOG.md`、`.github/*` |
