@@ -40,6 +40,11 @@
             </div>
             <button id="disconnectButton" class="button button--text" type="button">断开本机</button>
           </div>
+          <div class="settings-row">
+            <label for="skuPriceProbeInput">SKU 价格探测上限（1–200）</label>
+            <input id="skuPriceProbeInput" type="number" min="1" max="200" step="1" />
+            <p class="hint">新版天猫隐藏单个 SKU 价格，采集时会在当前标签页内串行探测，每条间隔 300–800ms 随机延迟，不新开窗口。默认 24；设为较大值可对全部 SKU 做完整价格分析，SKU 多时耗时更长且更易触发平台风控。</p>
+          </div>
         </div>
       </section>
 
@@ -77,6 +82,18 @@
         <h2>商品草稿已创建</h2>
         <p id="resultSummary" class="muted"></p>
         <button id="openProductButton" class="button button--primary" type="button">在 TradeMind 中查看</button>
+      </section>
+
+      <section id="skuAnalysisCard" class="card hidden" aria-labelledby="skuAnalysisTitle">
+        <div class="card__head">
+          <div>
+            <span class="eyebrow">SKU 分析</span>
+            <h2 id="skuAnalysisTitle">完整规格分析</h2>
+          </div>
+        </div>
+        <p id="skuAnalysisSummary" class="sku-analysis__summary"></p>
+        <div id="skuAnalysisList" class="sku-analysis__list"></div>
+        <p class="hint">价格来自按 skuId 的实时探测；未探测到的 SKU 显示页面起价（价格待定）。</p>
       </section>
 
       <div id="toast" class="toast hidden" role="alert"></div>

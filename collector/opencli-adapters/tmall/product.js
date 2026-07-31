@@ -13,6 +13,8 @@ import {
   toTaobaoSkuGroups,
   cartesianCombos,
   mergeSkuResults,
+  mergeSku2InfoIntoSkus,
+  applySkuPriceProbe,
   resolvePriceInfo,
   buildQualityReport,
   resolveAccessStatus,
@@ -191,6 +193,7 @@ const EXTRACT_JSON_JS = `(() => {
   const imageUrls = [];
   const attrPairs = {};
   const skuBases = [];
+  const sku2infos = [];
 
   const walkForSkuBase = (node, depth) => {
     if (depth > 14 || !node || typeof node !== 'object') return;
@@ -202,6 +205,7 @@ const EXTRACT_JSON_JS = `(() => {
     if (o.skuBase && typeof o.skuBase === 'object') skuBases.push(o.skuBase);
     if (o.skuCore && typeof o.skuCore === 'object') {
       const core = o.skuCore;
+      if (core.sku2info && typeof core.sku2info === 'object') sku2infos.push(core.sku2info);
       if (core.sku2info && core.props) {
         skuBases.push({ props: core.props, skus: Object.keys(core.sku2info).map((id) => ({ skuId: id, ...core.sku2info[id] })) });
       }
@@ -261,7 +265,7 @@ const EXTRACT_JSON_JS = `(() => {
     }
   }
 
-  return { imageUrls, attrPairs, skuBases, rootCount: roots.length, skuBaseCount: skuBases.length };
+  return { imageUrls, attrPairs, skuBases, sku2infos, rootCount: roots.length, skuBaseCount: skuBases.length, sku2InfoCount: sku2infos.length };
 })()`;
 
 // ---------- 页面内 JS：滚动 + 详情图收集（移植 scrollAndCollectDetailImages） ----------
@@ -328,6 +332,98 @@ const SKU_CLICK_JS = `(async (combosJson) => {
   return { results };
 })`;
 
+// ---------- 页面内 JS：按 skuId 探测每个 SKU 的券后价/原价/库存 ----------
+// 新版天猫 SSR 初始加载不返回 per-SKU 价格（hideOtherPrice），只有带
+// skuId 参数重新请求 item.htm 时，服务端才在 __ICE_APP_CONTEXT__
+// skuCore.sku2info[skuId] 中附带 price（优惠前）与 subPrice（券后）。
+// 在已登录页内用同源 fetch（携带 Cookie）逐个请求并提取 SSR JSON。
+// 注意：逐 SKU 请求会触发平台风控。必须串行执行、单条 300–800ms 随机延迟、
+// 连续失败提前停止，且全程复用当前标签页（同源 fetch），绝不并发、不新开窗口。
+const PROBE_SKU_PRICE_JS = `(async (payloadJson) => {
+  const payload = JSON.parse(payloadJson);
+  const { itemId, host, skuIds } = payload;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  const extractContext = (html) => {
+    const scripts = [];
+    const re = /<script[^>]*>([\\s\\S]*?)<\\/script>/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const t = m[1];
+      if (t.indexOf('__ICE_APP_CONTEXT__') >= 0 && t.indexOf('loaderData') >= 0 && t.indexOf('var b = {') >= 0) {
+        scripts.push(t);
+      }
+    }
+    for (const t of scripts) {
+      const start = t.indexOf('var b = {');
+      if (start < 0) continue;
+      let i = t.indexOf('{', start);
+      let depth = 0;
+      let inStr = false;
+      let esc = false;
+      for (let j = i; j < t.length; j++) {
+        const c = t[j];
+        if (inStr) {
+          if (esc) esc = false;
+          else if (c === '\\\\') esc = true;
+          else if (c === '"') inStr = false;
+          continue;
+        }
+        if (c === '"') { inStr = true; continue; }
+        if (c === '{') depth++;
+        else if (c === '}') {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(t.slice(i, j + 1)); } catch (e) { return null; }
+          }
+        }
+      }
+    }
+    return null;
+  };
+
+  const probeOne = async (skuId) => {
+    const u = 'https://' + host + '/item.htm?id=' + encodeURIComponent(itemId) + '&skuId=' + encodeURIComponent(skuId);
+    try {
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctrl ? setTimeout(() => ctrl.abort(), 10000) : null;
+      const res = await fetch(u, { credentials: 'include', signal: ctrl ? ctrl.signal : undefined });
+      if (timer) clearTimeout(timer);
+      if (!res.ok) return { skuId, error: 'HTTP ' + res.status };
+      const html = await res.text();
+      const ctx = extractContext(html);
+      if (!ctx) return { skuId, error: 'no-context' };
+      const data = ctx && ctx.loaderData && ctx.loaderData.home && ctx.loaderData.home.data && ctx.loaderData.home.data.res;
+      const info = data && data.skuCore && data.skuCore.sku2info && data.skuCore.sku2info[skuId];
+      if (!info) return { skuId, error: 'no-sku2info' };
+      return {
+        skuId,
+        priceText: (info.subPrice && info.subPrice.priceText) || '',
+        originalPriceText: (info.price && info.price.priceText) || '',
+        quantity: info.quantity != null ? Number(info.quantity) : undefined,
+        quantityText: info.quantityText || '',
+        logisticsTime: info.logisticsTime || '',
+      };
+    } catch (e) {
+      return { skuId, error: String(e).slice(0, 120) };
+    }
+  };
+
+  const results = {};
+  let consecutiveFailures = 0;
+  const limit = Math.min(skuIds.length, 48);
+  // 串行执行：一次一个 fetch，固定间隔更易被识别，因此用随机延迟。
+  for (let idx = 0; idx < limit; idx++) {
+    const cur = skuIds[idx];
+    const r = await probeOne(cur);
+    if (r && !r.error) results[r.skuId] = r;
+    consecutiveFailures = r && r.error ? consecutiveFailures + 1 : 0;
+    if (consecutiveFailures >= 4) break;
+    if (idx < limit - 1) await sleep(300 + Math.random() * 500);
+  }
+  return results;
+})`;
+
 cli({
   site: 'tmall',
   name: 'product',
@@ -350,6 +446,12 @@ cli({
       type: 'int',
       default: 24,
       help: 'SKU 点击采价最大组合数（0 关闭）',
+    },
+    {
+      name: 'sku-price-max',
+      type: 'int',
+      default: 24,
+      help: '按 skuId 探测 per-SKU 价格的最大数量（0 关闭；新版天猫 SSR 用）',
     },
   ],
   columns: ['title', 'priceText', 'shopName', 'mainImageCount', 'detailImageCount', 'skuCount', 'qualityStatus'],
@@ -408,10 +510,44 @@ cli({
     // 7. 合并 payload
     const payload = mergeTaobaoPayload(domPayload, jsonPatch);
 
-    // 8. SKU 点击采价（有规格组时）
+    // 8. SKU 库存合并 + skuId 价格探测（新版天猫 SSR）+ 老版点击采价回退
     let skus = payload.skus;
+    if (payload.sku2info && Object.keys(payload.sku2info).length > 0) {
+      skus = mergeSku2InfoIntoSkus(skus, payload.sku2info);
+    }
     const skuGroups = toTaobaoSkuGroups(payload);
-    if (skuClickMax > 0 && skuGroups.length > 0) {
+    const itemId = (() => {
+      try { return new URL(url).searchParams.get('id') || ''; } catch (e) { return ''; }
+    })();
+    const pageHost = (() => {
+      try { return new URL(url).hostname || ''; } catch (e) { return ''; }
+    })();
+    const skuPriceMax = Math.max(0, Math.min(48, Number(args['sku-price-max'] ?? 48) || 0));
+    let probedSkuCount = 0;
+    if (skuPriceMax > 0 && itemId && pageHost && skus.length > 0) {
+      const missingPrice = skus.filter((s) => !s.price || s.price <= 0);
+      const skuIds = [
+        ...new Set(
+          missingPrice
+            .map((s) => String(s.skuCode || s.id || s.skuId || '').trim())
+            .filter(Boolean),
+        ),
+      ].slice(0, Math.min(skuPriceMax, 48));
+      if (skuIds.length > 0) {
+        const probePayload = JSON.stringify({ itemId, host: pageHost, skuIds });
+        const probes = await page
+          .evaluate(`${PROBE_SKU_PRICE_JS}(${JSON.stringify(probePayload)})`)
+          .catch(() => null);
+        if (probes && typeof probes === 'object') {
+          const merged = applySkuPriceProbe(skus, probes);
+          if (merged !== skus) {
+            skus = merged;
+            probedSkuCount = Object.keys(probes).filter((k) => probes[k] && !probes[k].error).length;
+          }
+        }
+      }
+    }
+    if (skuClickMax > 0 && probedSkuCount === 0 && skuGroups.length > 0) {
       const combos = cartesianCombos(skuGroups, Math.min(skuClickMax, 48));
       if (combos.length && combos.length <= skuClickMax) {
         const clicked = await page
@@ -444,6 +580,10 @@ cli({
 
     // 10. 价格归并 + 组装
     const priceInfo = resolvePriceInfo(payload, skus);
+    if (payload.debug && typeof payload.debug === 'object') {
+      payload.debug.sku2InfoMerged = Boolean(payload.sku2info && Object.keys(payload.sku2info).length > 0);
+      payload.debug.skuPriceProbeCount = probedSkuCount;
+    }
     const title =
       cleanTaobaoTitle(String(payload.title || '').trim()) ||
       extractTitleFromDocumentTitle(String(payload.debug?.documentTitle ?? ''));

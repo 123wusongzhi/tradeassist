@@ -1,4 +1,4 @@
-import type { BrowserCollectAdapter } from './types.js';
+import type { BrowserCollectAdapter, ProductSku } from './types.js';
 import type { NormalizedProduct } from '../types.js';
 
 const SUPPORTED_HOSTS = new Set([
@@ -10,6 +10,9 @@ const SUPPORTED_HOSTS = new Set([
   'world.taobao.com',
 ]);
 
+export const MAX_SKU_PRICE_PROBES = 200;
+export const DEFAULT_SKU_PRICE_PROBES = 24;
+
 export function isSupportedTaobaoTmallURL(raw: string): boolean {
   try {
     const url = new URL(raw);
@@ -19,9 +22,224 @@ export function isSupportedTaobaoTmallURL(raw: string): boolean {
   }
 }
 
+export type TaobaoTmallSkuGroup = {
+  name: string;
+  options: { label: string; selected: boolean; disabled: boolean }[];
+};
+
+// ---------- 纯函数：价格/数量解析（0 = 缺货） ----------
+export function parseTaobaoPrice(raw: unknown): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
+  const m = String(raw ?? '')
+    .replace(/,/g, '')
+    .match(/(\d+(?:\.\d{1,2})?)/);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+export function parseTaobaoQuantity(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : undefined;
+  const t = String(raw).replace(/,/g, '').trim();
+  if (!/^\d+(?:\.\d+)?$/.test(t)) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : undefined;
+}
+
+function priceFromInfo(info: Record<string, unknown>): number | undefined {
+  const sub = info.subPrice && typeof info.subPrice === 'object' ? (info.subPrice as Record<string, unknown>) : undefined;
+  const price = info.price && typeof info.price === 'object' ? (info.price as Record<string, unknown>) : undefined;
+  // 注意：priceMoney 以“分”为单位，不能直接当“元”解析；统一使用 priceText。
+  return parseTaobaoPrice(info.price) ?? parseTaobaoPrice(sub?.priceText) ?? parseTaobaoPrice(price?.priceText);
+}
+
+function originalPriceFromInfo(info: Record<string, unknown>): number | undefined {
+  const price = info.price && typeof info.price === 'object' ? (info.price as Record<string, unknown>) : undefined;
+  return parseTaobaoPrice(price?.priceText);
+}
+
+// ---------- 纯函数：由新版天猫 SSR 的 skuBase + skuCore.sku2info 构建 SKU ----------
+export function buildSkusFromTaobaoSkuBase(
+  skuBase: unknown,
+  sku2info: unknown,
+): { skuGroups: TaobaoTmallSkuGroup[]; skus: ProductSku[] } {
+  const base = skuBase as { props?: unknown[]; skus?: unknown[]; skuMap?: Record<string, unknown> } | null;
+  if (!base || !Array.isArray(base.props)) return { skuGroups: [], skus: [] };
+  const propsRaw = base.props;
+
+  const propMeta = new Map<
+    string,
+    { name: string; values: Map<string, { name: string; image?: string }> }
+  >();
+  for (const p of propsRaw) {
+    if (!p || typeof p !== 'object') continue;
+    const po = p as Record<string, unknown>;
+    const pid = String(po.pid ?? po.propertyId ?? po.propId ?? po.id ?? '').trim();
+    const name = String(po.name ?? po.propName ?? po.propertyName ?? '规格').trim() || '规格';
+    const valuesRaw = po.values ?? po.value;
+    if (!Array.isArray(valuesRaw)) continue;
+    const values = new Map<string, { name: string; image?: string }>();
+    for (const v of valuesRaw) {
+      if (!v || typeof v !== 'object') continue;
+      const vo = v as Record<string, unknown>;
+      const vid = String(vo.vid ?? vo.valueId ?? vo.id ?? vo.name ?? '').trim();
+      const label = String(vo.name ?? vo.valueName ?? vo.text ?? '').trim();
+      if (!vid || !label) continue;
+      const imgRaw = String(vo.image ?? vo.img ?? vo.pic ?? '').trim();
+      values.set(vid, { name: label, image: imgRaw || undefined });
+    }
+    if (values.size) propMeta.set(pid || name, { name, values });
+  }
+
+  const skuGroups: TaobaoTmallSkuGroup[] = [];
+  for (const meta of propMeta.values()) {
+    skuGroups.push({
+      name: meta.name,
+      options: [...meta.values.values()].map((v) => ({
+        label: v.name,
+        selected: false,
+        disabled: false,
+      })),
+    });
+  }
+
+  const infoMap =
+    sku2info && typeof sku2info === 'object' ? (sku2info as Record<string, unknown>) : undefined;
+  const skusRaw = Array.isArray(base.skus)
+    ? base.skus
+    : base.skuMap && typeof base.skuMap === 'object'
+      ? Object.values(base.skuMap)
+      : [];
+  const skus: ProductSku[] = [];
+
+  for (const s of skusRaw) {
+    if (!s || typeof s !== 'object') continue;
+    const so = s as Record<string, unknown>;
+    const propPath = String(so.propPath ?? so.propPathStr ?? so.specId ?? '').trim();
+    const properties: Record<string, string> = {};
+    let image = '';
+    if (propPath) {
+      for (const seg of propPath.split(/[;；]/)) {
+        const [pid, vid] = seg.split(':');
+        if (!pid || !vid) continue;
+        const meta = propMeta.get(pid.trim());
+        const val = meta?.values.get(vid.trim());
+        if (meta && val) {
+          properties[meta.name] = val.name;
+          if (val.image) image = val.image;
+        }
+      }
+    }
+    const skuId = String(so.skuId ?? so.skuid ?? so.id ?? '').trim();
+    const info = skuId && infoMap ? (infoMap[skuId] as Record<string, unknown> | undefined) : undefined;
+    const price =
+      priceFromInfo(so as Record<string, unknown>) ?? (info ? priceFromInfo(info) : undefined);
+    const originalPrice = info ? originalPriceFromInfo(info) : undefined;
+    const stock =
+      parseTaobaoQuantity(so.quantity ?? so.stock ?? so.amount) ??
+      (info ? parseTaobaoQuantity(info.quantity ?? info.stock ?? info.amount) : undefined);
+    if (Object.keys(properties).length === 0 && skuGroups.length === 1 && skuGroups[0]!.options.length === 1) {
+      properties[skuGroups[0]!.name] = skuGroups[0]!.options[0]!.label;
+    }
+    if (Object.keys(properties).length === 0) continue;
+    skus.push({
+      properties,
+      price,
+      originalPrice,
+      stock,
+      stockStatus: typeof info?.quantityText === 'string' ? info.quantityText : undefined,
+      logisticsTime: typeof info?.logisticsTime === 'string' ? info.logisticsTime : undefined,
+      skuCode: skuId || undefined,
+      image: image || undefined,
+      raw: {
+        source: 'skuBase',
+        propPath,
+        sku2info: info
+          ? {
+              quantity: info.quantity,
+              quantityText: info.quantityText ?? '',
+              logisticsTime: info.logisticsTime ?? '',
+              moreQuantity: info.moreQuantity ?? '',
+            }
+          : undefined,
+      },
+    });
+  }
+
+  if (!skus.length && skuGroups.length) {
+    // 组合兜底：无 skuId 明细时按规格组生成笛卡尔组合（无价格/库存信息）
+    let combos: Record<string, string>[] = [{}];
+    for (const g of skuGroups) {
+      const opts = g.options.filter((o) => o.label && !o.disabled);
+      if (!opts.length) continue;
+      const next: Record<string, string>[] = [];
+      for (const combo of combos) {
+        for (const opt of opts) {
+          next.push({ ...combo, [g.name]: opt.label });
+        }
+      }
+      combos = next.length ? next : combos;
+    }
+    return {
+      skuGroups,
+      skus: combos.slice(0, 200).map((properties) => ({
+        properties,
+        raw: { fromDomGroups: true },
+      })),
+    };
+  }
+  return { skuGroups, skus };
+}
+
+// ---------- 纯函数：把 skuId 价格探测结果合并进 skus（探测结果优先） ----------
+export function mergeSkuPriceProbeResults(
+  skus: ProductSku[],
+  probes: Record<string, unknown>,
+): ProductSku[] {
+  const hasAny = Object.keys(probes).some(
+    (key) =>
+      probes[key] &&
+      typeof probes[key] === 'object' &&
+      !(probes[key] as { error?: string }).error &&
+      ((probes[key] as { priceText?: string }).priceText ||
+        (probes[key] as { originalPriceText?: string }).originalPriceText ||
+        (probes[key] as { quantity?: number }).quantity != null),
+  );
+  if (!hasAny) return skus;
+  return skus.map((s) => {
+    const key = String(s.skuCode ?? s.id ?? '').trim();
+    const p = key ? (probes[key] as Record<string, unknown> | undefined) : undefined;
+    if (!p || typeof p !== 'object' || (p as { error?: string }).error) return s;
+    const probePrice = parseTaobaoPrice(p.priceText) ?? parseTaobaoPrice(p.originalPriceText);
+    const probeOriginalPrice = parseTaobaoPrice(p.originalPriceText);
+    const probeStock = parseTaobaoQuantity(p.quantity);
+    return {
+      ...s,
+      price: probePrice && probePrice > 0 ? probePrice : s.price,
+      originalPrice: probeOriginalPrice && probeOriginalPrice > 0 ? probeOriginalPrice : s.originalPrice,
+      stock: probeStock !== undefined ? probeStock : s.stock,
+      stockStatus: typeof p.quantityText === 'string' ? p.quantityText : s.stockStatus,
+      logisticsTime: typeof p.logisticsTime === 'string' ? p.logisticsTime : s.logisticsTime,
+      raw: {
+        ...(s.raw ?? {}),
+        skuPriceProbe: {
+          priceText: p.priceText ?? '',
+          originalPriceText: p.originalPriceText ?? '',
+          quantity: p.quantity,
+          quantityText: p.quantityText ?? '',
+          logisticsTime: p.logisticsTime ?? '',
+        },
+      },
+    };
+  });
+}
+
 // This function is serialized by chrome.scripting.executeScript. Keep every
 // page helper inside the function body; it must not close over extension state.
-export async function collectTaobaoTmallPage(): Promise<NormalizedProduct> {
+// 内部内联逻辑与上方 buildSkusFromTaobaoSkuBase / mergeSkuPriceProbeResults /
+// parseTaobaoPrice / parseTaobaoQuantity 保持一致（executeScript 无法引用模块闭包）。
+export async function collectTaobaoTmallPage(options?: { maxPriceProbes?: number }): Promise<NormalizedProduct> {
   const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
   const text = (element: Element | null | undefined) =>
     (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -33,12 +251,21 @@ export async function collectTaobaoTmallPage(): Promise<NormalizedProduct> {
     return '';
   };
   const parsePrice = (raw: unknown): number | undefined => {
-    const match = String(raw ?? '')
+    if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return raw;
+    const m = String(raw ?? '')
       .replace(/,/g, '')
       .match(/(\d+(?:\.\d{1,2})?)/);
-    if (!match) return undefined;
-    const value = Number(match[1]);
+    if (!m) return undefined;
+    const value = Number(m[1]);
     return Number.isFinite(value) && value > 0 ? value : undefined;
+  };
+  const parseQuantity = (raw: unknown): number | undefined => {
+    if (raw === undefined || raw === null) return undefined;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : undefined;
+    const t = String(raw).replace(/,/g, '').trim();
+    if (!/^\d+(?:\.\d+)?$/.test(t)) return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : undefined;
   };
   const normalizeImage = (raw: string | null | undefined): string => {
     let value = String(raw ?? '').trim();
@@ -193,100 +420,397 @@ export async function collectTaobaoTmallPage(): Promise<NormalizedProduct> {
     if (key && value && key.length <= 40 && value.length <= 300) attributes[key] = value;
   }
 
-  type SkuOption = { label: string; element: HTMLElement; selected: boolean; disabled: boolean };
-  type SkuGroup = { name: string; options: SkuOption[] };
-  const skuGroups: SkuGroup[] = [];
-  const groupElements = document.querySelectorAll(
-    '[class*="SkuContent"] [class*="skuItem"], #J_isku [class*="prop"], .tm-sale-prop',
-  );
-  for (const [groupIndex, group] of Array.from(groupElements).entries()) {
-    const name =
-      text(group.querySelector('[class*="label"], dt, .tm-prop-title'))
-        .replace(/[:：]\s*$/, '')
-        .trim() || `规格${groupIndex + 1}`;
-    const options: SkuOption[] = [];
-    for (const option of group.querySelectorAll<HTMLElement>('li, [class*="valueItem"], .tm-img-prop span')) {
-      const label =
-        option.getAttribute('title')?.trim() ||
-        option.getAttribute('aria-label')?.trim() ||
-        text(option);
-      if (!label || label.length > 80 || options.some((item) => item.label === label)) continue;
-      const signal = `${option.className} ${text(option)}`;
-      options.push({
-        label,
-        element: option,
-        selected: /selected|checked|current/i.test(signal) || option.getAttribute('aria-checked') === 'true',
-        disabled: /disabled|soldout|无货|缺货/i.test(signal) || option.getAttribute('aria-disabled') === 'true',
+  // ---------- SKU：新版 SSR 的 skuBase + skuCore.sku2info（含库存） ----------
+  type SkuEntry = {
+    properties: Record<string, string>;
+    id?: string;
+    price?: number;
+    originalPrice?: number;
+    stock?: number;
+    stockStatus?: string;
+    logisticsTime?: string;
+    skuCode?: string;
+    image?: string;
+    raw?: Record<string, unknown>;
+  };
+  const ice = (window as unknown as Record<string, unknown>).__ICE_APP_CONTEXT__ as
+    | { loaderData?: { home?: { data?: { res?: Record<string, unknown> } } } }
+    | undefined;
+  const res = ice?.loaderData?.home?.data?.res;
+  const skuBase = res?.skuBase as { props?: unknown[]; skus?: unknown[] } | undefined;
+  const sku2info =
+    res?.skuCore && typeof res.skuCore === 'object'
+      ? (res.skuCore as Record<string, unknown>).sku2info
+      : undefined;
+  let skus: SkuEntry[] = [];
+  let rawSkuGroups: { name: string; options: { label: string; disabled: boolean }[] }[] = [];
+  let sku2InfoMerged = false;
+  let jsonSkuCount = 0;
+  if (skuBase && Array.isArray(skuBase.props) && Array.isArray(skuBase.skus)) {
+    const propMeta = new Map<string, { name: string; values: Map<string, { name: string; image?: string }> }>();
+    for (const p of skuBase.props) {
+      if (!p || typeof p !== 'object') continue;
+      const po = p as Record<string, unknown>;
+      const pid = String(po.pid ?? po.propertyId ?? po.propId ?? po.id ?? '').trim();
+      const name = String(po.name ?? po.propName ?? po.propertyName ?? '规格').trim() || '规格';
+      const valuesRaw = po.values ?? po.value;
+      if (!Array.isArray(valuesRaw)) continue;
+      const values = new Map<string, { name: string; image?: string }>();
+      for (const v of valuesRaw) {
+        if (!v || typeof v !== 'object') continue;
+        const vo = v as Record<string, unknown>;
+        const vid = String(vo.vid ?? vo.valueId ?? vo.id ?? vo.name ?? '').trim();
+        const label = String(vo.name ?? vo.valueName ?? vo.text ?? '').trim();
+        if (!vid || !label) continue;
+        const imgRaw = String(vo.image ?? vo.img ?? vo.pic ?? '').trim();
+        values.set(vid, { name: label, image: imgRaw || undefined });
+      }
+      if (values.size) propMeta.set(pid || name, { name, values });
+    }
+    const groups = [...propMeta.values()].map((meta) => ({
+      name: meta.name,
+      options: [...meta.values.values()].map((v) => ({
+        label: v.name,
+        selected: false,
+        disabled: false,
+      })),
+    }));
+    rawSkuGroups = groups.map((g) => ({
+      name: g.name,
+      options: g.options.map((o) => ({ label: o.label, disabled: o.disabled })),
+    }));
+    const infoMap =
+      sku2info && typeof sku2info === 'object' ? (sku2info as Record<string, unknown>) : undefined;
+    const built: SkuEntry[] = [];
+    for (const s of skuBase.skus) {
+      if (!s || typeof s !== 'object') continue;
+      const so = s as Record<string, unknown>;
+      const propPath = String(so.propPath ?? so.propPathStr ?? so.specId ?? '').trim();
+      const properties: Record<string, string> = {};
+      let image = '';
+      if (propPath) {
+        for (const seg of propPath.split(/[;；]/)) {
+          const [pid, vid] = seg.split(':');
+          if (!pid || !vid) continue;
+          const meta = propMeta.get(pid.trim());
+          const val = meta?.values.get(vid.trim());
+          if (meta && val) {
+            properties[meta.name] = val.name;
+            if (val.image) image = val.image;
+          }
+        }
+      }
+      const skuId = String(so.skuId ?? so.skuid ?? so.id ?? '').trim();
+      const info = skuId && infoMap ? (infoMap[skuId] as Record<string, unknown> | undefined) : undefined;
+      const sub = info?.subPrice && typeof info.subPrice === 'object'
+        ? (info.subPrice as Record<string, unknown>)
+        : undefined;
+      const priceObj = info?.price && typeof info.price === 'object'
+        ? (info.price as Record<string, unknown>)
+        : undefined;
+      const price =
+        parsePrice(so.price) ??
+        parsePrice(sub?.priceText) ??
+        parsePrice(priceObj?.priceText) ??
+        parsePrice(sub?.priceMoney);
+      // priceMoney 以“分”为单位，不能直接当“元”解析；原价统一取 priceText。
+      const originalPrice = parsePrice(priceObj?.priceText);
+      const stock =
+        parseQuantity(so.quantity ?? so.stock ?? so.amount) ??
+        (info ? parseQuantity(info.quantity ?? info.stock ?? info.amount) : undefined);
+      if (Object.keys(properties).length === 0 && groups.length === 1 && groups[0]!.options.length === 1) {
+        properties[groups[0]!.name] = groups[0]!.options[0]!.label;
+      }
+      if (Object.keys(properties).length === 0) continue;
+      built.push({
+        properties,
+        price,
+        originalPrice,
+        stock,
+        stockStatus: typeof info?.quantityText === 'string' ? info.quantityText : undefined,
+        logisticsTime: typeof info?.logisticsTime === 'string' ? info.logisticsTime : undefined,
+        skuCode: skuId || undefined,
+        image: image || undefined,
+        raw: {
+          source: 'skuBase',
+          propPath,
+          sku2info: info
+            ? {
+                quantity: info.quantity,
+                quantityText: info.quantityText ?? '',
+                logisticsTime: info.logisticsTime ?? '',
+                moreQuantity: info.moreQuantity ?? '',
+              }
+            : undefined,
+        },
       });
     }
-    if (options.length) skuGroups.push({ name, options });
+    skus = built;
+    jsonSkuCount = built.length;
+    sku2InfoMerged = Boolean(infoMap && Object.keys(infoMap).length > 0);
   }
 
-  type Combination = { properties: Record<string, string>; options: SkuOption[] };
-  let combinations: Combination[] = [{ properties: {}, options: [] }];
-  for (const group of skuGroups) {
-    const available = group.options.filter((option) => !option.disabled).slice(0, 24);
-    if (!available.length) continue;
-    const next: Combination[] = [];
-    for (const combination of combinations) {
-      for (const option of available) {
-        next.push({
-          properties: { ...combination.properties, [group.name]: option.label },
-          options: [...combination.options, option],
+  // ---------- SKU：老版页面回退（DOM 规格组 + 点击采价） ----------
+  type SkuOption = { label: string; element: HTMLElement; selected: boolean; disabled: boolean };
+  type SkuGroup = { name: string; options: SkuOption[] };
+  const domGroups: SkuGroup[] = [];
+  if (skus.length === 0) {
+    const groupElements = document.querySelectorAll(
+      '[class*="SkuContent"] [class*="skuItem"], #J_isku [class*="prop"], .tm-sale-prop',
+    );
+    for (const [groupIndex, group] of Array.from(groupElements).entries()) {
+      const name =
+        text(group.querySelector('[class*="label"], dt, .tm-prop-title'))
+          .replace(/[:：]\s*$/, '')
+          .trim() || `规格${groupIndex + 1}`;
+      const options: SkuOption[] = [];
+      for (const option of group.querySelectorAll<HTMLElement>('li, [class*="valueItem"], .tm-img-prop span')) {
+        const label =
+          option.getAttribute('title')?.trim() ||
+          option.getAttribute('aria-label')?.trim() ||
+          text(option);
+        if (!label || label.length > 80 || options.some((item) => item.label === label)) continue;
+        const signal = `${option.className} ${text(option)}`;
+        options.push({
+          label,
+          element: option,
+          selected: /selected|checked|current/i.test(signal) || option.getAttribute('aria-checked') === 'true',
+          disabled: /disabled|soldout|无货|缺货/i.test(signal) || option.getAttribute('aria-disabled') === 'true',
         });
+      }
+      if (options.length) domGroups.push({ name, options });
+    }
+    rawSkuGroups = domGroups.map((g) => ({
+      name: g.name,
+      options: g.options.map((o) => ({ label: o.label, disabled: o.disabled })),
+    }));
+
+    type Combination = { properties: Record<string, string>; options: SkuOption[] };
+    let combinations: Combination[] = [{ properties: {}, options: [] }];
+    for (const group of domGroups) {
+      const available = group.options.filter((option) => !option.disabled).slice(0, 24);
+      if (!available.length) continue;
+      const next: Combination[] = [];
+      for (const combination of combinations) {
+        for (const option of available) {
+          next.push({
+            properties: { ...combination.properties, [group.name]: option.label },
+            options: [...combination.options, option],
+          });
+          if (next.length >= 24) break;
+        }
         if (next.length >= 24) break;
       }
-      if (next.length >= 24) break;
+      combinations = next.length ? next : combinations;
     }
-    combinations = next.length ? next : combinations;
-  }
 
-  const skus: NormalizedProduct['skus'] = [];
-  const originalSelections = skuGroups.map((group) => group.options.find((option) => option.selected));
-  if (skuGroups.length && combinations.length) {
-    for (const combination of combinations) {
-      try {
-        for (const option of combination.options) {
-          if (!option.element.isConnected) continue;
-          option.element.click();
-          await sleep(150);
+    if (domGroups.length && combinations.length) {
+      const originalSelections = domGroups.map((group) => group.options.find((option) => option.selected));
+      for (const combination of combinations) {
+        try {
+          for (const option of combination.options) {
+            if (!option.element.isConnected) continue;
+            option.element.click();
+            await sleep(150);
+          }
+          const currentPriceText = firstText([
+            '[class*="Price--priceText"]',
+            '[class*="priceText"]',
+            '.tm-price',
+            '#J_StrPrice',
+            '[class*="Price"]',
+          ]);
+          skus.push({
+            properties: combination.properties,
+            price: parsePrice(currentPriceText) ?? productPrice,
+            raw: { fromBrowserInteraction: true, priceText: currentPriceText },
+          });
+        } catch {
+          skus.push({
+            properties: combination.properties,
+            price: productPrice,
+            raw: { fromBrowserInteraction: true, clickFailed: true },
+          });
         }
-        const currentPriceText = firstText([
-          '[class*="Price--priceText"]',
-          '[class*="priceText"]',
-          '.tm-price',
-          '#J_StrPrice',
-          '[class*="Price"]',
-        ]);
-        skus.push({
-          properties: combination.properties,
-          price: parsePrice(currentPriceText) ?? productPrice,
-          raw: { fromBrowserInteraction: true, priceText: currentPriceText },
-        });
-      } catch {
-        skus.push({
-          properties: combination.properties,
-          price: productPrice,
-          raw: { fromBrowserInteraction: true, clickFailed: true },
-        });
       }
-    }
-    for (const selected of originalSelections) {
-      if (selected?.element.isConnected) {
-        selected.element.click();
-        await sleep(100);
+      for (const selected of originalSelections) {
+        if (selected?.element.isConnected) {
+          selected.element.click();
+          await sleep(100);
+        }
       }
+    } else if (productPrice) {
+      skus.push({ properties: { 规格: '默认规格' }, price: productPrice });
     }
-  } else if (productPrice) {
-    skus.push({ properties: { 规格: '默认规格' }, price: productPrice });
   }
   window.scrollTo({ top: originalScrollY, behavior: 'instant' });
+
+  // ---------- SKU 价格探测（新版 SSR）：串行、300–800ms 随机、复用当前标签页 ----------
+  const maxPriceProbes = Math.max(
+    0,
+    Math.min(200, Math.floor(options?.maxPriceProbes ?? 24) || 24),
+  );
+  let skuPriceProbeCount = 0;
+  if (maxPriceProbes > 0 && skus.length > 0) {
+    const itemId = new URL(pageURL).searchParams.get('id') ?? '';
+    if (itemId && pageHost) {
+      const missing = skus
+        .filter((s) => !s.price || s.price <= 0)
+        .map((s) => String(s.skuCode ?? s.id ?? '').trim())
+        .filter(Boolean);
+      const targets = [...new Set(missing)].slice(0, Math.min(maxPriceProbes, 200));
+      if (targets.length > 0) {
+        const probes: Record<string, unknown> = {};
+        let consecutiveFailures = 0;
+        for (let index = 0; index < targets.length; index++) {
+          const skuId = targets[index]!;
+          let probeError = '';
+          let info: Record<string, unknown> | undefined;
+          try {
+            const url = `https://${pageHost}/item.htm?id=${encodeURIComponent(itemId)}&skuId=${encodeURIComponent(skuId)}`;
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = controller ? setTimeout(() => controller.abort(), 10_000) : null;
+            const response = await fetch(url, {
+              credentials: 'include',
+              signal: controller ? controller.signal : undefined,
+            });
+            if (timer) clearTimeout(timer);
+            if (!response.ok) {
+              probeError = `HTTP ${response.status}`;
+            } else {
+              const html = await response.text();
+              const scripts: string[] = [];
+              const scriptRe = /<script[^>]*>([\s\S]*?)<\/script>/g;
+              let match: RegExpExecArray | null;
+              while ((match = scriptRe.exec(html))) {
+                const body = match[1] ?? '';
+                if (
+                  body.includes('__ICE_APP_CONTEXT__') &&
+                  body.includes('loaderData') &&
+                  body.includes('var b = {')
+                ) {
+                  scripts.push(body);
+                }
+              }
+              for (const body of scripts) {
+                const start = body.indexOf('var b = {');
+                if (start < 0) continue;
+                let depth = 0;
+                let inString = false;
+                let escaped = false;
+                for (let j = body.indexOf('{', start); j < body.length; j++) {
+                  const char = body[j]!;
+                  if (inString) {
+                    if (escaped) escaped = false;
+                    else if (char === '\\') escaped = true;
+                    else if (char === '"') inString = false;
+                    continue;
+                  }
+                  if (char === '"') {
+                    inString = true;
+                    continue;
+                  }
+                  if (char === '{') depth++;
+                  else if (char === '}') {
+                    depth--;
+                    if (depth === 0) {
+                      try {
+                        const ctx = JSON.parse(body.slice(body.indexOf('{', start), j + 1)) as {
+                          loaderData?: { home?: { data?: { res?: Record<string, unknown> } } };
+                        };
+                        const res2 = ctx?.loaderData?.home?.data?.res;
+                        const s2i =
+                          res2?.skuCore && typeof res2.skuCore === 'object'
+                            ? (res2.skuCore as Record<string, unknown>).sku2info
+                            : undefined;
+                        info = s2i && typeof s2i === 'object'
+                          ? (s2i as Record<string, unknown>)[skuId] as Record<string, unknown> | undefined
+                          : undefined;
+                      } catch {
+                        info = undefined;
+                      }
+                      break;
+                    }
+                  }
+                }
+                if (info) break;
+              }
+              if (!info) probeError = 'no-sku2info';
+            }
+          } catch (error) {
+            probeError = String(error).slice(0, 120);
+          }
+          if (!probeError && info) {
+            const sub = info.subPrice && typeof info.subPrice === 'object'
+              ? (info.subPrice as Record<string, unknown>)
+              : undefined;
+            const priceObj = info.price && typeof info.price === 'object'
+              ? (info.price as Record<string, unknown>)
+              : undefined;
+            probes[skuId] = {
+              skuId,
+              priceText: typeof sub?.priceText === 'string' ? sub.priceText : '',
+              originalPriceText: typeof priceObj?.priceText === 'string' ? priceObj.priceText : '',
+              quantity: info.quantity != null ? Number(info.quantity) : undefined,
+              quantityText: typeof info.quantityText === 'string' ? info.quantityText : '',
+              logisticsTime: typeof info.logisticsTime === 'string' ? info.logisticsTime : '',
+            };
+            consecutiveFailures = 0;
+          } else {
+            consecutiveFailures += 1;
+          }
+          if (consecutiveFailures >= 4) break;
+          if (index < targets.length - 1) {
+            // 随机延迟：固定间隔更易被识别
+            await sleep(300 + Math.random() * 500);
+          }
+        }
+        if (Object.keys(probes).length > 0) {
+          const merged = skus.map((s) => {
+            const key = String(s.skuCode ?? s.id ?? '').trim();
+            const probe = key ? (probes[key] as Record<string, unknown> | undefined) : undefined;
+            if (!probe) return s;
+            const probePrice = parsePrice(probe.priceText) ?? parsePrice(probe.originalPriceText);
+            const probeOriginalPrice = parsePrice(probe.originalPriceText);
+            const probeStock = parseQuantity(probe.quantity);
+            return {
+              ...s,
+              price: probePrice && probePrice > 0 ? probePrice : s.price,
+              originalPrice:
+                probeOriginalPrice && probeOriginalPrice > 0 ? probeOriginalPrice : s.originalPrice,
+              stock: probeStock !== undefined ? probeStock : s.stock,
+              stockStatus: typeof probe.quantityText === 'string' ? probe.quantityText : s.stockStatus,
+              logisticsTime: typeof probe.logisticsTime === 'string' ? probe.logisticsTime : s.logisticsTime,
+              raw: {
+                ...(s.raw ?? {}),
+                skuPriceProbe: {
+                  priceText: probe.priceText ?? '',
+                  originalPriceText: probe.originalPriceText ?? '',
+                  quantity: probe.quantity,
+                  quantityText: probe.quantityText ?? '',
+                  logisticsTime: probe.logisticsTime ?? '',
+                },
+              },
+            };
+          });
+          skus = merged;
+          skuPriceProbeCount = Object.keys(probes).length;
+        }
+      }
+    }
+  }
+
+  const skusFinal: SkuEntry[] = skus.map((s) => ({
+    ...s,
+    price: s.price && s.price > 0 ? s.price : productPrice && productPrice > 0 ? productPrice : s.price,
+  }));
 
   const warnings: string[] = [];
   if (!productPrice) warnings.push('PRICE_NOT_FOUND');
   if (!descriptionImages.length) warnings.push('DETAIL_IMAGES_INCOMPLETE');
-  if (!skuGroups.length || !skus.length) warnings.push('SKU_INCOMPLETE');
+  if (!rawSkuGroups.length || !skusFinal.length) warnings.push('SKU_INCOMPLETE');
   if (!Object.keys(attributes).length) warnings.push('ATTRIBUTES_EMPTY');
+  if (skusFinal.length > 0 && skusFinal.some((s) => s.stock == null)) warnings.push('STOCK_UNKNOWN');
 
   return {
     source: 'taobao_tmall',
@@ -297,23 +821,20 @@ export async function collectTaobaoTmallPage(): Promise<NormalizedProduct> {
     mainImages,
     descriptionImages,
     attributes,
-    skus,
+    skus: skusFinal,
     raw: {
       provider: 'browser_extension',
-      schemaVersion: 1,
+      schemaVersion: 2,
       capturedAt: new Date().toISOString(),
       pageTitle: documentTitle,
       finalUrl: location.href,
       productPrice,
       priceText,
       qualityWarnings: warnings,
-      skuGroups: skuGroups.map((group) => ({
-        name: group.name,
-        options: group.options.map((option) => ({
-          label: option.label,
-          disabled: option.disabled,
-        })),
-      })),
+      skuGroups: rawSkuGroups,
+      sku2InfoMerged,
+      skuPriceProbeCount,
+      jsonSkuCount,
     },
   };
 }
@@ -322,5 +843,7 @@ export const taobaoTmallAdapter: BrowserCollectAdapter = {
   id: 'taobao_tmall',
   label: '淘宝 / 天猫',
   supports: isSupportedTaobaoTmallURL,
+  // 必须直接引用完整函数：chrome.scripting.executeScript 会序列化函数源码注入
+  // 页面，箭头包装会引用模块闭包导致 ReferenceError（页面采集 EMPTY_RESULT）。
   collect: collectTaobaoTmallPage,
 };

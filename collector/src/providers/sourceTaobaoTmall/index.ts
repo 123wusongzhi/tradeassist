@@ -52,7 +52,10 @@ function resolveSkuCollectOptions(options?: Record<string, unknown>): TaobaoSkuC
   const rawMax = options?.skuClickMaxCount ?? options?.skuMaxClicks;
   const n = typeof rawMax === 'number' ? rawMax : Number(rawMax);
   const maxClicks = Number.isFinite(n) && n > 0 ? Math.min(n, 48) : 24;
-  return { enabled, maxClicks };
+  const rawProbes = options?.skuPriceMaxCount ?? options?.skuMaxPriceProbes;
+  const p = typeof rawProbes === 'number' ? rawProbes : Number(rawProbes);
+  const maxPriceProbes = Number.isFinite(p) && p > 0 ? Math.min(p, 48) : 24;
+  return { enabled, maxClicks, maxPriceProbes };
 }
 
 class TaobaoTmallCollectorProvider implements CollectorProvider {

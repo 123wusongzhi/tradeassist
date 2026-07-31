@@ -88,6 +88,7 @@ const FIELDS: Record<string, FieldSpec> = {
   collect_taobao_tmall_detail_image_wait_ms: {},
   collect_taobao_tmall_sku_click_enabled: {},
   collect_taobao_tmall_sku_click_max: {},
+  collect_taobao_tmall_sku_price_max: {},
   collect_taobao_tmall_batch_enabled: {},
   collect_taobao_tmall_batch_max_items: {},
   collect_taobao_tmall_batch_concurrency: {},

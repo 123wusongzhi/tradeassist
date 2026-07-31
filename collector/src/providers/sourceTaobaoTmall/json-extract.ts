@@ -7,6 +7,7 @@ export type TaobaoJsonPatch = Pick<
   TaobaoPagePayload,
   'mainImages' | 'descriptionImages' | 'attributes' | 'skuGroups' | 'skus'
 > & {
+  sku2info?: Record<string, unknown>;
   debug?: Record<string, unknown>;
 };
 
@@ -16,6 +17,7 @@ type RawJsonScan = {
   imageUrls: string[];
   attrPairs: Record<string, string>;
   skuBases: Record<string, unknown>[];
+  sku2infos: Record<string, unknown>[];
   rootCount: number;
   skuBaseCount: number;
 };
@@ -27,6 +29,16 @@ function parsePrice(raw: unknown): number | undefined {
   if (!m) return undefined;
   const n = Number(m[1]);
   return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+// 数量解析：保留 0（0 = 无货/缺货），parsePrice 会把 0 视为无效。
+function parseQuantity(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : undefined;
+  const t = String(raw).replace(/,/g, '').trim();
+  if (!/^\d+(?:\.\d+)?$/.test(t)) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : undefined;
 }
 
 function cartesianFromGroups(groups: SkuGroup[], max = 200): ProductSku[] {
@@ -95,7 +107,11 @@ function buildFromSkuBase(base: Record<string, unknown>): {
     });
   }
 
-  const skusRaw = (base.skus ?? base.skuList ?? base.skuInfos) as unknown;
+  const skusRaw = Array.isArray(base.skus ?? base.skuList ?? base.skuInfos)
+    ? ((base.skus ?? base.skuList ?? base.skuInfos) as unknown)
+    : base.skuMap && typeof base.skuMap === 'object'
+      ? Object.values(base.skuMap as Record<string, unknown>)
+      : [];
   const skus: ProductSku[] = [];
   if (Array.isArray(skusRaw)) {
     for (const s of skusRaw) {
@@ -116,14 +132,17 @@ function buildFromSkuBase(base: Record<string, unknown>): {
           }
         }
       }
-      const priceObj = so.price;
+      const priceObj = so.price && typeof so.price === 'object' ? (so.price as Record<string, unknown>) : undefined;
+      const subPriceObj =
+        so.subPrice && typeof so.subPrice === 'object' ? (so.subPrice as Record<string, unknown>) : undefined;
+      // 新版天猫 SSR：sku2info[skuId].subPrice=券后、price=优惠前（priceText 单位：元）
       const price =
         parsePrice(so.price) ??
-        (priceObj && typeof priceObj === 'object'
-          ? parsePrice((priceObj as Record<string, unknown>).priceText) ??
-            parsePrice((priceObj as Record<string, unknown>).priceMoney)
-          : undefined);
-      const stock = parsePrice(so.quantity ?? so.stock ?? so.amount);
+        parsePrice(subPriceObj?.priceText) ??
+        parsePrice(priceObj?.priceText) ??
+        parsePrice(subPriceObj?.priceMoney) ??
+        parsePrice(priceObj?.priceMoney);
+    const stock = parseQuantity(so.quantity ?? so.stock ?? so.amount);
       if (Object.keys(properties).length === 0 && skuGroups.length === 1 && skuGroups[0]!.options.length === 1) {
         properties[skuGroups[0]!.name] = skuGroups[0]!.options[0]!.label;
       }
@@ -145,11 +164,52 @@ function buildFromSkuBase(base: Record<string, unknown>): {
   return { skuGroups, skus };
 }
 
+// 新版天猫 SSR：把 skuCore.sku2info（按 skuId 索引的库存/价格信息）合并进
+// skuBase.skus（propPath + skuId）。初始加载只有库存，带 skuId 加载才会附带价格。
+export function mergeSku2InfoIntoSkus(
+  skus: ProductSku[],
+  sku2info: Record<string, unknown>,
+): ProductSku[] {
+  if (!sku2info || typeof sku2info !== 'object') return skus;
+  return skus.map((s) => {
+    const key = String(s.skuCode ?? s.id ?? '').trim();
+    const info = key ? (sku2info[key] as Record<string, unknown> | undefined) : undefined;
+    if (!info || typeof info !== 'object') return s;
+    const priceObj = info.price && typeof info.price === 'object' ? (info.price as Record<string, unknown>) : undefined;
+    const subPriceObj =
+      info.subPrice && typeof info.subPrice === 'object'
+        ? (info.subPrice as Record<string, unknown>)
+        : undefined;
+    const price =
+      parsePrice(info.price) ??
+      parsePrice(subPriceObj?.priceText) ??
+      parsePrice(priceObj?.priceText) ??
+      parsePrice(subPriceObj?.priceMoney) ??
+      parsePrice(priceObj?.priceMoney);
+    const stock = parseQuantity(info.quantity ?? info.stock ?? info.amount);
+    return {
+      ...s,
+      price: price && price > 0 ? price : s.price,
+      stock: stock !== undefined ? stock : s.stock,
+      raw: {
+        ...(s.raw ?? {}),
+        sku2info: {
+          quantity: info.quantity,
+          quantityText: info.quantityText ?? '',
+          logisticsTime: info.logisticsTime ?? '',
+          moreQuantity: info.moreQuantity ?? '',
+        },
+      },
+    };
+  });
+}
+
 export async function extractTaobaoJsonPatch(page: Page): Promise<TaobaoJsonPatch> {
   const raw = (await page.evaluate(() => {
     const imageUrls: string[] = [];
     const attrPairs: Record<string, string> = {};
     const skuBases: Record<string, unknown>[] = [];
+    const sku2infos: Record<string, unknown>[] = [];
 
     const walkForSkuBase = (node: unknown, depth: number): void => {
       if (depth > 14 || !node || typeof node !== 'object') return;
@@ -168,6 +228,9 @@ export async function extractTaobaoJsonPatch(page: Page): Promise<TaobaoJsonPatc
       }
       if (o.skuCore && typeof o.skuCore === 'object') {
         const core = o.skuCore as Record<string, unknown>;
+        if (core.sku2info && typeof core.sku2info === 'object') {
+          sku2infos.push(core.sku2info as Record<string, unknown>);
+        }
         if (core.sku2info && core.props) {
           const sku2info = core.sku2info as Record<string, unknown>;
           skuBases.push({
@@ -280,6 +343,7 @@ export async function extractTaobaoJsonPatch(page: Page): Promise<TaobaoJsonPatc
       imageUrls,
       attrPairs,
       skuBases,
+      sku2infos,
       rootCount: roots.length,
       skuBaseCount: skuBases.length,
     };
@@ -297,6 +361,10 @@ export async function extractTaobaoJsonPatch(page: Page): Promise<TaobaoJsonPatc
     }
   }
 
+  const sku2info =
+    raw.sku2infos?.find(
+      (v) => v && typeof v === 'object' && Object.keys(v).length > 1,
+    ) ?? {};
   const mainImages = dedupeUrls((raw.imageUrls ?? []).slice(0, 30));
   return {
     mainImages,
@@ -304,9 +372,11 @@ export async function extractTaobaoJsonPatch(page: Page): Promise<TaobaoJsonPatc
     attributes: raw.attrPairs ?? {},
     skuGroups,
     skus,
+    sku2info,
     debug: {
       jsonRootCount: raw.rootCount,
       skuBaseCount: raw.skuBaseCount,
+      jsonSku2InfoCount: Object.keys(sku2info).length,
       jsonMainImageCount: mainImages.length,
       jsonSkuCount: skus.length,
     },
@@ -319,6 +389,7 @@ export function mergeTaobaoPayload(dom: TaobaoPagePayload, json: TaobaoJsonPatch
   if (!skus.length && skuGroups.length) {
     skus = cartesianFromGroups(skuGroups);
   }
+  const sku2info = json.sku2info && Object.keys(json.sku2info).length ? json.sku2info : {};
   return {
     ...dom,
     mainImages: dedupeUrls([...dom.mainImages, ...json.mainImages]),
@@ -326,6 +397,7 @@ export function mergeTaobaoPayload(dom: TaobaoPagePayload, json: TaobaoJsonPatch
     attributes: { ...dom.attributes, ...json.attributes },
     skuGroups,
     skus,
+    sku2info,
     debug: {
       ...dom.debug,
       ...json.debug,

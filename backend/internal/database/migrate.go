@@ -12,6 +12,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectextension"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customerchat"
 	"github.com/trademind-ai/trademind/backend/internal/modules/customersync"
@@ -152,6 +153,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&collect.CollectBatch{},
 		&collect.CollectTask{},
 		&collect.CollectTaskEvent{},
+		&collectextension.BrowserExtensionPairing{},
+		&collectextension.BrowserExtensionDevice{},
 		&collectrule.CollectRule{},
 		&collectbrowserprofile.CollectBrowserProfile{},
 		&aiprompt.AIPrompt{},

@@ -6,6 +6,7 @@ export type OpenCliDriverConfig = {
   bin: string;
   timeoutMs: number;
   skuClickMax: number;
+  skuPriceMax: number;
 };
 
 export type OpenCliCommandResult = {
@@ -27,10 +28,12 @@ export type OpenCliRuntimeStatus = {
 export function getOpenCliDriverConfig(): OpenCliDriverConfig {
   const timeout = Number(process.env.OPENCLI_TIMEOUT_MS ?? '120000');
   const skuClick = Number(process.env.OPENCLI_SKU_CLICK_MAX ?? '24');
+  const skuPrice = Number(process.env.OPENCLI_SKU_PRICE_MAX ?? '24');
   return {
     bin: process.env.OPENCLI_BIN ?? 'opencli',
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 120000,
     skuClickMax: Number.isFinite(skuClick) && skuClick >= 0 ? Math.min(48, Math.floor(skuClick)) : 24,
+    skuPriceMax: Number.isFinite(skuPrice) && skuPrice >= 0 ? Math.min(48, Math.floor(skuPrice)) : 24,
   };
 }
 
@@ -259,8 +262,29 @@ export async function collectViaOpenCli(
     Number.isFinite(parsedSkuClick) && parsedSkuClick >= 0
       ? Math.min(48, Math.floor(parsedSkuClick))
       : config.skuClickMax;
+  const rawSkuPriceMax =
+    options.skuPriceMax ??
+    options.skuPriceMaxCount ??
+    options.skuMaxPriceProbes ??
+    options['sku-price-max'] ??
+    config.skuPriceMax;
+  const parsedSkuPriceMax = Number(rawSkuPriceMax);
+  const skuPriceMax =
+    Number.isFinite(parsedSkuPriceMax) && parsedSkuPriceMax >= 0
+      ? Math.min(48, Math.floor(parsedSkuPriceMax))
+      : config.skuPriceMax;
   const result = await runner(
-    [adapter, 'product', url, '--sku-click', String(skuClick), '-f', 'json'],
+    [
+      adapter,
+      'product',
+      url,
+      '--sku-click',
+      String(skuClick),
+      '--sku-price-max',
+      String(skuPriceMax),
+      '-f',
+      'json',
+    ],
     config.timeoutMs,
   );
 

@@ -29,6 +29,8 @@ declare const chrome: {
     executeScript<T>(options: {
       target: { tabId: number };
       func: () => T | Promise<T>;
+      args?: unknown[];
+      world?: 'ISOLATED' | 'MAIN';
     }): Promise<Array<{ result?: T }>>;
   };
   tabs: {

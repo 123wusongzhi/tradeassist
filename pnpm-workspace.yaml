@@ -1,3 +1,22 @@
 packages:
   - "admin"
   - "collector"
+
+# 仓库依赖根目录 hoisting（旧 .npmrc shamefully-hoist 在 pnpm 10+ 失效，
+# pnpm 11 的等价配置是 camelCase 的 shamefullyHoist）。
+# browser-extension 构建脚本引用 ../node_modules/typescript，admin 也依赖提升的传递依赖。
+shamefullyHoist: true
+
+# pnpm 10+ 只从 pnpm-workspace.yaml 读取 overrides（package.json 的 pnpm.overrides 已弃用）。
+# 与 package.json pnpm.overrides 保持一致，防止 pnpm 11 重新解析出不同版本的 react。
+overrides:
+  rc-resize-observer: 1.4.3
+  react: 18.2.0
+  react-dom: 18.2.0
+
+# pnpm 10+ 默认阻止依赖的 build scripts；仓库依赖这些包的 postinstall（esbuild 等）。
+allowBuilds:
+  core-js: true
+  core-js-pure: true
+  es5-ext: true
+  esbuild: true

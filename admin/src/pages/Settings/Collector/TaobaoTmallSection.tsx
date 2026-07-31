@@ -254,6 +254,17 @@ export function CollectorTaobaoTmallSection({
             </Form.Item>
           </Col>
         </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              label="SKU 价格探测上限"
+              name="collect_taobao_tmall_sku_price_max"
+              tooltip="新版天猫隐藏每个 SKU 的单独价格，采集器会在当前标签页内按 skuId 串行探测（每次 300–800ms 随机间隔），默认 24，最多 48。"
+            >
+              <InputNumber min={1} max={48} style={{ width: '100%' }} placeholder="24" />
+            </Form.Item>
+          </Col>
+        </Row>
 
         {batchOpen ? (
           <>

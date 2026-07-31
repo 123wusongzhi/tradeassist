@@ -14,6 +14,8 @@ export type TaobaoPagePayload = {
   attributes: Record<string, string>;
   skuGroups: { name: string; options: { label: string; selected: boolean; disabled: boolean }[] }[];
   skus: ProductSku[];
+  /** 新版天猫 SSR skuCore.sku2info：按 skuId 索引的库存/价格信息（可选） */
+  sku2info?: Record<string, unknown>;
   debug: Record<string, unknown>;
 };
 

@@ -44,6 +44,12 @@
 完整部署与故障隔离说明见
 [采集引擎与部署指南](collector-engines.md)。
 
+## 已验收记录
+
+| 日期 / 操作人 | 部署方式 | 期望引擎 | 实际引擎 | 引擎状态 | 适配器版本/同步 | 备注 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2026-07-31 / Codex | 本地 | OpenCLI | OpenCLI | enabled / configured / reachable / ready | 仓库 `collector/opencli-adapters/tmall` 同步后运行 | SKU 价格探测 `sku-price-max=24`；采集过程中触发过一次滑块验证，人工完成后恢复 |
+
 ## 普通淘宝商品（5 条）
 
 | # | 链接 | 需要登录 | 标题 | 价格 | 主图数 | 详情图数 | SKU 数 | warning | error | 草稿 |
@@ -59,7 +65,7 @@
 | # | 链接 | 需要登录 | 标题 | 价格 | 主图数 | 详情图数 | SKU 数 | warning | error | 草稿 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 6 | `https://detail.tmall.com/item.htm?id=【填写】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
-| 7 | `https://detail.tmall.com/item.htm?id=【填写】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
+| 7 | `https://detail.tmall.com/item.htm?id=622919682584` | 是 | 恩爵薄款固态继电器模组小型导轨式SSK10D带底座5v24v直流控交流 | 8.6（per-SKU 4–191） | 6 | 21 | 16 | — | — | 待测 |
 | 8 | `https://detail.tmall.hk/item.htm?id=【填写】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
 | 9 | `https://chaoshi.tmall.com/item.htm?id=【填写】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
 | 10 | `https://ju.taobao.com/item.htm?id=【填写】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
@@ -69,7 +75,7 @@
 | # | 链接 | 需要登录 | 标题 | 价格 | 主图数 | 详情图数 | SKU 数 | warning | error | 草稿 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 11 | `https://item.taobao.com/item.htm?id=【多规格淘宝】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
-| 12 | `https://detail.tmall.com/item.htm?id=【多规格天猫】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
+| 12 | `https://detail.tmall.com/item.htm?id=997134693410` | 是 | 老年犬专用站立辅助趴趴凳防滑关节护理瘫痪狗狗辅助起身保暖狗垫 | 351.8（per-SKU 351.8–900.8） | 6 | 8 | 56（8 色 × 7 码） | — | — | 待测 |
 | 13 | `https://item.taobao.com/item.htm?id=【颜色+尺码】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
 | 14 | `https://detail.tmall.com/item.htm?id=【颜色+尺码】` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |
 | 15 | `https://world.taobao.com/item/【填写】.htm` | 待测 | 待测 | 待测 | 待测 | 待测 | 待测 | — | — | 待测 |

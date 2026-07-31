@@ -5,6 +5,7 @@ type CollectMessage = {
   type: 'COLLECT_ACTIVE_TAB';
   tabId: number;
   url: string;
+  skuPriceProbeMax?: number;
 };
 
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
@@ -42,10 +43,23 @@ async function collect(message: CollectMessage): Promise<PageCollectResult> {
     const injected = await chrome.scripting.executeScript({
       target: { tabId: message.tabId },
       func: adapter.collect,
+      args: [
+        {
+          maxPriceProbes:
+            Number.isFinite(message.skuPriceProbeMax) && (message.skuPriceProbeMax ?? 0) > 0
+              ? Math.min(Math.floor(message.skuPriceProbeMax ?? 24), 200)
+              : 24,
+        },
+      ],
+      world: 'MAIN',
     });
     const product = injected[0]?.result;
     if (!product) {
-      return { ok: false, errorCode: 'EMPTY_RESULT', message: '页面没有返回可保存的商品信息' };
+      return {
+        ok: false,
+        errorCode: 'EMPTY_RESULT',
+        message: `页面没有返回可保存的商品信息（${message.url}）`,
+      };
     }
     return { ok: true, product };
   } catch (error) {

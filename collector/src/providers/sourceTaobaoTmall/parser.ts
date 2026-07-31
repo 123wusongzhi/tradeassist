@@ -8,10 +8,12 @@ import {
   scrollAndCollectDetailImages,
   type TaobaoPagePayload,
 } from './page-extract.js';
-import { extractTaobaoJsonPatch, mergeTaobaoPayload } from './json-extract.js';
+import { extractTaobaoJsonPatch, mergeSku2InfoIntoSkus, mergeTaobaoPayload } from './json-extract.js';
 import { buildTaobaoQualityReport, validateTaobaoCollectQuality } from './quality.js';
 import {
+  collectSkuPricesByFetch,
   collectSkuPricesByClick,
+  mergeSkuPriceProbe,
   mergeSkuResults,
   toTaobaoSkuGroups,
   type TaobaoSkuCollectOptions,
@@ -121,10 +123,36 @@ export async function assembleTaobaoProduct(
   let skuGroups = toTaobaoSkuGroups(payload);
   let skus = payload.skus;
 
-  if (skuOptions.enabled && skuGroups.length > 0) {
+  if (payload.sku2info && Object.keys(payload.sku2info).length > 0) {
+    skus = mergeSku2InfoIntoSkus(skus, payload.sku2info);
+  }
+
+  // 新版天猫 SSR 初始不返回 per-SKU 价格：按 skuId 探测后，老版页面再点击回退。
+  let probedSkuCount = 0;
+  if (skuOptions.enabled && skuOptions.maxPriceProbes > 0 && skus.length > 0) {
+    const missing = skus
+      .filter((s) => !s.price || s.price <= 0)
+      .map((s) => String(s.skuCode ?? s.id ?? '').trim())
+      .filter(Boolean);
+    if (missing.length > 0) {
+      const probes = await collectSkuPricesByFetch(page, sourceUrl, missing, skuOptions.maxPriceProbes);
+      const merged = mergeSkuPriceProbe(skus, probes);
+      if (merged !== skus) {
+        skus = merged;
+        probedSkuCount = Object.keys(probes).filter((key) => !probes[key]?.error).length;
+      }
+    }
+  }
+
+  if (skuOptions.enabled && probedSkuCount === 0 && skuGroups.length > 0) {
     const clicked = await collectSkuPricesByClick(page, skuGroups, skuOptions);
     const merged = mergeSkuResults(skus, clicked);
     skus = merged.skus;
+  }
+
+  if (payload.debug) {
+    payload.debug.sku2InfoMerged = Boolean(payload.sku2info && Object.keys(payload.sku2info).length > 0);
+    payload.debug.skuPriceProbeCount = probedSkuCount;
   }
 
   const priceInfo = resolvePriceInfo(payload, skus);

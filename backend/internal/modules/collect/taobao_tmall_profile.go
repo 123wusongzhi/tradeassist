@@ -62,6 +62,13 @@ func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, _sourceURL
 			} else {
 				opts["skuClickMaxCount"] = 24
 			}
+			if v := strings.TrimSpace(m["collect_taobao_tmall_sku_price_max"]); v != "" {
+				if n, err := strconv.Atoi(v); err == nil && n > 0 {
+					opts["skuPriceMaxCount"] = n
+				}
+			} else {
+				opts["skuPriceMaxCount"] = 24
+			}
 		}
 	}
 	if len(opts) == 0 {

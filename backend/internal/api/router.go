@@ -26,6 +26,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/backup"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collect"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectbrowserprofile"
+	"github.com/trademind-ai/trademind/backend/internal/modules/collectextension"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectrule"
 	"github.com/trademind-ai/trademind/backend/internal/modules/collectruleai"
 	"github.com/trademind-ai/trademind/backend/internal/modules/configstatus"
@@ -633,6 +634,14 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	pricingH := &pricing.Handler{Svc: pricingSvc}
 	pricing.Register(authed, pricingH)
 	collect.Register(authed, collectH)
+	collectExtensionSvc := &collectextension.Service{
+		DB:      dep.DB,
+		Collect: collectSvc,
+		OpLog:   opLogSvc,
+	}
+	collectExtensionH := &collectextension.Handler{Svc: collectExtensionSvc}
+	collectextension.RegisterAdmin(authed, collectExtensionH)
+	collectextension.RegisterPublic(v1, collectExtensionH)
 	collectRuleAISvc := &collectruleai.Service{
 		Settings:    settingsSvc,
 		Prompts:     promptSvc,

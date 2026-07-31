@@ -1,9 +1,12 @@
 import { TradeMindAPI, TradeMindAPIError } from './api.js';
 import { isSupportedTaobaoTmallURL } from './adapters/taobao-tmall.js';
 import { normalizeAPIBase, parsePairingInput } from './pairing.js';
-import type { CollectTask, ExtensionDevice, PageCollectResult } from './types.js';
+import type { CollectTask, ExtensionDevice, NormalizedProduct, PageCollectResult } from './types.js';
 
-const STORAGE_KEYS = ['apiBase', 'deviceToken', 'device'] as const;
+const CONNECTION_KEYS = ['apiBase', 'deviceToken', 'device'] as const;
+const STORAGE_KEYS = [...CONNECTION_KEYS, 'skuPriceProbeMax'] as const;
+const DEFAULT_SKU_PRICE_PROBES = 24;
+const MAX_SKU_PRICE_PROBES = 200;
 
 type StoredConnection = {
   apiBase: string;
@@ -34,6 +37,7 @@ const ui = {
   disconnectButton: element<HTMLButtonElement>('disconnectButton'),
   deviceName: element<HTMLElement>('deviceName'),
   connectedBase: element<HTMLSpanElement>('connectedBase'),
+  skuPriceProbeInput: element<HTMLInputElement>('skuPriceProbeInput'),
   pageBadge: element<HTMLSpanElement>('pageBadge'),
   pageTitle: element<HTMLElement>('pageTitle'),
   pageUrl: element<HTMLSpanElement>('pageUrl'),
@@ -46,6 +50,9 @@ const ui = {
   stepUpload: element<HTMLLIElement>('stepUpload'),
   resultCard: element<HTMLElement>('resultCard'),
   resultSummary: element<HTMLElement>('resultSummary'),
+  skuAnalysisCard: element<HTMLElement>('skuAnalysisCard'),
+  skuAnalysisSummary: element<HTMLElement>('skuAnalysisSummary'),
+  skuAnalysisList: element<HTMLElement>('skuAnalysisList'),
   openProductButton: element<HTMLButtonElement>('openProductButton'),
   toast: element<HTMLElement>('toast'),
 };
@@ -54,6 +61,7 @@ let connection: StoredConnection | null = null;
 let activePage: ActivePage | null = null;
 let collecting = false;
 let lastTask: CollectTask | null = null;
+let lastProduct: NormalizedProduct | null = null;
 let toastTimer: number | undefined;
 
 function showToast(message: string, error = false) {
@@ -135,12 +143,87 @@ async function saveConnection(next: StoredConnection) {
 }
 
 async function clearConnection() {
-  await chrome.storage.local.remove([...STORAGE_KEYS]);
+  await chrome.storage.local.remove([...CONNECTION_KEYS]);
   connection = null;
   lastTask = null;
+  lastProduct = null;
   ui.resultCard.classList.add('hidden');
+  ui.skuAnalysisCard.classList.add('hidden');
   ui.progressCard.classList.add('hidden');
   renderConnection();
+}
+
+function renderSkuAnalysis(product: NormalizedProduct | null) {
+  const card = ui.skuAnalysisCard;
+  if (!product || !product.skus.length) {
+    card.classList.add('hidden');
+    return;
+  }
+  const skus = product.skus;
+  const priced = skus.filter((s) => s.price && s.price > 0);
+  const soldOut = skus.filter(
+    (s) => s.stock === 0 || /无货|缺货/.test(s.stockStatus ?? ''),
+  );
+  const lowStock = skus.filter(
+    (s) => s.stock !== 0 && (/即将售罄/.test(s.stockStatus ?? '') || ((s.stock ?? 99) > 0 && (s.stock ?? 99) <= 10)),
+  );
+  const prices = priced.map((s) => s.price as number);
+  const priceMin = prices.length ? Math.min(...prices) : undefined;
+  const priceMax = prices.length ? Math.max(...prices) : undefined;
+  const probeCount = typeof product.raw?.skuPriceProbeCount === 'number' ? product.raw.skuPriceProbeCount : 0;
+  const rangeText =
+    priceMin !== undefined && priceMax !== undefined
+      ? ` · 券后 ${priceMin}–${priceMax} 元`
+      : '';
+  ui.skuAnalysisSummary.textContent =
+    `SKU 共 ${skus.length} 个 · 独立价格 ${priced.length} 个` +
+    rangeText +
+    ` · 缺货 ${soldOut.length} · 即将售罄 ${lowStock.length}` +
+    (probeCount > 0 ? ` · 本轮探测 ${probeCount}` : '');
+
+  ui.skuAnalysisList.textContent = '';
+  const fragment = document.createDocumentFragment();
+  for (const s of skus) {
+    const row = document.createElement('div');
+    row.className = 'sku-row';
+    const name = Object.values(s.properties ?? {}).filter(Boolean).join(' / ') || '默认规格';
+    const priceText = s.price && s.price > 0 ? `￥${s.price}` : '价格待定';
+    const originalText = s.originalPrice && s.originalPrice > 0 ? `（原价￥${s.originalPrice}）` : '';
+    const stockText =
+      s.stock === 0 ? '无货' : s.stock != null ? `${s.stock} 件` : s.stockStatus || '库存未知';
+    const nameEl = document.createElement('span');
+    nameEl.className = 'sku-row__name';
+    nameEl.textContent = name;
+    nameEl.title = name;
+    const priceEl = document.createElement('span');
+    priceEl.className = 'sku-row__price';
+    priceEl.textContent = `${priceText} ${originalText}`.trim();
+    const stockEl = document.createElement('span');
+    stockEl.className = 'sku-row__stock';
+    stockEl.textContent = stockText;
+    row.append(nameEl, priceEl, stockEl);
+    fragment.appendChild(row);
+  }
+  ui.skuAnalysisList.appendChild(fragment);
+  card.classList.remove('hidden');
+}
+
+function clampSkuPriceProbes(raw: unknown): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_SKU_PRICE_PROBES;
+  return Math.min(MAX_SKU_PRICE_PROBES, Math.floor(n));
+}
+
+async function readSkuPriceProbes(): Promise<number> {
+  const stored = await chrome.storage.local.get('skuPriceProbeMax');
+  return clampSkuPriceProbes(stored.skuPriceProbeMax);
+}
+
+async function saveSkuPriceProbes(raw: unknown) {
+  const clamped = clampSkuPriceProbes(raw);
+  await chrome.storage.local.set({ skuPriceProbeMax: clamped });
+  ui.skuPriceProbeInput.value = String(clamped);
+  showToast(`SKU 价格探测上限已设为 ${clamped}`);
 }
 
 async function ensureHostPermission(apiBase: string) {
@@ -226,6 +309,8 @@ async function collectCurrentPage() {
   if (!connection || !activePage?.supported || collecting) return;
   collecting = true;
   lastTask = null;
+  lastProduct = null;
+  renderSkuAnalysis(null);
   renderPage();
   setProgress('task', '正在创建可追踪的采集任务…');
   const api = connectionAPI();
@@ -237,6 +322,7 @@ async function collectCurrentPage() {
       type: 'COLLECT_ACTIVE_TAB',
       tabId: activePage.tabId,
       url: activePage.url,
+      skuPriceProbeMax: clampSkuPriceProbes(ui.skuPriceProbeInput.value),
     });
     if (!result?.ok) {
       const failure = result ?? {
@@ -250,9 +336,11 @@ async function collectCurrentPage() {
     setProgress('upload', '页面读取完成，正在由 Backend 校验并创建商品草稿…');
     task = await submitResultWithRetry(api, task.id, result.product);
     lastTask = task;
+    lastProduct = result.product;
     setProgress('done', '采集结果已保存。');
     ui.resultCard.classList.remove('hidden');
     ui.resultSummary.textContent = `任务 ${task.id.slice(0, 8)} · 商品草稿 ${task.resultProductId?.slice(0, 8) ?? '已创建'}`;
+    renderSkuAnalysis(result.product);
     showToast('商品采集完成');
   } catch (error) {
     const failure = browserFailure(error);
@@ -288,6 +376,7 @@ ui.pairButton.addEventListener('click', () => void pair());
 ui.disconnectButton.addEventListener('click', () => void clearConnection());
 ui.collectButton.addEventListener('click', () => void collectCurrentPage());
 ui.refreshButton.addEventListener('click', () => void refreshActivePage());
+ui.skuPriceProbeInput.addEventListener('change', () => void saveSkuPriceProbes(ui.skuPriceProbeInput.value));
 ui.openProductButton.addEventListener('click', () => {
   if (!connection || !lastTask?.resultProductId) return;
   void chrome.tabs.create({
@@ -301,6 +390,7 @@ chrome.tabs.onUpdated.addListener((_tabID, changeInfo) => {
 
 void (async () => {
   await validateStoredSession();
+  ui.skuPriceProbeInput.value = String(await readSkuPriceProbes());
   renderConnection();
   await refreshActivePage();
 })();

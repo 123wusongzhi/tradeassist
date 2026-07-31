@@ -12,7 +12,10 @@ const (
 	AuthSourceWebhook     = "webhook"
 	AuthSourceWorker      = "worker"
 	AuthSourceSystem      = "system"
-	AuthSourceDevFallback = "dev_tenant_fallback"
+	// AuthSourceBrowserExtension identifies device-token-authenticated TradeMind
+	// browser extension requests (collect browser-extension module).
+	AuthSourceBrowserExtension = "browser_extension"
+	AuthSourceDevFallback      = "dev_tenant_fallback"
 )
 
 // SystemContext identifies privileged internal operations (not a tenant impersonation).

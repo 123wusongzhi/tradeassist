@@ -81,6 +81,16 @@ export function parsePrice(raw) {
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
+// 数量解析：保留 0（0 = 无货/缺货），parsePrice 会把 0 视为无效。
+export function parseQuantity(raw) {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : undefined;
+  const t = String(raw).replace(/,/g, '').trim();
+  if (!/^\d+(?:\.\d+)?$/.test(t)) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : undefined;
+}
+
 // ---------- json-extract: skuBase 构建 ----------
 export function cartesianFromGroups(groups, max = 200) {
   if (!groups.length) return [];
@@ -139,7 +149,11 @@ export function buildFromSkuBase(base) {
     });
   }
 
-  const skusRaw = base.skus ?? base.skuList ?? base.skuInfos;
+  const skusRaw = Array.isArray(base.skus ?? base.skuList ?? base.skuInfos)
+    ? base.skus ?? base.skuList ?? base.skuInfos
+    : base.skuMap && typeof base.skuMap === 'object'
+      ? Object.values(base.skuMap)
+      : [];
   const skus = [];
   if (Array.isArray(skusRaw)) {
     for (const s of skusRaw) {
@@ -159,13 +173,16 @@ export function buildFromSkuBase(base) {
           }
         }
       }
-      const priceObj = s.price;
+      const priceObj = s.price && typeof s.price === 'object' ? s.price : undefined;
+      const subPriceObj = s.subPrice && typeof s.subPrice === 'object' ? s.subPrice : undefined;
+      // 新版天猫 SSR：sku2info[skuId].subPrice=券后、price=优惠前（priceText 单位：元）
       const price =
         parsePrice(s.price) ??
-        (priceObj && typeof priceObj === 'object'
-          ? (parsePrice(priceObj.priceText) ?? parsePrice(priceObj.priceMoney))
-          : undefined);
-      const stock = parsePrice(s.quantity ?? s.stock ?? s.amount);
+        parsePrice(subPriceObj?.priceText) ??
+        parsePrice(priceObj?.priceText) ??
+        parsePrice(subPriceObj?.priceMoney) ??
+        parsePrice(priceObj?.priceMoney);
+      const stock = parseQuantity(s.quantity ?? s.stock ?? s.amount);
       if (Object.keys(properties).length === 0 && skuGroups.length === 1 && skuGroups[0].options.length === 1) {
         properties[skuGroups[0].name] = skuGroups[0].options[0].label;
       }
@@ -187,6 +204,76 @@ export function buildFromSkuBase(base) {
   return { skuGroups, skus };
 }
 
+// 新版天猫 SSR：把 skuCore.sku2info（按 skuId 索引的库存/价格信息）合并进
+// skuBase.skus（propPath + skuId）。初始加载只有库存，带 skuId 加载才会附带价格。
+export function mergeSku2InfoIntoSkus(skus, sku2info) {
+  if (!sku2info || typeof sku2info !== 'object') return skus;
+  return skus.map((s) => {
+    const key = String(s.skuCode ?? s.skuId ?? s.skuid ?? s.id ?? '').trim();
+    const info = key ? sku2info[key] : undefined;
+    if (!info || typeof info !== 'object') return s;
+    const priceObj = info.price && typeof info.price === 'object' ? info.price : undefined;
+    const subPriceObj = info.subPrice && typeof info.subPrice === 'object' ? info.subPrice : undefined;
+    const price =
+      parsePrice(info.price) ??
+      parsePrice(subPriceObj?.priceText) ??
+      parsePrice(priceObj?.priceText) ??
+      parsePrice(subPriceObj?.priceMoney) ??
+      parsePrice(priceObj?.priceMoney);
+    const stock = parseQuantity(info.quantity ?? info.stock ?? info.amount);
+    return {
+      ...s,
+      price: price && price > 0 ? price : s.price,
+      stock: stock !== undefined ? stock : s.stock,
+      raw: {
+        ...(s.raw ?? {}),
+        sku2info: {
+          quantity: info.quantity,
+          quantityText: info.quantityText ?? '',
+          logisticsTime: info.logisticsTime ?? '',
+          moreQuantity: info.moreQuantity ?? '',
+        },
+      },
+    };
+  });
+}
+
+// 把 skuId 价格探测结果（页面内 fetch 各 skuId SSR 页得到）合并进 skus。
+// probes 形如 { [skuId]: { priceText, originalPriceText, quantity, quantityText, logisticsTime } }。
+export function applySkuPriceProbe(skus, probes) {
+  if (!probes || typeof probes !== 'object') return skus;
+  const hasAny = Object.keys(probes).some(
+    (k) =>
+      probes[k] &&
+      typeof probes[k] === 'object' &&
+      !probes[k].error &&
+      (probes[k].priceText || probes[k].originalPriceText || probes[k].quantity != null),
+  );
+  if (!hasAny) return skus;
+  return skus.map((s) => {
+    const key = String(s.skuCode ?? s.id ?? s.skuId ?? '').trim();
+    const p = key ? probes[key] : undefined;
+    if (!p || typeof p !== 'object' || p.error) return s;
+    const probePrice = parsePrice(p.priceText) ?? parsePrice(p.originalPriceText);
+    const probeStock = parseQuantity(p.quantity);
+    return {
+      ...s,
+      price: probePrice && probePrice > 0 ? probePrice : s.price,
+      stock: probeStock !== undefined ? probeStock : s.stock,
+      raw: {
+        ...(s.raw ?? {}),
+        skuPriceProbe: {
+          priceText: p.priceText ?? '',
+          originalPriceText: p.originalPriceText ?? '',
+          quantity: p.quantity,
+          quantityText: p.quantityText ?? '',
+          logisticsTime: p.logisticsTime ?? '',
+        },
+      },
+    };
+  });
+}
+
 export function jsonPatchFromScan(raw) {
   let skuGroups = [];
   let skus = [];
@@ -199,6 +286,9 @@ export function jsonPatchFromScan(raw) {
       skuGroups = built.skuGroups;
     }
   }
+  const sku2info = Array.isArray(raw.sku2infos ?? [])
+    ? raw.sku2infos.find((v) => v && typeof v === 'object' && Object.keys(v).length > 1) ?? {}
+    : {};
   const mainImages = dedupeUrls((raw.imageUrls ?? []).slice(0, 30));
   return {
     mainImages,
@@ -206,9 +296,11 @@ export function jsonPatchFromScan(raw) {
     attributes: raw.attrPairs ?? {},
     skuGroups,
     skus,
+    sku2info,
     debug: {
       jsonRootCount: raw.rootCount,
       skuBaseCount: raw.skuBaseCount,
+      jsonSku2InfoCount: Object.keys(sku2info).length,
       jsonMainImageCount: mainImages.length,
       jsonSkuCount: skus.length,
     },
@@ -222,6 +314,7 @@ export function mergeTaobaoPayload(dom, json) {
   if (!skus.length && skuGroups.length) {
     skus = cartesianFromGroups(skuGroups);
   }
+  const sku2info = json.sku2info && Object.keys(json.sku2info).length ? json.sku2info : {};
   return {
     ...dom,
     mainImages: dedupeUrls([...dom.mainImages, ...json.mainImages]),
@@ -229,6 +322,7 @@ export function mergeTaobaoPayload(dom, json) {
     attributes: { ...dom.attributes, ...json.attributes },
     skuGroups,
     skus,
+    sku2info,
     debug: { ...dom.debug, ...json.debug },
   };
 }

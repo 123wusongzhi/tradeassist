@@ -230,6 +230,26 @@
 | `POST` | `/api/collector/providers/taobao_tmall/check-login` | 同上（`/api/collector` 别名）。 |
 | `POST` | `/api/collector/providers/taobao_tmall/open-login-browser` | 打开淘宝/天猫采集浏览器手动登录；body 可选 `{ "url": "商品链接" }`。 |
 
+### 浏览器扩展采集（侧边栏）
+
+浏览器扩展使用一次性配对码换取 90 天设备令牌（仅存哈希），之后用 `Bearer <deviceToken>`
+访问任务接口；设备令牌限定租户与 Admin 用户，可随时撤销。任务由扩展直接创建/完成，
+不经过 Redis 队列、Playwright Collector 或 OpenCLI Bridge。
+
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/collect/browser-extension/pairings` | Admin JWT + 商品写权限 | 生成一次性配对码（10 分钟有效）。 |
+| `POST` | `/api/v1/collect/browser-extension/pairings/exchange` | 公开 | 用配对码换取 `{ device, deviceToken }`，一次性。 |
+| `GET` | `/api/v1/collect/browser-extension/devices` | Admin JWT + 商品读权限 | 已连接设备列表。 |
+| `DELETE` | `/api/v1/collect/browser-extension/devices/:id` | Admin JWT + 商品写权限 | 撤销设备令牌。 |
+| `GET` | `/api/v1/collect/browser-extension/session` | 设备令牌 | 校验并返回设备信息。 |
+| `POST` | `/api/v1/collect/browser-extension/tasks` | 设备令牌 | 创建交互采集任务，body `{ "source": "taobao_tmall", "url": "..." }`，任务状态为 `running`，绑定设备。 |
+| `POST` | `/api/v1/collect/browser-extension/tasks/:id/result` | 设备令牌 | 提交归一化商品 JSON，创建商品草稿并置任务为 `success`；非本设备返回 `403`，任务已结束返回 `403`，并发提交返回 `409`。 |
+| `POST` | `/api/v1/collect/browser-extension/tasks/:id/failure` | 设备令牌 | 上报失败码/信息，任务置为 `failed`。 |
+
+任务响应字段与通用采集任务一致的关键子集：`id`、`source`、`sourceUrl`、`status`、
+`resultProductId`。只支持 `source=taobao_tmall`，URL 按淘宝/天猫规则校验。
+
 ### 采集引擎契约
 
 OpenCLI 当前仅支持 `source=taobao_tmall`。创建单任务时使用：

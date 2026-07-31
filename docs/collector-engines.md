@@ -276,6 +276,36 @@ OpenCLI 控制的 Chrome 窗口。
 淘宝/天猫真实链接的字段级验收见
 [collector-taobao-tmall-test-links.md](collector-taobao-tmall-test-links.md)。
 
+## 淘宝/天猫 SKU 价格与库存识别
+
+新版天猫 SSR 详情页默认隐藏 per-SKU 价格（`skuItem.hideOtherPrice=true`），初始
+`skuCore.sku2info` 只返回每个 SKU 的库存（`quantity` / `quantityText`），没有价格；
+实测点击规格选项也不会触发价格查询，页面始终显示“券后￥X起”。这是第三方服务商
+普遍无法识别 SKU 价格的根因。
+
+实际数据规律（2026-07-31 实测确认）：
+
+- 每个 SKU 的券后价/原价只在该商品页带 `skuId` 参数重新请求时，由服务端 SSR 在
+  `__ICE_APP_CONTEXT__.loaderData.home.data.res.skuCore.sku2info[skuId]` 返回
+  （`subPrice` = 券后、`price` = 优惠前），一次请求只返回一个 SKU 的价格。
+- 初始加载的 `sku2info` 已包含全部 SKU 库存，不需要额外请求；`quantity: 0` 表示
+  缺货，`quantityText` 提供“有货 / 即将售罄 / 无货”等文案。
+
+OpenCLI 适配器与 Playwright 采集器已内置处理：
+
+1. 解析 `skuBase.skus`（`propPath` + `skuId`）得到规格组合，并与
+   `skuCore.sku2info` 按 `skuId` 合并库存，不再产生 `STOCK_UNKNOWN`。
+2. 对缺少价格的 SKU，在已登录页面内用同源 `fetch`（携带 Cookie）按 `skuId`
+   **串行探测** SSR 价格，默认最多 24 条；管理端“采集设置 → 淘宝/天猫 → SKU
+   价格探测上限”可配置（1–48，0 关闭，底层透传 `--sku-price-max`）。单条之间
+   **300–800ms 随机延迟**（固定间隔更易被识别），连续失败自动停止；全程只复用
+   当前标签页（同源 fetch），绝不并发、不新开窗口。
+3. 老版淘宝/天猫页面（点击后价格会更新）保留点击采价回退；探测无结果时不打扰用户。
+
+风控提醒：逐 SKU 探测本质上是多次访问商品页，短时间内大量采集容易触发滑块验证；
+若页面出现“验证码拦截”，需在连接的 Chrome 手动完成一次验证后再继续。批量任务建议
+降低探测数量或拉大任务间隔。
+
 ## 常见问题
 
 ### `host.docker.internal:3100: connect: connection refused`
