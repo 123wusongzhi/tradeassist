@@ -1,0 +1,10 @@
+{
+  "name": "@trademind/browser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/clean-dist.mjs && node ../node_modules/typescript/bin/tsc -p tsconfig.json && node scripts/copy-static.mjs",
+    "test": "node ../node_modules/vitest/vitest.mjs run --config vitest.config.ts"
+  }
+}

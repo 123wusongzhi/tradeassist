@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TradeMind 商品采集</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="brand">
+        <div class="brand__mark" aria-hidden="true">贸</div>
+        <div>
+          <h1>TradeMind 商品采集</h1>
+          <p>在当前商品页采集，不启动额外浏览器</p>
+        </div>
+      </header>
+
+      <section id="connectionCard" class="card" aria-labelledby="connectionTitle">
+        <div class="card__head">
+          <div>
+            <span class="eyebrow">首次使用</span>
+            <h2 id="connectionTitle">连接 TradeMind</h2>
+          </div>
+          <span id="connectionBadge" class="badge badge--muted">未连接</span>
+        </div>
+        <div id="pairingForm">
+          <label for="apiBase">TradeMind 地址</label>
+          <input id="apiBase" type="url" value="http://127.0.0.1:8000" autocomplete="url" />
+          <label for="pairingCode">连接信息或配对码</label>
+          <input id="pairingCode" type="text" placeholder="在 TradeMind 管理端生成后粘贴" autocomplete="one-time-code" />
+          <button id="pairButton" class="button button--primary" type="button">连接</button>
+          <p class="hint">管理端路径：采集 → 浏览器扩展。配对只需完成一次。</p>
+        </div>
+        <div id="connectedPanel" class="hidden">
+          <div class="device-row">
+            <div>
+              <strong id="deviceName">Chrome 侧边栏</strong>
+              <span id="connectedBase" class="muted"></span>
+            </div>
+            <button id="disconnectButton" class="button button--text" type="button">断开本机</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="collectCard" class="card card--accent" aria-labelledby="collectTitle">
+        <div class="card__head">
+          <div>
+            <span class="eyebrow">当前页面</span>
+            <h2 id="collectTitle">淘宝 / 天猫商品</h2>
+          </div>
+          <span id="pageBadge" class="badge badge--muted">检测中</span>
+        </div>
+        <div class="page-info">
+          <strong id="pageTitle">正在读取当前标签页…</strong>
+          <span id="pageUrl" class="muted"></span>
+        </div>
+        <button id="collectButton" class="button button--primary button--large" type="button" disabled>
+          采集当前商品
+        </button>
+        <button id="refreshButton" class="button button--secondary" type="button">重新检测页面</button>
+        <p class="hint">采集时会滚动详情并读取规格，完成后会尽量恢复页面位置和已选规格。</p>
+      </section>
+
+      <section id="progressCard" class="card hidden" aria-live="polite">
+        <span class="eyebrow">采集进度</span>
+        <ol class="steps">
+          <li id="stepTask">创建任务</li>
+          <li id="stepRead">读取页面</li>
+          <li id="stepUpload">保存商品草稿</li>
+        </ol>
+        <p id="progressMessage" class="status-message"></p>
+      </section>
+
+      <section id="resultCard" class="card card--success hidden" aria-live="polite">
+        <span class="eyebrow">采集完成</span>
+        <h2>商品草稿已创建</h2>
+        <p id="resultSummary" class="muted"></p>
+        <button id="openProductButton" class="button button--primary" type="button">在 TradeMind 中查看</button>
+      </section>
+
+      <div id="toast" class="toast hidden" role="alert"></div>
+    </main>
+    <script type="module" src="sidepanel.js"></script>
+  </body>
+</html>
