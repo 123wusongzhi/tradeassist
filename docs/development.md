@@ -176,6 +176,20 @@ pnpm collect:test -- --url "https://detail.1688.com/offer/..."
 pnpm collect:test -- --source aliexpress --url "https://www.aliexpress.com/item/..."
 ```
 
+### 浏览器侧边栏扩展
+
+淘宝/天猫单商品采集可选用随仓库维护的浏览器侧边栏扩展（Manifest V3），不依赖
+OpenCLI Bridge 或额外浏览器进程：
+
+```bash
+pnpm build:browser-extension
+```
+
+构建产物位于 `browser-extension/dist`，在 Chrome / Edge 扩展管理页以“加载已解压的
+扩展程序”安装。扩展注入采集函数时运行在页面 MAIN world（读取
+`__ICE_APP_CONTEXT__`），重新构建后需要在扩展管理页点击刷新。完整配对、
+SKU 价格/库存识别与风控说明见 [browser-extension-collector.md](browser-extension-collector.md)。
+
 ## 故障排查
 
 - Docker 未安装或未启动：可安装 Docker Desktop，或在本机启动 PostgreSQL / Redis（端口与 `.env` 中 `DB_HOST`/`DB_PORT`、`REDIS_ADDR` 一致）。

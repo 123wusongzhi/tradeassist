@@ -20,6 +20,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [development.md](development.md) | 本地开发、常用命令、端口、环境变量 | 开发者 |
 | [docker-deployment.md](docker-deployment.md) | Docker Compose 完整部署、端口、日志、数据卷 | 试用者 / 部署者 |
 | [collector-engines.md](collector-engines.md) | Playwright / OpenCLI 双引擎路由、本地与 Docker 部署、迁移和排错 | 使用者 / 部署者 / Collector 开发者 |
+| [browser-extension-collector.md](browser-extension-collector.md) | 浏览器侧边栏采集扩展：构建安装、配对、SKU 价格/库存识别与风控排错 | 使用者 / 开发者 |
 | [ai-workflow.md](ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀 | 开发者 / AI Agent |
 | [ui-copywriting.md](ui-copywriting.md) | 管理端/API 用户可见文案中文化、术语表与 `pnpm check:ui-copy` | 开发者 / AI Agent |
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 | 开发者 / 部署者 / AI Agent |

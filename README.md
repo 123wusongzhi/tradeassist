@@ -95,7 +95,8 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 ### AI 商品运营
 
-- 商品采集：支持 1688、拼多多、淘宝/天猫与自定义规则采集。
+- 商品采集：支持 1688、拼多多、淘宝/天猫与自定义规则采集；淘宝/天猫支持完整
+  SKU 价格与库存识别（浏览器侧边栏扩展一键采集当前商品）。
 - 商品草稿：统一管理商品、SKU、图片、库存阈值、采集告警与发布前检查。
 - AI 内容：支持标题优化、描述生成、Prompt 模板、结果对比、人工应用与撤销。
 - AI 图片：支持 remove.bg、OpenAI Image、ComfyUI 等 Provider，并通过异步任务队列执行。
@@ -149,6 +150,7 @@ pnpm dev:opencli-bridge
 pnpm opencli:doctor
 pnpm build:admin
 pnpm build:collector
+pnpm build:browser-extension
 pnpm seed:demo-data
 pnpm seed:demo-permissions
 pnpm verify:demo-data
@@ -163,6 +165,13 @@ TradeMind 的淘宝/天猫 OpenCLI 适配器随项目维护；Bridge 启动时�
 也可先运行 `pnpm opencli:install-adapter`。已有非 TradeMind 同名适配器不会被覆盖。
 OpenCLI 当前只支持淘宝/天猫，且任务执行失败不会自动切换到 Playwright；完整路由、
 部署选择和排错说明见 [采集引擎与部署指南](docs/collector-engines.md)。
+
+### 浏览器侧边栏扩展
+
+淘宝/天猫单商品采集还可直接使用随仓库维护的浏览器侧边栏扩展：在已登录的
+Chrome / Edge 商品详情页点击一次即可采集标题、图片、属性与完整 SKU（券后价、
+原价、库存、发货时间），无需额外浏览器或 OpenCLI Bridge。构建、安装、配对与
+风控说明见 [浏览器侧边栏采集](docs/browser-extension-collector.md)。
 
 ### Docker 部署
 
@@ -198,6 +207,7 @@ docker compose -f docker-compose.full.yml up -d --build
 - [docs/README.md](docs/README.md)：完整文档入口。
 - [docs/development.md](docs/development.md)：本地开发、调试与常用命令。
 - [docs/docker-deployment.md](docs/docker-deployment.md)：Docker Compose 完整部署与运维说明。
+- [docs/browser-extension-collector.md](docs/browser-extension-collector.md)：浏览器侧边栏采集扩展说明。
 - [docs/api.md](docs/api.md)：API 契约、统一返回与鉴权说明。
 - [docs/provider.md](docs/provider.md)：Provider 扩展机制与安全约束。
 - [docs/architecture.md](docs/architecture.md)：系统架构、分层与数据流说明。

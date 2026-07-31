@@ -89,6 +89,15 @@ Edge 使用 `edge://extensions`，其余步骤相同。重新构建后，在扩�
    价格，每条之间 **300–800ms 随机延迟**，连续失败自动停止，全程不新开窗口。
 3. 老版页面（无 `__ICE_APP_CONTEXT__`）回退到 DOM 规格点击采价。
 
+> 实现要点（后续维护必读）：扩展用 `chrome.scripting.executeScript` 注入采集
+> 函数，默认在 **ISOLATED world** 执行，读不到页面全局变量
+> `window.__ICE_APP_CONTEXT__`（只能读 DOM），此时会退化为只采到 1 个默认规格。
+> 因此注入必须显式传 `world: 'MAIN'`（见 `browser-extension/src/service-worker.ts`）。
+> 同时采集函数必须**完全自包含**：executeScript 会把函数源码序列化后在页面执行，
+> 函数体外的模块闭包（辅助函数、常量）都不存在；曾用箭头包装 `adapter.collect`
+> 导致 ReferenceError 与 EMPTY_RESULT。修改适配器时，所有页面内辅助逻辑必须
+> 内联在 `collectTaobaoTmallPage` 函数体内。
+
 ### SKU 完整分析
 
 采集完成后侧边栏会展示“SKU 分析”面板：SKU 总数、已获取独立价格数、券后价格区间、

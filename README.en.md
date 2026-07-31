@@ -95,7 +95,9 @@ The screenshots below come from the local development environment and show the m
 
 ### AI Product Operations
 
-- Product collection from 1688, Pinduoduo, Taobao / Tmall, and custom rules.
+- Product collection from 1688, Pinduoduo, Taobao / Tmall, and custom rules;
+  Taobao / Tmall includes full per-SKU price and stock recognition through the
+  browser side-panel extension.
 - Product draft management for products, SKUs, images, inventory thresholds, collection warnings, and readiness checks.
 - AI title optimization and description generation with prompt templates, task records, compare/apply flows, and safe rollback.
 - AI image workflows through remove.bg, OpenAI Image, ComfyUI, and async task queues.
@@ -149,6 +151,7 @@ pnpm dev:opencli-bridge
 pnpm opencli:doctor
 pnpm build:admin
 pnpm build:collector
+pnpm build:browser-extension
 pnpm seed:demo-data
 pnpm seed:demo-permissions
 pnpm verify:demo-data
@@ -168,6 +171,16 @@ OpenCLI currently supports Tmall/Taobao only, and a running task never switches
 to Playwright automatically after an OpenCLI failure. See the
 [collector engine and deployment guide](docs/collector-engines.md) for routing,
 deployment choices, migration, and troubleshooting.
+
+### Browser Side-Panel Extension
+
+For single-product Taobao / Tmall collection you can also use the browser
+side-panel extension maintained in this repository: one click on a logged-in
+Chrome / Edge product page captures the title, images, attributes, and full SKU
+details (after-coupon price, original price, stock, logistics time) without an
+extra browser or the OpenCLI Bridge. See the
+[browser side-panel collector guide](docs/browser-extension-collector.md) for
+build, install, pairing, and risk-control details.
 
 ### Docker Deployment
 
@@ -203,6 +216,7 @@ Further reading:
 - [docs/README.md](docs/README.md): documentation hub.
 - [docs/development.md](docs/development.md): local development, debugging, and commands.
 - [docs/docker-deployment.md](docs/docker-deployment.md): full Docker Compose deployment and operations.
+- [docs/browser-extension-collector.md](docs/browser-extension-collector.md): browser side-panel collector guide.
 - [docs/api.md](docs/api.md): API contracts, response conventions, and auth notes.
 - [docs/provider.md](docs/provider.md): provider extension model and safety constraints.
 - [docs/architecture.md](docs/architecture.md): architecture, layering, and data flow.
