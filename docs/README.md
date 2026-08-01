@@ -26,7 +26,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 | 开发者 / 部署者 / AI Agent |
 | [api.md](api.md) | API 公共约定、主要路由与前后端契约同步要求 | 前后端开发者 |
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |
-| [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制 | Provider 贡献者 |
+| [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制（含 Ozon 店铺接入说明） | Provider 贡献者 |
 | [collector-1688-pitfalls.md](collector-1688-pitfalls.md) | 1688 采集已知 bug、防复发约束与回归命令 | Collector / AI Agent |
 | [custom-collect-rules.md](custom-collect-rules.md) | 自定义链接采集规则 JSON、API 与错误码 | collect / admin / Collector |
 | [github-repo-presentation.md](github-repo-presentation.md) | GitHub 仓库首页、About、Topics、Social Preview 配置清单 | 维护者 / 开源协作者 |

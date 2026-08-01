@@ -6,6 +6,17 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Ozon store integration (2026-08-01)
+
+- Added Ozon Seller API platform provider (`ozon`, beta): shop-level `Client-ID` + `Api-Key` authorization without OAuth, AES-encrypted storage in `shop_auth_tokens`, and read-only connection test via `/v1/seller/info`.
+- Real product listing: `/v3/product/import` → poll `/v1/product/import/info` → optional stock write via `/v2/products/stocks`; multi-SKU products create one Ozon product per local SKU and write back `product_publication_skus`.
+- Listing requires both `description_category_id` and `type_id` (Ozon rule since 2025-05); contract currency is auto-resolved when `currency_code` is left empty; `vat` defaults to 0%.
+- Field migration and auto fill: category required attributes are matched from product params with dictionary-value search; remaining required attributes are AI-suggested via the configured AI Provider (graceful degradation, never blocks listing); unresolved attributes are reported as `missingAttrs` in the publish task summary.
+- Category → attribute template cache (24h TTL) and per-category "Ozon attribute ↔ local field" mapping config (`platform_category_attribute_mappings`), with Admin settings UI for category sync, attribute templates, dictionary values, and mapping.
+- Admin: Ozon store authorization form, publish settings tab, category template panel, platform labels, publish target support, and localized error hints.
+- Docs synchronized: `docs/provider.md`, `docs/api.md`, `docs/module-map.md`, `docs/PROGRESS.md`; contract tests extended with Ozon category endpoints.
+- Verification: full backend build/vet/test and Admin build/unit/contract checks pass; real-credential read-only connectivity verified (Valore Elite / CNY, 41 roles); test products created during verification were archived (recoverable) and no pre-existing products were modified.
+
 ### Collector dual-engine isolation and documentation (2026-07-31)
 
 - Split the collection runtime contract into the always-on Playwright Collector
