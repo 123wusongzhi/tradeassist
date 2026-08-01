@@ -699,7 +699,7 @@ export default function ShopsPage() {
               return false;
             }
           }
-          await createShop({
+          const created = await createShop({
             platform: plat,
             shopName: vals.shopName as string,
             shopCode: vals.shopCode as string | undefined,
@@ -709,9 +709,12 @@ export default function ShopsPage() {
             defaultLanguage: vals.defaultLanguage as string | undefined,
             remark: vals.remark as string | undefined,
           });
-          message.success('已创建');
+          message.success(plat === 'ozon' ? '已创建，请填写 Ozon 凭证完成授权' : '已创建');
           setCreateOpen(false);
           actionRef.current?.reload();
+          if (plat === 'ozon' && created?.id) {
+            void openAuthFor(created.id);
+          }
           return true;
         }}
       >
@@ -1238,6 +1241,28 @@ export default function ShopsPage() {
                     LWA 客户端 ID/密钥、授权回调地址、SP-API 与 LWA 端点均在「
                     <Link to="/settings/platforms">平台接入设置</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
                   </Typography.Paragraph>
+                ) : detail.platform === 'ozon' ? (
+                  <>
+                    <Form.Item
+                      name="appKey"
+                      label="Client-ID"
+                      tooltip="Ozon 卖家后台 → 设置 → API Keys 页面中的数字 Client-ID"
+                      rules={[{ required: true, message: '请填写 Ozon Client-ID' }]}
+                    >
+                      <Input autoComplete="off" placeholder="例如 5278166" />
+                    </Form.Item>
+                    <Form.Item
+                      name="accessToken"
+                      label="Api-Key"
+                      tooltip="Ozon Seller API 密钥，生成时只显示一次；加密存储，留空/保持 **** 不覆盖"
+                      rules={[{ required: true, message: '请填写 Ozon Api-Key' }]}
+                    >
+                      <Input.Password autoComplete="new-password" placeholder="只显示一次；留空保持原值" />
+                    </Form.Item>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+                      保存授权后可点「测试连接」验证店铺（只读接口，不会创建或删除商品）。
+                    </Typography.Paragraph>
+                  </>
                 ) : (
                   <>
                     <Form.Item name="appKey" label="应用 Key">
@@ -1252,7 +1277,7 @@ export default function ShopsPage() {
                   <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 12 }}>
                     一般通过上方「生成授权链接」完成授权即可。仅在调试或特殊场景下手工填写 Token、卖家编号等字段。
                   </Typography.Paragraph>
-                  <Form.Item name="accessToken" label="授权凭证">
+                  <Form.Item name="accessToken" label="授权凭证" hidden={detail.platform === 'ozon'}>
                     <Input.Password autoComplete="new-password" />
                   </Form.Item>
                   <Form.Item name="refreshToken" label="刷新授权凭证">
