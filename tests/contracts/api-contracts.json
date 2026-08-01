@@ -40,6 +40,13 @@
       "auth": true,
       "requestBody": ["shopId", "options", "force"],
       "responseData": "ProductPublishTaskDTO"
-    }
+    },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories", "auth": true, "query": ["keyword", "onlyLeaf", "limit"], "responseData": "OzonCategoryListResult" },
+    { "method": "POST", "path": "/api/v1/platform/ozon/categories/sync", "auth": true, "requestBody": ["shopId"], "responseData": "OzonCategoryStats" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/stats", "auth": true, "responseData": "OzonCategoryStats" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/:id/attributes", "auth": true, "responseData": "OzonCategoryAttributeList" },
+    { "method": "POST", "path": "/api/v1/platform/ozon/categories/:id/attributes/sync", "auth": true, "requestBody": ["shopId"], "responseData": "OzonCategoryStats" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/:id/attribute-mappings", "auth": true, "responseData": "OzonAttributeMappingList" },
+    { "method": "PUT", "path": "/api/v1/platform/ozon/categories/:id/attribute-mappings", "auth": true, "requestBody": ["items"], "responseData": "OzonAttributeMappingList" }
   ]
 }

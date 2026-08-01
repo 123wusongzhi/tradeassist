@@ -96,7 +96,7 @@ func ProductPublishImplementationStatus(p Provider) string {
 		return StatusDisabled
 	case "douyin_shop":
 		return StatusBeta
-	case "tiktok", "shopee", "lazada", "amazon":
+	case "tiktok", "shopee", "lazada", "amazon", "ozon":
 		return StatusBeta
 	default:
 		if !HasCapability(p, CapProductPublish) {

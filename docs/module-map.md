@@ -25,6 +25,7 @@
 | Storage Provider | Provider 接口、文件上传 API、settings.storage、本地/对象存储文档、`docs/provider.md` |
 | Image Provider | 图片任务、队列、settings.image、任务页面、`docs/provider.md` |
 | Platform Provider | 店铺授权、Token 加密、平台配置、订单/库存/客服调用方、`docs/provider.md`、`SECURITY.md` |
+| Ozon Provider | `backend/internal/providers/platform/ozon`、`backend/internal/modules/shop/ozon_category.go`、`platform_publish_ozon` 设置、`admin/src/services/ozonCategories.ts`、`admin/src/pages/Settings/Platforms/OzonCategoryPanel.tsx`、类目/属性模板缓存（`platform_categories` / `platform_category_attributes` / `platform_category_attribute_mappings`） |
 | 多平台 / 批量刊登 | `backend/internal/modules/productpublish`、`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`、`docs/PUBLISH_BATCH_MIGRATION.md`、`docs/api.md`（batch-targets / batches）、`admin/src/pages/Product/PublishBatch*`、`admin/src/pages/Product/PublishTasks`、`admin/src/constants/publishLabels.ts`、`admin/src/constants/publishLimits.ts`、`scripts/publish-batch-perf.ps1` |
 | Collector Provider / Engine | `collector/`、`collector/src/opencli-bridge/`、`collector/opencli-adapters/`、`backend/internal/modules/collect/`、采集任务 API、队列、`.env*.example`、`docker-compose.full.yml`、raw 原始数据、`docs/collector-engines.md`、`docs/provider.md`、`docs/api.md`、`docs/development.md`、`docs/docker-deployment.md`、**1688 改解析时必读 [`docs/collector-1688-pitfalls.md`](collector-1688-pitfalls.md)** |
 | 浏览器扩展采集 | `browser-extension/`、`backend/internal/modules/collectextension/`、`collect/browser_extension_task.go`、配对/设备令牌接口、`docs/browser-extension-collector.md`、`docs/api.md`（浏览器扩展采集小节） |

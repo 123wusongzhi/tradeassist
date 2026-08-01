@@ -87,3 +87,20 @@ type PlatformCategoryAttribute struct {
 }
 
 func (PlatformCategoryAttribute) TableName() string { return "platform_category_attributes" }
+
+// PlatformCategoryAttributeMapping binds one Ozon (or other platform) category
+// attribute to a local product field for automatic listing fill.
+// The template itself lives in platform_category_attributes (24h+ cache);
+// this table is the per-category "Ozon attribute name <-> local field" mapping.
+type PlatformCategoryAttributeMapping struct {
+	model.Base
+	Platform      string `gorm:"size:32;uniqueIndex:idx_platform_cat_attr_mapping;not null" json:"platform"`
+	CategoryID    string `gorm:"size:128;uniqueIndex:idx_platform_cat_attr_mapping;index;not null" json:"categoryId"`
+	AttributeID   string `gorm:"size:128;uniqueIndex:idx_platform_cat_attr_mapping;not null" json:"attributeId"`
+	AttributeName string `gorm:"size:512" json:"attributeName,omitempty"`
+	LocalField    string `gorm:"size:128" json:"localField,omitempty"`
+	Enabled       bool   `gorm:"not null;default:true" json:"enabled"`
+	SortOrder     int    `gorm:"not null;default:0" json:"sortOrder"`
+}
+
+func (PlatformCategoryAttributeMapping) TableName() string { return "platform_category_attribute_mappings" }

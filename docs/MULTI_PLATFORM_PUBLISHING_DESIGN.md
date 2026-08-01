@@ -118,7 +118,7 @@ MVP 统一字段：`priceRule`、`imageStrategy`、`stockStrategy`、`packageWei
 ## 下一阶段（不在 A2.2）
 
 - 标题 / 描述策略纳入统一配置（Phase A3 前可选）
-- 各跨境平台真实 `ProductPublishProvider` 草稿创建升级
+- 各跨境平台真实 `ProductPublishProvider` 草稿创建升级（Ozon 已接入：`POST /v3/product/import` 真实上品，见 `docs/provider.md`）
 - 批次异步队列化（当前同步创建子任务，抖店异步 worker 照旧）
 
 ## Phase A2.1 验收与生产安全收口

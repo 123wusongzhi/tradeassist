@@ -104,10 +104,10 @@ The screenshots below come from the local development environment and show the m
 
 ### Cross-platform ERP MVP
 
-- Store authorization with a working Douyin Shop OAuth loop, encrypted secrets, and connection tests.
+- Store authorization with a working Douyin Shop OAuth loop, Ozon API-key stores, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction.
+- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction; Ozon real listing and category-attribute auto-fill are supported.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
 ### Engineering and Extensibility

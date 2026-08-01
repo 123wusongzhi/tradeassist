@@ -425,7 +425,7 @@ export default function ProductDraftsPage() {
     [keywordFieldProps],
   );
 
-  const eligibleBatchPlatforms = ['tiktok', 'shopee', 'lazada', 'amazon', 'mock'];
+  const eligibleBatchPlatforms = ['tiktok', 'shopee', 'lazada', 'amazon', 'ozon', 'mock'];
 
   const shopsForBatchPlat = shopsList.filter(
     (s) =>

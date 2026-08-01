@@ -44,6 +44,7 @@ import {
 } from '@/services/platformOpen';
 import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
 import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
+import OzonCategoryPanel from '@/pages/Settings/Platforms/OzonCategoryPanel';
 import {
   getDouyinProductionPreflightLatest,
   runDouyinProductionPreflight,
@@ -618,6 +619,20 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           />
         ) : null}
 
+        {meta.platform === 'ozon' ? (
+          <Alert
+            showIcon
+            type="info"
+            message="Ozon 使用前确认"
+            description={
+              <>
+                在「店铺管理」中填写 Client-ID 与 Api-Key 并测试连接；在「平台刊登配置 → Ozon」填写
+                description_category_id + type_id（2025 年 5 月起两者必填）。Ozon 无沙箱，真实刊登会创建商品并进入平台审核，发布前请确认图片为公网可访问 https URL。
+              </>
+            }
+          />
+        ) : null}
+
         {meta.platform === 'douyin_shop' ? (
           <Alert
             showIcon
@@ -633,6 +648,7 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
 
         {meta.platform === 'douyin_shop' ? <DouyinRuntimePanel /> : null}
         {meta.platform === 'douyin_shop' ? <DouyinPreflightPanel /> : null}
+        {meta.platform === 'ozon' ? <OzonCategoryPanel /> : null}
       </Space>
     </Spin>
   );

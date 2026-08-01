@@ -427,6 +427,185 @@ func (h *Handler) SyncDouyinCategoryAttributes(c *gin.Context) {
 	response.OK(c, gin.H{"list": out})
 }
 
+func failOzon(c *gin.Context, err error) {
+	var ce *OzonCategoryError
+	if errors.As(err, &ce) {
+		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
+		return
+	}
+	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+}
+
+// ListOzonCategories GET /api/v1/platform/ozon/categories
+func (h *Handler) ListOzonCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.ListOzonCategories(c.Request.Context(), OzonCategoryListQuery{
+		Keyword:  c.Query("keyword"),
+		OnlyLeaf: queryBoolShop(c, "onlyLeaf"),
+		Limit:    atoiQ(c, "limit", 500),
+	})
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// SyncOzonCategories POST /api/v1/platform/ozon/categories/sync
+func (h *Handler) SyncOzonCategories(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	raw := strings.TrimSpace(body.ShopID)
+	if raw == "" {
+		raw = strings.TrimSpace(c.Query("shopId"))
+	}
+	sid := uuid.Nil
+	if raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		sid = u
+	}
+	out, err := h.Svc.SyncOzonCategories(c.Request.Context(), sid)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// OzonCategoryStats GET /api/v1/platform/ozon/categories/stats
+func (h *Handler) OzonCategoryStats(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	out, err := h.Svc.OzonCategoryStats(c.Request.Context())
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func ozonCategoryIDParam(c *gin.Context) (uuid.UUID, bool) {
+	u, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || u == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid category id")
+		return uuid.Nil, false
+	}
+	return u, true
+}
+
+// ListOzonCategoryAttributes GET /api/v1/platform/ozon/categories/:id/attributes
+func (h *Handler) ListOzonCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, ok := ozonCategoryIDParam(c)
+	if !ok {
+		return
+	}
+	out, err := h.Svc.ListOzonCategoryAttributes(c.Request.Context(), id)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// SyncOzonCategoryAttributes POST /api/v1/platform/ozon/categories/:id/attributes/sync
+func (h *Handler) SyncOzonCategoryAttributes(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, ok := ozonCategoryIDParam(c)
+	if !ok {
+		return
+	}
+	var body struct {
+		ShopID string `json:"shopId"`
+	}
+	if c.Request.ContentLength > 0 {
+		_ = c.ShouldBindJSON(&body)
+	}
+	raw := strings.TrimSpace(body.ShopID)
+	if raw == "" {
+		raw = strings.TrimSpace(c.Query("shopId"))
+	}
+	sid := uuid.Nil
+	if raw != "" {
+		u, err := uuid.Parse(raw)
+		if err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		sid = u
+	}
+	out, err := h.Svc.SyncOzonCategoryAttributes(c.Request.Context(), id, sid)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+// GetOzonAttributeMappings GET /api/v1/platform/ozon/categories/:id/attribute-mappings
+func (h *Handler) GetOzonAttributeMappings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, ok := ozonCategoryIDParam(c)
+	if !ok {
+		return
+	}
+	out, err := h.Svc.GetOzonAttributeMappings(c.Request.Context(), id)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// PutOzonAttributeMappings PUT /api/v1/platform/ozon/categories/:id/attribute-mappings
+func (h *Handler) PutOzonAttributeMappings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	id, ok := ozonCategoryIDParam(c)
+	if !ok {
+		return
+	}
+	var body PutOzonAttributeMappingsBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
+		return
+	}
+	out, err := h.Svc.PutOzonAttributeMappings(c.Request.Context(), id, body)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
 // DouyinCategoryStats GET /api/v1/platform/douyin/categories/stats
 func (h *Handler) DouyinCategoryStats(c *gin.Context) {
 	if h == nil || h.Svc == nil {

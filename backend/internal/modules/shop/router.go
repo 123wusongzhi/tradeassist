@@ -18,6 +18,13 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/platform/douyin/categories/stats", h.DouyinCategoryStats)
 	g.GET("/platform/douyin/categories/:categoryId/attributes", h.ListDouyinCategoryAttributes)
 	g.POST("/platform/douyin/categories/:categoryId/attributes/sync", h.SyncDouyinCategoryAttributes)
+	g.GET("/platform/ozon/categories", h.ListOzonCategories)
+	g.POST("/platform/ozon/categories/sync", h.SyncOzonCategories)
+	g.GET("/platform/ozon/categories/stats", h.OzonCategoryStats)
+	g.GET("/platform/ozon/categories/:id/attributes", h.ListOzonCategoryAttributes)
+	g.POST("/platform/ozon/categories/:id/attributes/sync", h.SyncOzonCategoryAttributes)
+	g.GET("/platform/ozon/categories/:id/attribute-mappings", h.GetOzonAttributeMappings)
+	g.PUT("/platform/ozon/categories/:id/attribute-mappings", h.PutOzonAttributeMappings)
 
 	s := g.Group("/shops")
 	s.GET("", h.List)

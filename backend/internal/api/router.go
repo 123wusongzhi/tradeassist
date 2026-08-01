@@ -71,6 +71,7 @@ import (
 	platformamazon "github.com/trademind-ai/trademind/backend/internal/providers/platform/amazon"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	platformlazada "github.com/trademind-ai/trademind/backend/internal/providers/platform/lazada"
+	platformozon "github.com/trademind-ai/trademind/backend/internal/providers/platform/ozon"
 	platformshopee "github.com/trademind-ai/trademind/backend/internal/providers/platform/shopee"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
@@ -410,6 +411,8 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	platformlazada.RegisterProvider()
 	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
 	platformamazon.RegisterProvider()
+	platformozon.BindAIGateway(aiGateway)
+	platformozon.RegisterProvider()
 	shopH := &shop.Handler{Svc: shopSvc}
 
 	storagePublicSvc := &storagepublic.Service{Settings: settingsSvc, OpLog: opLogSvc}

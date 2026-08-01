@@ -46,6 +46,8 @@ func PublishConfigPresetForPlatform(platformID string) PlatformAppConfigSchema {
 		return lazadaPublishSchema()
 	case "amazon":
 		return amazonPublishSchema()
+	case "ozon":
+		return ozonPublishSchema()
 	case "aliexpress":
 		return aliexpressPublishSchema()
 	case "shopify":
@@ -164,6 +166,41 @@ func amazonPublishSchema() PlatformAppConfigSchema {
 			{Name: "requirements", Label: "Requirements（可选）", Type: "text", Required: false, Sensitive: false, Help: "例如 LISTING；留空使用默认 LISTING。"},
 			{Name: "amazon_attributes", Label: "Amazon Attributes JSON（可选）", Type: "textarea", Required: false, Sensitive: false, Help: "按 Product Type Definitions 手工补充必填 attributes；任务 options 中同名字段优先。"},
 			{Name: "publish_as_draft", Label: "默认仅准备草稿清单", Type: "switch", Required: false, Sensitive: false, DefaultValue: true},
+		},
+	}
+}
+
+func ozonPublishSchema() PlatformAppConfigSchema {
+	return PlatformAppConfigSchema{
+		GroupKey:    "platform_publish_ozon",
+		Title:       "Ozon 商品刊登配置",
+		Description: "Ozon Seller API 上架默认参数：类目（description_category_id）、商品类型（type_id）、仓库与税费；必填属性由商品参数自动匹配填充。",
+		Fields: []AppConfigField{
+			{Name: "description_category_id", Label: "类目 ID（description_category_id）", Type: "text", Required: true, Sensitive: false, Help: "来自 /v1/description-category/tree 的叶子类目 ID，例如 200001240"},
+			{Name: "type_id", Label: "商品类型 ID（type_id）", Type: "text", Required: true, Sensitive: false, Help: "同一类目下的商品类型 ID，例如 93488"},
+			{Name: "warehouse_id", Label: "仓库 ID（可选，用于库存同步）", Type: "text", Required: false, Sensitive: false, Help: "来自 /v2/warehouse/list；填写后上品同时写入各规格库存，未填写则不写库存"},
+			{Name: "currency_code", Label: "币种（currency_code）", Type: "select", Required: false, Sensitive: false, Help: "留空自动使用店铺合同币种（推荐，避免 currency_differs_from_contract 报错）", Options: []AppConfigOption{
+				{Label: "RUB（俄罗斯卢布）", Value: "RUB"},
+				{Label: "CNY（人民币）", Value: "CNY"},
+				{Label: "BYN", Value: "BYN"},
+				{Label: "KZT", Value: "KZT"},
+			}},
+			{Name: "vat", Label: "增值税率（vat）", Type: "select", Required: false, Sensitive: false, DefaultValue: "0", Help: "跨境卖家通常为 0%（按合同国家规定）", Options: []AppConfigOption{
+				{Label: "0%", Value: "0"},
+				{Label: "10%", Value: "0.1"},
+				{Label: "20%", Value: "0.2"},
+			}},
+			{Name: "default_brand", Label: "默认品牌（Бренд，可选）", Type: "text", Required: false, Sensitive: false, Help: "商品参数缺少品牌时使用；自动匹配 Ozon 字典值"},
+			{Name: "default_type", Label: "默认类型（Тип，可选）", Type: "text", Required: false, Sensitive: false, Help: "商品参数缺少类型时使用；自动匹配 Ozon 字典值"},
+			{Name: "default_country", Label: "默认原产国（可选）", Type: "text", Required: false, Sensitive: false, Help: "商品参数缺少原产国时使用，例如 China / Китай"},
+			{Name: "default_manufacturer", Label: "默认制造商（可选）", Type: "text", Required: false, Sensitive: false},
+			{Name: "default_weight", Label: "默认重量（克）", Type: "number", Required: false, Sensitive: false},
+			{Name: "default_width", Label: "默认宽度（毫米）", Type: "number", Required: false, Sensitive: false},
+			{Name: "default_height", Label: "默认高度（毫米）", Type: "number", Required: false, Sensitive: false},
+			{Name: "default_depth", Label: "默认深度（毫米）", Type: "number", Required: false, Sensitive: false},
+			{Name: "default_attributes", Label: "补充必填属性 JSON（可选）", Type: "textarea", Required: false, Sensitive: false, Help: "格式 {\"属性ID\":\"值\"}，例如 {\"85\":\"Apple\",\"4389\":\"China\"}；自动匹配字典值"},
+			{Name: "auto_fill_attributes", Label: "自动匹配类目属性", Type: "switch", Required: false, Sensitive: false, DefaultValue: true, Help: "开启后按商品参数/默认值自动填充类目必填属性；关闭则只提交标题、描述、图片与价格"},
+			{Name: "ai_auto_fill", Label: "AI 自动补全缺失必填属性", Type: "switch", Required: false, Sensitive: false, DefaultValue: true, Help: "规则匹配后仍有缺失必填属性时，用已配置的 AI Provider 生成建议值并自动匹配字典（AI 未配置或失败时降级跳过，不阻塞上品）"},
 		},
 	}
 }

@@ -85,6 +85,16 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 
 **Phase 10.4 (Release Candidate observability)** does **not** add Prometheus. Production monitoring reuses `GET /health` queue blocks, task center failures/alerts (`sub:douyin_*`), operation logs, product operations dashboard, and Douyin runtime APIs: `GET /api/v1/platform/douyin/health`, `GET .../metrics-summary` (in-process 24h counters), `GET .../release-gate`, `POST .../run-health-check`, plus `production-preflight` / `runtime-status`. E2E scripts: `scripts/douyin-e2e-*` (exit `3` + `blocked_by_real_credentials` without credentials; write requires `ALLOW_DOUYIN_WRITE_TEST=true`). CI job `backend-race` in `.github/workflows/go.yml`. See [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md).
 
+Ozon (`ozon`) beta — 店铺级凭证接入（`Client-ID` + `Api-Key`，无需 OAuth），能力：商品刊登 + 店铺信息/连接测试。Provider 位于 `backend/internal/providers/platform/ozon`：
+
+- 授权：在店铺管理中填写 `appKey`（Client ID）与 `accessToken`（Api-Key），加密存储于 `shop_auth_tokens`；连接测试调用 `POST /v1/seller/info`（只读），返回店铺名、币种、国家。
+- 刊登：`PublishProduct` 调用 `POST /v3/product/import` 提交商品 → 轮询 `POST /v1/product/import/info`（`imported` 且 `product_id>0` 才算成功；`failed`/`skipped` 判失败；已导入商品带 error 级提示时记录为警告）→ 可选按仓库 `POST /v2/products/stocks` 写库存。多 SKU 时每个本地 SKU 生成一个 Ozon 商品（`offer_id` 取 SKU 编码），写入 `product_publication_skus.external_sku_id`。
+- 图片要求：Ozon 商品图片必须是 Ozon 服务器可访问的公开 `https://` 图片 URL（导入时直接引用，不经过 TradeMind 中转）。本地/对象存储的图片需先配置公开访问地址（`PublicURL`）后再刊登。
+- 字段迁移与自动填充：开启 `auto_fill_attributes` 后，按类目属性接口 `POST /v1/description-category/attribute` 拉取必填属性，用商品参数别名匹配 + `POST /v1/description-category/attribute/values/search` 匹配字典值，自动填充品牌/原产国/制造商/类型/材质/保质期/模型名/描述（属性 4191 Аннотация）等；规则匹配后仍有缺失必填属性时，`ai_auto_fill`（默认开启）调用项目已配置的 AI Provider 生成建议值并再次匹配字典（AI 未配置或失败自动降级跳过）；最终缺失项记录在任务摘要 `missingAttrs`，不阻塞商品创建但会提示补全。
+- 合同币种：`currency_code` 留空时自动读取卖家合同币种（避免 `currency_differs_from_contract`）；`vat` 默认 `0`（跨境卖家通常 0%，按合同国家规定可改）。
+- 刊登预设：`platform_publish_ozon` 配置类目 `description_category_id`、类型 `type_id`、仓库 `warehouse_id`、币种、VAT、默认品牌/类型/原产国/制造商、重量尺寸与补充属性 JSON。
+- 边界：MVP 不做订单同步、库存同步、客服消息与 Webhook；商品导入是创建操作，可归档（`/v1/product/archive`）恢复，不在本版本提供删除/归档操作。
+
 当前重点平台：
 
 - Douyin Shop（抖店，真实平台闭环优先）
@@ -92,6 +102,7 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 - Shopee
 - Lazada
 - Amazon
+- Ozon
 
 当前真实平台接入顺序优先跑通抖店，不要把抖店与 TikTok Shop 混用：抖店统一内部标识为 `douyin_shop`，TikTok Shop 仍代表跨境平台。已完成 Phase 1–10.4（Release Candidate）：平台配置、OAuth、Client/签名、类目属性、字段映射、图片上传、平台商品草稿创建、订单同步 MVP、库存同步 MVP、SKU 绑定校准与手动兜底、生产预检/运行状态、可观测性与 E2E 脚本/CI。**真实 E2E 仍为 `blocked_by_real_credentials`**。下一阶段：有凭证环境全链路验收与灰度观察。
 

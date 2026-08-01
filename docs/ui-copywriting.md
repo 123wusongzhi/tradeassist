@@ -18,7 +18,7 @@ TradeMind 面向跨境卖家与运营人员，**用户可见文案默认使用�
 
 1. **面向用户，不面向开发者**：主界面不直接展示 Provider、Worker、runtime、Storage、Payload、Stale、Endpoint 等内部词。
 2. **统一术语**：同一概念全项目一个中文叫法（见下表）；新增文案优先从 `copywriting.ts` / `userFriendly.ts` 引用。
-3. **必要英文**：平台品牌（TikTok Shop、Amazon SP-API）、协议名（HTTPS）、云厂商产品名（S3、OSS）可保留；配置项若与开放平台文档一致，可用「中文（英文）」如「应用 Key（App Key）」——**副标题与说明句中优先纯中文**。
+3. **必要英文**：平台品牌（TikTok Shop、Amazon SP-API、Ozon）、协议名（HTTPS）、云厂商产品名（S3、OSS）可保留；配置项若与开放平台文档一致，可用「中文（英文）」如「应用 Key（App Key）」——**副标题与说明句中优先纯中文**。
 4. **技术信息下沉**：错误码、Request ID、原始 JSON、字段名放入 `TechnicalDetails` / `TaskJsonBlock`，默认收起。
 5. **后端同步**：会进入 API `message`、`label`、`title`、`suggestedAction` 的 Go 字符串与前端同等要求。
 

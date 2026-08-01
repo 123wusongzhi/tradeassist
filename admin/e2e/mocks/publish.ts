@@ -8,6 +8,12 @@ export const e2ePlatformProviders = [
     status: 'available',
     capabilityStatus: { product_publish: 'available', inventory_sync: 'available' },
   },
+  {
+    platform: 'ozon',
+    label: 'Ozon',
+    status: 'beta',
+    capabilityStatus: { product_publish: 'beta' },
+  },
 ];
 
 export const e2eShops = [
@@ -18,6 +24,16 @@ export const e2eShops = [
     status: 'active',
     authStatus: 'authorized',
     capabilities: { product_publish: 'available', inventory_sync: 'available' },
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  },
+  {
+    id: 'e2e-ozon-shop',
+    platform: 'ozon',
+    shopName: 'E2E Ozon 测试店铺',
+    status: 'active',
+    authStatus: 'authorized',
+    capabilities: { product_publish: 'beta' },
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
   },
@@ -34,6 +50,16 @@ export const e2ePublishTargets = {
       settingsPath: '/settings/platforms',
       shops: [
         { shopId: E2E_SHOP_ID, shopName: 'E2E 抖店测试店铺', authStatus: 'authorized', authStatusLabel: '已授权', enabled: true },
+      ],
+    },
+    {
+      platform: 'ozon',
+      platformLabel: 'Ozon',
+      capability: 'local_draft_only',
+      capabilityLabel: '仅生成本地草稿',
+      settingsPath: '/settings/platform-publish',
+      shops: [
+        { shopId: 'e2e-ozon-shop', shopName: 'E2E Ozon 测试店铺', authStatus: 'authorized', authStatusLabel: '已授权', enabled: true },
       ],
     },
   ],

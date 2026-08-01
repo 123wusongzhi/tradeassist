@@ -15,6 +15,7 @@ async function selectFirstMultiPlatformTarget(page: import('@playwright/test').P
 
 async function selectLegacyPublishShop(page: import('@playwright/test').Page) {
   await page.locator('.product-draft-publish__legacy-form').getByRole('combobox').click();
+  await page.keyboard.type('E2E 抖店');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(page.locator('.product-draft-publish__legacy-form')).toContainText('E2E 抖店测试店铺');
@@ -57,6 +58,25 @@ test.describe('@publish-safety 发布写请求安全', () => {
     await expectRequestCount(admin.writeGuard, 'create-multi-platform-drafts', 1);
     expect(admin.writeGuard.calls('create-multi-platform-drafts')[0].postDataJSON).toEqual({
       targets: [{ platform: 'douyin_shop', shopId: E2E_SHOP_ID }],
+      onlyReady: false,
+      retryFailedOnly: false,
+    });
+    expect(admin.writeGuard.allCalls().map((call) => call.path)).not.toContain(`/api/v1/products/${E2E_PRODUCT_ID}/publish`);
+  });
+
+  test('creates ozon local draft with exact payload and no other writes', async ({ admin, page }) => {
+    admin.writeGuard.allow({
+      operation: 'create-ozon-draft',
+      method: 'POST',
+      path: new RegExp(`/api/v1/products/${E2E_PRODUCT_ID}/publish-targets/create-drafts$`),
+      response: ok({ batchId: 'e2e-ozon-batch', status: 'done', statusLabel: '已完成', targetCount: 1, successCount: 1, failedCount: 0, skippedCount: 0, targets: [] }),
+    });
+    await openPublish(page);
+    await page.getByText('E2E Ozon 测试店铺').first().click();
+    await page.getByRole('button', { name: '创建刊登草稿' }).click();
+    await expectRequestCount(admin.writeGuard, 'create-ozon-draft', 1);
+    expect(admin.writeGuard.calls('create-ozon-draft')[0].postDataJSON).toEqual({
+      targets: [{ platform: 'ozon', shopId: 'e2e-ozon-shop' }],
       onlyReady: false,
       retryFailedOnly: false,
     });

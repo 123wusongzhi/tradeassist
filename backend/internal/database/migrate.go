@@ -149,6 +149,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&shop.ShopAuthToken{},
 		&shop.PlatformCategory{},
 		&shop.PlatformCategoryAttribute{},
+		&shop.PlatformCategoryAttributeMapping{},
 		&worker.Instance{},
 		&collect.CollectBatch{},
 		&collect.CollectTask{},

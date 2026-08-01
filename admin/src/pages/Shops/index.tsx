@@ -74,6 +74,7 @@ const PLATFORM_TAG_COLORS: Record<string, string> = {
   shopee: 'orange',
   lazada: 'blue',
   amazon: 'gold',
+  ozon: 'cyan',
 };
 
 const STD_AUTH_KEYS = new Set([
@@ -186,6 +187,12 @@ function formatPlatformPartnerErr(err: unknown): string {
   }
   if (msg.includes('platform config incomplete: please configure platform_amazon')) {
     return `${msg}\n请先到「设置 → 平台接入设置 → Amazon SP-API」填写客户端 ID、客户端密钥、授权回调地址、站点 ID 和 SP-API 接口地址。`;
+  }
+  if (msg.includes('ozon: client id required') || msg.includes('ozon: api key required')) {
+    return `${msg}\n请先在店铺授权中填写 Ozon Seller API 的 Client ID 与 Api-Key（卖家后台 → 设置 → API Keys）。`;
+  }
+  if (msg.toLowerCase().includes('invalid api key') || msg.toLowerCase().includes('invalid client')) {
+    return `${msg}\nOzon 凭据无效或已过期，请到卖家后台重新生成 Api-Key 并更新店铺授权。`;
   }
   if (msg.includes('platform_amazon.lwa_auth_base_url and lwa_token_url')) {
     return `${msg}\n请在「Amazon SP-API」配置中补齐 LWA Auth Base URL 与 LWA Token URL。`;

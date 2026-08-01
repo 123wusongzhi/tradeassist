@@ -27,6 +27,13 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/collect/tasks',
         'POST /api/v1/products/:id/platform-configs/douyin_shop/create-draft',
         'POST /api/v1/products/:id/publish',
+        'GET /api/v1/platform/ozon/categories',
+        'POST /api/v1/platform/ozon/categories/sync',
+        'GET /api/v1/platform/ozon/categories/stats',
+        'GET /api/v1/platform/ozon/categories/:id/attributes',
+        'POST /api/v1/platform/ozon/categories/:id/attributes/sync',
+        'GET /api/v1/platform/ozon/categories/:id/attribute-mappings',
+        'PUT /api/v1/platform/ozon/categories/:id/attribute-mappings',
       ]),
     );
   });
@@ -37,16 +44,20 @@ describe('TradeMind API contract registry', () => {
     const readiness = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/products/:id/readiness');
     const collectTask = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/collect/tasks');
     const collectBatch = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/collect/batches');
+    const ozonMappings = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/platform/ozon/categories/:id/attribute-mappings');
+    const ozonCategories = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/platform/ozon/categories');
 
     expect(createDraft?.requestBody).toEqual(['shopId', 'publishMode', 'force']);
     expect(publish?.requestBody).toEqual(['shopId', 'options', 'force']);
     expect(readiness?.query).toEqual(['platform', 'shopId', 'mode']);
     expect(collectTask?.requestBody).toContain('engine');
     expect(collectBatch?.requestBody).toEqual(['source', 'urls', 'engine']);
+    expect(ozonMappings?.requestBody).toEqual(['items']);
+    expect(ozonCategories?.query).toEqual(['keyword', 'onlyLeaf', 'limit']);
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(12);
+    expect(contracts.endpoints).toHaveLength(19);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

@@ -231,7 +231,7 @@ func settingsPathForPlatform(plat string) string {
 	switch strings.TrimSpace(strings.ToLower(plat)) {
 	case "douyin_shop":
 		return "/settings/platforms"
-	case "tiktok", "shopee", "lazada", "amazon":
+	case "tiktok", "shopee", "lazada", "amazon", "ozon":
 		return "/settings/platform-publish"
 	default:
 		return "/settings/platforms"

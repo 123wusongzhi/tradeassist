@@ -327,7 +327,7 @@ OpenCLI 原始输出或本机路径。部署和排错见
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `GET` | `/api/v1/platform/providers` | 返回已注册平台 Provider、能力、状态、`appConfigSchema` 与设置分组。`douyin_shop` 已注册为抖店 / Douyin Shop Provider。 |
+| `GET` | `/api/v1/platform/providers` | 返回已注册平台 Provider、能力、状态、`appConfigSchema` 与设置分组。`douyin_shop` 已注册为抖店 / Douyin Shop Provider；`ozon` 为 Ozon beta（店铺级 `Client-ID` + `Api-Key`，能力为商品刊登 + 店铺信息）。 |
 | `GET` | `/api/v1/platform/settings/:platform` | 读取平台开放应用配置 schema 与脱敏后的当前值。敏感字段只返回 `****`。 |
 | `PUT` | `/api/v1/platform/settings/:platform` | 保存平台开放应用配置。敏感字段加密存储，传入 `****` 表示保留原值。`douyin_shop` 会校验 App Key、App Secret、回调地址、环境与超时时间；发起 OAuth 还需要 `service_id`。 |
 | `POST` | `/api/v1/platform/settings/:platform/test-connection` | 测试已保存的平台开放应用配置。`douyin_shop` 应用配置测试校验配置完整性与授权可用性，不做商品 / 订单 / 库存调用。 |
@@ -349,6 +349,13 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `POST` | `/api/v1/platform/douyin/runtime-status/pause` | 暂停抖店任务；body `{ "reason": "..." }` 必填；记录 `douyin.platform.pause` 操作日志。 |
 | `POST` | `/api/v1/platform/douyin/runtime-status/resume` | 恢复抖店运行；body `{ "reason": "..." }` 必填。 |
 | `POST` | `/api/v1/platform/douyin/runtime-status/emergency-disable` | 紧急停用；阻止 Worker 调用抖店写接口；body `{ "reason": "..." }` 必填。 |
+| `GET` | `/api/v1/platform/ozon/categories` | 读取本地缓存的 Ozon 类目树；支持 `keyword`、`onlyLeaf`、`limit`。叶子类目 ID 为 `<description_category_id>:<type_id>` 复合键，响应含 `descriptionCategoryId` / `typeId`。 |
+| `POST` | `/api/v1/platform/ozon/categories/sync` | 使用已授权 Ozon 店铺凭证同步类目树（body 可选 `shopId`，缺省用最近授权店铺）；写入 `platform_categories`（`platform='ozon'`），幂等 upsert。 |
+| `GET` | `/api/v1/platform/ozon/categories/stats` | 返回 Ozon 类目缓存数量、叶子类目数量与最近同步时间（24h TTL 提示）。 |
+| `GET` | `/api/v1/platform/ozon/categories/:id/attributes` | 读取某个 Ozon 叶子类目的属性模板缓存（`platform_category_attributes`）；`dictionaryId` 非空表示字典属性，`options` 为预取字典值；`cacheStale` 提示超过 24h。 |
+| `POST` | `/api/v1/platform/ozon/categories/:id/attributes/sync` | 刷新叶子类目属性模板缓存（body 可选 `shopId`）；字典属性预取字典值（`/v1/description-category/attribute/values` 分页）。 |
+| `GET` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 读取该类目的「Ozon 属性 ↔ 本地字段」映射配置（`platform_category_attribute_mappings`）。 |
+| `PUT` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 整体替换该类目的属性映射，body `{ "items": [{ "attributeId", "attributeName", "localField", "enabled" }] }`；上品时按映射自动填充 attributes（字典属性匹配 `dictionary_value_id`）。 |
 | `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；`douyin_shop` 返回 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`，以及已保存的 `mapping` / `lastMappedAt`。 |
 | `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；`douyin_shop` 会校验类目必须为本地缓存中的叶子类目，并记录抖店类目/属性操作日志。 |
 | `POST` | `/api/v1/products/:id/platform-configs/douyin_shop/build-mapping` | 根据当前商品草稿、抖店店铺/类目/属性配置生成并保存抖店刊登草稿预览；不调用抖店创建商品或图片上传接口。 |

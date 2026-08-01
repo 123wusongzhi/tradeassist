@@ -199,6 +199,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   shopee: 'Shopee',
   lazada: 'Lazada',
   amazon: 'Amazon',
+  ozon: 'Ozon',
   mock: '模拟',
 };
 
@@ -4055,6 +4056,7 @@ export default function ProductDraftDetailPage() {
                         { label: 'Shopee', value: 'shopee' },
                         { label: 'Lazada', value: 'lazada' },
                         { label: 'Amazon', value: 'amazon' },
+                        { label: 'Ozon', value: 'ozon' },
                       ]}
                     />
                     <Button
