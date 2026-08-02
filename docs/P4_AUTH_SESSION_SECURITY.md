@@ -157,7 +157,7 @@ When `AUTH_SECURE_COOKIE=true` (default in staging/prod):
 - SameSite from `AUTH_COOKIE_SAME_SITE` (default `Lax`)
 - Optional `AUTH_COOKIE_DOMAIN`
 
-CSRF: write requests with cookies require matching `Origin`/`Referer` against `ADMIN_PUBLIC_URL` / `API_PUBLIC_URL`.
+CSRF: write requests with cookies require matching `Origin`/`Referer` against `ADMIN_PUBLIC_URL` / `API_PUBLIC_URL`. Local-only profiles (`development`, `demo`, `performance`, and `test`) additionally accept origins that parse to an actual loopback host (`localhost`, `127.0.0.0/8`, or `::1`) so the secure-session default remains usable for local Admin access; staging, production, and unknown profiles never receive this fallback.
 
 Source: `backend/internal/pkg/security/headers.go`, `backend/internal/pkg/authcookie/`.
 

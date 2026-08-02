@@ -1,6 +1,7 @@
 package security
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -46,7 +47,9 @@ func CSRFProtection(cfg *config.Config) gin.HandlerFunc {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		referer := strings.TrimSpace(c.GetHeader("Referer"))
 		allowed := []string{strings.TrimSpace(cfg.AdminPublicURL), strings.TrimSpace(cfg.APIPublicURL)}
-		if originAllowed(origin, allowed) || refererAllowed(referer, allowed) {
+		allowLocalProfileLoopback := localProfileAllowsLoopback(cfg.AppEnv)
+		if originAllowed(origin, allowed) || refererAllowed(referer, allowed) ||
+			(allowLocalProfileLoopback && (loopbackOriginAllowed(origin, false) || loopbackOriginAllowed(referer, true))) {
 			c.Next()
 			return
 		}
@@ -76,6 +79,30 @@ func refererAllowed(raw string, allowed []string) bool {
 		return false
 	}
 	return isAllowedOrigin(origin, allowed)
+}
+
+func localProfileAllowsLoopback(env string) bool {
+	switch config.NormalizeEnv(env) {
+	case config.EnvDevelopment, config.EnvDemo, config.EnvPerformance, config.EnvTest:
+		return true
+	default:
+		return false
+	}
+}
+
+// loopbackOriginAllowed keeps local secure-session development usable without
+// weakening the explicit public-origin requirement in staging or production.
+// Parsing the complete origin first avoids prefix-based localhost spoofing.
+func loopbackOriginAllowed(raw string, allowPath bool) bool {
+	origin, ok := parseHTTPOrigin(raw, allowPath)
+	if !ok {
+		return false
+	}
+	if origin.host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(origin.host)
+	return ip != nil && ip.IsLoopback()
 }
 
 type httpOrigin struct {

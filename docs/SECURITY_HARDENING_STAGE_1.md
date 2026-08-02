@@ -11,7 +11,7 @@
 
 ## 本阶段完成内容
 
-- 认证与会话：加强 JWT、Refresh Token、会话撤销、生产配置 fail-fast、登录身份与密码策略。
+- 认证与会话：加强 JWT、Refresh Token、会话撤销、生产配置 fail-fast、登录身份与密码策略；补齐开发环境精确回环来源的 CSRF 放行，恢复 `localhost` / `127.0.0.1` 下的浏览器登录，生产白名单不变。
 - 租户与权限：为 Admin API、商品、订单、库存、刊登、采集、AI 任务、文件和运维入口补齐可信租户、店铺范围和写权限约束。
 - 文件与网络安全：加强上传隔离、扫描/隔离状态机、受控静态访问、图片解码与下载 SSRF 防护。
 - Worker 与任务状态：为采集、图片任务、订单同步、客户同步、库存同步和商品刊登补充租约恢复、重试 CAS、取消竞态保护及 lease 丢失后的副作用阻断。
@@ -34,6 +34,7 @@
 - Admin 与 Collector 构建：通过；本阶段 Docker 镜像中的 Admin、Backend、Collector 均重新构建成功。
 - `docker compose -f docker-compose.full.yml up -d --build`：重建和重启成功，未删除数据卷。
 - 运行探针：Admin `:8000/`、Backend `:8081/health/ready`、Collector `:3001/health`、Admin 代理 `/health/ready` 均返回 200。
+- 登录回归：真实浏览器使用首启管理员账号成功进入 `/dashboard/product-operations`，刷新后安全会话仍有效；带 `Origin: http://127.0.0.1:8000` 的代理登录返回业务码 `0`。
 
 ## 本地配置迁移
 
