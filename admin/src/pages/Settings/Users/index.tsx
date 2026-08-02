@@ -24,6 +24,7 @@ import { PERMISSIONS } from '@/utils/permission';
 
 const ROLE_OPTIONS = [
   { label: '管理员', value: 'admin' },
+  { label: '租户管理员', value: 'tenant_admin' },
   { label: '运营', value: 'operator' },
   { label: '只读', value: 'readonly' },
 ];
@@ -42,6 +43,7 @@ const SCOPE_OPTIONS = [
 function roleTag(role: string) {
   const r = (role || '').toLowerCase();
   if (r === 'admin') return <Tag color="blue">管理员</Tag>;
+  if (r === 'tenant_admin') return <Tag color="geekblue">租户管理员</Tag>;
   if (r === 'operator') return <Tag color="cyan">运营</Tag>;
   if (r === 'readonly') return <Tag>只读</Tag>;
   return <Tag>{role}</Tag>;

@@ -15,6 +15,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -201,19 +204,19 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
-	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	row, err := s.Shops.TenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	prov := platformp.Get(strings.TrimSpace(row.Platform))
-	if err := ValidateShopCustomerMessageSync(&row, prov); err != nil {
+	if err := ValidateShopCustomerMessageSync(row, prov); err != nil {
 		return nil, err
 	}
 	_, auth, err := s.Shops.PlainAuthForProvider(c, shopID)
 	if err != nil {
 		return nil, err
 	}
-	if err := ensureShopAuthorizedForSync(&row, auth); err != nil {
+	if err := ensureShopAuthorizedForSync(row, auth); err != nil {
 		return nil, err
 	}
 	if err := ensurePlatformPartnerConfigStatic(s.Settings, c.Request.Context(), prov); err != nil {
@@ -226,6 +229,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	}
 
 	task := CustomerMessageSyncTask{
+		TenantID:  row.TenantID,
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
 		TaskType:  TaskTypeCustomerMessageSync,
@@ -251,7 +255,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeCustomerMessageSync))
+		actorID := uuid.Nil
+		if task.CreatedBy != nil {
+			actorID = *task.CreatedBy
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: task.TenantID,
+			ShopID:   task.ShopID,
+		}, actorID, "customer_message_sync_inline")
+		return s.ProcessQueuedTask(workerCtx, task.ID, worker.GenerateInlineWorkerID(worker.TypeCustomerMessageSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -267,7 +279,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncCust
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), task.ID)
+	out, err := s.GetDTO(c, task.ID)
 	return &out, err
 }
 
@@ -319,11 +331,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.finishCustomerSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		if err := s.finishCustomerSyncTask(ctx, taskID, workerID, claim, map[string]any{
 			"status":        StatusFailed,
 			"error_message": msg,
 			"finished_at":   &fin,
-		})
+		}); err != nil {
+			return err
+		}
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 				AdminUserID: task.CreatedBy,
@@ -337,7 +351,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return fmt.Errorf("%s", msg)
 	}
 
-	shopRow, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, task.ShopID)
+	shopRow, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, task.TenantID, task.ShopID)
 	if err != nil {
 		return fail(err.Error())
 	}
@@ -476,19 +490,31 @@ func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
 	return sh.ShopName
 }
 
+func (s *Service) shopNameLookupTenant(ctx context.Context, tenantID int64, shopID uuid.UUID) string {
+	var sh shop.Shop
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&sh).Error; err != nil {
+		return ""
+	}
+	return sh.ShopName
+}
+
 // GetDTO loads one task.
-func (s *Service) GetDTO(ctx context.Context, id uuid.UUID) (TaskDTO, error) {
+func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	var zero TaskDTO
 	var t CustomerMessageSyncTask
-	if err := s.DB.WithContext(ctx).First(&t, "id = ?", id).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return zero, err
 	}
-	name := s.shopNameLookup(ctx, t.ShopID)
-	return s.taskToDTO(ctx, &t, name), nil
+	if err := repository.FindByID(c.Request.Context(), s.DB, &t, tid, id); err != nil {
+		return zero, err
+	}
+	name := s.shopNameLookupTenant(c.Request.Context(), tid, t.ShopID)
+	return s.taskToDTO(c.Request.Context(), &t, name), nil
 }
 
 // List paginates tasks.
-func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
+func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customersync: no db")
 	}
@@ -504,9 +530,19 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 		ps = 100
 	}
 
-	tx := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{})
+	if scoped, _, err := adminperm.ApplyTenantScope(c, tx); err != nil {
+		return nil, err
+	} else {
+		tx = scoped
+	}
 	if q.ShopID != nil && *q.ShopID != uuid.Nil {
 		tx = tx.Where("shop_id = ?", *q.ShopID)
+		if scoped, err := adminperm.ApplyStoreScope(c, s.DB, tx, "shop_id"); err != nil {
+			return nil, err
+		} else {
+			tx = scoped
+		}
 	}
 	if v := strings.TrimSpace(q.Platform); v != "" {
 		tx = tx.Where("platform = ?", v)
@@ -533,7 +569,7 @@ func (s *Service) List(ctx context.Context, q ListQuery) (*ListResult, error) {
 
 	out := make([]TaskDTO, len(rows))
 	for i := range rows {
-		out[i] = s.taskToDTO(ctx, &rows[i], s.shopNameLookup(ctx, rows[i].ShopID))
+		out[i] = s.taskToDTO(c.Request.Context(), &rows[i], s.shopNameLookupTenant(c.Request.Context(), rows[i].TenantID, rows[i].ShopID))
 	}
 
 	return &ListResult{
@@ -551,7 +587,11 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, fmt.Errorf("customersync: no db")
 	}
 	var task CustomerMessageSyncTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", taskID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(task.Status) != StatusFailed {
@@ -559,7 +599,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	reset := time.Now().UTC()
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
+	claim := s.DB.WithContext(c.Request.Context()).Model(&CustomerMessageSyncTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tid, StatusFailed).
 		Updates(map[string]any{
 			"status":        StatusPending,
 			"error_message": "",
@@ -572,8 +612,12 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			"locked_by":     nil,
 			"locked_until":  nil,
 			"updated_at":    reset,
-		}).Error; err != nil {
-		return nil, err
+		})
+	if claim.Error != nil {
+		return nil, claim.Error
+	}
+	if claim.RowsAffected != 1 {
+		return nil, fmt.Errorf("task retry already claimed")
 	}
 
 	if s.OpLog != nil {
@@ -588,7 +632,15 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeCustomerMessageSync))
+		actorID := uuid.Nil
+		if adminID != nil {
+			actorID = *adminID
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: tid,
+			ShopID:   task.ShopID,
+		}, actorID, "customer_message_sync_retry_inline")
+		return s.ProcessQueuedTask(workerCtx, taskID, worker.GenerateInlineWorkerID(worker.TypeCustomerMessageSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -604,6 +656,6 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		}
 	}
 
-	out, err := s.GetDTO(c.Request.Context(), taskID)
+	out, err := s.GetDTO(c, taskID)
 	return &out, err
 }

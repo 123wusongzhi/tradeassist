@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -12,10 +13,45 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformtiktok "github.com/trademind-ai/trademind/backend/internal/providers/platform/tiktok"
 )
 
 const tiktokOAuthRedisPrefix = "oauth:tiktok:state:"
+
+type platformOAuthStatePayload struct {
+	Platform string `json:"platform"`
+	TenantID int64  `json:"tenantId"`
+	ShopID   string `json:"shopId"`
+}
+
+func oauthTenantContext(c *gin.Context) (context.Context, int64, error) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil || tenantID < 0 {
+		return nil, 0, fmt.Errorf("tenant context required")
+	}
+	return security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: tenantID}), tenantID, nil
+}
+
+func encodePlatformOAuthState(platform string, tenantID int64, shopID uuid.UUID) (string, error) {
+	b, err := json.Marshal(platformOAuthStatePayload{Platform: platform, TenantID: tenantID, ShopID: shopID.String()})
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func decodePlatformOAuthState(raw, platform string, tenantID int64, shopID uuid.UUID) error {
+	var p platformOAuthStatePayload
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &p); err != nil {
+		return fmt.Errorf("invalid oauth state: %w", err)
+	}
+	if p.Platform != platform || p.TenantID != tenantID || p.ShopID != shopID.String() {
+		return fmt.Errorf("state does not match tenant or shop")
+	}
+	return nil
+}
 
 func randomOAuthState() (string, error) {
 	var b [16]byte
@@ -45,8 +81,12 @@ func (s *Service) TikTokOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required for OAuth state")
 	}
-	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	ctx, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.tenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "tiktok" {
@@ -72,7 +112,11 @@ func (s *Service) TikTokOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	}
 
 	key := tiktokOAuthRedisPrefix + st
-	if err := s.Redis.Set(c.Request.Context(), key, shopID.String(), 10*time.Minute).Err(); err != nil {
+	saved, err := encodePlatformOAuthState("tiktok", tenantID, shopID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Redis.Set(ctx, key, saved, 10*time.Minute).Err(); err != nil {
 		return nil, err
 	}
 
@@ -88,21 +132,28 @@ func (s *Service) TikTokOAuthCallback(c *gin.Context, shopID uuid.UUID, body Tik
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required")
 	}
+	ctxBase, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.tenantShop(c, shopID); err != nil {
+		return nil, err
+	}
 	key := tiktokOAuthRedisPrefix + st
-	saved, err := s.Redis.Get(c.Request.Context(), key).Result()
+	saved, err := s.Redis.Get(ctxBase, key).Result()
 	if err != nil || strings.TrimSpace(saved) == "" {
 		return nil, fmt.Errorf("invalid or expired oauth state")
 	}
-	_ = s.Redis.Del(c.Request.Context(), key)
-	if strings.TrimSpace(saved) != shopID.String() {
-		return nil, fmt.Errorf("state does not match shop")
+	if err := decodePlatformOAuthState(saved, "tiktok", tenantID, shopID); err != nil {
+		return nil, err
 	}
+	_ = s.Redis.Del(ctxBase, key)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctxBase, 45*time.Second)
 	defer cancel()
 
-	var row Shop
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
+	row, err := s.tenantShopCtx(ctx, tenantID, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "tiktok" {
@@ -120,7 +171,7 @@ func (s *Service) TikTokOAuthCallback(c *gin.Context, shopID uuid.UUID, body Tik
 	tbundle, _, _, err := platformtiktok.ExchangeAuthCode(ctx, auth, code)
 	if err != nil {
 		s.oauthTikTokLog(c, adminID, shopID, "failed", err.Error())
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthError)
+		_ = s.setAuthStatusCtx(ctx, tenantID, shopID, AuthError)
 		return nil, err
 	}
 
@@ -139,7 +190,7 @@ func (s *Service) TikTokOAuthCallback(c *gin.Context, shopID uuid.UUID, body Tik
 	_, _, auth2, err := s.decryptedAuth(c2, shopID)
 	if err == nil {
 		if cipher, nm, ext, region, currency, perr := platformtiktok.PrimaryAuthorizedShop(ctx, auth2, auth2.AccessToken); perr == nil && cipher != "" {
-			_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).Update("merchant_id", cipher).Error
+			_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ? AND EXISTS (SELECT 1 FROM shops sh WHERE sh.id = shop_auth_tokens.shop_id AND sh.tenant_id = ?)", shopID, tenantID).Update("merchant_id", cipher).Error
 			updates := map[string]any{}
 			if nm != "" {
 				updates["shop_name"] = nm
@@ -155,7 +206,7 @@ func (s *Service) TikTokOAuthCallback(c *gin.Context, shopID uuid.UUID, body Tik
 			}
 			updates["auth_status"] = AuthAuthorized
 			if len(updates) > 0 {
-				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(updates).Error
+				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenantID).Updates(updates).Error
 			}
 		}
 	}

@@ -5,11 +5,14 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type registerBody struct {
@@ -30,6 +33,10 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 	emailAddr := strings.ToLower(strings.TrimSpace(body.Email))
+	if IsWeakPassword(h.Cfg, body.Password) {
+		response.Fail(c, 400, response.CodeBadRequest, "password does not meet security requirements")
+		return
+	}
 
 	// Verify code
 	codeKey := fmt.Sprintf("email_code:register:%s", emailAddr)
@@ -55,18 +62,30 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	// Create user
+	// Tenant and its first administrator must be created together. Tenant 0 is
+	// reserved for legacy/system data and must never receive a public account.
 	u := admin.AdminUser{
 		Base:         model.Base{},
 		Username:     admin.NewInternalUsername(),
 		Email:        emailAddr,
 		DisplayName:  emailAddr,
 		PasswordHash: string(hash),
-		Role:         "admin", // TODO(RBAC): first version all admin scope
+		Role:         adminperm.RoleTenantAdmin,
 		Status:       "active",
 	}
 
-	if err := h.Admins.DB.WithContext(c.Request.Context()).Create(&u).Error; err != nil {
+	if h.Admins == nil || h.Admins.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "auth unavailable")
+		return
+	}
+	if err := h.Admins.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		tenant := &Tenant{Name: emailAddr}
+		if err := tx.Create(tenant).Error; err != nil {
+			return err
+		}
+		u.TenantID = tenant.ID
+		return tx.Create(&u).Error
+	}); err != nil {
 		if h.OpLog != nil {
 			_ = h.OpLog.Write(c, operationlog.WriteOpts{
 				Username: emailAddr,
@@ -102,9 +121,24 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	response.OK(c, gin.H{
+	out := gin.H{
 		"token":     res.Token,
 		"expiresAt": res.ExpiresAt,
 		"user":      res.User,
-	})
+		"sessionMode": func() string {
+			if h.Cfg != nil {
+				return h.Cfg.Auth.SessionMode
+			}
+			return config.AuthSessionModeLegacy
+		}(),
+	}
+	if h.Cfg != nil && h.Cfg.UsesSecureSession() {
+		SetRefreshCookieResponse(c, h.Cfg, res.RefreshToken, h.Cfg.RefreshTokenTTL())
+	} else if res.RefreshToken != "" {
+		out["refreshToken"] = res.RefreshToken
+	}
+	if h.Cfg != nil && h.Cfg.Auth.SessionMode == config.AuthSessionModeLegacy {
+		out["deprecatedSessionMode"] = true
+	}
+	response.OK(c, out)
 }

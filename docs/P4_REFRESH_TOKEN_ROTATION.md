@@ -122,7 +122,7 @@ Handler: `SessionHandler.Refresh` in `sessions_handler.go`.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `AUTH_REFRESH_TOKEN_TTL_DAYS` | 7 | New token expiry on each rotation |
-| `AUTH_SESSION_MODE` | dev: legacy | Cookie vs body transport |
+| `AUTH_SESSION_MODE` | `secure_session` | Cookie vs body transport; legacy requires explicit local opt-in |
 | `JWT_SECRET` | - | Hash pepper for refresh tokens |
 
 ---

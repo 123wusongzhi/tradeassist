@@ -67,7 +67,7 @@ func (s *Service) reconcileCollectBatchTx(ctx context.Context, tx *gorm.DB, batc
 	}
 	if err := tx.WithContext(ctx).Model(&CollectTask{}).
 		Select("status, COUNT(*) AS n").
-		Where("batch_id = ?", batchID).
+		Where("batch_id = ? AND tenant_id = ?", batchID, batch.TenantID).
 		Group("status").
 		Scan(&rows).Error; err != nil {
 		return err
@@ -117,9 +117,16 @@ func (s *Service) reconcileCollectBatchTx(ctx context.Context, tx *gorm.DB, batc
 		}
 	}
 
-	return tx.WithContext(ctx).Model(&CollectBatch{}).
-		Where("id = ?", batchID).
-		Updates(updates).Error
+	result := tx.WithContext(ctx).Model(&CollectBatch{}).
+		Where("id = ? AND tenant_id = ?", batchID, batch.TenantID).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func (s *Service) reconcileCollectBatch(ctx context.Context, batchID *uuid.UUID) {
@@ -151,13 +158,14 @@ func deriveBatchAggregateStatus(total, pendingCombined, running, success, failed
 	}
 }
 
-func (s *Service) rollbackBatchCreates(ctx context.Context, batchID uuid.UUID) {
+func (s *Service) rollbackBatchCreates(ctx context.Context, batchID uuid.UUID, tenantID int64) {
 	if s == nil || s.DB == nil {
 		return
 	}
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Delete(&CollectTaskEvent{}).Error
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Unscoped().Delete(&CollectTask{}).Error
-	_ = s.DB.WithContext(ctx).Where("id = ?", batchID).Unscoped().Delete(&CollectBatch{}).Error
+	_ = s.DB.WithContext(ctx).Where("batch_id = ? AND task_id IN (?)", batchID,
+		s.DB.Model(&CollectTask{}).Select("id").Where("batch_id = ? AND tenant_id = ?", batchID, tenantID)).Delete(&CollectTaskEvent{}).Error
+	_ = s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).Unscoped().Delete(&CollectTask{}).Error
+	_ = s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", batchID, tenantID).Unscoped().Delete(&CollectBatch{}).Error
 }
 
 // CreateBatchAsync creates a batch, tasks, aggregates, enqueues — rolls back DB on enqueue failure.
@@ -211,7 +219,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 			return zero, fmt.Errorf("no valid taobao_tmall product detail urls")
 		}
 		if engine == CollectEnginePlaywright {
-			if err := s.ensureTaobaoTmallBatchReady(ctx, rawURLs[0]); err != nil {
+			if err := s.ensureTaobaoTmallBatchReady(ctx, tid, rawURLs[0]); err != nil {
 				return zero, err
 			}
 		}
@@ -253,10 +261,12 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 		}
 		for _, u := range urls {
 			var reqOpts datatypes.JSON
-			if isPinduoduoCollectSource(source) {
-				reqOpts = s.buildPinduoduoRequestOptions(ctx, u, true)
+			if strings.EqualFold(strings.TrimSpace(source), "1688") {
+				reqOpts = datatypes.JSON([]byte(fmt.Sprintf(`{"useBrowserProfile":true,"profileKey":%q}`, providerProfileKey(tid, "1688"))))
+			} else if isPinduoduoCollectSource(source) {
+				reqOpts = s.buildPinduoduoRequestOptions(ctx, tid, u, true)
 			} else if isTaobaoTmallCollectSource(source) {
-				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, u, true)
+				reqOpts = s.buildTaobaoTmallRequestOptions(ctx, tid, u, true)
 			}
 			reqOpts = injectEngineIntoRequestOptions(reqOpts, engine)
 			task := CollectTask{
@@ -289,12 +299,12 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	reqID := requestIDFromGin(c)
 	for _, tid := range taskIDs {
 		var t CollectTask
-		if err := s.DB.WithContext(ctx).First(&t, "id = ?", tid).Error; err != nil {
-			s.rollbackBatchCreates(ctx, batch.ID)
+		if err := s.DB.WithContext(ctx).First(&t, "id = ? AND tenant_id = ? AND batch_id = ?", tid, batch.TenantID, batch.ID).Error; err != nil {
+			s.rollbackBatchCreates(ctx, batch.ID, batch.TenantID)
 			return zero, fmt.Errorf("collect: load created task: %w", err)
 		}
 		if err := s.enqueueTask(ctx, t.ID, t.Source, t.SourceURL, t.CreatedBy, reqID); err != nil {
-			s.rollbackBatchCreates(ctx, batch.ID)
+			s.rollbackBatchCreates(ctx, batch.ID, batch.TenantID)
 			return zero, err
 		}
 		s.RecordTaskEvent(ctx, &t, TaskEventInput{
@@ -338,7 +348,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	}
 
 	var fresh CollectBatch
-	_ = s.DB.WithContext(ctx).First(&fresh, "id = ?", batch.ID)
+	_ = s.DB.WithContext(ctx).First(&fresh, "id = ? AND tenant_id = ?", batch.ID, batch.TenantID)
 	return CreateBatchResult{
 		Batch:        batchToDTO(&fresh),
 		TaskCount:    len(taskIDs),
@@ -365,8 +375,12 @@ func (s *Service) ListBatches(c *gin.Context, q BatchListQuery) (*BatchListResul
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collect: no db")
 	}
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	page, ps := clampCollectPage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectBatch{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectBatch{}).Where("tenant_id = ?", tid)
 
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
@@ -424,11 +438,15 @@ func (s *Service) GetBatchDTO(c *gin.Context, id uuid.UUID) (BatchDTO, error) {
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
 	}
-	var b CollectBatch
-	if err := s.DB.WithContext(c.Request.Context()).First(&b, "id = ?", id).Error; err != nil {
+	tid, err := collectTenantID(c)
+	if err != nil {
 		return zero, err
 	}
-	stats := s.computeBatchStats(c.Request.Context(), id)
+	var b CollectBatch
+	if err := s.DB.WithContext(c.Request.Context()).First(&b, "id = ? AND tenant_id = ?", id, tid).Error; err != nil {
+		return zero, err
+	}
+	stats := s.computeBatchStats(c.Request.Context(), id, tid)
 	return batchToDetailDTO(&b, stats), nil
 }
 
@@ -437,12 +455,16 @@ func (s *Service) ListBatchTasks(c *gin.Context, batchID uuid.UUID, q ListQuery)
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collect: no db")
 	}
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	var exists CollectBatch
-	if err := s.DB.WithContext(c.Request.Context()).First(&exists, "id = ?", batchID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&exists, "id = ? AND tenant_id = ?", batchID, tid).Error; err != nil {
 		return nil, err
 	}
 	page, ps := clampCollectPage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).Where("batch_id = ?", batchID)
+	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).Where("batch_id = ? AND tenant_id = ?", batchID, tid)
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}
@@ -485,9 +507,13 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		return zero, ErrCollectQueueDisabled
 	}
 	ctx := c.Request.Context()
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return zero, err
+	}
 
 	var batch CollectBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&batch, "id = ? AND tenant_id = ?", batchID, tid).Error; err != nil {
 		return zero, err
 	}
 	if err := s.redisPing(ctx); err != nil {
@@ -497,7 +523,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	reqID := requestIDFromGin(c)
 	var failed []CollectTask
 	if err := s.DB.WithContext(ctx).
-		Where("batch_id = ? AND status = ?", batchID, StatusFailed).
+		Where("batch_id = ? AND tenant_id = ? AND status = ?", batchID, tid, StatusFailed).
 		Order("created_at ASC").
 		Find(&failed).Error; err != nil {
 		return zero, err
@@ -511,7 +537,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		task := failed[i]
 		retryAt := time.Now().UTC()
 		up := s.DB.WithContext(ctx).Model(&CollectTask{}).
-			Where("id = ? AND status = ?", task.ID, StatusFailed).
+			Where("id = ? AND tenant_id = ? AND batch_id = ? AND status = ?", task.ID, tid, batchID, StatusFailed).
 			Updates(map[string]interface{}{
 				"status":            StatusRetrying,
 				"error_message":     "",
@@ -532,7 +558,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		if err := s.enqueueTask(ctx, task.ID, task.Source, task.SourceURL, task.CreatedBy, reqID); err != nil {
 			fin := time.Now().UTC()
 			_ = s.DB.WithContext(ctx).Model(&CollectTask{}).
-				Where("id = ?", task.ID).
+				Where("id = ? AND tenant_id = ? AND batch_id = ? AND status = ?", task.ID, tid, batchID, StatusRetrying).
 				Updates(map[string]interface{}{
 					"status":        StatusFailed,
 					"error_message": ErrRedisQueueUnavailable.Error(),
@@ -540,7 +566,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 					"updated_at":    fin,
 				}).Error
 			var bumped CollectTask
-			if er := s.DB.WithContext(ctx).First(&bumped, "id = ?", task.ID).Error; er == nil {
+			if er := s.DB.WithContext(ctx).First(&bumped, "id = ? AND tenant_id = ? AND batch_id = ?", task.ID, tid, batchID).Error; er == nil {
 				s.RecordTaskEvent(ctx, &bumped, TaskEventInput{
 					EventType:    EventTaskFailed,
 					FromStatus:   StatusRetrying,
@@ -552,7 +578,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 			return zero, err
 		}
 		var fresh CollectTask
-		if err := s.DB.WithContext(ctx).First(&fresh, "id = ?", task.ID).Error; err != nil {
+		if err := s.DB.WithContext(ctx).First(&fresh, "id = ? AND tenant_id = ? AND batch_id = ?", task.ID, tid, batchID).Error; err != nil {
 			return zero, err
 		}
 		s.RecordTaskEvent(ctx, &fresh, TaskEventInput{

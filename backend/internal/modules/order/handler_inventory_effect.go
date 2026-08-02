@@ -34,6 +34,10 @@ func (h *Handler) PostDeductInventory(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if _, err := h.Svc.findOrderForOperate(c, id); err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	var body orderInvSyncBody
 	_ = c.ShouldBindJSON(&body)
 
@@ -70,6 +74,10 @@ func (h *Handler) PostRestoreInventory(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if _, err := h.Svc.findOrderForOperate(c, id); err != nil {
+		response.HandleError(c, err)
 		return
 	}
 	var body orderRestoreBody

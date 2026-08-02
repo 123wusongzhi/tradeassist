@@ -70,7 +70,7 @@ func (s *Service) ListOrderEffectsByOrder(ctx context.Context, orderID uuid.UUID
 	return s.effectsPage(rows, total, page, ps)
 }
 
-func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuery) (*PaginatedOrderEffects, error) {
+func (s *Service) ListOrderEffectsGlobal(ctx context.Context, tenantID int64, q OrderEffectsQuery) (*PaginatedOrderEffects, error) {
 	page := q.Page
 	if page < 1 {
 		page = 1
@@ -79,7 +79,8 @@ func (s *Service) ListOrderEffectsGlobal(ctx context.Context, q OrderEffectsQuer
 	if ps < 1 || ps > 200 {
 		ps = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{})
+	tx := s.DB.WithContext(ctx).Model(&OrderInventoryEffect{}).
+		Joins("INNER JOIN orders o ON o.id = order_inventory_effects.order_id AND o.tenant_id = ?", tenantID)
 	if q.OrderID != nil && *q.OrderID != uuid.Nil {
 		tx = tx.Where("order_id = ?", *q.OrderID)
 	}

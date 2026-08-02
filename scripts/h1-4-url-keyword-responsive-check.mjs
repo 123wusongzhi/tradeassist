@@ -8,6 +8,7 @@ const BASE = process.env.TRADEMIND_ADMIN_URL || 'http://127.0.0.1:8000';
 const API = process.env.TRADEMIND_API_URL || 'http://127.0.0.1:8080';
 const EMAIL = process.env.DEMO_ADMIN_EMAIL || 'demo_admin@trademind.local';
 const PASSWORD = process.env.DEMO_ADMIN_PASSWORD || 'DemoAdmin123!';
+const noWrite = process.argv.includes('--no-write');
 
 const FORBIDDEN = [
   'buyerName',
@@ -223,14 +224,13 @@ async function main() {
       }
     }
   } else {
-    warning += PAGE_CASES.length;
-    urlState.orders = 'passed_with_warning';
-    urlState.orderExceptions = 'passed_with_warning';
+    urlState.orders = 'blocked';
+    urlState.orderExceptions = 'blocked';
     issues.push({
       id: 'H14-API',
-      level: 'P2',
-      description: 'Backend/API unavailable — URL smoke skipped; code review + admin build used instead.',
-      status: 'warning',
+      level: 'P1',
+      description: 'Backend/API unavailable — required URL smoke was not executed.',
+      status: 'blocked',
     });
   }
 
@@ -239,40 +239,39 @@ async function main() {
 
   // Browser history — manual IDE review documented
   const browserHistory = {
-    backForward: 'passed_with_warning',
+    backForward: 'blocked',
     cases: BROWSER_HISTORY_CASES.map((c) => ({
       ...c,
-      status: 'passed_with_warning',
+      status: 'blocked',
       browser: 'Cursor IDE Browser + Chromium',
       resolution: '1920x1080',
       steps: 'Set filters → paginate → refresh → browser back → forward',
       expected: 'Filters and pagination restore without blank screen',
-      actual: 'IDE Alt+Left may not trigger SPA history; real browser back/forward recommended for final sign-off',
-      passed: true,
-      warning: 'Manual real-browser review deferred to post-H1.4',
+      actual: 'Not executed; a real browser run is required for sign-off',
+      passed: false,
     })),
   };
-  warning += 1;
 
-  // Responsive — layout review via build + spot check
+  // Responsive — must remain blocked until a browser actually exercises it.
   const responsive = {
-    '1366x768': 'passed',
-    '1024x768': 'passed_with_warning',
+    '1366x768': 'blocked',
+    '1024x768': 'blocked',
     notes: {
-      '1366x768': 'ProTable horizontal scroll + filter collapse OK on spot-check pages',
-      '1024x768': 'Filter vertical layout may wrap; table scroll required — no blocking overflow on spot-check',
+      '1366x768': 'Not executed; overflow and filter layout are unverified',
+      '1024x768': 'Not executed; overflow and filter layout are unverified',
     },
   };
-  warning += 1;
+  issues.push({ id: 'H14-browser', level: 'P1', description: 'Required real-browser/responsive checks were not executed.', status: 'blocked' });
 
-  const total = passed + warning + failed;
-  const overall = failed > 0 ? 'failed' : warning > 0 ? 'passed_with_warning' : 'passed';
+  const blocked = issues.filter((i) => i.status === 'blocked').length;
+  const total = passed + warning + failed + blocked;
+  const overall = failed > 0 ? 'failed' : blocked > 0 ? 'blocked' : warning > 0 ? 'passed_with_warning' : 'passed';
 
   const report = {
     phase: 'H1.4',
     status: overall,
     checkedAt: new Date().toISOString(),
-    summary: { total, passed, warning, failed },
+    summary: { total, passed, warning, failed, blocked },
     urlState,
     keywordSafety,
     browserHistory,
@@ -303,13 +302,15 @@ async function main() {
     finalConclusion:
       overall === 'passed'
         ? 'H1.4 URL/keyword/responsive checks passed.'
-        : 'H1.4 passed with warnings — core URL state and keyword UX OK; manual browser/responsive sign-off items documented.',
+        : overall === 'blocked'
+          ? 'H1.4 is blocked because required API or browser/responsive checks were not executed.'
+          : 'H1.4 failed or completed with warnings; inspect issues before sign-off.',
   };
 
   const outJson = path.join('docs', 'h1-4-url-keyword-responsive-check.json');
-  fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
-  console.log(`Wrote ${outJson} — ${overall} (${passed}/${total})`);
-  process.exit(failed > 0 ? 1 : 0);
+  if (!noWrite) fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+  console.log(`${noWrite ? 'Checked' : 'Wrote'} ${outJson} — ${overall.toUpperCase()} (${passed}/${total})`);
+  process.exit(failed > 0 || blocked > 0 ? 1 : 0);
 }
 
 main().catch((e) => {

@@ -1,6 +1,7 @@
 package aiproductimage
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -48,7 +49,8 @@ func testGinContext() *gin.Context {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	c.Request = req.WithContext(context.WithValue(req.Context(), tenantContextKey{}, int64(1)))
 	return c
 }
 
@@ -59,7 +61,7 @@ func TestConcurrentReplaceApplySameSlotOnce(t *testing.T) {
 		Idempotency: &idempotency.Service{DB: db},
 	}
 
-	p := product.Product{Source: "manual", Title: "Camera", Currency: "USD", Status: product.StatusDraft}
+	p := product.Product{TenantID: 1, Source: "manual", Title: "Camera", Currency: "USD", Status: product.StatusDraft}
 	if err := db.Create(&p).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -73,6 +75,7 @@ func TestConcurrentReplaceApplySameSlotOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	task := imagetask.ImageTask{
+		TenantID:  1,
 		TaskType:  imagetask.TaskTypeRemoveBackground,
 		Provider:  "noop",
 		Status:    imagetask.StatusSuccess,
@@ -84,7 +87,8 @@ func TestConcurrentReplaceApplySameSlotOnce(t *testing.T) {
 	}
 	imgUpdated := img.UpdatedAt.UTC()
 	batch := AIProductImageBatch{
-		BatchNo: "AITEST0001", BatchType: BatchTypeAIImage, Status: BatchSuccess,
+		TenantID: 1,
+		BatchNo:  "AITEST0001", BatchType: BatchTypeAIImage, Status: BatchSuccess,
 	}
 	if err := db.Create(&batch).Error; err != nil {
 		t.Fatal(err)
@@ -170,7 +174,7 @@ func TestApplySlotFormats(t *testing.T) {
 func TestImageTargetVersionConflict(t *testing.T) {
 	db := openImageApplyTestDB(t)
 	svc := &Service{DB: db, Idempotency: &idempotency.Service{DB: db}}
-	p := product.Product{Source: "manual", Title: "X", Currency: "USD", Status: product.StatusDraft}
+	p := product.Product{TenantID: 1, Source: "manual", Title: "X", Currency: "USD", Status: product.StatusDraft}
 	if err := db.Create(&p).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -179,11 +183,11 @@ func TestImageTargetVersionConflict(t *testing.T) {
 		t.Fatal(err)
 	}
 	stale := img.UpdatedAt.Add(-2 * time.Second)
-	task := imagetask.ImageTask{TaskType: imagetask.TaskTypeRemoveBackground, Provider: "noop", Status: imagetask.StatusSuccess, ProductID: &p.ID, ResultURL: "https://example.com/b.jpg"}
+	task := imagetask.ImageTask{TenantID: 1, TaskType: imagetask.TaskTypeRemoveBackground, Provider: "noop", Status: imagetask.StatusSuccess, ProductID: &p.ID, ResultURL: "https://example.com/b.jpg"}
 	if err := db.Create(&task).Error; err != nil {
 		t.Fatal(err)
 	}
-	batch := AIProductImageBatch{BatchNo: "AITEST0002", BatchType: BatchTypeAIImage, Status: BatchSuccess}
+	batch := AIProductImageBatch{TenantID: 1, BatchNo: "AITEST0002", BatchType: BatchTypeAIImage, Status: BatchSuccess}
 	if err := db.Create(&batch).Error; err != nil {
 		t.Fatal(err)
 	}

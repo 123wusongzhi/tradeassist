@@ -141,6 +141,9 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	var body CreateBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -215,6 +218,9 @@ func (h *Handler) Update(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -280,6 +286,9 @@ func (h *Handler) Delete(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -300,6 +309,9 @@ func (h *Handler) Delete(c *gin.Context) {
 func (h *Handler) PostItem(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -328,6 +340,9 @@ func (h *Handler) PostItem(c *gin.Context) {
 func (h *Handler) PutItem(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -363,6 +378,9 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -388,6 +406,9 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 func (h *Handler) PostShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -416,6 +437,9 @@ func (h *Handler) PostShipment(c *gin.Context) {
 func (h *Handler) PutShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -449,6 +473,9 @@ func (h *Handler) PutShipment(c *gin.Context) {
 func (h *Handler) DeleteShipment(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "orders unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

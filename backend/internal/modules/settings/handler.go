@@ -24,6 +24,11 @@ func (h *Handler) requireSettingsManage(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "settings unavailable")
 		return false
 	}
+	// Settings are currently instance-wide: List and Put deliberately operate
+	// across tenant IDs and provider credentials are stored under tenant 0.
+	if !adminperm.RequireGlobalAdmin(c, h.DB) {
+		return false
+	}
 	return adminperm.RequireWrite(c, h.DB, adminperm.PermSettingsManage)
 }
 

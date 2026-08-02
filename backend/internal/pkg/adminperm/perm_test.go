@@ -1,9 +1,12 @@
 package adminperm
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 func TestPermissionsForRole(t *testing.T) {
@@ -57,6 +60,99 @@ func TestPermissionsForRole(t *testing.T) {
 	}
 	if StrictHasPermission("surprise", PermOperationTaskReview) || StrictHasPermission("surprise", PermUserManage) || StrictHasPermission("surprise", PermInventorySyncRun) || StrictHasPermission(RoleAdmin, "inventory.run") {
 		t.Fatal("unknown roles and synonymous permissions must not inherit permissions on strict path")
+	}
+	if HasPermission("surprise", PermUserManage) || (&Principal{Role: "surprise"}).Can(PermProductView) || (&Principal{Role: "surprise"}).CanOperateStore(uuid.New()) {
+		t.Fatal("unknown roles must fail closed and must not inherit admin access")
+	}
+}
+
+func TestUnknownRoleIsDeniedByHTTPGuard(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Set(ctxPrincipalKey, &Principal{Role: "surprise"})
+	if RequirePermission(c, nil, PermProductWrite) {
+		t.Fatal("unknown role unexpectedly authorized")
+	}
+	if w.Code != 403 {
+		t.Fatalf("status = %d, want 403", w.Code)
+	}
+}
+
+func TestMissingAuthContextFailsClosed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name string
+		ctx  *gin.Context
+	}{
+		{name: "nil context", ctx: nil},
+		{name: "missing admin id", ctx: func() *gin.Context { c, _ := gin.CreateTestContext(httptest.NewRecorder()); return c }()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var db *gorm.DB
+			if tc.ctx != nil {
+				db = &gorm.DB{}
+			}
+			p, err := LoadPrincipal(tc.ctx, db)
+			if err != nil || p == nil || !p.Disabled || p.IsAdmin() || p.Can(PermUserManage) {
+				t.Fatalf("principal = %+v, err = %v", p, err)
+			}
+		})
+	}
+}
+
+func TestRequireWriteRoleMatrix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name string
+		role string
+		perm string
+		want bool
+	}{
+		{name: "readonly denied", role: RoleReadonly, perm: PermProductWrite, want: false},
+		{name: "unknown denied", role: "vendor", perm: PermProductWrite, want: false},
+		{name: "operator reaches product write", role: RoleOperator, perm: PermProductWrite, want: true},
+		{name: "admin reaches config write", role: RoleAdmin, perm: PermConfigManage, want: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set(ctxPrincipalKey, &Principal{Role: tc.role, Permissions: PermissionsForRole(tc.role)})
+			if got := RequireWrite(c, nil, tc.perm); got != tc.want {
+				t.Fatalf("RequireWrite(%s, %s) = %v, want %v", tc.role, tc.perm, got, tc.want)
+			}
+			if !tc.want && w.Code != 403 {
+				t.Fatalf("denied status = %d, want 403", w.Code)
+			}
+		})
+	}
+}
+
+func TestRequireGlobalAdminChecksSystemTenantAndRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name      string
+		principal *Principal
+		want      bool
+	}{
+		{name: "system admin", principal: &Principal{Role: RoleAdmin, TenantID: 0, Permissions: PermissionsForRole(RoleAdmin)}, want: true},
+		{name: "non-system admin label", principal: &Principal{Role: RoleAdmin, TenantID: 9, Permissions: PermissionsForRole(RoleAdmin)}},
+		{name: "system operator", principal: &Principal{Role: RoleOperator, TenantID: 0, Permissions: PermissionsForRole(RoleOperator)}},
+		{name: "tenant admin", principal: &Principal{Role: RoleTenantAdmin, TenantID: 9, Permissions: PermissionsForRole(RoleTenantAdmin)}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Set(ctxPrincipalKey, tc.principal)
+			if got := RequireGlobalAdmin(c, nil); got != tc.want {
+				t.Fatalf("RequireGlobalAdmin() = %v, want %v", got, tc.want)
+			}
+			if !tc.want && w.Code != 403 {
+				t.Fatalf("denied status = %d, want 403", w.Code)
+			}
+		})
 	}
 }
 

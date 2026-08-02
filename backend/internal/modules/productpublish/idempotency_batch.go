@@ -21,6 +21,10 @@ type publishBatchAcquire struct {
 	Owner    string
 }
 
+func tenantIdempotencyKey(tenantID int64, key string) string {
+	return fmt.Sprintf("tenant:%d:%s", tenantID, key)
+}
+
 func (s *Service) acquirePublishIdempotency(ctx context.Context, idemKey string, reqHash []byte, owner string) (*publishBatchAcquire, *idempotency.AcquireResult, error) {
 	if s == nil || s.Idempotency == nil || idemKey == "" {
 		return nil, nil, nil
@@ -75,6 +79,11 @@ func (s *Service) acquirePublishBatch(ctx context.Context, c *gin.Context, idemK
 		return nil, nil, nil
 	}
 	owner := "publish-batch-create"
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	idemKey = tenantIdempotencyKey(tenantID, idemKey)
 	if c != nil {
 		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
 	}

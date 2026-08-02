@@ -59,3 +59,12 @@ Before exposing TradeMind to a public network, you should:
 - Keep the optional OpenCLI Bridge on loopback for local use. Docker access requires
   a random `OPENCLI_BRIDGE_TOKEN`, host firewall restrictions, and a non-public
   `3100` port; see [docs/collector-engines.md](docs/collector-engines.md).
+- Keep the Playwright Collector on loopback for local development. Docker or any
+  other non-loopback deployment requires a shared random `COLLECTOR_INTERNAL_TOKEN`;
+  expose its host port on loopback only, and keep `/health` free of sensitive data.
+- Treat tenant identity as authentication data. Never accept tenant scope from a
+  URL, request body, queue message, or provider response; recover it from a verified
+  session, one-time OAuth state, or a persisted task-to-shop relationship.
+- Public registration creates a tenant-scoped administrator, not an instance-wide
+  administrator. Reserve system-tenant (`tenant_id=0`) administration for explicit
+  bootstrap or operator-controlled provisioning.

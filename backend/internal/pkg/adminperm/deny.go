@@ -52,6 +52,22 @@ func RequirePermission(c *gin.Context, db *gorm.DB, perm string) bool {
 	return false
 }
 
+// RequireGlobalAdmin restricts instance-wide resources to the administrator in
+// the system tenant. A nonzero-tenant user never gains this authority merely by
+// carrying the legacy "admin" role label.
+func RequireGlobalAdmin(c *gin.Context, db *gorm.DB) bool {
+	p, err := LoadPrincipal(c, db)
+	if err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	if p != nil && p.IsAdmin() {
+		return true
+	}
+	DenyPermission(c)
+	return false
+}
+
 // RequireWrite checks readonly + permission; returns false after writing response.
 func RequireWrite(c *gin.Context, db *gorm.DB, perm string) bool {
 	p, err := LoadPrincipal(c, db)

@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // SyncImagesBody selects which image groups to mirror into platform storage.
@@ -28,18 +32,146 @@ type SyncImagesResult struct {
 	Errors  []string `json:"errors,omitempty"`
 }
 
-func isExternalCollectImageURL(url string) bool {
-	u := strings.ToLower(strings.TrimSpace(url))
-	if u == "" || strings.HasPrefix(u, "data:") {
+var allowedCollectImageDomains = []string{
+	"alicdn.com", "tbcdn.cn", "taobaocdn.com", "1688.com", "pinduoduo.com", "yangkeduo.com", "pddpic.com",
+}
+
+var resolveImageHost = func(ctx context.Context, host string) ([]net.IP, error) {
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]net.IP, 0, len(addrs))
+	for _, addr := range addrs {
+		ips = append(ips, addr.IP)
+	}
+	return ips, nil
+}
+
+var blockedImageIPPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("192.88.99.0/24"),
+	netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("224.0.0.0/4"),
+	netip.MustParsePrefix("240.0.0.0/4"),
+	netip.MustParsePrefix("64:ff9b::/96"),
+	netip.MustParsePrefix("64:ff9b:1::/48"),
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2001:2::/48"),
+	netip.MustParsePrefix("2001:10::/28"),
+	netip.MustParsePrefix("2001:20::/28"),
+	netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("3fff::/20"),
+	netip.MustParsePrefix("fc00::/7"),
+	netip.MustParsePrefix("fe80::/10"),
+	netip.MustParsePrefix("ff00::/8"),
+}
+
+func allowedCollectImageHost(host string) bool {
+	host = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(host)), ".")
+	for _, domain := range allowedCollectImageDomains {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPublicImageIP(ip net.IP) bool {
+	if ip == nil {
 		return false
 	}
-	return strings.Contains(u, "alicdn.com") ||
-		strings.Contains(u, "tbcdn.cn") ||
-		strings.Contains(u, "taobaocdn.com") ||
-		strings.Contains(u, "1688.com") ||
-		strings.Contains(u, "pinduoduo.com") ||
-		strings.Contains(u, "yangkeduo.com") ||
-		strings.Contains(u, "pddpic.com")
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
+		return false
+	}
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() {
+		return false
+	}
+	for _, prefix := range blockedImageIPPrefixes {
+		if prefix.Contains(addr) {
+			return false
+		}
+	}
+	return true
+}
+
+func validateExternalCollectImageURL(ctx context.Context, rawURL string) (*url.URL, error) {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil {
+		return nil, fmt.Errorf("unsafe image URL")
+	}
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	if host == "" || host == "localhost" || strings.HasSuffix(host, ".localhost") || !allowedCollectImageHost(host) {
+		return nil, fmt.Errorf("unsafe image URL")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if !isPublicImageIP(ip) {
+			return nil, fmt.Errorf("unsafe image URL")
+		}
+		return u, nil
+	}
+	ips, err := resolveImageHost(ctx, host)
+	if err != nil || len(ips) == 0 {
+		return nil, fmt.Errorf("unsafe image URL")
+	}
+	for _, ip := range ips {
+		if !isPublicImageIP(ip) {
+			return nil, fmt.Errorf("unsafe image URL")
+		}
+	}
+	return u, nil
+}
+
+func isExternalCollectImageURL(rawURL string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err := validateExternalCollectImageURL(ctx, rawURL)
+	return err == nil
+}
+
+func safeImageTransport() *http.Transport {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	// A proxy may resolve or connect to a target outside this transport's
+	// control, so image synchronization intentionally uses direct connections.
+	transport.Proxy = nil
+	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(address)
+		if err != nil {
+			return nil, err
+		}
+		ips, err := resolveImageHost(ctx, host)
+		if err != nil || len(ips) == 0 {
+			return nil, fmt.Errorf("unsafe image host")
+		}
+		var lastErr error
+		for _, ip := range ips {
+			if !isPublicImageIP(ip) {
+				return nil, fmt.Errorf("unsafe image host")
+			}
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+		}
+		return nil, lastErr
+	}
+	return transport
 }
 
 func extFromImageBytes(data []byte, rawURL string) (string, string, error) {
@@ -70,13 +202,21 @@ func extFromImageBytes(data []byte, rawURL string) (string, string, error) {
 }
 
 func (s *Service) fetchRemoteImage(ctx context.Context, rawURL string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	u, err := validateExternalCollectImageURL(ctx, rawURL)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "TradeMind-ImageSync/1.0")
 	req.Header.Set("Accept", "image/*")
-	cli := &http.Client{Timeout: 45 * time.Second}
+	cli := &http.Client{Timeout: 45 * time.Second, Transport: safeImageTransport()}
+	cli.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		_, err := validateExternalCollectImageURL(req.Context(), req.URL.String())
+		return err
+	}
 	resp, err := cli.Do(req)
 	if err != nil {
 		return nil, err
@@ -109,8 +249,11 @@ func (s *Service) SyncImages(c *gin.Context, productID uuid.UUID, body SyncImage
 		scope = "all"
 	}
 
-	var prod Product
-	if err := s.DB.WithContext(c.Request.Context()).Preload("Images").First(&prod, "id = ?", productID).Error; err != nil {
+	prod, err := s.findTenantProduct(c, productID, "Images")
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return nil, err
 	}
 
@@ -155,7 +298,8 @@ func (s *Service) SyncImages(c *gin.Context, productID uuid.UUID, body SyncImage
 		}
 		day := time.Now().UTC().Format("2006/01/02")
 		objKey := fmt.Sprintf("%s/sync-%s%s", day, uuid.NewString(), ext)
-		rec, err := filesSvc.SaveProcessed(c.Request.Context(), files.SaveProcessedOpts{
+		rec, err := filesSvc.SaveUntrustedProcessed(c.Request.Context(), files.SaveProcessedOpts{
+			TenantID:    prod.TenantID,
 			ObjectKey:   objKey,
 			ContentType: ct,
 			Data:        data,

@@ -4,6 +4,8 @@ import "time"
 
 // ListOrderExceptionsRequest binds GET /orders/exceptions.
 type ListOrderExceptionsRequest struct {
+	// TenantID is populated only from trusted request context, never query input.
+	TenantID      int64
 	ExceptionType string
 	Severity      string
 	Status        string // open | handled | ignored (derived client-side filter hint; server applies marks)

@@ -1,6 +1,7 @@
 package imagetask
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -19,7 +20,7 @@ func decodePayloadBytes(payload *translateImagePayload) ([]byte, error) {
 func inferBlockStyles(payload *translateImagePayload, blocks []translateTextBlock) {
 	var img image.Image
 	if payload != nil && len(payload.RawBytes) > 0 {
-		if decoded, _, err := image.Decode(bytesReader(payload.RawBytes)); err == nil {
+		if decoded, _, err := image.Decode(bytes.NewReader(payload.RawBytes)); err == nil {
 			img = decoded
 		}
 	}

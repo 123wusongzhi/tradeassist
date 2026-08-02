@@ -121,14 +121,14 @@ func TestOzonCategorySyncWritesCacheIdempotently(t *testing.T) {
 	api := newOzonCategoryFakeAPI(t)
 	shopID := seedOzonAuthorizedShop(t, db, enc, api.URL)
 
-	stats, err := svc.SyncOzonCategories(context.Background(), shopID)
+	stats, err := svc.SyncOzonCategories(context.Background(), 0, shopID)
 	if err != nil {
 		t.Fatalf("SyncOzonCategories() error = %v", err)
 	}
 	if stats.Count != 2 || stats.LeafCount != 1 {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
-	if _, err := svc.SyncOzonCategories(context.Background(), shopID); err != nil {
+	if _, err := svc.SyncOzonCategories(context.Background(), 0, shopID); err != nil {
 		t.Fatalf("second sync error = %v", err)
 	}
 	var count int64
@@ -155,7 +155,7 @@ func TestOzonCategorySyncRequiresAuthorizedShop(t *testing.T) {
 	enc, _ := encrypt.NewService("test-master-key")
 	svc := newOzonCategoryTestService(t, db, enc)
 	shopID := seedOzonUnauthorizedShop(t, db)
-	if _, err := svc.SyncOzonCategories(context.Background(), shopID); err == nil {
+	if _, err := svc.SyncOzonCategories(context.Background(), 0, shopID); err == nil {
 		t.Fatalf("expected unauthorized shop failure")
 	}
 }
@@ -166,7 +166,7 @@ func TestOzonCategorySyncResolvesFirstAuthorizedShop(t *testing.T) {
 	svc := newOzonCategoryTestService(t, db, enc)
 	api := newOzonCategoryFakeAPI(t)
 	seedOzonAuthorizedShop(t, db, enc, api.URL)
-	stats, err := svc.SyncOzonCategories(context.Background(), uuid.Nil)
+	stats, err := svc.SyncOzonCategories(context.Background(), 0, uuid.Nil)
 	if err != nil {
 		t.Fatalf("SyncOzonCategories() with nil shop error = %v", err)
 	}
@@ -183,7 +183,7 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 	seedOzonAuthorizedShop(t, db, enc, api.URL)
 	catID := seedOzonLeafCategory(t, db)
 
-	stats, err := svc.SyncOzonCategoryAttributes(context.Background(), catID, uuid.Nil)
+	stats, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID, uuid.Nil)
 	if err != nil {
 		t.Fatalf("SyncOzonCategoryAttributes() error = %v", err)
 	}

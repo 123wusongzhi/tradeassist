@@ -30,7 +30,7 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 		return c
 	}
 	cp := c.Copy()
-	cp.Request = cp.Request.WithContext(context.Background())
+	cp.Request = cp.Request.WithContext(context.WithoutCancel(c.Request.Context()))
 	return cp
 }
 
@@ -162,8 +162,12 @@ func imageURLHash(url string) string {
 }
 
 func (s *Service) loadProducts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var rows []product.Product
-	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", ids, tenantID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	m := make(map[uuid.UUID]*product.Product, len(rows))
@@ -191,8 +195,12 @@ type imageSelection struct {
 }
 
 func (s *Service) resolveImageSelections(ctx context.Context, productIDs, imageIDs []uuid.UUID) ([]imageSelection, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var images []product.ProductImage
-	q := s.DB.WithContext(ctx).Where("product_id IN ?", productIDs)
+	q := s.DB.WithContext(ctx).Joins("JOIN products ON products.id = product_images.product_id AND products.tenant_id = ?", tenantID).Where("product_images.product_id IN ?", productIDs)
 	if len(imageIDs) > 0 {
 		q = q.Where("id IN ?", imageIDs)
 	}
@@ -471,11 +479,18 @@ func (s *Service) acquireImageBatch(c *gin.Context, ctx context.Context, idemKey
 	if s == nil || s.Idempotency == nil || idemKey == "" {
 		return nil, nil, nil
 	}
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	owner := "ai-image-batch-create"
 	if c != nil {
 		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
 	}
-	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIImage, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	// Keep the shared idempotency record namespace tenant-qualified while the
+	// persisted batch key remains the caller-visible value.
+	scopedKey := fmt.Sprintf("tenant:%d:%s", tenantID, idemKey)
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIImage, scopedKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
 	decision, rec, _ := idempotency.Classify(res, err)
 	switch decision {
 	case idempotency.DecisionAlreadySucceeded:
@@ -534,7 +549,11 @@ func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotenc
 		}
 	}
 	var existing AIProductImageBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	}
 	return nil, fmt.Errorf("%s", errAIImageBatchInProgress)
@@ -543,6 +562,10 @@ func (s *Service) resolveExistingImageBatch(ctx context.Context, res *idempotenc
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductImageBatch, error) {
 	ctx := c.Request.Context()
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if !s.imageConfigured(ctx) {
 		s.ObserveAIImage("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 图片服务未配置，请先在「设置 → 图片 AI」完成配置")
@@ -594,7 +617,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		return s.resolveExistingImageBatch(ctx, replayRes, idemKey)
 	}
 	var existing AIProductImageBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	} else if err != gorm.ErrRecordNotFound {
 		return nil, err
@@ -612,6 +635,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		uniqueProducts[sel.ProductID] = struct{}{}
 	}
 	batch := &AIProductImageBatch{
+		TenantID:       tenantID,
 		BatchNo:        batchNo,
 		BatchType:      BatchTypeAIImage,
 		Status:         BatchRunning,
@@ -709,7 +733,9 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 	if item.Status == ItemCancelled || item.Status == ItemApplied {
 		return
 	}
-	_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemRunning).Error
+	if !s.claimItemForGeneration(ctx, item.ID) {
+		return
+	}
 
 	taskType := resolveGenerationTaskType(s.configuredImageProvider(ctx), item.OperationType)
 	if taskType == "" {
@@ -827,6 +853,19 @@ func (s *Service) runOneItem(c *gin.Context, seed *AIProductImageItem, opts Imag
 	s.ObserveAIImage(s.configuredImageProvider(ctx), item.OperationType, "request", "success", "", time.Since(start))
 }
 
+// claimItemForGeneration transitions only a still-pending item to running.
+// This keeps a cancellation that races with a worker claim terminal instead
+// of allowing the worker to revive the cancelled item.
+func (s *Service) claimItemForGeneration(ctx context.Context, itemID uuid.UUID) bool {
+	if s == nil || s.DB == nil || itemID == uuid.Nil {
+		return false
+	}
+	res := s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
+		Where("id = ? AND status = ?", itemID, ItemPending).
+		Update("status", ItemRunning)
+	return res.Error == nil && res.RowsAffected == 1
+}
+
 func (s *Service) waitForImageTask(ctx context.Context, taskID uuid.UUID, timeout time.Duration) (*imagetask.ImageTask, error) {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
@@ -878,13 +917,18 @@ func truncateMsg(s string, max int) string {
 }
 
 func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return
+	}
 	type counts struct {
 		Status string
 		N      int64
 	}
 	var rows []counts
 	_ = s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
-		Select("status, COUNT(*) as n").Where("batch_id = ?", batchID).
+		Select("status, COUNT(*) as n").
+		Where("batch_id = ? AND EXISTS (SELECT 1 FROM ai_product_image_batches b WHERE b.id = ai_product_image_items.batch_id AND b.tenant_id = ?)", batchID, tenantID).
 		Group("status").Find(&rows).Error
 	var success, failed, pending, running, applied int
 	for _, r := range rows {
@@ -912,7 +956,7 @@ func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
 	out := map[string]any{"successCount": success, "failedCount": failed, "appliedCount": applied}
 	outJSON, _ := json.Marshal(out)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(map[string]any{
 		"success_count": success,
 		"failed_count":  failed,
 		"applied_count": applied,

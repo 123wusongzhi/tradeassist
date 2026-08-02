@@ -12,11 +12,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/pagination"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -153,7 +153,11 @@ func orderCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) 
 	}
 	allowed := []string{}
 	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
-		for _, id := range p.AllowedStoreIDs() {
+		ids := p.AllowedStoreIDs()
+		if p.IsTenantAdmin() {
+			ids, _ = adminperm.TenantStoreIDs(c, db, p.TenantID)
+		}
+		for _, id := range ids {
 			allowed = append(allowed, id.String())
 		}
 	}
@@ -183,15 +187,19 @@ func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
 	if id == nil || *id == uuid.Nil {
 		return nil
 	}
-	if s.Shops == nil {
-		return nil
-	}
-	ok, err := s.Shops.Exists(c, *id)
+	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	var count int64
+	if err := s.DB.WithContext(c.Request.Context()).Model(&shop.Shop{}).Where("id = ? AND tenant_id = ?", *id, tid).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
 		return fmt.Errorf("shop not found")
+	}
+	if !adminperm.RequireStoreOperate(c, s.DB, *id) {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }
@@ -687,8 +695,8 @@ func (s *Service) ConversationSummary(c *gin.Context, orderID uuid.UUID) (*Conve
 	if s == nil || s.DB == nil || orderID == uuid.Nil {
 		return nil, nil
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	o, err := s.findOrderBare(c, orderID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
@@ -698,7 +706,7 @@ func (s *Service) ConversationSummary(c *gin.Context, orderID uuid.UUID) (*Conve
 	var itemCount int64
 	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Count(&itemCount).Error
 
-	rows := []Order{o}
+	rows := []Order{*o}
 	outRows := []ListOrderRow{{ID: o.ID}}
 	enrichListRows(c.Request.Context(), s.DB, rows, outRows)
 	skuSt := ""
@@ -731,8 +739,8 @@ func (s *Service) BuildAIContext(c *gin.Context, orderID uuid.UUID) (*AIContext,
 	if s == nil || s.DB == nil || orderID == uuid.Nil {
 		return &AIContext{}, nil
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	o, err := s.findOrderBare(c, orderID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -799,15 +807,23 @@ func formatTimeRFC(t *time.Time) string {
 
 // Create order with optional nested rows.
 func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*DetailDTO, error) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	o, items, shipments, err := s.normalizedCreate(body)
 	if err != nil {
 		return nil, err
 	}
+	o.TenantID = tenantID
 	if err := s.validateShopRef(c, o.ShopID); err != nil {
 		return nil, err
 	}
 	o.CreatedBy = adminID
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := validateOrderItemRefsTx(tx, tenantID, items); err != nil {
+			return err
+		}
 		if err := tx.Create(o).Error; err != nil {
 			return err
 		}
@@ -842,25 +858,16 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 }
 
 func (s *Service) loadDetailDTO(c *gin.Context, orderID uuid.UUID) (*DetailDTO, error) {
-	tid, err := adminperm.TenantIDFromGin(c)
+	o, err := s.findOrderBare(c, orderID)
 	if err != nil {
 		return nil, err
-	}
-	var o Order
-	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
-		return nil, err
-	}
-	if o.ShopID != nil {
-		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
-			return nil, err
-		}
 	}
 	var items []OrderItem
 	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderItem{}).Where("order_id = ?", orderID).Find(&items).Error
 	var ships []OrderShipment
 	_ = s.DB.WithContext(c.Request.Context()).Model(&OrderShipment{}).Where("order_id = ?", orderID).Find(&ships).Error
 	out := DetailDTO{
-		OrderRow:    orderRowDTO(&o),
+		OrderRow:    orderRowDTO(o),
 		ShippedAt:   o.ShippedAt,
 		DeliveredAt: o.DeliveredAt,
 		Items:       items,
@@ -888,15 +895,7 @@ func (s *Service) PeekOrderBeforeUpdate(c *gin.Context, orderID uuid.UUID) (*Ord
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("order: no db")
 	}
-	tid, err := adminperm.TenantIDFromGin(c)
-	if err != nil {
-		return nil, err
-	}
-	var o Order
-	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
-		return nil, err
-	}
-	return &o, nil
+	return s.findOrderBare(c, orderID)
 }
 
 // ShouldAutoRestoreStock returns true when the order moved into a terminal cancel/refund-ish state vs before.
@@ -935,14 +934,9 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	if err != nil {
 		return nil, err
 	}
-	var o Order
-	if err := repository.FindByID(c.Request.Context(), s.DB, &o, tid, orderID); err != nil {
+	o, err := s.findOrderForOperate(c, orderID)
+	if err != nil {
 		return nil, err
-	}
-	if o.ShopID != nil {
-		if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
-			return nil, err
-		}
 	}
 
 	if strings.TrimSpace(body.CustomerName) != "" {
@@ -1021,16 +1015,16 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	}
 
 	err = s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&o).Error; err != nil {
+		if err := tx.Where("id = ? AND tenant_id = ?", orderID, tid).Save(o).Error; err != nil {
 			return err
 		}
 		if body.ReplaceItems {
-			if _, err := normalizeAndReplaceItemsTx(tx, orderID, body.Items); err != nil {
+			if _, err := normalizeAndReplaceItemsTx(tx, orderID, tid, body.Items); err != nil {
 				return err
 			}
 		}
 		if body.ReplaceShipments {
-			if _, err := normalizeAndReplaceShipmentsTx(tx, orderID, body.Shipments); err != nil {
+			if _, err := normalizeAndReplaceShipmentsTx(tx, orderID, tid, body.Shipments); err != nil {
 				return err
 			}
 		}
@@ -1053,10 +1047,29 @@ func (s *Service) Update(c *gin.Context, orderID uuid.UUID, body UpdateBody, adm
 	return s.loadDetailDTO(c, orderID)
 }
 
-func normalizeAndReplaceItemsTx(tx *gorm.DB, orderID uuid.UUID, in []OrderItemInput) ([]OrderItem, error) {
-	if err := tx.Where("order_id = ?", orderID).Delete(&OrderItem{}).Error; err != nil {
+func normalizeAndReplaceItemsTx(tx *gorm.DB, orderID uuid.UUID, tenantID int64, in []OrderItemInput) ([]OrderItem, error) {
+	rows, err := normalizedOrderItems(in, orderID)
+	if err != nil {
 		return nil, err
 	}
+	if err := validateOrderItemRefsTx(tx, tenantID, rows); err != nil {
+		return nil, err
+	}
+	if err := tenantOrderScope(tx, orderID, tenantID).Delete(&OrderItem{}).Error; err != nil {
+		return nil, err
+	}
+	out := make([]OrderItem, 0, len(rows))
+	for i := range rows {
+		row := rows[i]
+		if err := tx.Create(&row).Error; err != nil {
+			return nil, err
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func normalizedOrderItems(in []OrderItemInput, orderID uuid.UUID) ([]OrderItem, error) {
 	out := make([]OrderItem, 0, len(in))
 	for _, it := range in {
 		title := strings.TrimSpace(it.ProductTitle)
@@ -1070,32 +1083,48 @@ func normalizeAndReplaceItemsTx(tx *gorm.DB, orderID uuid.UUID, in []OrderItemIn
 		if qty < 1 {
 			qty = 1
 		}
-		row := OrderItem{
-			OrderID:        orderID,
-			ProductID:      it.ProductID,
-			ProductSKUID:   it.ProductSKUID,
-			ExternalItemID: it.ExternalItemID,
-			ProductTitle:   title,
-			SKUName:        strings.TrimSpace(it.SKUName),
-			SKUCode:        strings.TrimSpace(it.SKUCode),
-			Quantity:       qty,
-			UnitPrice:      it.UnitPrice,
-			TotalPrice:     it.TotalPrice,
-			ImageURL:       strings.TrimSpace(it.ImageURL),
-		}
+		row := OrderItem{OrderID: orderID, ProductID: it.ProductID, ProductSKUID: it.ProductSKUID, ExternalItemID: it.ExternalItemID, ProductTitle: title, SKUName: strings.TrimSpace(it.SKUName), SKUCode: strings.TrimSpace(it.SKUCode), Quantity: qty, UnitPrice: it.UnitPrice, TotalPrice: it.TotalPrice, ImageURL: strings.TrimSpace(it.ImageURL)}
 		if len(it.Attrs) > 0 {
 			row.Attrs = mapAttrs(it.Attrs)
-		}
-		if err := tx.Create(&row).Error; err != nil {
-			return nil, err
 		}
 		out = append(out, row)
 	}
 	return out, nil
 }
 
-func normalizeAndReplaceShipmentsTx(tx *gorm.DB, orderID uuid.UUID, in []OrderShipmentInput) ([]OrderShipment, error) {
-	if err := tx.Where("order_id = ?", orderID).Delete(&OrderShipment{}).Error; err != nil {
+// validateOrderItemRefsTx ensures client-provided product references belong to
+// the order tenant and that a supplied SKU belongs to its supplied product.
+func validateOrderItemRefsTx(tx *gorm.DB, tenantID int64, items []OrderItem) error {
+	for _, item := range items {
+		if item.ProductID != nil && *item.ProductID != uuid.Nil {
+			var count int64
+			if err := tx.Model(&product.Product{}).Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", *item.ProductID, tenantID).Count(&count).Error; err != nil {
+				return err
+			}
+			if count != 1 {
+				return fmt.Errorf("product is not owned by order tenant")
+			}
+		}
+		if item.ProductSKUID == nil || *item.ProductSKUID == uuid.Nil {
+			continue
+		}
+		query := tx.Table("product_skus AS ps").Joins("JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).Where("ps.id = ?", *item.ProductSKUID)
+		if item.ProductID != nil && *item.ProductID != uuid.Nil {
+			query = query.Where("ps.product_id = ?", *item.ProductID)
+		}
+		var count int64
+		if err := query.Count(&count).Error; err != nil {
+			return err
+		}
+		if count != 1 {
+			return fmt.Errorf("product sku is not owned by declared product and order tenant")
+		}
+	}
+	return nil
+}
+
+func normalizeAndReplaceShipmentsTx(tx *gorm.DB, orderID uuid.UUID, tenantID int64, in []OrderShipmentInput) ([]OrderShipment, error) {
+	if err := tenantOrderScope(tx, orderID, tenantID).Delete(&OrderShipment{}).Error; err != nil {
 		return nil, err
 	}
 	out := make([]OrderShipment, 0, len(in))
@@ -1133,12 +1162,20 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("order: no db")
 	}
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
+	o, err := s.findOrderForOperate(c, orderID)
+	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(&Order{}, "id = ?", orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
 		return err
+	}
+	res := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", orderID, tid).Delete(&Order{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -1153,8 +1190,47 @@ func (s *Service) Delete(c *gin.Context, orderID uuid.UUID, adminID *uuid.UUID) 
 	return nil
 }
 
+// findOrderBare applies the mandatory tenant boundary before optional store grants.
+// Store permissions are an additional restriction and must never widen tenant scope.
+func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", orderID, tid).First(&o).Error; err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+// findOrderForOperate applies the tenant boundary before requiring an operate
+// grant for the order's current shop. Read paths must keep using findOrderBare.
+func (s *Service) findOrderForOperate(c *gin.Context, orderID uuid.UUID) (*Order, error) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var o Order
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", orderID, tid).First(&o).Error; err != nil {
+		return nil, err
+	}
+	if o.ShopID != nil && *o.ShopID != uuid.Nil && !adminperm.RequireStoreOperate(c, s.DB, *o.ShopID) {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &o, nil
+}
+
+// tenantOrderScope constrains child mutations through their tenant-scoped parent order.
+func tenantOrderScope(tx *gorm.DB, orderID uuid.UUID, tenantID int64) *gorm.DB {
+	return tx.Where("order_id = ? AND EXISTS (SELECT 1 FROM orders WHERE orders.id = ? AND orders.tenant_id = ? AND orders.deleted_at IS NULL)", orderID, orderID, tenantID)
+}
+
 func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemInput, adminID *uuid.UUID) (*OrderItem, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1185,6 +1261,9 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 	if len(body.Attrs) > 0 {
 		row.Attrs = mapAttrs(body.Attrs)
 	}
+	if err := validateOrderItemRefsTx(s.DB.WithContext(c.Request.Context()), o.TenantID, []OrderItem{row}); err != nil {
+		return nil, err
+	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
 		return nil, err
 	}
@@ -1201,25 +1280,18 @@ func (s *Service) AppendItem(c *gin.Context, orderID uuid.UUID, body OrderItemIn
 	return &row, nil
 }
 
-func (s *Service) findOrderBare(c *gin.Context, orderID uuid.UUID) (*Order, error) {
-	var o Order
-	if err := s.DB.WithContext(c.Request.Context()).First(&o, "id = ?", orderID).Error; err != nil {
-		return nil, err
-	}
-	if err := adminperm.EnsureStoreVisible(c, s.DB, o.ShopID); err != nil {
-		return nil, err
-	}
-	return &o, nil
-}
-
 // Update single item belonging to order.
 func (s *Service) PatchItem(c *gin.Context, orderID, itemID uuid.UUID, body OrderItemInput, adminID *uuid.UUID) (*OrderItem, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return nil, err
 	}
 	var row OrderItem
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND order_id = ?", itemID, orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).First(&row, "id = ?", itemID).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(body.ProductTitle) != "" {
@@ -1249,7 +1321,10 @@ func (s *Service) PatchItem(c *gin.Context, orderID, itemID uuid.UUID, body Orde
 			row.Attrs = mapAttrs(body.Attrs)
 		}
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := validateOrderItemRefsTx(s.DB.WithContext(c.Request.Context()), o.TenantID, []OrderItem{row}); err != nil {
+		return nil, err
+	}
+	if err := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).Where("id = ?", itemID).Save(&row).Error; err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -1267,11 +1342,15 @@ func (s *Service) PatchItem(c *gin.Context, orderID, itemID uuid.UUID, body Orde
 
 // DeleteItem removes one line permanently.
 func (s *Service) DeleteItem(c *gin.Context, orderID, itemID uuid.UUID, adminID *uuid.UUID) error {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return err
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&OrderItem{}, "id = ? AND order_id = ?", itemID, orderID)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	res := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).Where("id = ?", itemID).Delete(&OrderItem{})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -1292,7 +1371,7 @@ func (s *Service) DeleteItem(c *gin.Context, orderID, itemID uuid.UUID, adminID 
 }
 
 func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderShipmentInput, adminID *uuid.UUID) (*OrderShipment, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return nil, err
 	}
@@ -1333,12 +1412,16 @@ func (s *Service) AppendShipment(c *gin.Context, orderID uuid.UUID, body OrderSh
 }
 
 func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, body OrderShipmentInput, adminID *uuid.UUID) (*OrderShipment, error) {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return nil, err
 	}
 	var row OrderShipment
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND order_id = ?", shipmentID, orderID).Error; err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).First(&row, "id = ?", shipmentID).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(body.Carrier) != "" {
@@ -1358,7 +1441,7 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 	if body.DeliveredAt != nil {
 		row.DeliveredAt = body.DeliveredAt
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).Where("id = ?", shipmentID).Save(&row).Error; err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -1375,11 +1458,15 @@ func (s *Service) PatchShipment(c *gin.Context, orderID, shipmentID uuid.UUID, b
 }
 
 func (s *Service) DeleteShipment(c *gin.Context, orderID, shipmentID uuid.UUID, adminID *uuid.UUID) error {
-	o, err := s.findOrderBare(c, orderID)
+	o, err := s.findOrderForOperate(c, orderID)
 	if err != nil {
 		return err
 	}
-	res := s.DB.WithContext(c.Request.Context()).Delete(&OrderShipment{}, "id = ? AND order_id = ?", shipmentID, orderID)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	res := tenantOrderScope(s.DB.WithContext(c.Request.Context()), orderID, tid).Where("id = ?", shipmentID).Delete(&OrderShipment{})
 	if res.Error != nil {
 		return res.Error
 	}

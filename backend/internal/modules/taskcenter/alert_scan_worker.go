@@ -62,7 +62,9 @@ func StartAlertScanWorker(ctx context.Context, wg *sync.WaitGroup, log *slog.Log
 				lockSec = 120
 			}
 			runCtx, cancel := context.WithTimeout(ctx, time.Duration(lockSec)*time.Second)
-			sum, err := svc.ScanAndGenerateTaskAlerts(runCtx)
+			// Background scans are restricted to the explicit global tenant. Tenant
+			// admins must invoke the tenant-scoped HTTP path instead.
+			sum, err := svc.ScanAndGenerateTaskAlerts(runCtx, 0)
 			cancel()
 			if err != nil {
 				if log != nil {

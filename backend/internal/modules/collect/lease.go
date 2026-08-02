@@ -90,14 +90,28 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 	if task.Status != StatusRunning || task.LockedUntil == nil || !task.LockedUntil.Before(now) {
 		return nil
 	}
-	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", taskID).
+	recovery := s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, StatusRunning, now, task.LockVersion)
+	if task.LockedBy != nil {
+		recovery = recovery.Where("locked_by = ?", *task.LockedBy)
+	}
+	if task.ExecutionID != nil {
+		recovery = recovery.Where("execution_id = ?", *task.ExecutionID)
+	}
+	result := recovery.
 		Updates(map[string]interface{}{
 			"locked_by":    nil,
 			"locked_until": nil,
 			"execution_id": nil,
 			"heartbeat_at": nil,
 			"updated_at":   now,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return err
 	}
@@ -132,14 +146,23 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		return nil
 	}
 	now := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", taskID).
+	recovery := s.DB.WithContext(ctx).Model(&CollectTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND locked_by IS NULL AND locked_until IS NULL AND execution_id IS NULL AND heartbeat_at IS NULL AND updated_at < ? AND lock_version = ?",
+			taskID, task.TenantID, StatusRunning, legacyCutoff, task.LockVersion)
+	result := recovery.
 		Updates(map[string]interface{}{
 			"locked_by":    nil,
 			"locked_until": nil,
 			"execution_id": nil,
 			"heartbeat_at": nil,
 			"updated_at":   now,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	if err := s.DB.WithContext(ctx).First(&task, "id = ?", taskID).Error; err != nil {
 		return err
 	}

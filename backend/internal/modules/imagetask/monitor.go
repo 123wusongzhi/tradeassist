@@ -109,7 +109,7 @@ func BuildImageQueueHealthBlock(ctx context.Context, redis *rdb.Client, queueEna
 }
 
 // CountTasksByStatus aggregates image_tasks rows by status.
-func (s *Service) CountTasksByStatus(ctx context.Context) (ImageTaskStatusCounts, error) {
+func (s *Service) CountTasksByStatus(ctx context.Context, tenantID int64) (ImageTaskStatusCounts, error) {
 	var out ImageTaskStatusCounts
 	if s == nil || s.DB == nil {
 		return out, nil
@@ -123,6 +123,7 @@ func (s *Service) CountTasksByStatus(ctx context.Context) (ImageTaskStatusCounts
 	}
 	var rows []row
 	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).
+		Where("tenant_id = ?", tenantID).
 		Select("status, count(*) as n").
 		Group("status").
 		Scan(&rows).Error; err != nil {
@@ -148,7 +149,7 @@ func (s *Service) CountTasksByStatus(ctx context.Context) (ImageTaskStatusCounts
 }
 
 // BuildMonitorSnapshot builds the admin monitor JSON.
-func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, error) {
+func (s *Service) BuildMonitorSnapshot(ctx context.Context, tenantID int64) (*MonitorSnapshot, error) {
 	if s == nil {
 		return &MonitorSnapshot{}, nil
 	}
@@ -157,7 +158,7 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	}
 	q := BuildImageQueueHealthBlock(ctx, s.Redis, s.QueueEnabled, s.QueueName, ImageWorkerConcurrencyConfigured())
 
-	tasks, err := s.CountTasksByStatus(ctx)
+	tasks, err := s.CountTasksByStatus(ctx, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +172,7 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 	nowUTC := time.Now().UTC()
 	var dueN int64
 	if err := s.DB.WithContext(ctx).Model(&ImageTask{}).
-		Where("status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", StatusRetrying, nowUTC).
+		Where("tenant_id = ? AND status = ? AND next_retry_at IS NOT NULL AND next_retry_at <= ?", tenantID, StatusRetrying, nowUTC).
 		Count(&dueN).Error; err != nil {
 		return nil, err
 	}
@@ -192,7 +193,7 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 
 	var retr []ImageTask
 	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusRetrying).
+		Where("tenant_id = ? AND status = ?", tenantID, StatusRetrying).
 		Find(&retr).Error; err != nil {
 		return nil, err
 	}
@@ -214,7 +215,7 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 
 	var recentR []ImageTask
 	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusRetrying).
+		Where("tenant_id = ? AND status = ?", tenantID, StatusRetrying).
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&recentR).Error; err != nil {
@@ -249,7 +250,7 @@ func (s *Service) BuildMonitorSnapshot(ctx context.Context) (*MonitorSnapshot, e
 
 	var fails []ImageTask
 	if err := s.DB.WithContext(ctx).
-		Where("status = ?", StatusFailed).
+		Where("tenant_id = ? AND status = ?", tenantID, StatusFailed).
 		Order("updated_at DESC").
 		Limit(10).
 		Find(&fails).Error; err != nil {

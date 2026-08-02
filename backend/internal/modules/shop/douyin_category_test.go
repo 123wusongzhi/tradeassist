@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/gorm"
 )
 
@@ -216,6 +217,7 @@ func testGinContext() *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	c.Set(ctxkey.TenantID, int64(0))
 	return c
 }
 

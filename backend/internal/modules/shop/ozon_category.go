@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	platformozon "github.com/trademind-ai/trademind/backend/internal/providers/platform/ozon"
 	"gorm.io/datatypes"
@@ -109,11 +110,11 @@ type PutOzonAttributeMappingsBody struct {
 
 // resolveOzonShop returns an authorized Ozon shop's plain auth. When shopID is
 // zero it resolves the first authorized Ozon shop (settings-page convenience).
-func (s *Service) resolveOzonShop(ctx context.Context, shopID uuid.UUID) (platformp.TestConnectionRequest, error) {
+func (s *Service) resolveOzonShop(ctx context.Context, tenantID int64, shopID uuid.UUID) (platformp.TestConnectionRequest, error) {
 	if shopID == uuid.Nil {
 		var row Shop
 		if err := s.DB.WithContext(ctx).
-			Where("platform = ? AND auth_status = ?", ozonPlatform, AuthAuthorized).
+			Where("tenant_id = ? AND platform = ? AND auth_status = ?", tenantID, ozonPlatform, AuthAuthorized).
 			Order("updated_at DESC").First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("no authorized ozon shop found, please authorize one first"))
@@ -122,7 +123,7 @@ func (s *Service) resolveOzonShop(ctx context.Context, shopID uuid.UUID) (platfo
 		}
 		shopID = row.ID
 	}
-	shopRow, plainAuth, err := s.PlainAuthForProviderCtx(ctx, shopID)
+	shopRow, plainAuth, err := s.PlainAuthForProviderCtx(ctx, tenantID, shopID)
 	if err != nil {
 		return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop not found: %w", err))
 	}
@@ -139,11 +140,12 @@ func (s *Service) resolveOzonShop(ctx context.Context, shopID uuid.UUID) (platfo
 }
 
 // SyncOzonCategories downloads the category tree and upserts the cache.
-func (s *Service) SyncOzonCategories(ctx context.Context, shopID uuid.UUID) (*OzonCategoryStats, error) {
+func (s *Service) SyncOzonCategories(ctx context.Context, tenantID int64, shopID uuid.UUID) (*OzonCategoryStats, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	auth, err := s.resolveOzonShop(ctx, shopID)
+	ctx = security.WithTenantContext(ctx, &security.TenantContext{TenantID: tenantID})
+	auth, err := s.resolveOzonShop(ctx, tenantID, shopID)
 	if err != nil {
 		return nil, err
 	}
@@ -295,10 +297,11 @@ func (s *Service) OzonCategoryStats(ctx context.Context) (*OzonCategoryStats, er
 // SyncOzonCategoryAttributes fetches the attribute template for one leaf
 // category and refreshes the 24h cache (dictionary values are prefetched for
 // dictionary attributes to speed up mapping).
-func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, categoryID, shopID uuid.UUID) (*OzonCategoryStats, error) {
+func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, tenantID int64, categoryID, shopID uuid.UUID) (*OzonCategoryStats, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
+	ctx = security.WithTenantContext(ctx, &security.TenantContext{TenantID: tenantID})
 	var cat PlatformCategory
 	if err := s.DB.WithContext(ctx).Where("id = ? AND platform = ?", categoryID, ozonPlatform).First(&cat).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -313,7 +316,7 @@ func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, categoryID, sh
 	if descID == "" || typeID == "" {
 		return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("leaf category missing type_id"))
 	}
-	auth, err := s.resolveOzonShop(ctx, shopID)
+	auth, err := s.resolveOzonShop(ctx, tenantID, shopID)
 	if err != nil {
 		return nil, err
 	}

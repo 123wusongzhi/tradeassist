@@ -35,6 +35,42 @@ func adminUUID(c *gin.Context) *uuid.UUID {
 	return nil
 }
 
+func requirePublishProductVisible(c *gin.Context, db *gorm.DB, productID uuid.UUID) bool {
+	if err := adminperm.EnsureProductVisible(c, db, productID); err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	return true
+}
+
+func requirePublishProductOperate(c *gin.Context, db *gorm.DB, productID uuid.UUID) bool {
+	if err := adminperm.EnsureProductOperate(c, db, productID); err != nil {
+		response.HandleError(c, err)
+		return false
+	}
+	return true
+}
+
+func requireBatchPublishProducts(c *gin.Context, svc *Service, rawIDs []string, operate bool) bool {
+	ids, err := svc.parseBatchProductIDs(rawIDs)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return false
+	}
+	for _, id := range ids {
+		if operate {
+			if !requirePublishProductOperate(c, svc.DB, id) {
+				return false
+			}
+			continue
+		}
+		if !requirePublishProductVisible(c, svc.DB, id) {
+			return false
+		}
+	}
+	return true
+}
+
 func atoiQ(c *gin.Context, key string, def int) int {
 	s := strings.TrimSpace(c.Query(key))
 	if s == "" {
@@ -52,30 +88,52 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
 	}
-	g.POST("/products/:id/publish", h.Publish)
-	g.GET("/products/:id/publish-targets", h.ListPublishTargets)
-	g.POST("/products/:id/publish-targets/check", h.CheckPublishTargets)
-	g.POST("/products/:id/publish-targets/create-drafts", h.CreatePublishTargetDrafts)
-	g.GET("/product-publish/targets", h.ListGlobalPublishTargets)
-	g.POST("/product-publish/batch-targets/check", h.CheckBatchTargets)
-	g.POST("/product-publish/batch-targets/create-drafts", h.CreateBatchTargetDrafts)
-	g.GET("/product-publish/batches", h.ListPublishBatches)
-	g.GET("/product-publish/batches/:id", h.GetPublishBatch)
-	g.POST("/product-publish/batches/:id/retry-failed", h.RetryFailedBatch)
-	g.POST("/product-publish/batches/:id/cancel-pending", h.CancelPendingBatch)
-	g.POST("/products/:id/platform-configs/douyin_shop/create-draft", h.CreateDouyinDraft)
-	g.GET("/products/:id/platform-configs/douyin_shop/publish-tasks", h.ListDouyinPublishTasks)
-	g.GET("/products/:id/publications", h.ListByProduct)
-	g.GET("/product-publish/tasks", h.ListTasks)
-	g.GET("/product-publish/tasks/:id", h.GetTask)
-	g.POST("/product-publish/tasks/:id/retry", h.RetryTask)
-	g.POST("/product-publish/tasks/:id/recover-douyin-draft", h.RecoverDouyinDraftTask)
-	g.POST("/product-publish/tasks/:id/douyin/recover", h.RecoverDouyinDraftTask)
-	g.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
-	g.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
-	g.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
-	g.POST("/product-publication-skus/:id/douyin/bind-sku", h.BindDouyinSKU)
-	g.POST("/product-publication-skus/:id/douyin/unbind-sku", h.UnbindDouyinSKU)
+	write := g.Group("")
+	write.Use(func(c *gin.Context) {
+		if h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermPublishCreateDraft) {
+			c.Abort()
+		}
+	})
+	write.POST("/products/:id/publish", h.Publish)
+	read := g.Group("")
+	read.Use(func(c *gin.Context) {
+		if h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+			c.Abort()
+		}
+	})
+	read.GET("/products/:id/publish-targets", h.ListPublishTargets)
+	write.POST("/products/:id/publish-targets/check", h.CheckPublishTargets)
+	write.POST("/products/:id/publish-targets/create-drafts", h.CreatePublishTargetDrafts)
+	read.GET("/product-publish/targets", h.ListGlobalPublishTargets)
+	write.POST("/product-publish/batch-targets/check", h.CheckBatchTargets)
+	write.POST("/product-publish/batch-targets/create-drafts", h.CreateBatchTargetDrafts)
+	read.GET("/product-publish/batches", h.ListPublishBatches)
+	read.GET("/product-publish/batches/:id", h.GetPublishBatch)
+	write.POST("/product-publish/batches/:id/retry-failed", h.RetryFailedBatch)
+	write.POST("/product-publish/batches/:id/cancel-pending", h.CancelPendingBatch)
+	write.POST("/products/:id/platform-configs/douyin_shop/create-draft", h.CreateDouyinDraft)
+	read.GET("/products/:id/platform-configs/douyin_shop/publish-tasks", h.ListDouyinPublishTasks)
+	read.GET("/products/:id/publications", h.ListByProduct)
+	read.GET("/product-publish/tasks", h.ListTasks)
+	read.GET("/product-publish/tasks/:id", h.GetTask)
+	write.POST("/product-publish/tasks/:id/retry", h.RetryTask)
+	write.POST("/product-publish/tasks/:id/recover-douyin-draft", h.RecoverDouyinDraftTask)
+	write.POST("/product-publish/tasks/:id/douyin/recover", h.RecoverDouyinDraftTask)
+	write.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
+	read.GET("/product-publications/:id/douyin/sku-bindings", h.GetDouyinSKUBindings)
+	write.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
+	write.POST("/product-publication-skus/:id/douyin/bind-sku", h.BindDouyinSKU)
+	write.POST("/product-publication-skus/:id/douyin/unbind-sku", h.UnbindDouyinSKU)
 }
 
 func (h *Handler) Publish(c *gin.Context) {
@@ -86,6 +144,9 @@ func (h *Handler) Publish(c *gin.Context) {
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !requirePublishProductOperate(c, h.Svc.DB, pid) {
 		return
 	}
 	var body PublishRequestBody
@@ -134,7 +195,15 @@ func (h *Handler) ListPublishTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.ListPublishTargets(c.Request.Context(), pid)
+	if !requirePublishProductVisible(c, h.Svc.DB, pid) {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.ListPublishTargets(c, tid, pid)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -152,12 +221,23 @@ func (h *Handler) CheckPublishTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !requirePublishProductVisible(c, h.Svc.DB, pid) {
+		return
+	}
 	var body PublishTargetsCheckRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CheckPublishTargets(c.Request.Context(), pid, body)
+	if err := requireTargetStoreOperate(c, h.Svc.DB, body.Targets); err != nil {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.CheckPublishTargets(c.Request.Context(), tid, pid, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -173,6 +253,9 @@ func (h *Handler) CreatePublishTargetDrafts(c *gin.Context) {
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !requirePublishProductOperate(c, h.Svc.DB, pid) {
 		return
 	}
 	var body PublishTargetsCreateDraftsRequest
@@ -203,7 +286,15 @@ func (h *Handler) ListByProduct(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	list, err := h.Svc.ListPublicationsByProduct(c.Request.Context(), pid)
+	if !requirePublishProductVisible(c, h.Svc.DB, pid) {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	list, err := h.Svc.ListPublicationsByProduct(c.Request.Context(), tid, pid)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -268,7 +359,11 @@ func (h *Handler) GetTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	tid, _ := adminperm.TenantIDFromGin(c)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -312,11 +407,21 @@ func (h *Handler) RecoverDouyinDraftTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if err := h.Svc.RecoverDouyinDraftStale(c.Request.Context(), id); err != nil {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if task, err := h.Svc.GetDTO(c.Request.Context(), tid, id); err != nil {
+		response.HandleError(c, err)
+		return
+	} else if !adminperm.RequireStoreOperate(c, h.Svc.DB, task.ShopID) {
+		return
+	}
+	if err := h.Svc.RecoverDouyinDraftStale(c.Request.Context(), tid, id); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	tid, _ := adminperm.TenantIDFromGin(c)
 	out, err := h.Svc.GetDTO(c.Request.Context(), tid, id)
 	if err != nil {
 		response.OK(c, gin.H{"recovered": true})
@@ -333,6 +438,9 @@ func (h *Handler) CreateDouyinDraft(c *gin.Context) {
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !requirePublishProductOperate(c, h.Svc.DB, pid) {
 		return
 	}
 	var body DouyinCreateDraftBody
@@ -361,6 +469,9 @@ func (h *Handler) ListDouyinPublishTasks(c *gin.Context) {
 	pid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !requirePublishProductVisible(c, h.Svc.DB, pid) {
 		return
 	}
 	res, err := h.Svc.ListTasks(c, ListTasksQuery{
@@ -394,7 +505,12 @@ func (h *Handler) GetDouyinSKUBindings(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetDouyinSKUBindings(c.Request.Context(), id)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.GetDouyinSKUBindings(c.Request.Context(), tid, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -505,7 +621,12 @@ func (h *Handler) ListGlobalPublishTargets(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
 		return
 	}
-	out, err := h.Svc.ListPublishTargets(c.Request.Context(), uuid.Nil)
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.ListPublishTargets(c, tid, uuid.Nil)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -523,7 +644,18 @@ func (h *Handler) CheckBatchTargets(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CheckBatchTargets(c.Request.Context(), body)
+	if !requireBatchPublishProducts(c, h.Svc, body.ProductIDs, false) {
+		return
+	}
+	if err := requireTargetStoreOperate(c, h.Svc.DB, body.Targets); err != nil {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.CheckBatchTargets(c.Request.Context(), tid, body)
 	if err != nil {
 		if pe, ok := err.(*PublishConfigInvalidError); ok {
 			response.JSON(c, 400, response.CodePublishConfigInvalid, pe.Message, gin.H{
@@ -559,6 +691,9 @@ func (h *Handler) CreateBatchTargetDrafts(c *gin.Context) {
 	var body BatchTargetsCreateDraftsRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if !requireBatchPublishProducts(c, h.Svc, body.ProductIDs, true) {
 		return
 	}
 	out, err := h.Svc.CreateBatchTargetDrafts(c, body, adminUUID(c))
@@ -612,7 +747,7 @@ func (h *Handler) GetPublishBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.GetPublishBatchDetail(c.Request.Context(), id, adminUUID(c))
+	out, err := h.Svc.GetPublishBatchDetailScoped(c, id, adminUUID(c))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

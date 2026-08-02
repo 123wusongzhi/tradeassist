@@ -42,6 +42,31 @@ type Service struct {
 	Readiness           func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
 }
 
+// findTenantProduct is the module boundary for operations on product children.
+// ProductImage and ProductSKU do not carry tenant_id, so callers must first
+// establish ownership through their parent product.
+func (s *Service) findTenantProduct(c *gin.Context, id uuid.UUID, preloads ...string) (*Product, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("product: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+		return nil, err
+	}
+	q := s.DB.WithContext(c.Request.Context())
+	for _, preload := range preloads {
+		q = q.Preload(preload)
+	}
+	var product Product
+	if err := q.First(&product, "id = ? AND tenant_id = ?", id, tid).Error; err != nil {
+		return nil, err
+	}
+	return &product, nil
+}
+
 type DouyinShopClientFactory interface {
 	DouyinClientForShop(c *gin.Context, ctx context.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformdouyin.Client, *shop.Shop, error)
 }
@@ -90,7 +115,11 @@ func progressImageExistsClause(alias string) string {
 func productCursorScope(c *gin.Context, db *gorm.DB, q ListQuery, tenantID int64) string {
 	allowed := []string{}
 	if p, err := adminperm.LoadPrincipal(c, db); err == nil && p != nil {
-		for _, id := range p.AllowedStoreIDs() {
+		ids := p.AllowedStoreIDs()
+		if p.IsTenantAdmin() {
+			ids, _ = adminperm.TenantStoreIDs(c, db, p.TenantID)
+		}
+		for _, id := range ids {
 			allowed = append(allowed, id.String())
 		}
 		sort.Strings(allowed)
@@ -619,7 +648,7 @@ func (s *Service) Update(c *gin.Context, id uuid.UUID, body UpdateBody, adminID 
 	if err != nil {
 		return nil, err
 	}
-	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+	if err := adminperm.EnsureProductOperate(c, s.DB, id); err != nil {
 		return nil, err
 	}
 	var p Product
@@ -686,7 +715,7 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	if err := adminperm.EnsureProductVisible(c, s.DB, id); err != nil {
+	if err := adminperm.EnsureProductOperate(c, s.DB, id); err != nil {
 		return err
 	}
 	rows, err := repository.DeleteByID(c.Request.Context(), s.DB, &Product{}, tid, id)

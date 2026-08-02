@@ -297,6 +297,10 @@ func main() {
 	}
 
 	engine := gin.New()
+	if err := engine.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		log.Error("trusted_proxies_invalid", "error", err)
+		os.Exit(1)
+	}
 	engine.MaxMultipartMemory = cfg.MaxUploadBytes()
 	engine.Use(
 		middleware.CORS(cfg),

@@ -192,6 +192,21 @@ func AutoMigrate(db *gorm.DB) error {
 	); err != nil {
 		return err
 	}
+	if err := migrateAdminLoginIdentityIndexes(db); err != nil {
+		return err
+	}
+	if err := migrateOrderTenantOrderNoUniqueIndex(db); err != nil {
+		return err
+	}
+	if err := migrateImageTaskTenantScope(db); err != nil {
+		return err
+	}
+	if err := migrateAITaskTenantScope(db); err != nil {
+		return err
+	}
+	if err := migrateProductPublishTenantScope(db); err != nil {
+		return err
+	}
 	if err := operationtask.Migrate(db); err != nil {
 		return err
 	}
@@ -231,7 +246,21 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateP42Security(db); err != nil {
 		return err
 	}
+	// Task-center AI source IDs point at item rows. P4.2 first backfills the
+	// parent AI batch tenant, which is the only trusted ownership source.
+	if err := migrateTaskcenterTenantScope(db); err != nil {
+		return err
+	}
 	if err := migrateP5Observability(db); err != nil {
+		return err
+	}
+	if err := migrateTenantAdminRole(db); err != nil {
+		return err
+	}
+	if err := migrateOrderExceptionTenantScope(db); err != nil {
+		return err
+	}
+	if err := migrateCollectBrowserProfileTenantScope(db); err != nil {
 		return err
 	}
 	return migrateP7Performance(db)

@@ -229,7 +229,7 @@ func validateMailToBasic(s string) bool {
 	return strings.TrimSpace(s) != ""
 }
 
-func (s *Service) persistNotification(ctx context.Context, alertID uuid.UUID, res notify.AlertNotificationResult) {
+func (s *Service) persistNotification(ctx context.Context, tenantID int64, alertID uuid.UUID, res notify.AlertNotificationResult) {
 	if s == nil || s.DB == nil {
 		return
 	}
@@ -247,6 +247,7 @@ func (s *Service) persistNotification(ctx context.Context, alertID uuid.UUID, re
 	}
 	row := TaskAlertNotification{
 		ID:           id,
+		TenantID:     tenantID,
 		AlertID:      alertID,
 		Channel:      res.Channel,
 		Status:       res.Status,
@@ -329,7 +330,7 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 			}
 			ok, reason := s.shouldAutoNotifyChannel(ctx, alert, ch, cand.IsNew, tc, manual)
 			if !ok {
-				s.persistNotification(ctx, alert.ID, notify.AlertNotificationResult{
+				s.persistNotification(ctx, alert.TenantID, alert.ID, notify.AlertNotificationResult{
 					Channel:      ch,
 					Status:       TaskAlertNotifStatusSkipped,
 					ErrorMessage: reason,
@@ -393,7 +394,7 @@ func (s *Service) NotifyGeneratedAlerts(ctx context.Context, candidates []alertN
 				res = notify.AlertNotificationResult{Channel: ch, Status: TaskAlertNotifStatusSkipped, ErrorMessage: "unknown channel"}
 			}
 
-			s.persistNotification(ctx, alert.ID, res)
+			s.persistNotification(ctx, alert.TenantID, alert.ID, res)
 
 			switch res.Status {
 			case TaskAlertNotifStatusSuccess:
@@ -427,13 +428,14 @@ func channelEnabled(an map[string]string, ch string) bool {
 
 // ListAlertNotificationsParams binds GET /alert-notifications.
 type ListAlertNotificationsParams struct {
-	AlertID *uuid.UUID
-	Channel string
-	Status  string
-	Start   *time.Time
-	End     *time.Time
-	Page    int
-	PageSz  int
+	TenantID int64
+	AlertID  *uuid.UUID
+	Channel  string
+	Status   string
+	Start    *time.Time
+	End      *time.Time
+	Page     int
+	PageSz   int
 }
 
 // TaskAlertNotificationDTO is API shape for one notify audit row.
@@ -476,7 +478,7 @@ func (s *Service) ListAlertNotifications(ctx context.Context, p ListAlertNotific
 		return out, fmt.Errorf("taskcenter: no db")
 	}
 	page, ps := clampPageNotif(p.Page, p.PageSz)
-	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{})
+	q := s.DB.WithContext(ctx).Model(&TaskAlertNotification{}).Where("tenant_id = ?", p.TenantID)
 	if p.AlertID != nil && *p.AlertID != uuid.Nil {
 		q = q.Where("alert_id = ?", *p.AlertID)
 	}
@@ -533,7 +535,11 @@ func (s *Service) NotifyTaskAlertManual(ctx context.Context, c *gin.Context, ale
 		return fmt.Errorf("taskcenter: no db")
 	}
 	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(ctx).First(&a, "id = ? AND tenant_id = ?", alertID, tenantID).Error; err != nil {
 		return err
 	}
 	filter := make([]string, 0, len(channels))

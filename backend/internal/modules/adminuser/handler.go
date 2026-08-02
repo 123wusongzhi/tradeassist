@@ -34,6 +34,11 @@ func (h *Handler) requireManage(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "用户管理不可用")
 		return false
 	}
+	// The user service is instance-wide and has no tenant filter, so a tenant
+	// administrator must not be able to enumerate or mutate other tenants' users.
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return false
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermUserManage) {
 		return false
 	}

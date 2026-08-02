@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -141,7 +142,7 @@ func (s *Service) persistTaskAndMaybeRun(ctx context.Context, t *InventorySyncTa
 				t.ID.String(), t.ShopID.String(), t.Platform, t.TargetStock, t.Mode),
 		})
 	}
-	return s.enqueueOrRunInventoryTask(ctx, t.ID)
+	return s.enqueueOrRunInventoryTask(ctx, t.TenantID, t.ID, t.ShopID, admin)
 }
 
 func (s *Service) hasDuplicateInventorySync(ctx context.Context, pubSkuID uuid.UUID, target int) (bool, error) {
@@ -155,9 +156,17 @@ func (s *Service) hasDuplicateInventorySync(ctx context.Context, pubSkuID uuid.U
 	return n > 0, err
 }
 
-func (s *Service) enqueueOrRunInventoryTask(ctx context.Context, taskID uuid.UUID) error {
+func (s *Service) enqueueOrRunInventoryTask(ctx context.Context, tenantID int64, taskID, shopID uuid.UUID, actor *uuid.UUID) error {
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeInventorySync))
+		actorID := uuid.Nil
+		if actor != nil {
+			actorID = *actor
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: tenantID,
+			ShopID:   shopID,
+		}, actorID, "inventory_sync_inline")
+		return s.ProcessQueuedTask(workerCtx, taskID, worker.GenerateInlineWorkerID(worker.TypeInventorySync))
 	}
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
 		if err := s.enqueue(ctx, taskID); err != nil {

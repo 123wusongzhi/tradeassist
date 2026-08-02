@@ -36,6 +36,7 @@ docker compose -f docker-compose.full.yml up -d --build
 | --- | --- | --- | --- | --- |
 | `APP_ENV` | `development` | backend | 否 | 应用环境，生产建议设为 `production`。 |
 | `APP_HTTP_ADDR` | `:8080` | backend | 否 | Go API 监听地址。 |
+| `TRUSTED_PROXIES` | 空 | backend | 否 | 逗号分隔的可信反向代理 IP/CIDR；默认忽略转发头，非法项和 `/0` 启动失败。仅配置实际代理的最小地址范围。 |
 | `P7_V2_API_HOST` | `127.0.0.1` | P7-V2 harness | 否 | 仅 P7-V2 性能环境的 loopback API host；禁止公网或 WSL 非 loopback 地址。 |
 | `P7_V2_API_PORT` | `8080` | P7-V2 harness | 否 | 仅 P7-V2 性能环境 API 端口；可迁移至 `18080`、`28080` 或 `38080`。 |
 | `P7_BASE_URL` | 派生自前两项 | P7-V2 harness | 否 | 必须等于 `http://${P7_V2_API_HOST}:${P7_V2_API_PORT}`，供 k6 与探针统一使用。 |
@@ -46,7 +47,10 @@ docker compose -f docker-compose.full.yml up -d --build
 | `ADMIN_BOOTSTRAP_PASSWORD` | 空 / 示例密码 | backend | 是 | 初始管理员密码，生产必须强密码。 |
 | `JWT_SECRET` | `change-me-in-production` | backend | 是 | JWT 签名密钥。 |
 | `JWT_EXPIRE_HOURS` | `168` | backend | 否 | JWT 有效期小时数。 |
+| `JWT_ROTATION_STARTED_AT` | RFC3339 UTC | backend | 否 | JWT 当前轮换的固定起点；配置 previous key 与 grace 时预发/生产必填，防止重启延长旧 key 宽限期。 |
 | `UPLOAD_MAX_MB` | `10` | backend | 否 | 单文件上传大小上限。 |
+
+文件上传先进入 `quarantine/`，只有扫描为 clean 后才复制到公开前缀。当前 Provider 抽象尚未拆分远端私有隔离桶，因此异步上传仅允许 `local`，且 `public_base` 必须留空（使用默认值）或严格为 `/static`，由后端查询数据库状态后放行；直出本地目录/CDN 与 S3/R2/MinIO/COS/OSS 都会明确拒绝未扫描上传，避免通过返回的 `quarantine/` object key 绕过门禁。远端支持需先增加独立私有 quarantine provider/bucket，不能用公开前缀代替。
 
 ## 可观测性与 OTLP
 
@@ -119,8 +123,9 @@ OpenCLI。
 | --- | --- | --- | --- | --- |
 | `COLLECTOR_PLAYWRIGHT_BASE_URL` | 本地 `http://127.0.0.1:3001` / Docker `http://collector:3001` | backend | 否 | Go API 调用 Playwright Collector 的固定地址。 |
 | `COLLECTOR_BASE_URL` | 同上 | backend | 否 | 旧变量兼容入口；新部署使用 `COLLECTOR_PLAYWRIGHT_BASE_URL`，两者同时存在时新变量优先。 |
+| `COLLECTOR_INTERNAL_TOKEN` | 本地回环可空 / Docker 必填随机长值 | backend / collector | **是** | Collector `/v1/**` 的内部 Bearer Token。非回环监听或 backend 使用非回环 Collector 地址时缺失会拒绝启动；两端必须相同。 |
 | `COLLECTOR_TIMEOUT_SECONDS` | `120` | backend | 否 | 后端调用 Playwright Collector 超时；淘宝/天猫任务会按页面打开超时自动放宽（约 `gotoTimeoutMs + 90s`）。 |
-| `COLLECTOR_HTTP_ADDR` | `:3001` | collector | 否 | Playwright Collector 监听地址。 |
+| `COLLECTOR_HTTP_ADDR` | 本地 `127.0.0.1:3001` / Docker `0.0.0.0:3001` | collector | 否 | Playwright Collector 监听地址；非回环绑定必须配置 `COLLECTOR_INTERNAL_TOKEN`。 |
 | `COLLECTOR_MAIN_SERVICE_URL` | `http://127.0.0.1:8080` | collector | 否 | Collector 回调或访问后端的基础地址预留。 |
 | `COLLECTOR_GOTO_TIMEOUT_MS` | `45000` | collector | 否 | Playwright 页面打开超时。 |
 | `COLLECTOR_HEADLESS` | `1` | collector | 否 | 是否无头浏览器运行；本地打开登录浏览器时可设为 `0`。 |

@@ -55,7 +55,7 @@ const (
 // AIProductImageBatch groups bulk AI image processing with human review.
 type AIProductImageBatch struct {
 	model.Base
-	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
+	TenantID       int64          `gorm:"not null;default:0;index;uniqueIndex:idx_ai_image_tenant_idempotency,priority:1" json:"tenantId"`
 	BatchNo        string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	BatchType      string         `gorm:"size:32;index;not null;default:ai_image" json:"batchType"`
 	Status         string         `gorm:"size:32;index;not null" json:"status"`
@@ -65,7 +65,7 @@ type AIProductImageBatch struct {
 	SuccessCount   int            `gorm:"not null;default:0" json:"successCount"`
 	FailedCount    int            `gorm:"not null;default:0" json:"failedCount"`
 	AppliedCount   int            `gorm:"not null;default:0" json:"appliedCount"`
-	IdempotencyKey string         `gorm:"size:64;uniqueIndex" json:"idempotencyKey,omitempty"`
+	IdempotencyKey string         `gorm:"size:64;uniqueIndex:idx_ai_image_tenant_idempotency,priority:2" json:"idempotencyKey,omitempty"`
 	Input          datatypes.JSON `gorm:"type:jsonb" json:"input,omitempty"`
 	Output         datatypes.JSON `gorm:"type:jsonb" json:"output,omitempty"`
 	CreatedBy      *uuid.UUID     `gorm:"type:char(36);index" json:"createdBy,omitempty"`

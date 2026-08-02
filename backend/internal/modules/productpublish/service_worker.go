@@ -70,21 +70,23 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), taskRow.ShopID.String(), taskRow.Platform),
 		})
 	}
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ?", taskID, taskRow.TenantID).
 		Updates(map[string]any{"publish_status": StatusPublishing}).Error
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
 		code := inferPublishErrorCode(msg)
-		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
+		if err := s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
 			"status":         TaskFailed,
 			"publish_status": StatusPubFailed,
 			"error_code":     code,
 			"error_message":  msg,
 			"finished_at":    &fin,
-		})
+		}); err != nil {
+			return err
+		}
 		if rid, ok := snapshotPublicationFromTask(taskRow); ok {
-			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
+			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, taskRow.TenantID).
 				Updates(map[string]any{
 					"status":         StatusPubFailed,
 					"publish_status": StatusPubFailed,
@@ -113,7 +115,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	if err := s.DB.WithContext(ctx).
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		First(&prod, "id = ?", taskRow.ProductID).Error; err != nil {
+		Where("id = ? AND tenant_id = ?", taskRow.ProductID, taskRow.TenantID).First(&prod).Error; err != nil {
 		return fail(fmt.Sprintf("load product: %v", err))
 	}
 	draft, err := BuildPlatformDraftFromProduct(prod)
@@ -121,7 +123,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		return fail(err.Error())
 	}
 
-	_, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, taskRow.ShopID)
+	_, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, taskRow.TenantID, taskRow.ShopID)
 	if err != nil {
 		return fail("shop not available")
 	}
@@ -150,7 +152,9 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	res, pubErr := pp.PublishProduct(xctx, req)
 	if pubErr != nil {
 		msg := pubErr.Error()
-		_ = fail(msg)
+		if err := fail(msg); err != nil {
+			return err
+		}
 		if errors.Is(pubErr, platformp.ErrPlatformProductPublishPermissionDenied) {
 			return platformp.ErrPlatformProductPublishPermissionDenied
 		}
@@ -173,7 +177,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	}, 20, 300)
 	rawOut, _ := json.Marshal(outSnap)
 
-	_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
+	if err := s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
 		"status":          TaskSuccess,
 		"publish_status":  StatusSuccess,
 		"error_message":   "",
@@ -181,7 +185,9 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		"finished_at":     &fin,
 		"output":          datatypes.JSON(rawOut),
 		"platform_result": datatypes.JSON(rawOut),
-	})
+	}); err != nil {
+		return err
+	}
 
 	pubSnap := platformp.TrimRawMap(map[string]any{
 		"externalProductId": res.ExternalProductID,
@@ -194,7 +200,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		publishedAt = &fin
 	}
 
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", snap.PublicationID, taskRow.TenantID).
 		Updates(map[string]any{
 			"publish_status":      pubStatus,
 			"status":              pubStatus,
@@ -207,7 +213,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 			"updated_at":          fin,
 		}).Error
 
-	_ = s.DB.WithContext(ctx).Where("publication_id = ?", snap.PublicationID).Delete(&ProductPublicationSKU{}).Error
+	_ = s.DB.WithContext(ctx).Where("publication_id = ? AND EXISTS (SELECT 1 FROM product_publications p WHERE p.id = product_publication_skus.publication_id AND p.tenant_id = ?)", snap.PublicationID, taskRow.TenantID).Delete(&ProductPublicationSKU{}).Error
 	for _, m := range res.SKUMappings {
 		skuRow := ProductPublicationSKU{
 			PublicationID: snap.PublicationID,
@@ -294,7 +300,7 @@ func (s *Service) handlePublishPanic(parent context.Context, taskID uuid.UUID, w
 	}
 	msg := fmt.Sprintf("publish worker panic: %v", panicVal)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ?", taskID, cur.TenantID).
 		Updates(map[string]any{
 			"status":         TaskFailed,
 			"publish_status": StatusPubFailed,
@@ -306,7 +312,7 @@ func (s *Service) handlePublishPanic(parent context.Context, taskID uuid.UUID, w
 			"updated_at":     fin,
 		}).Error
 	if rid, ok := snapshotPublicationFromTask(&cur); ok {
-		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
+		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, cur.TenantID).
 			Updates(map[string]any{
 				"status":         StatusPubFailed,
 				"publish_status": StatusPubFailed,

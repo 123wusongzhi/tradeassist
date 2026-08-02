@@ -166,17 +166,25 @@ func (h *Handler) Profile(c *gin.Context) {
 	if dn == "" {
 		dn = u.LoginLabel()
 	}
-	p, _ := adminperm.LoadPrincipal(c, h.DB)
-	perms := adminperm.PermissionsForRole(strings.TrimSpace(u.Role))
+	p, err := adminperm.LoadPrincipal(c, h.DB)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	effectiveRole := strings.TrimSpace(u.Role)
+	perms := adminperm.PermissionsForRole(effectiveRole)
 	storePerms := make([]gin.H, 0)
-	if p != nil && !p.IsAdmin() {
+	if p != nil {
+		effectiveRole = p.Role
 		perms = p.Permissions
-		for _, g := range p.StoreGrants {
-			storePerms = append(storePerms, gin.H{
-				"storeId":         g.StoreID.String(),
-				"platform":        g.Platform,
-				"permissionScope": g.PermissionScope,
-			})
+		if !p.IsAdmin() {
+			for _, g := range p.StoreGrants {
+				storePerms = append(storePerms, gin.H{
+					"storeId":         g.StoreID.String(),
+					"platform":        g.Platform,
+					"permissionScope": g.PermissionScope,
+				})
+			}
 		}
 	}
 	response.OK(c, gin.H{
@@ -185,7 +193,7 @@ func (h *Handler) Profile(c *gin.Context) {
 		"email":            u.Email,
 		"phone":            u.Phone,
 		"displayName":      dn,
-		"role":             strings.TrimSpace(u.Role),
+		"role":             effectiveRole,
 		"status":           strings.TrimSpace(u.Status),
 		"permissions":      perms,
 		"storePermissions": storePerms,

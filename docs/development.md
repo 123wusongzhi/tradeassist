@@ -96,7 +96,7 @@ Copy-Item .env.example .env
 - `DB_PORT=5432`
 - `REDIS_ADDR=127.0.0.1:6379`
 - `APP_HTTP_ADDR=:8080`
-- `COLLECTOR_HTTP_ADDR=:3001`
+- `COLLECTOR_HTTP_ADDR=127.0.0.1:3001`
 - `COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001`
 - `OPENCLI_BRIDGE_ENABLED=false`
 - `OPENCLI_BRIDGE_BASE_URL=http://127.0.0.1:3100`
@@ -202,6 +202,6 @@ SKU 价格/库存识别与风控说明见 [browser-extension-collector.md](brows
   扩展连接的是同一个 Chrome、登录/验证已完成，再检查限流或适配器结构变化；任务会按
   可恢复的解析失败展示，不再直接标为商品不存在。
 - 管理端设置页若仍显示采集服务监听地址 `:3100`，这是历史 UI 空值回退，不会修改
-  运行进程；以 `.env` 的 `COLLECTOR_HTTP_ADDR=:3001` 和 `3001/health` 为准。
+  运行进程；以 `.env` 的 `COLLECTOR_HTTP_ADDR=127.0.0.1:3001` 和 `3001/health` 为准。
 - 更完整的端口、Token、旧镜像与旧 `COLLECTOR_BASE_URL` 排查见
   [collector-engines.md](collector-engines.md#常见问题)。

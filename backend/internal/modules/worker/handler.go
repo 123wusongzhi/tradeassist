@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/config"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
 )
@@ -19,6 +20,9 @@ type Handler struct {
 func (h *Handler) Monitor(c *gin.Context) {
 	if h == nil || h.DB == nil {
 		response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "database unavailable")
+		return
+	}
+	if !adminperm.RequireGlobalAdmin(c, h.DB) {
 		return
 	}
 	out, err := BuildMonitorResponse(c.Request.Context(), h.DB, h.Cfg)

@@ -25,6 +25,17 @@ type candidateAcc struct {
 	signals    []string
 }
 
+type requestTenantContextKey struct{}
+
+func requestTenantContext(ctx context.Context, tenantID int64) context.Context {
+	return context.WithValue(ctx, requestTenantContextKey{}, tenantID)
+}
+
+func requestTenantID(ctx context.Context) (int64, bool) {
+	tenantID, ok := ctx.Value(requestTenantContextKey{}).(int64)
+	return tenantID, ok
+}
+
 func (s *Service) accumulate(a map[uuid.UUID]*candidateAcc, id uuid.UUID, pid uuid.UUID) *candidateAcc {
 	row, ok := a[id]
 	if !ok {
@@ -62,14 +73,24 @@ func (s *Service) SuggestForOrderItem(ctx context.Context, orderItemID uuid.UUID
 	}
 	ro := opts.normalized()
 
+	tenantID, requestScoped := requestTenantID(ctx)
+	itemQuery := s.DB.WithContext(ctx).Model(&order.OrderItem{})
+	if requestScoped {
+		itemQuery = itemQuery.Joins("JOIN orders request_order ON request_order.id = order_items.order_id AND request_order.deleted_at IS NULL AND request_order.tenant_id = ?", tenantID)
+	}
 	var it order.OrderItem
-	if err := s.DB.WithContext(ctx).First(&it, "id = ?", orderItemID).Error; err != nil {
+	if err := itemQuery.First(&it, "order_items.id = ?", orderItemID).Error; err != nil {
 		return nil, err
 	}
 	var o order.Order
-	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", it.OrderID).Error; err != nil {
+	orderQuery := s.DB.WithContext(ctx)
+	if requestScoped {
+		orderQuery = orderQuery.Where("tenant_id = ?", tenantID)
+	}
+	if err := orderQuery.First(&o, "id = ? AND deleted_at IS NULL", it.OrderID).Error; err != nil {
 		return nil, err
 	}
+	tenantID = o.TenantID
 
 	pool := map[uuid.UUID]*candidateAcc{}
 	titleCtx := buildOrderLineText(&it)
@@ -90,24 +111,24 @@ func (s *Service) SuggestForOrderItem(ctx context.Context, orderItemID uuid.UUID
 	}
 
 	if plat != "" && !shopNil {
-		if err := s.addHistoryManualCandidates(ctx, pool, plat, *o.ShopID, lineExt, seller, code); err != nil {
+		if err := s.addHistoryManualCandidates(ctx, pool, tenantID, plat, *o.ShopID, lineExt, seller, code); err != nil {
 			return nil, err
 		}
 	}
 
 	if plat != "" && plat != "manual" && !shopNil {
-		if err := s.addPublicationCandidates(ctx, pool, plat, *o.ShopID, lineExt, codeOrSeller); err != nil {
+		if err := s.addPublicationCandidates(ctx, pool, tenantID, plat, *o.ShopID, lineExt, codeOrSeller); err != nil {
 			return nil, err
 		}
 	}
 
 	if codeOrSeller != "" {
-		if err := s.addLocalSkuCodeCandidates(ctx, pool, codeOrSeller); err != nil {
+		if err := s.addLocalSkuCodeCandidates(ctx, pool, tenantID, codeOrSeller); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := s.addTitleAndAttrCandidates(ctx, pool, titleCtx, orderAttr); err != nil {
+	if err := s.addTitleAndAttrCandidates(ctx, pool, tenantID, titleCtx, orderAttr); err != nil {
 		return nil, err
 	}
 
@@ -120,7 +141,7 @@ func (s *Service) SuggestForOrderItem(ctx context.Context, orderItemID uuid.UUID
 		if !ro.IncludeLowConfidence && conf < defaultMinConfidence {
 			continue
 		}
-		dto, err := s.buildCandidateDTO(ctx, acc, conf)
+		dto, err := s.buildCandidateDTO(ctx, tenantID, acc, conf)
 		if err != nil || dto == nil {
 			continue
 		}
@@ -131,14 +152,14 @@ func (s *Service) SuggestForOrderItem(ctx context.Context, orderItemID uuid.UUID
 	return &ItemCandidatesDTO{OrderItemID: orderItemID.String(), List: list}, nil
 }
 
-func (s *Service) addHistoryManualCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, platform string, shopID uuid.UUID, ext, seller, skuCode string) error {
+func (s *Service) addHistoryManualCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, tenantID int64, platform string, shopID uuid.UUID, ext, seller, skuCode string) error {
 	var rows []struct {
 		PSKU *uuid.UUID `gorm:"column:product_sku_id"`
 		EID  *string    `gorm:"column:external_sku_id"`
 	}
 	tx := s.DB.WithContext(ctx).Table("order_item_sku_matches AS m").
 		Select("m.product_sku_id, m.external_sku_id").
-		Joins("JOIN orders mo ON mo.id = m.order_id AND mo.deleted_at IS NULL").
+		Joins("JOIN orders mo ON mo.id = m.order_id AND mo.deleted_at IS NULL AND mo.tenant_id = ?", tenantID).
 		Where(`m.match_type = ? AND m.match_status = ? AND m.platform = ? AND mo.shop_id = ? AND m.product_sku_id IS NOT NULL`,
 			order.MatchTypeManual, order.MatchStatusManualBound, platform, shopID)
 
@@ -170,7 +191,8 @@ func (s *Service) addHistoryManualCandidates(ctx context.Context, pool map[uuid.
 		}
 		var pid uuid.UUID
 		if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
-			Select("product_id").Where("id = ? AND deleted_at IS NULL", *r.PSKU).Scan(&pid).Error; err != nil {
+			Select("product_skus.product_id").Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+			Where("product_skus.id = ?", *r.PSKU).Scan(&pid).Error; err != nil {
 			continue
 		}
 		acc := s.accumulate(pool, *r.PSKU, pid)
@@ -186,7 +208,7 @@ func (s *Service) addHistoryManualCandidates(ctx context.Context, pool map[uuid.
 	return nil
 }
 
-func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, platform string, shopID uuid.UUID, ext, codeOrSeller string) error {
+func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, tenantID int64, platform string, shopID uuid.UUID, ext, codeOrSeller string) error {
 	if ext != "" {
 		var rows []struct {
 			PSKU *uuid.UUID `gorm:"column:product_sku_id"`
@@ -195,7 +217,8 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 		err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 			Select("pps.product_sku_id, skus.product_id AS product_id").
 			Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
+			Joins("JOIN products p ON p.id = skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
 			Where("pp.platform = ? AND pp.shop_id = ? AND pps.external_sku_id = ? AND pps.product_sku_id IS NOT NULL", platform, shopID, ext).
 			Scan(&rows).Error
 		if err != nil {
@@ -220,7 +243,8 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 		err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 			Select("pps.product_sku_id, skus.product_id AS product_id").
 			Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+			Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
+			Joins("JOIN products p ON p.id = skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
 			Where("pp.platform = ? AND pp.shop_id = ? AND LOWER(TRIM(pps.sku_code)) = LOWER(?) AND pps.product_sku_id IS NOT NULL", platform, shopID, codeOrSeller).
 			Scan(&rows).Error
 		if err != nil {
@@ -243,7 +267,8 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 			if err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 				Select("pps.sku_code AS pub_code, pps.product_sku_id AS product_sku_id, skus.product_id AS product_id").
 				Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-				Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+				Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
+				Joins("JOIN products p ON p.id = skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
 				Where("pp.platform = ? AND pp.shop_id = ? AND pps.product_sku_id IS NOT NULL AND pps.sku_code IS NOT NULL AND pps.sku_code <> ?", platform, shopID, "").
 				Scan(&pubRows).Error; err != nil {
 				return err
@@ -267,11 +292,13 @@ func (s *Service) addPublicationCandidates(ctx context.Context, pool map[uuid.UU
 	return nil
 }
 
-func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, codeOrSeller string) error {
+func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, tenantID int64, codeOrSeller string) error {
 	norm := normalizeSKUCode(codeOrSeller)
 	var skus []product.ProductSKU
-	if err := s.DB.WithContext(ctx).Where("deleted_at IS NULL AND LOWER(TRIM(sku_code)) = LOWER(?)", codeOrSeller).
-		Order("created_at ASC, id ASC").Find(&skus).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		Where("LOWER(TRIM(product_skus.sku_code)) = LOWER(?)", codeOrSeller).
+		Order("product_skus.created_at ASC, product_skus.id ASC").Find(&skus).Error; err != nil {
 		return err
 	}
 	for _, sku := range skus {
@@ -282,7 +309,9 @@ func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.U
 		return nil
 	}
 	var all []product.ProductSKU
-	if err := s.DB.WithContext(ctx).Where("deleted_at IS NULL AND sku_code IS NOT NULL AND sku_code <> ''").Find(&all).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		Where("product_skus.sku_code IS NOT NULL AND product_skus.sku_code <> ''").Find(&all).Error; err != nil {
 		return err
 	}
 	for _, sku := range all {
@@ -298,7 +327,7 @@ func (s *Service) addLocalSkuCodeCandidates(ctx context.Context, pool map[uuid.U
 	return nil
 }
 
-func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, titleBlob string, orderAttr attrSignals) error {
+func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.UUID]*candidateAcc, tenantID int64, titleBlob string, orderAttr attrSignals) error {
 	toks := tokenize(titleBlob)
 	var qtoks []string
 	seenTok := map[string]struct{}{}
@@ -326,7 +355,7 @@ func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.U
 		likeTok := strings.ReplaceAll(strings.ReplaceAll(tk, `\`, `\\`), `%`, `\%`)
 		likeTok = strings.ReplaceAll(likeTok, `_`, `\_`)
 
-		tx := s.DB.WithContext(ctx).Model(&product.Product{}).Select("id").Where("deleted_at IS NULL").
+		tx := s.DB.WithContext(ctx).Model(&product.Product{}).Select("id").Where("tenant_id = ? AND deleted_at IS NULL", tenantID).
 			Where("(LOWER(title) LIKE ? OR LOWER(original_title) LIKE ? OR LOWER(ai_title) LIKE ?)",
 				"%"+likeTok+"%", "%"+likeTok+"%", "%"+likeTok+"%").
 			Limit(40)
@@ -365,8 +394,8 @@ func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.U
 	}
 
 	var products []product.Product
-	if err := s.DB.WithContext(ctx).Preload("SKUs", "deleted_at IS NULL").
-		Where("id IN ? AND deleted_at IS NULL", productIDs).Find(&products).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Preload("SKUs").
+		Where("id IN ? AND tenant_id = ? AND deleted_at IS NULL", productIDs, tenantID).Find(&products).Error; err != nil {
 		return err
 	}
 
@@ -388,13 +417,15 @@ func (s *Service) addTitleAndAttrCandidates(ctx context.Context, pool map[uuid.U
 	return nil
 }
 
-func (s *Service) buildCandidateDTO(ctx context.Context, acc *candidateAcc, conf int) (*CandidateDTO, error) {
+func (s *Service) buildCandidateDTO(ctx context.Context, tenantID int64, acc *candidateAcc, conf int) (*CandidateDTO, error) {
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", acc.skuID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		First(&sku, "product_skus.id = ?", acc.skuID).Error; err != nil {
 		return nil, err
 	}
 	var p product.Product
-	if err := s.DB.WithContext(ctx).First(&p, "id = ? AND deleted_at IS NULL", sku.ProductID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&p, "id = ? AND tenant_id = ? AND deleted_at IS NULL", sku.ProductID, tenantID).Error; err != nil {
 		return nil, err
 	}
 
@@ -520,6 +551,15 @@ func (s *Service) BatchForOrder(ctx context.Context, orderID uuid.UUID, body Bat
 	}
 	ilc := body.IncludeLowConfidence != nil && *body.IncludeLowConfidence
 
+	tenantID, requestScoped := requestTenantID(ctx)
+	orderQuery := s.DB.WithContext(ctx)
+	if requestScoped {
+		orderQuery = orderQuery.Where("tenant_id = ?", tenantID)
+	}
+	var targetOrder order.Order
+	if err := orderQuery.First(&targetOrder, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
+		return nil, err
+	}
 	var out []ItemCandidatesDTO
 	for _, sid := range body.OrderItemIDs {
 		sid = strings.TrimSpace(sid)
@@ -532,7 +572,8 @@ func (s *Service) BatchForOrder(ctx context.Context, orderID uuid.UUID, body Bat
 		}
 		var oid uuid.UUID
 		if err := s.DB.WithContext(ctx).Model(&order.OrderItem{}).
-			Select("order_id").Where("id = ?", iid).Scan(&oid).Error; err != nil || oid != orderID {
+			Select("order_items.order_id").Joins("JOIN orders batch_order ON batch_order.id = order_items.order_id AND batch_order.deleted_at IS NULL AND batch_order.tenant_id = ?", targetOrder.TenantID).
+			Where("order_items.id = ?", iid).Scan(&oid).Error; err != nil || oid != orderID {
 			return nil, fmt.Errorf("orderItemId does not belong to order")
 		}
 		dto, err := s.SuggestForOrderItem(ctx, iid, SuggestOpts{Limit: limit, IncludeLowConfidence: ilc})

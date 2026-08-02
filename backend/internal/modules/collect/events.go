@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
-	"gorm.io/gorm"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // Collect task event_type values (timeline / troubleshooting).
@@ -226,20 +228,22 @@ func cloneTimePtr(t *time.Time) *time.Time {
 }
 
 // ListTaskEvents paginates timeline for one task by created_at ASC.
-func (s *Service) ListTaskEvents(ctx context.Context, taskID uuid.UUID, q TaskEventsListQuery) (*TaskEventsListResult, error) {
+func (s *Service) ListTaskEvents(c *gin.Context, taskID uuid.UUID, q TaskEventsListQuery) (*TaskEventsListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collect: no db")
 	}
-	var exists int64
-	if err := s.DB.WithContext(ctx).Model(&CollectTask{}).Where("id = ?", taskID).Limit(1).Count(&exists).Error; err != nil {
+	tid, err := collectTenantID(c)
+	if err != nil {
 		return nil, err
 	}
-	if exists == 0 {
-		return nil, gorm.ErrRecordNotFound
+	ctx := c.Request.Context()
+	var task CollectTask
+	if err := s.DB.WithContext(ctx).First(&task, "id = ? AND tenant_id = ?", taskID, tid).Error; err != nil {
+		return nil, err
 	}
 
 	page, ps := clampCollectEventPage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(ctx).Model(&CollectTaskEvent{}).Where("task_id = ?", taskID)
+	tx := s.DB.WithContext(ctx).Model(&CollectTaskEvent{}).Where("task_id = ?", task.ID)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -247,7 +251,7 @@ func (s *Service) ListTaskEvents(ctx context.Context, taskID uuid.UUID, q TaskEv
 	offset := (page - 1) * ps
 	var rows []CollectTaskEvent
 	if err := s.DB.WithContext(ctx).
-		Where("task_id = ?", taskID).
+		Where("task_id = ?", task.ID).
 		Order("created_at ASC").
 		Offset(offset).
 		Limit(ps).

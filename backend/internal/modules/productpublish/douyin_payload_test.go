@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -35,9 +36,17 @@ func newDouyinPublishTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
+func seedDouyinPayloadProduct(t *testing.T, db *gorm.DB, pid uuid.UUID) {
+	t.Helper()
+	if err := db.Create(&product.Product{Base: model.Base{ID: pid}, TenantID: 0, Source: "test", Title: "test", Status: product.StatusDraft}).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBuildDouyinProductPayloadRejectsUnuploadedImages(t *testing.T) {
 	db := newDouyinPublishTestDB(t)
 	pid := uuid.New()
+	seedDouyinPayloadProduct(t, db, pid)
 	images, _ := json.Marshal(map[string]any{
 		"mainImages": []map[string]any{{
 			"url": "https://img.example.com/a.jpg", "uploadStatus": "pending",
@@ -56,7 +65,7 @@ func TestBuildDouyinProductPayloadRejectsUnuploadedImages(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	res, err := BuildDouyinProductPayload(context.Background(), db, pid, "")
+	res, err := BuildDouyinProductPayload(context.Background(), db, 0, pid, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +86,7 @@ func TestBuildDouyinProductPayloadRejectsUnuploadedImages(t *testing.T) {
 func TestBuildDouyinProductPayloadUsesUploadedImagesNotRaw(t *testing.T) {
 	db := newDouyinPublishTestDB(t)
 	pid := uuid.New()
+	seedDouyinPayloadProduct(t, db, pid)
 	images, _ := json.Marshal(map[string]any{
 		"mainImages": []map[string]any{{
 			"platformImageUrl": "https://p3-aio.ecombdimg.com/obj/test.jpg",
@@ -98,7 +108,7 @@ func TestBuildDouyinProductPayloadUsesUploadedImagesNotRaw(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	res, err := BuildDouyinProductPayload(context.Background(), db, pid, "")
+	res, err := BuildDouyinProductPayload(context.Background(), db, 0, pid, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,6 +126,7 @@ func TestBuildDouyinProductPayloadUsesUploadedImagesNotRaw(t *testing.T) {
 func TestBuildDouyinProductPayloadRejectsInvalidSKUPrice(t *testing.T) {
 	db := newDouyinPublishTestDB(t)
 	pid := uuid.New()
+	seedDouyinPayloadProduct(t, db, pid)
 	images, _ := json.Marshal(map[string]any{
 		"mainImages": []map[string]any{{
 			"platformImageUrl": "https://p3-aio.ecombdimg.com/obj/test.jpg", "uploadStatus": "uploaded",
@@ -130,7 +141,7 @@ func TestBuildDouyinProductPayloadRejectsInvalidSKUPrice(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
-	res, err := BuildDouyinProductPayload(context.Background(), db, pid, "")
+	res, err := BuildDouyinProductPayload(context.Background(), db, 0, pid, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +152,7 @@ func TestBuildDouyinProductPayloadRejectsInvalidSKUPrice(t *testing.T) {
 
 func TestBuildDouyinProductPayloadMissingMappingConfig(t *testing.T) {
 	db := newDouyinPublishTestDB(t)
-	_, err := BuildDouyinProductPayload(context.Background(), db, uuid.New(), "")
+	_, err := BuildDouyinProductPayload(context.Background(), db, 0, uuid.New(), "")
 	if err == nil {
 		t.Fatal("expected error when mapping config missing")
 	}

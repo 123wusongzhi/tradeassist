@@ -216,8 +216,9 @@ class Alibaba1688Provider implements CollectorProvider {
     const sourceUrl = input.url.trim();
     const navUrl = normalizeOfferNavUrl(sourceUrl);
 
+    const profileKey = String(input.options?.profileKey ?? '1688').trim();
     return with1688BatchGate(batchMode, () =>
-      browser.with1688Page(async (page) => {
+      browser.with1688Page(profileKey, async (page) => {
         const gotoTimeout = getDefaultNavigationTimeoutMs();
         let loginOrVerifyHit = false;
 

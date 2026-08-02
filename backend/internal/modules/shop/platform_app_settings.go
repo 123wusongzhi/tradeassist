@@ -225,7 +225,10 @@ func (s *Service) TestPlatformAppSettings(c *gin.Context, platformSlug string) (
 	if s == nil || s.Settings == nil || c == nil {
 		return nil, errors.New("shop: settings unavailable")
 	}
-	ctx := c.Request.Context()
+	ctx, _, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
 	plat := strings.TrimSpace(strings.ToLower(platformSlug))
 	p := platformp.Get(plat)
 	if p == nil {

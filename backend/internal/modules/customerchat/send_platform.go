@@ -118,8 +118,8 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 		return nil, fmt.Errorf("clientMessageId is required")
 	}
 
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.tenantConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 	if conv.ShopID == nil {
@@ -340,7 +340,7 @@ func (s *Service) SendPlatformMessage(c *gin.Context, conversationID uuid.UUID, 
 			return err
 		}
 		outMsg = msg
-		if err := tx.Model(&CustomerConversation{}).Where("id = ?", conv.ID).Updates(map[string]any{
+		if err := tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", conv.ID, conv.TenantID).Updates(map[string]any{
 			"status":          StatusReplied,
 			"last_message_at": &now,
 			"updated_at":      time.Now().UTC(),

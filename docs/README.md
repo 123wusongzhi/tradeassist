@@ -24,6 +24,7 @@ TradeMind 是一个聚焦 `AI 商品运营工具` 与 `多平台跨境 ERP MVP` 
 | [ai-workflow.md](ai-workflow.md) | 跨 AI 工具通用工作流、提示词优化、上下文预算、token 节约和经验沉淀 | 开发者 / AI Agent |
 | [ui-copywriting.md](ui-copywriting.md) | 管理端/API 用户可见文案中文化、术语表与 `pnpm check:ui-copy` | 开发者 / AI Agent |
 | [env.md](env.md) | 环境变量清单、敏感配置、安全规则与同步要求 | 开发者 / 部署者 / AI Agent |
+| [SECURITY_HARDENING_STAGE_1.md](SECURITY_HARDENING_STAGE_1.md) | 2026-08-03 安全加固第一阶段范围、验证、运行状态与延后风险 | 开发者 / 部署者 / AI Agent |
 | [api.md](api.md) | API 公共约定、主要路由与前后端契约同步要求 | 前后端开发者 |
 | [architecture.md](architecture.md) | 总体架构、分层、数据与队列、安全原则 | 开发者 / 架构维护者 |
 | [provider.md](provider.md) | AI / Storage / Image / Platform / Collector Provider 扩展机制（含 Ozon 店铺接入说明） | Provider 贡献者 |

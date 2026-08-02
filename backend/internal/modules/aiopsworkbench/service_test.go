@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -39,6 +40,10 @@ func newWorkbenchTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func workbenchTestContext(tenantID int64) context.Context {
+	return security.WithTenantContext(context.Background(), &security.TenantContext{TenantID: tenantID})
 }
 
 func TestTypeAndPriorityLabelsChinese(t *testing.T) {
@@ -119,7 +124,7 @@ func TestCollectAITextReviewAndConflict(t *testing.T) {
 	}
 
 	svc := &Service{DB: db, ProductCheck: &productcheck.Service{DB: db}}
-	items, err := svc.collectAllTodos(context.Background(), Query{})
+	items, err := svc.collectAllTodos(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +168,7 @@ func TestCollectAIImageReview(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -201,7 +206,7 @@ func TestCollectPublishBatchFailedAndPartial(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +234,7 @@ func TestCollectPublishCheckFailedAndWarning(t *testing.T) {
 		DB:           db,
 		ProductCheck: &productcheck.Service{DB: db},
 	}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +277,7 @@ func TestListTodosPagination(t *testing.T) {
 		}
 	}
 	svc := &Service{DB: db}
-	res, err := svc.ListTodos(context.Background(), Query{Page: 1, PageSize: 2})
+	res, err := svc.ListTodos(workbenchTestContext(0), Query{Page: 1, PageSize: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +302,7 @@ func TestSummaryCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db, ProductCheck: &productcheck.Service{DB: db}}
-	sum, err := svc.GetSummary(context.Background(), Query{})
+	sum, err := svc.GetSummary(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +332,7 @@ func TestAppliedItemNotListed(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db}
-	all, err := svc.collectAllTodos(context.Background(), Query{})
+	all, err := svc.collectAllTodos(workbenchTestContext(0), Query{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,5 +364,75 @@ func TestActionURLs(t *testing.T) {
 	}
 	if publishBatchURL(bid) != "/product/publish-batches/"+bid {
 		t.Fatal("batch url")
+	}
+}
+
+func TestTenantScopeSeparatesTodosSummaryDetailRefreshAndResolvedCount(t *testing.T) {
+	db := newWorkbenchTestDB(t)
+	ctxA := workbenchTestContext(101)
+	ctxB := workbenchTestContext(202)
+
+	productA := product.Product{TenantID: 101, Title: "tenant-a product", Status: product.StatusDraft, Currency: "CNY"}
+	productB := product.Product{TenantID: 202, Title: "tenant-b product", Status: product.StatusDraft, Currency: "CNY"}
+	batchA := aiproducttext.AIProductTextBatch{TenantID: 101, BatchNo: "tenant-a-batch", Status: aiproducttext.BatchSuccess}
+	batchB := aiproducttext.AIProductTextBatch{TenantID: 202, BatchNo: "tenant-b-batch", Status: aiproducttext.BatchSuccess}
+	for _, row := range []any{&productA, &productB, &batchA, &batchB} {
+		if err := db.Create(row).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	itemA := aiproducttext.AIProductTextItem{BatchID: batchA.ID, ProductID: productA.ID, OperationType: aiproducttext.OpTitle, Status: aiproducttext.ItemPendingReview}
+	itemB := aiproducttext.AIProductTextItem{BatchID: batchB.ID, ProductID: productB.ID, OperationType: aiproducttext.OpTitle, Status: aiproducttext.ItemPendingReview}
+	if err := db.Create(&itemA).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&itemB).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	svc := &Service{DB: db}
+	listA, err := svc.ListTodos(ctxA, Query{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listA.Items) != 1 || listA.Items[0].ProductTitle != productA.Title {
+		t.Fatalf("tenant A leaked or missed rows: %#v", listA.Items)
+	}
+	listB, err := svc.ListTodos(ctxB, Query{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listB.Items) != 1 || listB.Items[0].ProductTitle != productB.Title {
+		t.Fatalf("tenant B leaked or missed rows: %#v", listB.Items)
+	}
+	if _, err := svc.GetTodo(ctxA, listB.Items[0].ID, Query{}); err != gorm.ErrRecordNotFound {
+		t.Fatalf("cross-tenant todo detail error = %v, want not found", err)
+	}
+	summaryA, err := svc.GetSummary(ctxA, Query{})
+	if err != nil || summaryA.AITextReviewCount != 1 {
+		t.Fatalf("tenant A summary = %#v, err=%v", summaryA, err)
+	}
+	refreshA, err := svc.RefreshTodos(ctxA, Query{})
+	if err != nil || refreshA.Summary.AITextReviewCount != 1 {
+		t.Fatalf("tenant A refresh = %#v, err=%v", refreshA, err)
+	}
+
+	now := time.Now().UTC()
+	if err := db.Model(&aiproducttext.AIProductTextItem{}).Where("id = ?", itemA.ID).Updates(map[string]any{"status": aiproducttext.ItemApplied, "applied_at": now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&aiproducttext.AIProductTextItem{}).Where("id = ?", itemB.ID).Updates(map[string]any{"status": aiproducttext.ItemApplied, "applied_at": now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	resolvedA, err := svc.GetSummary(ctxA, Query{})
+	if err != nil || resolvedA.TodayResolvedCount != 1 {
+		t.Fatalf("tenant A resolved count = %#v, err=%v", resolvedA, err)
+	}
+}
+
+func TestWorkbenchFailsClosedWithoutTenantContext(t *testing.T) {
+	svc := &Service{DB: newWorkbenchTestDB(t)}
+	if _, err := svc.ListTodos(context.Background(), Query{}); err == nil {
+		t.Fatal("missing tenant context must fail closed")
 	}
 }

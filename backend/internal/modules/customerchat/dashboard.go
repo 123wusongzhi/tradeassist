@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // DashboardSummary is customer center home KPIs.
@@ -25,27 +26,34 @@ func (s *Service) GetDashboard(c *gin.Context) (*DashboardSummary, error) {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
 	ctx := c.Request.Context()
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	out := &DashboardSummary{}
 	dayStart := time.Now().UTC().Truncate(24 * time.Hour)
 
 	_ = s.DB.WithContext(ctx).Model(&CustomerConversation{}).
-		Where("status = ?", StatusPendingReply).
+		Where("tenant_id = ? AND status = ?", tid, StatusPendingReply).
 		Count(&out.PendingReplyCount).Error
 
 	_ = s.DB.WithContext(ctx).Model(&CustomerConversation{}).
-		Where("status IN ?", []string{StatusOpen, StatusPendingReply}).
+		Where("tenant_id = ? AND status IN ?", tid, []string{StatusOpen, StatusPendingReply}).
 		Count(&out.OpenConversationCount).Error
 
 	_ = s.DB.WithContext(ctx).Model(&CustomerMessage{}).
-		Where("created_at >= ?", dayStart).
+		Joins("JOIN customer_conversations ON customer_conversations.id = customer_messages.conversation_id").
+		Where("customer_conversations.tenant_id = ? AND customer_messages.created_at >= ?", tid, dayStart).
 		Count(&out.TodayNewMessages).Error
 
 	_ = s.DB.WithContext(ctx).Model(&CustomerReplySuggestion{}).
-		Where("status IN ?", []string{SuggestionGenerated, SuggestionEdited}).
+		Joins("JOIN customer_conversations ON customer_conversations.id = customer_reply_suggestions.conversation_id").
+		Where("customer_conversations.tenant_id = ? AND customer_reply_suggestions.status IN ?", tid, []string{SuggestionGenerated, SuggestionEdited}).
 		Count(&out.AiSuggestionPendingCount).Error
 
 	_ = s.DB.WithContext(ctx).Model(&CustomerFailureEvent{}).
-		Where("status = ? AND category IN ?", FailureEventStatusOpen, []string{
+		Joins("JOIN customer_conversations ON customer_conversations.id = customer_failure_events.conversation_id").
+		Where("customer_conversations.tenant_id = ? AND customer_failure_events.status = ? AND customer_failure_events.category IN ?", tid, FailureEventStatusOpen, []string{
 			FailureCategoryReplySendFailed,
 			FailureCategoryReplyPermissionDenied,
 		}).
@@ -54,7 +62,7 @@ func (s *Service) GetDashboard(c *gin.Context) (*DashboardSummary, error) {
 	if s.Shops != nil {
 		var shops []shop.Shop
 		_ = s.DB.WithContext(ctx).Model(&shop.Shop{}).
-			Where("status = ? AND auth_status <> ?", shop.StatusActive, shop.AuthAuthorized).
+			Where("tenant_id = ? AND status = ? AND auth_status <> ?", tid, shop.StatusActive, shop.AuthAuthorized).
 			Find(&shops).Error
 		out.UnauthorizedShopCount = int64(len(shops))
 	}
@@ -63,8 +71,8 @@ func (s *Service) GetDashboard(c *gin.Context) (*DashboardSummary, error) {
 	var sf syncFail
 	_ = s.DB.WithContext(ctx).Raw(`
 SELECT COUNT(*) AS c FROM customer_message_sync_tasks
-WHERE status IN ('failed','partial_success') AND updated_at >= ?
-`, dayStart.AddDate(0, 0, -7)).Scan(&sf).Error
+WHERE tenant_id = ? AND status IN ('failed','partial_success') AND updated_at >= ?
+`, tid, dayStart.AddDate(0, 0, -7)).Scan(&sf).Error
 	out.SyncTaskFailureCount = sf.C
 
 	return out, nil

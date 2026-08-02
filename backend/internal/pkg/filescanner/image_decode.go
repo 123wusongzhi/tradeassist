@@ -3,6 +3,7 @@ package filescanner
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
@@ -45,9 +46,43 @@ func NewImageDecodeScanner(maxBytes, maxPixels int64, maxW, maxH, maxFrames int)
 	}
 }
 
+// Normalize applies safe limits to a zero-value scanner and rejects invalid
+// caller-provided limits before scanning any content.
+func (s *ImageDecodeScanner) Normalize() error {
+	if s == nil {
+		return fmt.Errorf("image scanner is nil")
+	}
+	defaults := NewImageDecodeScanner(10<<20, 50_000_000, 8192, 8192, 300)
+	if s.MaxBytes == 0 {
+		s.MaxBytes = defaults.MaxBytes
+	}
+	if s.MaxPixels == 0 {
+		s.MaxPixels = defaults.MaxPixels
+	}
+	if s.MaxWidth == 0 {
+		s.MaxWidth = defaults.MaxWidth
+	}
+	if s.MaxHeight == 0 {
+		s.MaxHeight = defaults.MaxHeight
+	}
+	if s.MaxAnimFrames == 0 {
+		s.MaxAnimFrames = defaults.MaxAnimFrames
+	}
+	if s.AllowedMIME == nil {
+		s.AllowedMIME = defaults.AllowedMIME
+	}
+	if s.MaxBytes < 1 || s.MaxPixels < 1 || s.MaxWidth < 1 || s.MaxHeight < 1 || s.MaxAnimFrames < 1 {
+		return fmt.Errorf("image scanner limits must be positive")
+	}
+	return nil
+}
+
 func (s *ImageDecodeScanner) Name() string { return "image_decode" }
 
 func (s *ImageDecodeScanner) Scan(ctx context.Context, input ScanInput) (ScanResult, error) {
+	if err := s.Normalize(); err != nil {
+		return ScanResult{}, err
+	}
 	now := time.Now().UTC()
 	fail := func(code, summary string) (ScanResult, error) {
 		return ScanResult{

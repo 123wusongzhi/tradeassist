@@ -29,6 +29,16 @@ func Register(r gin.IRouter, h *Handler) {
 		return
 	}
 	g := r.Group("/observability")
+	g.Use(func(c *gin.Context) {
+		if h.DB == nil {
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "observability unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequireGlobalAdmin(c, h.DB) {
+			c.Abort()
+		}
+	})
 	g.GET("/overview", h.Overview)
 	g.GET("/http", h.HTTP)
 	g.GET("/tasks", h.Tasks)

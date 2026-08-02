@@ -1,6 +1,7 @@
 package securitymod
 
 import (
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -24,6 +25,16 @@ func RegisterRoutes(authed *gin.RouterGroup, h *Handler) {
 		return
 	}
 	g := authed.Group("/security")
+	g.Use(func(c *gin.Context) {
+		if h.DB == nil || h.Svc == nil {
+			response.Fail(c, http.StatusInternalServerError, response.CodeInternalError, "security unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequireGlobalAdmin(c, h.DB) {
+			c.Abort()
+		}
+	})
 	g.GET("/overview", h.SecurityOverview)
 	g.POST("/keys/rotation/prepare", h.RotationPrepare)
 	g.GET("/keys/rotation/status", h.RotationStatus)

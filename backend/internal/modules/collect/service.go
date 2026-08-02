@@ -315,6 +315,9 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	}
 
 	var collectorOpts map[string]any
+	if strings.EqualFold(strings.TrimSpace(task.Source), "1688") {
+		collectorOpts = map[string]any{"useBrowserProfile": true, "profileKey": providerProfileKey(task.TenantID, "1688")}
+	}
 	if isPinduoduoCollectSource(task.Source) {
 		useProfile := isPifaPinduoduoURL(task.SourceURL)
 		if len(task.RequestOptions) > 0 {
@@ -328,7 +331,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 				}
 			}
 		}
-		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildPinduoduoRequestOptions(ctx, task.SourceURL, useProfile))
+		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildPinduoduoRequestOptions(ctx, task.TenantID, task.SourceURL, useProfile))
 	}
 	if isTaobaoTmallCollectSource(task.Source) {
 		useProfile := true
@@ -340,7 +343,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 				useProfile = true
 			}
 		}
-		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildTaobaoTmallRequestOptions(ctx, task.SourceURL, useProfile))
+		collectorOpts = mergeJSONIntoCollectorOpts(collectorOpts, s.buildTaobaoTmallRequestOptions(ctx, task.TenantID, task.SourceURL, useProfile))
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Source), "custom") {
 		var snap struct {
@@ -373,12 +376,28 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 			"matchPattern": snap.MatchPattern,
 			"rule":         ruleObj,
 		}
-		if snap.UseBrowserProfile && strings.TrimSpace(snap.ProfileKey) != "" {
-			collectorOpts["useBrowserProfile"] = true
-			collectorOpts["profileKey"] = strings.TrimSpace(snap.ProfileKey)
-			if strings.TrimSpace(snap.ProfileID) != "" {
-				collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
+		if snap.UseBrowserProfile {
+			profileKey, err := s.validateCustomProfileSnapshot(
+				ctx,
+				task.SourceURL,
+				snap.ProfileID,
+				snap.ProfileKey,
+			)
+			if err != nil {
+				s.failTask(
+					ctx,
+					task,
+					prevStatus,
+					"custom browser profile is unavailable for this tenant",
+					map[string]any{"errorCode": "PROFILE_NOT_FOUND"},
+					workerID,
+					claim,
+				)
+				return
 			}
+			collectorOpts["useBrowserProfile"] = true
+			collectorOpts["profileKey"] = profileKey
+			collectorOpts["profileId"] = strings.TrimSpace(snap.ProfileID)
 		}
 	}
 	if task.BatchID != nil {
@@ -651,10 +670,12 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 			}
 		}
 		reqOpts = blob
+	} else if strings.EqualFold(strings.TrimSpace(source), "1688") {
+		reqOpts = datatypes.JSON([]byte(fmt.Sprintf(`{"useBrowserProfile":true,"profileKey":%q}`, providerProfileKey(tid, "1688"))))
 	} else if isPinduoduoCollectSource(source) {
-		reqOpts = s.buildPinduoduoRequestOptions(c.Request.Context(), url, body.UseBrowserProfile)
+		reqOpts = s.buildPinduoduoRequestOptions(c.Request.Context(), tid, url, body.UseBrowserProfile)
 	} else if isTaobaoTmallCollectSource(source) {
-		reqOpts = s.buildTaobaoTmallRequestOptions(c.Request.Context(), url, true)
+		reqOpts = s.buildTaobaoTmallRequestOptions(c.Request.Context(), tid, url, true)
 	}
 	// 引擎选择随任务持久化，worker 执行时据此选择独立客户端。Playwright 也显式写入，
 	// 让任务意图可查，并保证重试或进程重启后不会换引擎。
@@ -735,9 +756,13 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 	if !s.QueueEnabled {
 		return zero, ErrCollectQueueDisabled
 	}
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return zero, err
+	}
 
 	var task CollectTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ? AND tenant_id = ?", id, tid).Error; err != nil {
 		return zero, err
 	}
 	if task.Status != StatusFailed {
@@ -745,8 +770,8 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 	}
 
 	retryAt := time.Now().UTC()
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).
-		Where("id = ?", id).
+	updated := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ?", id, tid, StatusFailed).
 		Updates(map[string]interface{}{
 			"status":            StatusRetrying,
 			"error_message":     "",
@@ -759,11 +784,15 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 			"locked_by":         nil,
 			"locked_until":      nil,
 			"updated_at":        retryAt,
-		}).Error; err != nil {
-		return zero, err
+		})
+	if updated.Error != nil {
+		return zero, updated.Error
+	}
+	if updated.RowsAffected == 0 {
+		return zero, gorm.ErrRecordNotFound
 	}
 
-	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&task, "id = ? AND tenant_id = ?", id, tid).Error; err != nil {
 		return zero, err
 	}
 
@@ -771,7 +800,7 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 	if err := s.enqueueTask(c.Request.Context(), task.ID, task.Source, task.SourceURL, task.CreatedBy, reqID); err != nil {
 		fin := time.Now().UTC()
 		_ = s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).
-			Where("id = ?", id).
+			Where("id = ? AND tenant_id = ? AND status = ?", id, tid, StatusRetrying).
 			Updates(map[string]interface{}{
 				"status":        StatusFailed,
 				"error_message": ErrRedisQueueUnavailable.Error(),
@@ -779,7 +808,7 @@ func (s *Service) RetryAsync(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) (
 				"updated_at":    fin,
 			}).Error
 		var bumped CollectTask
-		if er := s.DB.WithContext(c.Request.Context()).First(&bumped, "id = ?", id).Error; er == nil {
+		if er := s.DB.WithContext(c.Request.Context()).First(&bumped, "id = ? AND tenant_id = ?", id, tid).Error; er == nil {
 			s.RecordTaskEvent(c.Request.Context(), &bumped, TaskEventInput{
 				EventType:    EventTaskFailed,
 				FromStatus:   StatusRetrying,
@@ -822,8 +851,12 @@ func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	if s == nil || s.DB == nil {
 		return zero, fmt.Errorf("collect: no db")
 	}
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return zero, err
+	}
 	var t CollectTask
-	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).First(&t, "id = ? AND tenant_id = ?", id, tid).Error; err != nil {
 		return zero, err
 	}
 	return s.enrichTaskDTO(c.Request.Context(), &t), nil
@@ -834,9 +867,13 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collect: no db")
 	}
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	page, ps := clampCollectPage(q.Page, q.PageSize)
 
-	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&CollectTask{}).Where("tenant_id = ?", tid)
 	if v := strings.TrimSpace(q.Status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}

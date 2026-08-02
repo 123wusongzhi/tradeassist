@@ -6,10 +6,13 @@ import (
 )
 
 const (
-	RoleAdmin    = "admin"
-	RoleOperator = "operator"
-	RoleReadonly = "readonly"
-	RoleReviewer = "reviewer"
+	RoleAdmin = "admin"
+	// RoleTenantAdmin administers business resources within one non-system tenant.
+	// It is deliberately distinct from the global admin role.
+	RoleTenantAdmin = "tenant_admin"
+	RoleOperator    = "operator"
+	RoleReadonly    = "readonly"
+	RoleReviewer    = "reviewer"
 )
 
 // CanViewProduct returns true when admin can view product drafts.

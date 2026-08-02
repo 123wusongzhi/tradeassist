@@ -85,7 +85,7 @@ func (s *Service) GetOverview(ctx context.Context, q Query, sc Scope) (*Overview
 		overviewCard("failed_tasks", "失败任务", sum.FailedTaskTotal, sumStatus(sum.FailedTaskTotal), priorityFromCount(sum.FailedTaskTotal, "P0"), "/ops/task-center/failures", "暂无失败任务"),
 	}
 	var cfgSum *configstatus.DashboardSummary
-	if s.ConfigStatus != nil {
+	if s.ConfigStatus != nil && sc.IsAdmin {
 		if cs, err := s.ConfigStatus.DashboardSummary(ctx); err == nil {
 			cfgSum = cs
 			cfgCount := int64(0)
@@ -135,7 +135,7 @@ func (s *Service) GetTodos(ctx context.Context, q Query, sc Scope) (*TodosDTO, e
 		unifiedTodo("customer_send_failed", "P0", "客服发送失败", "回复发送失败需重试", "customer", "", "/customer/conversations?status=open", 0),
 		unifiedTodo("failed_tasks", "P0", "失败任务待处理", "统一失败任务中心有待处理项", "taskCenter", "", "/ops/task-center/failures", sum.FailedTaskTotal),
 	}
-	if s.ConfigStatus != nil {
+	if s.ConfigStatus != nil && sc.IsAdmin {
 		if cs, err := s.ConfigStatus.DashboardSummary(ctx); err == nil && cs != nil && cs.RiskCount > 0 {
 			items = append(items, unifiedTodo("config_incomplete", "P1", "配置未完成", "系统配置存在未完成或异常项", "config", "", "/settings/config-status", int64(cs.RiskCount)))
 		}
@@ -167,7 +167,7 @@ func (s *Service) GetHealth(ctx context.Context, q Query, sc Scope) (*HealthDTO,
 			healthMod("tasks", "失败任务", healthFromCount(sum.FailedTaskTotal), "/ops/task-center/failures"),
 		)
 	}
-	if s.ConfigStatus != nil {
+	if s.ConfigStatus != nil && sc.IsAdmin {
 		if cs, err := s.ConfigStatus.DashboardSummary(ctx); err == nil {
 			out.Config = cs
 			st := "healthy"

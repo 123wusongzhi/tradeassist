@@ -256,14 +256,27 @@ func (s *Service) validateShopRef(c *gin.Context, id *uuid.UUID) error {
 	if s.Shops == nil {
 		return nil
 	}
-	ok, err := s.Shops.Exists(c, *id)
+	_, err := s.Shops.TenantShop(c, *id)
+	return err
+}
+
+// tenantConversation hides cross-tenant existence and enforces store visibility.
+func (s *Service) tenantConversation(c *gin.Context, id uuid.UUID) (*CustomerConversation, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("customerchat: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if !ok {
-		return fmt.Errorf("shop not found")
+	var row CustomerConversation
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", id, tid).First(&row).Error; err != nil {
+		return nil, err
 	}
-	return nil
+	if err := adminperm.EnsureStoreVisible(c, s.DB, row.ShopID); err != nil {
+		return nil, err
+	}
+	return &row, nil
 }
 
 // --- CRUD conversation ---
@@ -293,7 +306,12 @@ func (s *Service) CreateConversation(c *gin.Context, body CreateConversationBody
 	if lang == "" {
 		lang = "en"
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	row := &CustomerConversation{
+		TenantID:         tid,
 		Platform:         platform,
 		CustomerName:     name,
 		CustomerLanguage: lang,
@@ -442,8 +460,8 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, err := s.tenantConversation(c, id)
+	if err != nil {
 		return nil, err
 	}
 	prevStatus := row.Status
@@ -500,7 +518,11 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 				return nil, fmt.Errorf("order service unavailable")
 			}
 			var exists int64
-			if err := s.Orders.DB.WithContext(c.Request.Context()).Model(&order.Order{}).Where("id = ?", u).Count(&exists).Error; err != nil {
+			tid, err := adminperm.TenantIDFromGin(c)
+			if err != nil {
+				return nil, err
+			}
+			if err := s.Orders.DB.WithContext(c.Request.Context()).Model(&order.Order{}).Where("id = ? AND tenant_id = ?", u, tid).Count(&exists).Error; err != nil {
 				return nil, err
 			}
 			if exists == 0 {
@@ -523,7 +545,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 
 	metaChanged := body.CustomerName != nil || body.CustomerLanguage != nil || body.Status != nil || body.ShopID != nil
 
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", row.ID, row.TenantID).Save(row).Error; err != nil {
 		return nil, err
 	}
 
@@ -563,7 +585,7 @@ func (s *Service) UpdateConversation(c *gin.Context, id uuid.UUID, body UpdateCo
 			shopSum = got
 		}
 	}
-	return convToDTO(&row, sum, shopSum, s.buildDetailExtra(c, &row)), nil
+	return convToDTO(row, sum, shopSum, s.buildDetailExtra(c, row)), nil
 }
 
 func uuidToStrPtr(id *uuid.UUID) string {
@@ -593,11 +615,11 @@ func (s *Service) DeleteConversation(c *gin.Context, id uuid.UUID, adminID *uuid
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, err := s.tenantConversation(c, id)
+	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(&CustomerConversation{}, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", id, row.TenantID).Delete(&CustomerConversation{}).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -636,7 +658,7 @@ func (s *Service) ListMessages(c *gin.Context, conversationID uuid.UUID) ([]Cust
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	if err := s.DB.WithContext(c.Request.Context()).First(&CustomerConversation{}, "id = ?", conversationID).Error; err != nil {
+	if _, err := s.tenantConversation(c, conversationID); err != nil {
 		return nil, err
 	}
 	var rows []CustomerMessage
@@ -653,8 +675,8 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.tenantConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 	if !validRole(body.Role) {
@@ -694,7 +716,7 @@ func (s *Service) CreateMessage(c *gin.Context, conversationID uuid.UUID, body C
 		if msg.Role == RoleCustomer {
 			updates["status"] = StatusPendingReply
 		}
-		if err := tx.Model(&CustomerConversation{}).Where("id = ?", conversationID).Updates(updates).Error; err != nil {
+		if err := tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", conversationID, conv.TenantID).Updates(updates).Error; err != nil {
 			return err
 		}
 		return nil
@@ -728,8 +750,8 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 	if reply == "" {
 		return nil, fmt.Errorf("reply is required")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.tenantConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 	now := time.Now().UTC()
@@ -746,7 +768,7 @@ func (s *Service) MarkReplied(c *gin.Context, conversationID uuid.UUID, body Mar
 		if err := tx.Create(msg).Error; err != nil {
 			return err
 		}
-		return tx.Model(&CustomerConversation{}).Where("id = ?", conversationID).Updates(map[string]any{
+		return tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", conversationID, conv.TenantID).Updates(map[string]any{
 			"status":          StatusReplied,
 			"last_message_at": &now,
 		}).Error
@@ -779,13 +801,13 @@ func (s *Service) UpdateSuggestion(c *gin.Context, id uuid.UUID, body UpdateSugg
 	if text == "" {
 		return fmt.Errorf("editedReply is required")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, _, err := s.tenantSuggestion(c, id)
+	if err != nil {
 		return err
 	}
 	row.EditedReply = text
 	row.Status = SuggestionEdited
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND conversation_id = ?", row.ID, row.ConversationID).Save(row).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -814,12 +836,8 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 	if final == "" {
 		return fmt.Errorf("finalReply is required")
 	}
-	var su CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&su, "id = ?", id).Error; err != nil {
-		return err
-	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", su.ConversationID).Error; err != nil {
+	su, conv, err := s.tenantSuggestion(c, id)
+	if err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -836,10 +854,10 @@ func (s *Service) AcceptSuggestion(c *gin.Context, id uuid.UUID, body AcceptSugg
 		if err := tx.Create(msg).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&CustomerReplySuggestion{}).Where("id = ?", id).Update("status", SuggestionAccepted).Error; err != nil {
+		if err := tx.Model(&CustomerReplySuggestion{}).Where("id = ? AND conversation_id = ?", id, su.ConversationID).Update("status", SuggestionAccepted).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&CustomerConversation{}).Where("id = ?", su.ConversationID).Updates(map[string]any{
+		if err := tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", su.ConversationID, conv.TenantID).Updates(map[string]any{
 			"status":          StatusReplied,
 			"last_message_at": &now,
 		}).Error; err != nil {
@@ -863,11 +881,11 @@ func (s *Service) DiscardSuggestion(c *gin.Context, id uuid.UUID, adminID *uuid.
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, _, err := s.tenantSuggestion(c, id)
+	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).Where("id = ?", id).Update("status", SuggestionDiscarded).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).Where("id = ? AND conversation_id = ?", id, row.ConversationID).Update("status", SuggestionDiscarded).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {

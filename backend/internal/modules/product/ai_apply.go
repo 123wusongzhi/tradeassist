@@ -1,7 +1,6 @@
 package product
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, value string, taskID uuid.UUID, expectedUpdatedAt string, sourceSnapshotHash string, adminID *uuid.UUID) error {
@@ -22,6 +22,10 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 	}
 	if p == nil {
 		return fmt.Errorf("product is required")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
 	}
 	expectedAt, err := parseExpectedUpdatedAt(expectedUpdatedAt)
 	if err != nil {
@@ -69,10 +73,10 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 	now := time.Now().UTC()
 	txErr := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var current Product
-		if err := tx.First(&current, "id = ?", p.ID).Error; err != nil {
+		if err := tx.First(&current, "id = ? AND tenant_id = ?", p.ID, tenantID).Error; err != nil {
 			return err
 		}
-		taskHash, err := s.validateAITaskForApply(c.Request.Context(), taskID, current.ID)
+		taskHash, err := s.validateAITaskForApply(c, taskID, current.ID)
 		if err != nil {
 			return err
 		}
@@ -110,7 +114,7 @@ func (s *Service) applyAIContent(c *gin.Context, p *Product, fieldType string, v
 		default:
 			return fmt.Errorf("unsupported ai content field")
 		}
-		res := tx.Model(&Product{}).Where("id = ? AND updated_at = ?", current.ID, current.UpdatedAt).Updates(updates)
+		res := tx.Model(&Product{}).Where("id = ? AND tenant_id = ? AND updated_at = ?", current.ID, tenantID, current.UpdatedAt).Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}
@@ -139,6 +143,13 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	expectedAt, err := parseExpectedUpdatedAt(body.ExpectedUpdatedAt)
 	if err != nil {
 		return nil, err
@@ -155,15 +166,16 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 	var undoneApplicationID uuid.UUID
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var current Product
-		if err := tx.First(&current, "id = ?", productID).Error; err != nil {
+		if err := tx.First(&current, "id = ? AND tenant_id = ?", productID, tenantID).Error; err != nil {
 			return err
 		}
 		var app ProductAIContentApplication
-		q := tx.Where("product_id = ? AND field_type = ? AND status = ?", productID, fieldType, AIContentApplyStatusApplied)
+		q := tx.Joins("JOIN products AS tenant_products ON tenant_products.id = product_ai_content_applications.product_id").
+			Where("tenant_products.tenant_id = ? AND product_ai_content_applications.product_id = ? AND product_ai_content_applications.field_type = ? AND product_ai_content_applications.status = ?", tenantID, productID, fieldType, AIContentApplyStatusApplied)
 		if rawID := strings.TrimSpace(body.ApplicationID); rawID != "" {
-			q = q.Where("id = ?", rawID)
+			q = q.Where("product_ai_content_applications.id = ?", rawID)
 		}
-		if err := q.Order("applied_at DESC, created_at DESC").First(&app).Error; err != nil {
+		if err := q.Order("product_ai_content_applications.applied_at DESC, product_ai_content_applications.created_at DESC").First(&app).Error; err != nil {
 			return err
 		}
 		if cur := currentAIValueForField(&current, fieldType); cur != app.AppliedValue {
@@ -181,14 +193,14 @@ func (s *Service) UndoAIContent(c *gin.Context, productID uuid.UUID, fieldType s
 		default:
 			return fmt.Errorf("unsupported ai content field")
 		}
-		res := tx.Model(&Product{}).Where("id = ? AND updated_at = ?", productID, current.UpdatedAt).Updates(updates)
+		res := tx.Model(&Product{}).Where("id = ? AND tenant_id = ? AND updated_at = ?", productID, tenantID, current.UpdatedAt).Updates(updates)
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected != 1 {
 			return fmt.Errorf("content conflict: product changed while undoing AI result")
 		}
-		res = tx.Model(&ProductAIContentApplication{}).Where("id = ? AND status = ?", app.ID, AIContentApplyStatusApplied).Updates(map[string]any{
+		res = tx.Model(&ProductAIContentApplication{}).Where("id = ? AND product_id = ? AND product_id IN (SELECT id FROM products WHERE tenant_id = ?) AND status = ?", app.ID, productID, tenantID, AIContentApplyStatusApplied).Updates(map[string]any{
 			"status":    AIContentApplyStatusUndone,
 			"undone_by": adminID,
 			"undone_at": &now,
@@ -263,11 +275,33 @@ func aiTaskSourceSnapshotHash(raw []byte) string {
 	return ""
 }
 
-func (s *Service) validateAITaskForApply(ctx context.Context, taskID uuid.UUID, productID uuid.UUID) (string, error) {
+// findTenantAITask scopes AI task reads through their product. This supports
+// legacy task rows created before tenant_id was populated while preserving the
+// tenant boundary for every product-facing request.
+func (s *Service) findTenantAITask(c *gin.Context, taskID, productID uuid.UUID) (*aitask.AITask, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("product: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var task aitask.AITask
+	if err := s.DB.WithContext(c.Request.Context()).Model(&aitask.AITask{}).
+		Select("ai_tasks.*").
+		Joins("JOIN products AS tenant_products ON tenant_products.id = ai_tasks.product_id").
+		Where("ai_tasks.id = ? AND ai_tasks.product_id = ? AND tenant_products.tenant_id = ?", taskID, productID, tenantID).
+		First(&task).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
+}
+
+func (s *Service) validateAITaskForApply(c *gin.Context, taskID uuid.UUID, productID uuid.UUID) (string, error) {
 	if s == nil || s.AITasks == nil {
 		return "", nil
 	}
-	tk, err := s.AITasks.GetByID(ctx, taskID)
+	tk, err := s.findTenantAITask(c, taskID, productID)
 	if err != nil {
 		return "", err
 	}

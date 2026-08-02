@@ -19,7 +19,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -47,6 +49,10 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	publishMode := strings.TrimSpace(body.PublishMode)
 	if publishMode == "" {
 		publishMode = PublishModeSaveAsPlatformDraft
@@ -57,6 +63,17 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	sid, err := uuid.Parse(strings.TrimSpace(body.ShopID))
 	if err != nil || sid == uuid.Nil {
 		return nil, fmt.Errorf("invalid shopId")
+	}
+	if !adminperm.RequireStoreOperate(c, s.DB, sid) {
+		return nil, fmt.Errorf("store operate permission required")
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
+
+	var tenantProduct product.Product
+	if err := s.DB.WithContext(ctx).Select("id", "tenant_id").Where("id = ? AND tenant_id = ?", productID, tenantID).First(&tenantProduct).Error; err != nil {
+		return nil, err
 	}
 
 	var cfg product.ProductPlatformPublishConfig
@@ -70,7 +87,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		return nil, fmt.Errorf("douyin mapping does not exist")
 	}
 
-	shopRow, _, err := s.Shops.PlainAuthForProviderCtx(ctx, sid)
+	shopRow, _, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, sid)
 	if err != nil || shopRow == nil {
 		return nil, fmt.Errorf("shop not found")
 	}
@@ -81,6 +98,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	var readinessSnap *productcheck.CheckProductReadinessResult
 	if s.Readiness != nil {
 		rres, err := s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+			TenantID:  tenantID,
 			ProductID: productID,
 			Platform:  "douyin_shop",
 			ShopID:    &sid,
@@ -97,7 +115,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 		}
 	}
 
-	buildRes, err := BuildDouyinProductPayload(ctx, s.DB, productID, cfg.ID.String())
+	buildRes, err := BuildDouyinProductPayload(ctx, s.DB, tenantID, productID, cfg.ID.String())
 	if err != nil {
 		return nil, err
 	}
@@ -108,8 +126,8 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	running := []string{TaskPending, TaskRunning}
 	var existing ProductPublishTask
 	dupQ := s.DB.WithContext(ctx).Where(
-		"product_id = ? AND shop_id = ? AND platform = ? AND publish_mode = ? AND status IN ?",
-		productID, sid, "douyin_shop", publishMode, running,
+		"tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND publish_mode = ? AND status IN ?",
+		tenantID, productID, sid, "douyin_shop", publishMode, running,
 	)
 	if err := dupQ.First(&existing).Error; err == nil {
 		return nil, fmt.Errorf("a running douyin draft task already exists")
@@ -133,6 +151,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	payloadSnap, _ := json.Marshal(sanitizeDouyinPayloadForDisplay(buildRes.Payload))
 
 	pubRow := ProductPublication{
+		TenantID:      tenantID,
 		ProductID:     productID,
 		ShopID:        sid,
 		Platform:      "douyin_shop",
@@ -155,6 +174,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	snapRaw, _ := json.Marshal(snap)
 
 	task := ProductPublishTask{
+		TenantID:        tenantID,
 		ProductID:       productID,
 		ShopID:          sid,
 		TargetStoreID:   sid,
@@ -175,7 +195,7 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	if err := s.DB.WithContext(ctx).Create(&task).Error; err != nil {
 		return nil, err
 	}
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", pubRow.ID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", pubRow.ID, tenantID).
 		Updates(map[string]any{"publish_task_id": task.ID}).Error
 
 	if s.OpLog != nil {
@@ -190,7 +210,15 @@ func (s *Service) CreateDouyinDraftTask(c *gin.Context, productID uuid.UUID, bod
 	}
 
 	runInline := func() error {
-		return s.ProcessDouyinDraftTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
+		actorID := uuid.Nil
+		if task.CreatedBy != nil {
+			actorID = *task.CreatedBy
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: task.TenantID,
+			ShopID:   task.ShopID,
+		}, actorID, "douyin_product_publish_inline")
+		return s.ProcessDouyinDraftTask(workerCtx, task.ID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
 	}
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
 		var enqueueErr error
@@ -234,7 +262,7 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 	cancelRen := s.startPublishLeaseRenewal(ctx, taskID, workerID, claim, s.publishLeaseTTL())
 	defer cancelRen()
 
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ?", taskID, taskRow.TenantID).
 		Updates(map[string]any{"publish_status": StatusCreatingPlatformDraft}).Error
 
 	fail := func(code, msg string, retryable bool, requestID string, raw map[string]any) error {
@@ -250,9 +278,11 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 			"finished_at":        &fin,
 			"platform_raw_error": datatypes.JSON(rawJSON),
 		}
-		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, updates)
+		if err := s.finishProductPublishTask(ctx, taskID, workerID, claim, updates); err != nil {
+			return err
+		}
 		if snap, ok := parseDouyinDraftSnapshot(taskRow.Input); ok {
-			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).
+			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", snap.PublicationID, taskRow.TenantID).
 				Updates(map[string]any{"status": StatusPubFailed, "publish_status": StatusPubFailed, "updated_at": fin}).Error
 		}
 		if s.OpLog != nil {
@@ -274,7 +304,7 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 		return fail(ErrorDouyinProductPayloadInvalid, "invalid task snapshot", false, "", nil)
 	}
 
-	buildRes, err := BuildDouyinProductPayload(ctx, s.DB, taskRow.ProductID, snap.ConfigID)
+	buildRes, err := BuildDouyinProductPayload(ctx, s.DB, taskRow.TenantID, taskRow.ProductID, snap.ConfigID)
 	if err != nil || len(buildRes.Errors) > 0 {
 		msg := "payload build failed"
 		if err != nil {
@@ -295,7 +325,7 @@ func (s *Service) ProcessDouyinDraftTask(ctx context.Context, taskID uuid.UUID, 
 		})
 	}
 
-	client, _, err := s.Shops.DouyinClientForShopContext(ctx, taskRow.ShopID, taskRow.CreatedBy)
+	client, _, err := s.Shops.DouyinClientForShopContext(ctx, taskRow.TenantID, taskRow.ShopID, taskRow.CreatedBy)
 	if err != nil {
 		code := inferDouyinPublishErrorCode(err)
 		return fail(code, err.Error(), douyinErrRetryable(err), "", nil)
@@ -414,7 +444,9 @@ func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *Produ
 		"platform_result":     datatypes.JSON(rawOut),
 	}
 	if claim != nil && strings.TrimSpace(workerID) != "" {
-		_ = s.finishProductPublishTask(ctx, taskID, workerID, claim, updates)
+		if err := s.finishProductPublishTask(ctx, taskID, workerID, claim, updates); err != nil {
+			return err
+		}
 	} else {
 		updates["locked_by"] = nil
 		updates["locked_until"] = nil
@@ -423,7 +455,7 @@ func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *Produ
 	}
 
 	rd, _ := json.Marshal(sanitizeRawErrorMap(res.Raw))
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", snap.PublicationID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", snap.PublicationID, taskRow.TenantID).
 		Updates(map[string]any{
 			"external_product_id":  res.PlatformProductID,
 			"status":               StatusDraft,
@@ -440,7 +472,7 @@ func (s *Service) completeDouyinDraftSuccess(ctx context.Context, taskRow *Produ
 	if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", taskRow.ProductID, "douyin_shop").First(&cfg).Error; err == nil {
 		mapping = product.DouyinDraftMappingFromConfig(cfg)
 	}
-	_ = s.DB.WithContext(ctx).Where("publication_id = ?", snap.PublicationID).Delete(&ProductPublicationSKU{}).Error
+	_ = s.DB.WithContext(ctx).Where("publication_id = ? AND EXISTS (SELECT 1 FROM product_publications p WHERE p.id = product_publication_skus.publication_id AND p.tenant_id = ?)", snap.PublicationID, taskRow.TenantID).Delete(&ProductPublicationSKU{}).Error
 	skuMap := map[string]platformdouyin.SKUMapping{}
 	for _, sm := range res.SKUMappings {
 		if sm.OuterSKUID != "" {

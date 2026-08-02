@@ -1,6 +1,7 @@
 package collectbrowserprofile
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -10,10 +11,32 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 )
 
 type Handler struct {
 	Svc *Service
+}
+
+func profileRequestContext(c *gin.Context) (context.Context, error) {
+	if c == nil || c.Request == nil {
+		return nil, errors.New("tenant context required")
+	}
+	if tc := security.FromContext(c.Request.Context()); tc != nil && tc.TenantID >= 0 {
+		return c.Request.Context(), nil
+	} else if tc := security.FromGin(c); tc != nil && tc.TenantID >= 0 {
+		return security.WithTenantContext(c.Request.Context(), tc), nil
+	}
+	return nil, errors.New("tenant context required")
+}
+
+func ensureProfileRequestTenant(c *gin.Context) error {
+	ctx, err := profileRequestContext(c)
+	if err != nil {
+		return err
+	}
+	c.Request = c.Request.WithContext(ctx)
+	return nil
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -51,6 +74,10 @@ func (h *Handler) List(c *gin.Context) {
 		Provider: c.Query("provider"),
 		Status:   c.Query("status"),
 	}
+	if err := ensureProfileRequestTenant(c); err != nil {
+		response.Fail(c, 403, response.CodeForbidden, err.Error())
+		return
+	}
 	list, total, err := h.Svc.List(c.Request.Context(), q)
 	if err != nil {
 		response.HandleError(c, err)
@@ -78,6 +105,10 @@ func (h *Handler) List(c *gin.Context) {
 func (h *Handler) Create(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "browser profiles unavailable")
+		return
+	}
+	if err := ensureProfileRequestTenant(c); err != nil {
+		response.Fail(c, 403, response.CodeForbidden, err.Error())
 		return
 	}
 	var body CreateBody
@@ -128,6 +159,10 @@ func (h *Handler) profileStatusAction(c *gin.Context, fn func(id uuid.UUID) erro
 		response.Fail(c, 500, response.CodeInternalError, "browser profiles unavailable")
 		return
 	}
+	if err := ensureProfileRequestTenant(c); err != nil {
+		response.Fail(c, 403, response.CodeForbidden, err.Error())
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -151,6 +186,10 @@ func (h *Handler) profileAction(
 ) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "browser profiles unavailable")
+		return
+	}
+	if err := ensureProfileRequestTenant(c); err != nil {
+		response.Fail(c, 403, response.CodeForbidden, err.Error())
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

@@ -8,6 +8,8 @@
 - 健康检查：`GET /health`、`GET /api/v1/health`（综合）；`GET /health/live`（存活）；`GET /health/ready`（就绪，DB/Redis/迁移/生产门闸）
 - 可观测性（P5 / P5.1 / P5-V，需权限）：`GET /api/v1/observability/overview|http|tasks|providers|security`；`overview` 会返回运行态 `runtimeStatus` 与 telemetry 导出摘要，用于区分 `standard_protocol_ready` / `mock_verified` / `real_backend_deferred` / `export_degraded` / `disabled` / `incomplete`；`GET /api/v1/observability/alerts`；`POST /api/v1/observability/alerts/:id/ack|silence`；内部指标：`GET /internal/metrics`（默认仅内网/本机）
 - 鉴权：管理端受保护接口使用 `Authorization: Bearer <token>`
+- 租户边界：业务资源的租户只从已验证 JWT / 服务端会话、OAuth state 或受信任 Worker 上下文恢复；路径、body、队列消息中的资源 ID 不得自行决定租户。`tenant_id=0` 仅用于显式的系统租户语义，非零租户中的 `admin` 角色不会获得全局管理员能力。
+- Fail-closed：依赖的 service、DB 或必要配置不可用时，受保护接口返回 5xx 失败，不得以空列表、空对象或成功响应替代。
 - 返回格式：统一 JSON 响应，核心字段为 `code`、`message`、`data`、`traceId`
 - 敏感信息：接口不得返回完整 API Key、Token、Secret、Cookie 或密码
 - P7-C3 cursor 列表：Product、Order、Inventory Center、Task Center、Webhook Event、Operation Log 支持 `cursor` + `limit`，响应额外返回 `items`、`nextCursor`、`hasMore`、`limit`；旧 `page` / `pageSize` / `list` / `pagination` 兼容保留。超过深 offset 返回 `pagination_offset_too_deep`；cursor 篡改、跨租户/店铺或筛选变化分别返回 `pagination_cursor_signature_invalid`、`pagination_cursor_scope_mismatch`、`pagination_cursor_filter_mismatch`。P7-C4 隔离 Medium PostgreSQL 六类分页 runtime、Query Plan、N+1、Provider 限流、Permission Cache 失效与 Linux Race 证据已关闭；Load/Soak/Regression 仍 pending P7-V2。
@@ -42,8 +44,13 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `POST` | `/api/v1/auth/login` | 管理员登录，支持邮箱或手机号。 |
-| `POST` | `/api/v1/auth/logout` | 退出登录，客户端丢弃 token。 |
+| `POST` | `/api/v1/auth/register` | 注册新租户及其 `tenant_admin`；租户与管理员在同一事务中创建，不接受客户端指定租户，也不会创建系统级 `admin`。成功后设置 HttpOnly refresh cookie。邮箱、手机号按规范化值执行全局唯一约束。 |
+| `POST` | `/api/v1/auth/refresh` | 使用 HttpOnly refresh cookie 轮换会话并签发短期 access token；refresh token 重用会原子撤销对应会话族。 |
+| `POST` | `/api/v1/auth/logout` | 退出登录并撤销当前服务端会话；客户端同时清除内存中的 access token。 |
+| `POST` | `/api/v1/auth/logout-all` | 撤销当前管理员的全部服务端会话。 |
 | `GET` | `/api/v1/auth/profile` | 当前管理员信息。 |
+
+安全会话模式下，access JWT 必须携带非零 UUID `session_id`，并在每次受保护请求中与服务端会话的管理员、租户和 token version 一并校验；缺失、格式无效、已撤销或不匹配的会话均不被接受。`session_id` 是服务端绑定字段，客户端不得指定或覆盖。
 
 ## 设置
 
@@ -53,9 +60,9 @@
 | `PUT` | `/api/v1/settings` | 保存系统设置，敏感字段必须加密。 |
 | `POST` | `/api/v1/settings/test-ai` | 经 **AI Gateway** 测试 `settings.ai`（支持 `openai` / `openai_compatible` / `deepseek` / `qwen`）。各服务商 **`{provider}_api_key` / `{provider}_base_url` / `{provider}_model`** 独立存储；可选 JSON：`provider`、`base_url`、`model`、`api_key`（写入当前 provider 对应项；`****` 占位则沿用已保存密钥）、`timeout_sec`，用于**未保存前**用当前表单试连；空 body 仅用库内配置。成功 `data`：`ok`、`message`、`provider`、`model`、`latencyMs`。 |
 | `POST` | `/api/v1/settings/test-storage` | 测试 Storage Provider 配置。 |
-| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；需 `settings.manage`；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
-| `POST` | `/api/v1/settings/storage/public-check` | 同上（P1 别名） |
-| `GET` | `/api/v1/settings/storage/public-check/latest` | 最近一次公网测试结果（未执行时 `not_run`） |
+| `POST` | `/api/v1/storage/test-public-access` | 上传探针图片并通过匿名 HTTP 验证公网可访问性（HTTPS、`image/*`、无登录跳转）；仅 `tenant_id=0` 全局管理员；失败返回 `STORAGE_PUBLIC_*` 错误码。 |
+| `POST` | `/api/v1/settings/storage/public-check` | 同上（P1 别名；仅全局管理员） |
+| `GET` | `/api/v1/settings/storage/public-check/latest` | 最近一次公网测试结果（未执行时 `not_run`；仅全局管理员） |
 | `POST` | `/api/v1/settings/test-image` | 测试 `settings.image` 图片 Provider 配置。可选 JSON：`provider`、`testMode`（`config_only` \| `live`，默认 `config_only`）、`settings`（表单覆盖项，支持未保存先测；脱敏 `****` 占位符会忽略并沿用已保存密钥）。成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`supportedTasks`、`configStatus`。不返回 API Key。 |
 | `POST` | `/api/v1/settings/test-ocr` | 测试 `settings.image` 中的 OCR 配置。可选 JSON：`provider`（`ai_vision` / `paddleocr` / `baidu` / `aliyun` / `tencent`）、`settings`（表单覆盖项，支持未保存先测；脱敏密钥占位符会忽略）。`paddleocr` 会用后端生成的测试图调用 OCR 服务，检查连通性、文字 `blocks` 与 `bbox`；成功 `data`：`ok`、`message`、`provider`、`latencyMs`、`blocks`、`bboxOk`。 |
 
@@ -64,9 +71,9 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/image/providers` | 图片 Provider 能力矩阵（`status` / `supportedTasks` / 难度等，不含密钥）。 |
-| `POST` | `/api/v1/image/tasks` | 创建图片任务；创建时校验 Provider 与 `taskType` 组合。 |
-| `GET` | `/api/v1/image/tasks` | 图片任务列表。 |
-| `GET` | `/api/v1/image/tasks/:id` | 图片任务详情。 |
+| `POST` | `/api/v1/image/tasks` | 创建当前租户的图片任务；创建时校验关联商品/源文件归属、Provider 与 `taskType` 组合。 |
+| `GET` | `/api/v1/image/tasks` | 当前租户的图片任务列表。 |
+| `GET` | `/api/v1/image/tasks/:id` | 当前租户的图片任务详情。 |
 | `POST` | `/api/v1/image/tasks/:id/retry` | 重试失败任务。 |
 | `GET` | `/api/v1/image/tasks/:id/translate-edit-state` | 图片文字翻译人工编辑态：返回原图、已擦除底图、结果图、图片尺寸与可编辑文字块（译文、排版框、擦除框、样式）。 |
 | `POST` | `/api/v1/image/tasks/:id/manual-render` | 图片文字翻译人工兜底渲染：按人工编辑后的文字块重新擦除原文并规则重绘译文，结果上传 Storage Provider 并回写任务为 `success_with_review`。 |
@@ -80,15 +87,17 @@
 | `POST` | `/api/v1/ai/image/tasks/:id/manual-render` | 与 `/image/tasks/:id/manual-render` 等价，用于管理端 AI 图片任务页。 |
 | `POST` | `/api/v1/ai/image/task-items/:id/save-to-product` | 将任务子项结果保存为新商品图（`applyMode`: main/detail/marketing/ai_generated）。 |
 | `POST` | `/api/v1/ai/image/task-items/:id/set-as-main` | 将任务子项结果设为主图（`is_best_main`）。 |
-| `POST` | `/api/v1/ai/image/score` | 同步商品图评分（返回 overall/clarity/cleanliness 等维度）。 |
+| `POST` | `/api/v1/ai/image/score` | 同步当前租户商品图评分（返回 overall/clarity/cleanliness 等维度）；需要商品写权限。 |
 
 `translate_image_text`（图片文字翻译）读取「设置 → 图片 AI 设置」里的 OCR 配置：`ai_vision` 使用当前 AI 设置中的视觉模型；`paddleocr` 使用本地 PaddleOCR 服务；`aliyun` 会真实调用阿里云 OCR；`tencent` 会真实调用腾讯云 OCR，支持 `GeneralBasicOCR` 与 `GeneralFastOCR`。该任务采用严格 OCR 模式：配置哪个 OCR Provider 就必须实际调用哪个 Provider；OCR 未配置、配置不完整、调用失败或未识别到文字时任务直接失败，不会自动改用其他 OCR。详情输出会包含 `ocr.provider`、`ocr.apiName`、`ocr.configuredOcrProvider`、`ocr.actualOcrProvider`、`ocr.textBlocksCount`、`ocr.averageConfidence`、`ocr.filteredBlocksCount`、`ocr.errorMessage`、`ocr.blocks`、`ocr.groups`、`layout.layoutTemplate` 与 `renderQuality`。每个 OCR block 会补充 `blockClass`、`standardTranslation` 与 `compactTranslation`；顶层会补充 `blockClassifications`、`eraseBBoxCount`、`layoutBBoxCount`、`badgeCount`、`abnormalBadgeCount`、`backgroundPatchScore`、`overlapScore` 与 `finalQualityStatus` 分级：`success`（商用分≥85）、`success_with_review`（75–84，可下载，保存到商品前建议人工检查）、`failed_render_validation`（<65 或中文残留/溢出/遮挡商品主体等硬失败）。调试输出：`debugOriginalUrl`、`debugMaskUrl`、`debugErasedUrl`、`debugFinalUrl`（对应 original/mask/erased/final.png）。65–74 分同任务内自动质量重试一次（`qualityAutoRetried`）。人工兜底使用 `translate-edit-state` 读取可编辑块，再用 `manual-render` 基于原图/已擦除图重新擦除原文并规则重绘译文；输出会记录 `manualEdit`（baseImage、blocks、editedAt、editedBy、eraseMode 等），任务回写为 `success_with_review`。`layout` 还包含 `eraseMode`、`eraseAreaRatio`、`patchAreaRatio`、`flatFillRatio`、`largePatchDetected`、`retryStrategies`、`simulation` 等渲染诊断；顶层同步输出 `configuredOcrProvider`、`actualOcrProvider`、`ocrBlocksCount`、`ocrAverageConfidence`、`detected_source_blocks`、`translated_blocks`、`rendered_blocks`、`target_language_present`、`source_language_residue`、`overflow_blocks`、`style_mismatch_count`、`patch_area_ratio`、`render_quality_score`、`overall_confidence` 便于任务详情和批量排查。`renderQuality` 包含 `textAppliedScore`、`sourceTextRemovedScore`、`layoutScore`、`styleConsistencyScore`、`readabilityScore`、`productPreservationScore`、`commercialUsabilityScore`、`passed` 与 `warnings`；当出现异常 badge、文字重叠、背景补丁、原文残留、版面失衡或商用评分不达标时，任务会以 `low_quality` 返回，不应推荐保存到商品图片或设为主图/详情图。
+
+图片任务、任务子项、关联商品、商品图片与源文件的读取和写入均按当前管理员租户校验；路径 ID 或 body 中的资源 ID 不能跨租户引用。历史任务会在迁移时从可信关联资源回填租户。
 
 ## 文件
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/v1/files/upload` | 上传文件。 |
+| `POST` | `/api/v1/files/upload` | 上传文件到私有隔离区，扫描 clean 后才发布；当前异步隔离仅支持 `public_base` 为空或 `/static`、并由后端状态门禁保护的 local storage，直出目录/CDN 与远端公开对象存储会 fail-closed。 |
 | `GET` | `/api/v1/files` | 文件列表。 |
 | `DELETE` | `/api/v1/files/:id` | 删除文件。 |
 
@@ -162,12 +171,14 @@
 
 **多平台刊登中心（Phase A1.2）**
 
+刊登目标、商品和店铺均按当前可信租户查询；`/product-publish/targets` 中的“全局”仅指不绑定单一商品，不表示跨租户店铺。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/products/:id/publish-targets` | 可刊登平台、店铺与能力分级（`real_draft_create` / `local_draft_only` / …） |
 | `POST` | `/api/v1/products/:id/publish-targets/check` | 多目标独立预检查；body 含 `targets[]`、`commonConfig`、`targetConfigs` |
 | `POST` | `/api/v1/products/:id/publish-targets/create-drafts` | 批量创建刊登草稿；形成 `product_publish_batches` + 子任务；支持 `onlyReady`、`retryFailedOnly` + `batchId` |
-| `GET` | `/api/v1/product-publish/targets` | 全局可刊登平台与店铺（批量向导） |
+| `GET` | `/api/v1/product-publish/targets` | 当前租户可刊登平台与店铺（批量向导） |
 | `POST` | `/api/v1/product-publish/batch-targets/check` | 多商品 × 多目标矩阵预检查；body 含 `productIds[]`、`targets[]`、`commonConfig`、`overrides` |
 | `POST` | `/api/v1/product-publish/batch-targets/create-drafts` | 多商品批量创建刊登草稿；`onlyReady`、`includeWarnings` |
 | `GET` | `/api/v1/product-publish/batches` | 多商品刊登批次列表 |
@@ -197,8 +208,8 @@
 | --- | --- | --- |
 | `POST` | `/api/v1/ai/title-optimize` | AI 标题优化（同步/任务，见实现）。 |
 | `POST` | `/api/v1/ai/description-generate` | AI 描述生成。 |
-| `GET` | `/api/v1/ai/tasks` | AI 任务列表。 |
-| `GET` | `/api/v1/ai/tasks/:id` | AI 任务详情。 |
+| `GET` | `/api/v1/ai/tasks` | 当前租户的 AI 任务列表（不返回其他租户记录）。 |
+| `GET` | `/api/v1/ai/tasks/:id` | 当前租户的 AI 任务详情；跨租户或不存在时均返回 404。 |
 
 客服 AI 回复建议见 **`POST /api/v1/customer/conversations/:id/ai/generate-reply`**（非 legacy `/ai/chat`）。
 
@@ -210,6 +221,8 @@
 
 ## 采集
 
+采集规则（含 AI Prompt 模板）目前是实例级资源，不是租户业务数据；其 CRUD、读取、测试及启停仅允许 `tenant_id=0` 的全局设置管理员（`settings.manage`）。`GET /api/v1/collect/monitor` 同为实例级监控，仅该全局管理员可读取。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/api/v1/collect/engines/status` | 被动返回 Playwright / OpenCLI 的启用、配置、可达与就绪状态，以及淘宝/天猫有效默认引擎；不返回地址或 Token，不执行 `opencli doctor`，不租用或聚焦浏览器窗口。 |
@@ -220,6 +233,7 @@
 | `POST` | `/api/v1/collect/tasks/:id/retry` | 重试采集任务。 |
 | `POST` | `/api/v1/collect/rules/ai-generate` | AI 根据商品 URL 生成自定义采集规则（分析页面摘要 → AI → 校验 → 自动规则测试）。1688 / AliExpress 等 **available/beta** 专用平台返回 **40002**。规则非法返回 **40003** `AI_RULE_INVALID`。 |
 | `POST` | `/api/v1/collect/rules/ai-generate-and-save` | 同上并直接保存为 `collect_rule`。 |
+| `GET` / `POST` / `DELETE` 等 | `/api/v1/collect/browser-profiles` | 自定义采集浏览器 Profile 管理；所有路由需要 `collect_profile.manage` 写权限，且 Profile 只在当前可信租户中可见或可操作。`tenant_id=0` 为显式系统域。 |
 | `GET` | `/api/collector/providers/1688/auth-status` | 1688 采集浏览器登录态检测（同 `/api/v1/collector/...`）。 |
 | `POST` | `/api/collector/providers/1688/open-login-browser` | 打开持久化 Playwright 浏览器供 1688 手动登录。 |
 | `GET` | `/api/collector/providers/pinduoduo/auth-status` | 拼多多登录态检测（兼容 GET；内部走 check-login 逻辑）。 |
@@ -314,6 +328,8 @@ OpenCLI 原始输出或本机路径。部署和排错见
 
 `POST open-login-browser` 与 `check-login` 使用同一 **`pinduoduo` Profile**（与 1688、custom 隔离）。采集浏览器登录窗口 **1280×900**。
 
+自定义 Profile 的 `profileId` / `profileKey` 仅是请求快照定位字段：后端会按当前租户、Profile 状态与 URL 域名校验，不允许借此访问其他租户的登录态。固定 Provider Profile 对非零租户采用 `tenant_{id}_{provider}` key；`tenant_id=0` 保留历史 provider key。
+
 ## 店铺与平台
 
 | 方法 | 路径 | 说明 |
@@ -321,9 +337,13 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/shops` | 店铺列表（现行路径；legacy `/stores` 已废弃）。 |
 | `GET` | `/api/v1/shops/:id` | 店铺详情。 |
 | `POST` | `/api/v1/shops/:id/sync-orders` | 手动触发订单同步。 |
+
+订单号在租户内唯一（`tenant_id + order_no`）。订单及其商品、SKU、店铺等引用必须属于同一租户；跨租户引用被拒绝，不能借 body 或路径中的 ID 扩大访问范围。
 | `POST` | `/api/v1/shops/:id/oauth/douyin/refresh` | 刷新抖店授权 Token（示例；各平台 OAuth 见下表）。 |
 
 现行平台 Provider 与开放平台应用配置接口：
+
+平台开放应用配置和刊登配置均为 tenant 0 的实例级配置。`/platform/settings/:platform` 与 `/platform/publish-settings/:platform` 的读取（包括脱敏值）、写入及连接测试仅限全局配置管理员；敏感字段仍只返回 `****`。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
@@ -331,8 +351,8 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/platform/settings/:platform` | 读取平台开放应用配置 schema 与脱敏后的当前值。敏感字段只返回 `****`。 |
 | `PUT` | `/api/v1/platform/settings/:platform` | 保存平台开放应用配置。敏感字段加密存储，传入 `****` 表示保留原值。`douyin_shop` 会校验 App Key、App Secret、回调地址、环境与超时时间；发起 OAuth 还需要 `service_id`。 |
 | `POST` | `/api/v1/platform/settings/:platform/test-connection` | 测试已保存的平台开放应用配置。`douyin_shop` 应用配置测试校验配置完整性与授权可用性，不做商品 / 订单 / 库存调用。 |
-| `GET` | `/api/v1/shops/oauth/douyin/start` | 发起抖店 OAuth；生成 Redis state（10 分钟，绑定管理员、`platform=douyin_shop`、可选 `shopId`），返回 `redirectUrl`。 |
-| `GET` | `/api/v1/shops/oauth/douyin/callback` | 抖店授权公开回调；校验 state，处理 `code` / `error`，换取 token，创建或更新 `shops` / `shop_auth_tokens`，成功跳转 `/settings/platforms?platform=douyin_shop&auth=success`。 |
+| `GET` | `/api/v1/shops/oauth/douyin/start` | 发起抖店 OAuth；生成 Redis state（10 分钟，绑定管理员、服务端租户、`platform=douyin_shop`、可选 `shopId`），返回 `redirectUrl`。 |
+| `GET` | `/api/v1/shops/oauth/douyin/callback` | 抖店授权公开回调；校验并一次性消费 state，从 state 恢复租户，处理 `code` / `error`，换取 token，按租户创建或更新 `shops` / `shop_auth_tokens`，成功跳转 `/settings/platforms?platform=douyin_shop&auth=success`。 |
 | `GET` | `/api/v1/shops/:id/oauth/douyin/authorize-url` | 已有抖店店铺重新授权，返回 `redirectUrl`。 |
 | `POST` | `/api/v1/shops/:id/oauth/douyin/refresh` | 使用加密保存的 refresh token 刷新抖店 access token，并用刷新响应校准店铺基础信息；失败时按场景标记 `expired` / `invalid`。 |
 | `POST` | `/api/v1/shops/:id/oauth/douyin/revoke` | 本地解除抖店授权，清理 / 失效 token，保留历史数据。 |
@@ -459,7 +479,11 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 
 抖店 OAuth / Client / 类目 / 映射 / 图片错误码：`DOUYIN_APP_CONFIG_INCOMPLETE`、`DOUYIN_OAUTH_STATE_INVALID`、`DOUYIN_OAUTH_DENIED`、`DOUYIN_OAUTH_CODE_MISSING`、`DOUYIN_TOKEN_EXCHANGE_FAILED`、`DOUYIN_TOKEN_REFRESH_FAILED`、`DOUYIN_SHOP_INFO_FAILED`、`DOUYIN_AUTH_EXPIRED`、`DOUYIN_PERMISSION_DENIED`、`UNKNOWN_DOUYIN_AUTH_ERROR`、`DOUYIN_API_ERROR`、`DOUYIN_RATE_LIMITED`、`DOUYIN_REQUEST_TIMEOUT`、`DOUYIN_RESPONSE_PARSE_FAILED`、`UNKNOWN_DOUYIN_ERROR`、`DOUYIN_CATEGORY_SYNC_FAILED`、`DOUYIN_CATEGORY_EMPTY`、`DOUYIN_CATEGORY_NOT_SELECTED`、`DOUYIN_CATEGORY_NOT_LEAF`、`DOUYIN_CATEGORY_ATTR_SYNC_FAILED`、`DOUYIN_REQUIRED_ATTR_MISSING`、`DOUYIN_CATEGORY_CACHE_STALE`、`DOUYIN_CATEGORY_PERMISSION_DENIED`、`DOUYIN_TITLE_MISSING`、`DOUYIN_TITLE_TOO_LONG`、`DOUYIN_DESCRIPTION_MISSING`、`DOUYIN_DESCRIPTION_NEEDS_REVIEW`、`DOUYIN_MAIN_IMAGE_MISSING`、`DOUYIN_MAIN_IMAGE_NOT_UPLOADED`、`DOUYIN_MAIN_IMAGE_UPLOAD_FAILED`、`DOUYIN_DETAIL_IMAGE_UPLOAD_PARTIAL_FAILED`、`DOUYIN_IMAGE_NEED_UPLOAD`、`DOUYIN_IMAGE_UPLOAD_EXPIRED`、`DOUYIN_IMAGE_NEED_SYNC`、`DOUYIN_DETAIL_IMAGE_EMPTY`、`DOUYIN_DETAIL_IMAGE_NEED_SYNC`、`DOUYIN_ATTR_VALUE_INVALID`、`DOUYIN_SKU_MISSING`、`DOUYIN_SKU_PRICE_INVALID`、`DOUYIN_SKU_STOCK_UNCONFIRMED`、`DOUYIN_SKU_ATTR_INCOMPLETE`、`DOUYIN_PRICE_MISSING`、`DOUYIN_PRICE_INVALID`、`DOUYIN_PROFIT_TOO_LOW`、`DOUYIN_STOCK_UNCONFIRMED`、`DOUYIN_STOCK_INVALID`、`DOUYIN_COLLECT_NEEDS_REVIEW`、`IMAGE_URL_NOT_ACCESSIBLE`、`IMAGE_DOWNLOAD_FAILED`、`IMAGE_READ_FAILED`、`IMAGE_FORMAT_UNSUPPORTED`、`IMAGE_SIZE_TOO_LARGE`、`IMAGE_DIMENSION_INVALID`、`IMAGE_PROCESS_FAILED`、`STORAGE_UPLOAD_FAILED`、`DOUYIN_IMAGE_UPLOAD_FAILED`、`DOUYIN_STORE_NOT_AUTHORIZED`、`DOUYIN_CREATE_PRODUCT_FAILED`、`DOUYIN_PRODUCT_PAYLOAD_INVALID`。API 错误响应 `data.errorCode` 返回业务码；callback 失败通过 `reason` query 返回。所有响应均不得返回 App Secret、access token 或 refresh token 明文。
 
+所有平台 OAuth state 均绑定 `platform + tenant + shop`（适用时）并一次性消费；Token 刷新、授权状态写入与撤销都必须同时匹配店铺 ID 和租户。订单同步、客户消息同步、商品刊登、库存同步的队列消费者会用持久化店铺重新确认任务租户，任务 ID 本身不构成执行授权。普通业务 worker 只接受正数租户上下文；实例级 worker 监控、备份、恢复等全局操作必须由 `tenant_id=0` 的全局管理员门禁，非零租户的 `admin` 标签不构成该权限。
+
 ## 抖店可观测性 / Health & Metrics（Phase 10.4）
+
+抖店 runtime、preflight（含 latest）及 Storage public-check 是实例级运维接口，仅全局管理员可访问；其中 preflight、runtime 状态变更与 health-check 等写操作仍要求配置权限。这些门禁和预检结果不构成生产就绪声明。
 
 > **不** 提供 Prometheus `/metrics`。抖店生产监控复用进程健康、任务中心、操作日志与运营看板。E2E 脚本见 `scripts/douyin-e2e-*`；门禁见 [`DOUYIN_RELEASE_GATE.md`](DOUYIN_RELEASE_GATE.md)。
 
@@ -503,6 +527,8 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `POST` | `/api/v1/task-center/alerts/:id/notify` | Webhook 通知（需配置） |
 | `GET` | `/api/v1/task-center/failure-categories` | 含 `sub:douyin_*` 分类 |
 
+任务中心的列表、详情、摘要、告警、通知与命令均限定在当前租户；只有系统租户的全局管理员可执行显式的全局扫描。跨租户 ID 按不存在处理，且不得产生重试、标记、通知或状态更新副作用。
+
 ### 操作日志与运营看板
 
 | 方法 | 路径 | 说明 |
@@ -514,6 +540,8 @@ List endpoints return `{items, nextCursor, hasMore, limit}` and never expose off
 | `GET` | `/api/v1/dashboard/health` | 子系统健康 + 配置风险摘要 |
 
 ### AI 商品运营工作台（Phase A3.3）
+
+工作台严格从可信请求上下文确定租户；所有查询与刷新只处理该租户数据。`tenant_id=0` 是精确系统域，不是跨租户通配符。
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |

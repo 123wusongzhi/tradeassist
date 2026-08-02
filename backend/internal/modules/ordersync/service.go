@@ -20,6 +20,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -244,15 +245,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("ordersync: no db")
 	}
-	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	row, err := s.Shops.TenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Status) != shop.StatusActive {
 		return nil, fmt.Errorf("shop is not active")
 	}
 	prov := platformp.Get(row.Platform)
-	if err := ValidateShopPlatform(&row, prov); err != nil {
+	if err := ValidateShopPlatform(row, prov); err != nil {
 		return nil, err
 	}
 
@@ -262,7 +263,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	owner := idempotency.OwnerFromRequest(c.GetString("requestId"), "order-sync-create")
-	jobAcquire, replayRes, acqErr := s.acquireSyncJob(c.Request.Context(), strings.TrimSpace(row.Platform), shopID, snap, inputJSON, body.ForceNew, owner)
+	jobAcquire, replayRes, acqErr := s.acquireSyncJob(c.Request.Context(), row.TenantID, strings.TrimSpace(row.Platform), shopID, snap, inputJSON, body.ForceNew, owner)
 	if acqErr != nil {
 		return nil, acqErr
 	}
@@ -271,6 +272,7 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	task := OrderSyncTask{
+		TenantID:  row.TenantID,
 		ShopID:    shopID,
 		Platform:  strings.TrimSpace(row.Platform),
 		TaskType:  TaskTypeOrderSync,
@@ -302,7 +304,15 @@ func (s *Service) CreateShopSync(c *gin.Context, shopID uuid.UUID, body SyncOrde
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+		actorID := uuid.Nil
+		if task.CreatedBy != nil {
+			actorID = *task.CreatedBy
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: task.TenantID,
+			ShopID:   task.ShopID,
+		}, actorID, "order_sync_inline")
+		return s.ProcessQueuedTask(workerCtx, task.ID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -386,11 +396,13 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 
 	fail := func(msg string) error {
 		fin := time.Now().UTC()
-		_ = s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
+		if err := s.finishOrderSyncTask(ctx, taskID, workerID, claim, map[string]any{
 			"status":        StatusFailed,
 			"error_message": msg,
 			"finished_at":   &fin,
-		})
+		}); err != nil {
+			return err
+		}
 		if s.OpLog != nil {
 			_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 				AdminUserID: task.CreatedBy,
@@ -416,7 +428,7 @@ func (s *Service) ProcessQueuedTask(ctx context.Context, taskID uuid.UUID, worke
 		return fmt.Errorf("%s", msg)
 	}
 
-	shopRow, authReq, err := s.Shops.PlainAuthForProviderCtx(ctx, task.ShopID)
+	shopRow, authReq, err := s.Shops.PlainAuthForProviderCtx(ctx, task.TenantID, task.ShopID)
 	if err != nil {
 		return fail(err.Error())
 	}
@@ -662,9 +674,9 @@ func (s *Service) taskToDTO(ctx context.Context, t *OrderSyncTask, shopName stri
 	}
 }
 
-func (s *Service) shopNameLookup(ctx context.Context, shopID uuid.UUID) string {
+func (s *Service) shopNameLookup(ctx context.Context, tenantID int64, shopID uuid.UUID) string {
 	var sh shop.Shop
-	if err := s.DB.WithContext(ctx).First(&sh, "id = ?", shopID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&sh).Error; err != nil {
 		return ""
 	}
 	return sh.ShopName
@@ -681,7 +693,7 @@ func (s *Service) GetDTO(c *gin.Context, id uuid.UUID) (TaskDTO, error) {
 	if err := repository.FindByID(c.Request.Context(), s.DB, &t, tid, id); err != nil {
 		return zero, err
 	}
-	name := s.shopNameLookup(c.Request.Context(), t.ShopID)
+	name := s.shopNameLookup(c.Request.Context(), tid, t.ShopID)
 	return s.taskToDTO(c.Request.Context(), &t, name), nil
 }
 
@@ -747,8 +759,8 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	ctx := c.Request.Context()
 	if len(shopIDs) > 0 && s.Shops != nil {
 		// Batch summaries require gin.Context — fall back to per-row lookup via DB when unavailable.
-		for _, sid := range shopIDs {
-			sm[sid] = s.shopNameLookup(ctx, sid)
+		for _, row := range rows {
+			sm[row.ShopID] = s.shopNameLookup(ctx, row.TenantID, row.ShopID)
 		}
 	}
 
@@ -808,9 +820,13 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 	_ = retrySnap // snapshot validated
 
-	if err := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{}).Where("id = ?", taskID).
-		Updates(updates).Error; err != nil {
-		return nil, err
+	claim := s.DB.WithContext(c.Request.Context()).Model(&OrderSyncTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tid, st).
+		Updates(updates)
+	if claim.Error != nil {
+		return nil, claim.Error
+	}
+	if claim.RowsAffected != 1 {
+		return nil, fmt.Errorf("task retry already claimed")
 	}
 
 	if s.OpLog != nil {
@@ -835,7 +851,15 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
+		actorID := uuid.Nil
+		if adminID != nil {
+			actorID = *adminID
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: tid,
+			ShopID:   task.ShopID,
+		}, actorID, "order_sync_retry_inline")
+		return s.ProcessQueuedTask(workerCtx, taskID, worker.GenerateInlineWorkerID(worker.TypeOrderSync))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {

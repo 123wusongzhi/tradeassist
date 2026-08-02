@@ -24,6 +24,9 @@ func Register(r gin.IRouter, h *Handler) {
 }
 
 func (h *Handler) Status(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermDRRead) {
 		return
 	}
@@ -36,6 +39,9 @@ func (h *Handler) Status(c *gin.Context) {
 }
 
 func (h *Handler) CreateDrill(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermDRExecute) {
 		return
 	}

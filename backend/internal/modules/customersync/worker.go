@@ -81,20 +81,30 @@ func runWorker(ctx context.Context, log *slog.Logger, svc *Service, queueName st
 			continue
 		}
 
-		jobCtx := context.Background()
-		if svc.DB != nil {
-			var probe CustomerMessageSyncTask
-			if err := svc.DB.WithContext(jobCtx).Select("shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
-				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, probe.ShopID, "customer_message_sync")
-				if terr != nil {
-					if log != nil {
-						log.Warn("customer_sync_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
-					}
-					continue
-				}
-				jobCtx = wctx
+		if svc.DB == nil {
+			if log != nil {
+				log.Warn("customer_sync_worker_db_missing", "worker", slot, "taskId", tid.String())
 			}
+			continue
 		}
+		jobCtx := context.Background()
+		var probe CustomerMessageSyncTask
+		if err := svc.DB.WithContext(jobCtx).Select("shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err != nil {
+			if log != nil {
+				log.Warn("customer_sync_worker_task_not_found", "worker", slot, "taskId", tid.String(), "error", err)
+			}
+			continue
+		}
+		// Queue messages carry only a task ID. Rebuild the tenant scope from the
+		// durable shop row and reject any task/shop tenant disagreement.
+		wctx, scope, terr := tasktenant.BeginWorker(jobCtx, svc.DB, 0, probe.ShopID, "customer_message_sync")
+		if terr != nil || scope.TenantID != probe.TenantID {
+			if log != nil {
+				log.Warn("customer_sync_worker_tenant_invalid", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
+			}
+			continue
+		}
+		jobCtx = wctx
 		if err := svc.ProcessQueuedTask(jobCtx, tid, workerLeaseID); err != nil && log != nil {
 			log.Warn("customer_message_sync_worker_task_error", "worker", slot, "taskId", tid.String(), "error", err)
 		}

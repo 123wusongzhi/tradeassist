@@ -38,7 +38,11 @@ export default defineConfig({
     command: isCI
       ? `pnpm build:admin && pnpm --filter @trademind/admin exec max preview --host 127.0.0.1 --port ${adminE2EPort}`
       : `pnpm dev:admin -- --host 127.0.0.1 --port ${adminE2EPort}`,
-    url: adminE2EBaseURL,
+    // A generic 200 response on the port is not sufficient: an unrelated
+    // local service can otherwise be mistaken for the Admin dev server when
+    // Playwright reuses an existing server. This Umi route is served by the
+    // Admin SPA (including its dev-server history fallback).
+    url: `${adminE2EBaseURL}/user/login`,
     reuseExistingServer: !isCI,
     timeout: 120_000,
     env: {

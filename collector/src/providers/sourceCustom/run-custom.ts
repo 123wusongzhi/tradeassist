@@ -2,6 +2,9 @@ import type { Page } from 'playwright';
 import type { BrowserManager } from '../../browser/manager.js';
 import type { CustomAccessReport, ExtractedFieldsSummary, QualityScoreSummary } from '../../types/access-status.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
+import {
+  assertPublicHttpURL,
+} from '../../security/public-url.js';
 import { prepare1688OfferPage } from '../source1688/page-prep.js';
 import { assert1688PageCollectible, is1688CollectHost } from '../shared/page-guard.js';
 import {
@@ -235,6 +238,7 @@ export async function runCustomCollect(
   opts: CustomCollectOptions,
   mode: CustomRunMode,
 ): Promise<CustomRunResult> {
+  await assertPublicHttpURL(urlStr);
   const rule = normalizeCustomRuleDecl(opts.rule);
   if (!rule.title?.selectors?.length) {
     throw new Error('CUSTOM_RULE_INVALID:title selector is required');
@@ -352,5 +356,5 @@ export async function runCustomCollect(
   if (useProfile) {
     return browser.withCustomProfilePage(profileKey, run);
   }
-  return use1688Session ? browser.with1688Page(run) : browser.withPage(run);
+  return use1688Session ? browser.with1688Page('1688', run) : browser.withPage(run);
 }

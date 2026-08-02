@@ -23,6 +23,11 @@ type Handler struct {
 	Svc *Service
 }
 
+func mustTenantID(c *gin.Context) int64 {
+	tid, _ := adminperm.TenantIDFromGin(c)
+	return tid
+}
+
 func atoiQ(threshold int, raw string, def int) int {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -102,11 +107,22 @@ func (h *Handler) ListFailures(c *gin.Context) {
 		return
 	}
 	if h.Svc != nil && h.Svc.DB != nil {
-		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-			p.TenantID = tid
+		tid, err := adminperm.TenantIDFromGin(c)
+		if err != nil {
+			response.HandleError(c, err)
+			return
 		}
+		p.TenantID = tid
 		if pr, err := adminperm.LoadPrincipal(c, h.Svc.DB); err == nil && pr != nil && !pr.IsAdmin() {
-			p.AllowedShopIDs = pr.AllowedStoreIDs()
+			if pr.IsTenantAdmin() {
+				p.AllowedShopIDs, err = adminperm.TenantStoreIDs(c, h.Svc.DB, pr.TenantID)
+				if err != nil {
+					response.HandleError(c, err)
+					return
+				}
+			} else {
+				p.AllowedShopIDs = pr.AllowedStoreIDs()
+			}
 		}
 	}
 	out, err := h.Svc.ListFailures(c.Request.Context(), p)
@@ -154,11 +170,12 @@ func (h *Handler) Summary(c *gin.Context) {
 	}
 	p.RequireIgnored = mf.RequireIgnored
 	p.RequireHandled = mf.RequireHandled
-	if h.Svc != nil && h.Svc.DB != nil {
-		if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-			p.TenantID = tid
-		}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
 	}
+	p.TenantID = tid
 	su, err := h.Svc.Summary(c.Request.Context(), p)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -358,6 +375,7 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 		return
 	}
 	p := ListAlertsParams{
+		TenantID:        mustTenantID(c),
 		Status:          strings.TrimSpace(c.Query("status")),
 		Severity:        strings.TrimSpace(c.Query("severity")),
 		FailureCategory: strings.TrimSpace(c.Query("failureCategory")),
@@ -402,7 +420,12 @@ func (h *Handler) ScanAlerts(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "task center unavailable")
 		return
 	}
-	sum, err := h.Svc.ScanAndGenerateTaskAlerts(c.Request.Context())
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	sum, err := h.Svc.ScanAndGenerateTaskAlerts(c.Request.Context(), tid)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -559,13 +582,14 @@ func (h *Handler) ListAlertNotifications(c *gin.Context) {
 		return
 	}
 	p := ListAlertNotificationsParams{
-		AlertID: alertIDPtr,
-		Channel: strings.TrimSpace(c.Query("channel")),
-		Status:  strings.TrimSpace(c.Query("status")),
-		Start:   startPtr,
-		End:     endPtr,
-		Page:    atoiQ(1, c.DefaultQuery("page", "1"), 1),
-		PageSz:  atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
+		TenantID: mustTenantID(c),
+		AlertID:  alertIDPtr,
+		Channel:  strings.TrimSpace(c.Query("channel")),
+		Status:   strings.TrimSpace(c.Query("status")),
+		Start:    startPtr,
+		End:      endPtr,
+		Page:     atoiQ(1, c.DefaultQuery("page", "1"), 1),
+		PageSz:   atoiQ(1, c.DefaultQuery("pageSize", "20"), 20),
 	}
 	res, err := h.Svc.ListAlertNotifications(c.Request.Context(), p)
 	if err != nil {

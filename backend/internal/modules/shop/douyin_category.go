@@ -138,7 +138,10 @@ func (s *Service) SyncDouyinCategories(c *gin.Context, shopID uuid.UUID, adminID
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	ctx := c.Request.Context()
+	ctx, _, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
 	s.douyinLog(c, adminID, &shopID, "douyin.category.sync.start", "success", "", "category sync requested")
 	client, _, _, err := s.douyinClientForShop(c, ctx, shopID, adminID)
 	if err != nil {
@@ -256,7 +259,10 @@ func (s *Service) SyncDouyinCategoryAttributes(c *gin.Context, shopID uuid.UUID,
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	ctx := c.Request.Context()
+	ctx, _, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
 	cid := strings.TrimSpace(categoryID)
 	if cid == "" {
 		return nil, douyinCategoryErr(DouyinCategoryNotSelected, nil)

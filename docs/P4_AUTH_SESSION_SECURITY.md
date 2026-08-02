@@ -24,8 +24,8 @@ Phase P4 replaces long-lived JWT-only auth with:
 
 | Mode | Env Var | Refresh Storage | Access Storage | Production |
 | --- | --- | --- | --- | --- |
-| `secure_session` | `AUTH_SESSION_MODE=secure_session` | HttpOnly cookie (`authcookie`) | Bearer header / memory | **Required** in staging/prod |
-| `legacy_local_storage` | Default in dev | JSON response body | localStorage (frontend) | **Forbidden** in staging/prod |
+| `secure_session` | Default / `AUTH_SESSION_MODE=secure_session` | HttpOnly cookie (`authcookie`) | Bearer header / memory | **Required** in staging/prod |
+| `legacy_local_storage` | Explicit local compatibility opt-in | JSON response body | localStorage (frontend) | **Forbidden** in staging/prod |
 
 Validation: `config.validateAuthSecurity()` rejects legacy mode when `APP_ENV` is staging or production.
 

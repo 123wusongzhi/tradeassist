@@ -1,7 +1,6 @@
 package productpublish
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +14,8 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -26,15 +27,26 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	sid, err := uuid.Parse(strings.TrimSpace(body.ShopID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid shopId")
+	}
+	if !adminperm.RequireStoreOperate(c, s.DB, sid) {
+		return nil, fmt.Errorf("store operate permission required")
 	}
 
 	var prod product.Product
 	if err := s.DB.WithContext(ctx).
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Where("tenant_id = ?", tenantID).
 		First(&prod, "id = ?", productID).Error; err != nil {
 		return nil, err
 	}
@@ -46,7 +58,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		return nil, err
 	}
 
-	row, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, sid)
+	row, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, sid)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("shop not found")
@@ -56,7 +68,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if row == nil {
 		return nil, fmt.Errorf("shop not found")
 	}
-	if prod.TenantID != 0 && row.TenantID != 0 && prod.TenantID != row.TenantID {
+	if prod.TenantID != row.TenantID {
 		return nil, fmt.Errorf("product tenant does not match shop tenant")
 	}
 
@@ -85,6 +97,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	var readinessResult *productcheck.CheckProductReadinessResult
 	if s.Readiness != nil {
 		rres, err := s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+			TenantID:       tenantID,
 			ProductID:      productID,
 			Platform:       platKey,
 			ShopID:         &sid,
@@ -145,6 +158,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 			curr = "USD"
 		}
 		pubRow = ProductPublication{
+			TenantID:      tenantID,
 			ProductID:     prod.ID,
 			ShopID:        sid,
 			Platform:      platKey,
@@ -191,6 +205,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	task := ProductPublishTask{
+		TenantID:        tenantID,
 		ProductID:       prod.ID,
 		ShopID:          sid,
 		TargetStoreID:   sid,
@@ -215,7 +230,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		return nil, err
 	}
 	if err := s.DB.WithContext(ctx).Model(&ProductPublication{}).
-		Where("id = ?", pubRow.ID).
+		Where("id = ? AND tenant_id = ?", pubRow.ID, tenantID).
 		Updates(map[string]any{"publish_task_id": task.ID, "updated_at": task.CreatedAt}).Error; err != nil {
 		return nil, err
 	}
@@ -232,7 +247,15 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	runInline := func() error {
-		return s.ProcessQueuedTask(context.Background(), task.ID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
+		actorID := uuid.Nil
+		if task.CreatedBy != nil {
+			actorID = *task.CreatedBy
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: task.TenantID,
+			ShopID:   task.ShopID,
+		}, actorID, "product_publish_inline")
+		return s.ProcessQueuedTask(workerCtx, task.ID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -18,6 +19,41 @@ import (
 // Handler serves shop + platform provider metadata routes.
 type Handler struct {
 	Svc *Service
+}
+
+// requireShopOperate applies tenant isolation before the existing store-write RBAC guard.
+func (h *Handler) requireShopOperate(c *gin.Context, id uuid.UUID) bool {
+	if _, err := h.Svc.tenantShop(c, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, http.StatusNotFound, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
+		return false
+	}
+	return adminperm.RequireStoreOperate(c, h.Svc.DB, id)
+}
+
+func (h *Handler) requireConfigManage(c *gin.Context) bool {
+	return adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermConfigManage)
+}
+
+// requireGlobalConfigManage protects instance-wide platform settings, which are
+// persisted under tenant 0 and must not disclose their presence to tenant users.
+func (h *Handler) requireGlobalConfigManage(c *gin.Context) bool {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return false
+	}
+	return adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermConfigManage)
+}
+
+func (h *Handler) requireShopOperatePath(c *gin.Context) bool {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid id")
+		return false
+	}
+	return h.requireShopOperate(c, id)
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -59,6 +95,9 @@ func (h *Handler) GetPlatformAppSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireGlobalConfigManage(c) {
+		return
+	}
 	plat := strings.TrimSpace(c.Param("platform"))
 	out, err := h.Svc.GetPlatformAppSettings(c.Request.Context(), plat)
 	if err != nil {
@@ -76,6 +115,9 @@ type platformSettingsPutReq struct {
 func (h *Handler) PutPlatformAppSettings(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireGlobalConfigManage(c) {
 		return
 	}
 	plat := strings.TrimSpace(c.Param("platform"))
@@ -98,6 +140,9 @@ func (h *Handler) TestPlatformAppSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireGlobalConfigManage(c) {
+		return
+	}
 	plat := strings.TrimSpace(c.Param("platform"))
 	out, err := h.Svc.TestPlatformAppSettings(c, plat)
 	if err != nil {
@@ -113,6 +158,9 @@ func (h *Handler) GetPlatformPublishSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireGlobalConfigManage(c) {
+		return
+	}
 	plat := strings.TrimSpace(c.Param("platform"))
 	out, err := h.Svc.GetPlatformPublishSettings(c.Request.Context(), plat)
 	if err != nil {
@@ -126,6 +174,9 @@ func (h *Handler) GetPlatformPublishSettings(c *gin.Context) {
 func (h *Handler) PutPlatformPublishSettings(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireGlobalConfigManage(c) {
 		return
 	}
 	plat := strings.TrimSpace(c.Param("platform"))
@@ -178,6 +229,11 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	// A new shop has no existing store grant to evaluate. Creating it is
+	// therefore controlled by the store-operate capability itself.
+	if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermStoreOperate) {
+		return
+	}
 	var body CreateBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
@@ -188,12 +244,11 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
-	detail, err := h.Svc.GetDetail(c, row.ID)
-	if err != nil {
-		response.HandleError(c, err)
-		return
-	}
-	response.OK(c, detail)
+	// A scoped operator may be allowed to create the first shop without having
+	// a pre-existing grant for its not-yet-created ID. The new row is already
+	// the complete create response (there is no auth token at this point), so
+	// do not re-enter a grant-gated detail lookup here.
+	response.OK(c, &ShopDetailDTO{Shop: *row})
 }
 
 // Get GET /api/v1/shops/:id
@@ -262,6 +317,11 @@ func (h *Handler) Delete(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	// Resolve the exact tenant shop before any delete side effect, then apply
+	// the store-level operate grant (including its 404 anti-enumeration rule).
+	if !h.requireShopOperate(c, id) {
+		return
+	}
 	if err := h.Svc.Delete(c, id, adminUUID(c)); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -282,6 +342,9 @@ func (h *Handler) PutAuth(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	var body UpdateAuthBody
@@ -306,6 +369,9 @@ func (h *Handler) TestConnection(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	res, err := h.Svc.TestConnection(c, id, adminUUID(c))
@@ -479,7 +545,12 @@ func (h *Handler) SyncOzonCategories(c *gin.Context) {
 		}
 		sid = u
 	}
-	out, err := h.Svc.SyncOzonCategories(c.Request.Context(), sid)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.SyncOzonCategories(c.Request.Context(), tenantID, sid)
 	if err != nil {
 		failOzon(c, err)
 		return
@@ -557,7 +628,12 @@ func (h *Handler) SyncOzonCategoryAttributes(c *gin.Context) {
 		}
 		sid = u
 	}
-	out, err := h.Svc.SyncOzonCategoryAttributes(c.Request.Context(), id, sid)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.SyncOzonCategoryAttributes(c.Request.Context(), tenantID, id, sid)
 	if err != nil {
 		failOzon(c, err)
 		return
@@ -587,6 +663,11 @@ func (h *Handler) GetOzonAttributeMappings(c *gin.Context) {
 func (h *Handler) PutOzonAttributeMappings(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	// Attribute mappings are instance-wide publishing configuration. Restrict
+	// their mutation to the global configuration administrator.
+	if !h.requireConfigManage(c) {
 		return
 	}
 	id, ok := ozonCategoryIDParam(c)
@@ -639,6 +720,9 @@ func (h *Handler) DouyinOAuthStart(c *gin.Context) {
 			return
 		}
 		sid = &u
+		if !h.requireShopOperate(c, u) {
+			return
+		}
 	}
 	out, err := h.Svc.DouyinOAuthStart(c, sid, adminUUID(c))
 	if err != nil {
@@ -652,6 +736,9 @@ func (h *Handler) DouyinOAuthStart(c *gin.Context) {
 func (h *Handler) DouyinOAuthAuthorizeURL(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -682,6 +769,9 @@ func (h *Handler) DouyinOAuthRefresh(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -699,6 +789,9 @@ func (h *Handler) DouyinOAuthRefresh(c *gin.Context) {
 func (h *Handler) DouyinOAuthRevoke(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -720,6 +813,9 @@ func (h *Handler) DouyinOAuthTest(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -737,6 +833,9 @@ func (h *Handler) DouyinOAuthTest(c *gin.Context) {
 func (h *Handler) DouyinSyncShopInfo(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -758,6 +857,9 @@ func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -776,6 +878,9 @@ func (h *Handler) TikTokOAuthAuthorizeURL(c *gin.Context) {
 func (h *Handler) TikTokOAuthCallback(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -802,6 +907,9 @@ func (h *Handler) ShopeeOAuthAuthorizeURL(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -820,6 +928,9 @@ func (h *Handler) ShopeeOAuthAuthorizeURL(c *gin.Context) {
 func (h *Handler) ShopeeOAuthCallback(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -846,6 +957,9 @@ func (h *Handler) LazadaOAuthAuthorizeURL(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -864,6 +978,9 @@ func (h *Handler) LazadaOAuthAuthorizeURL(c *gin.Context) {
 func (h *Handler) LazadaOAuthCallback(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -890,6 +1007,9 @@ func (h *Handler) AmazonOAuthAuthorizeURL(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !h.requireShopOperatePath(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -908,6 +1028,9 @@ func (h *Handler) AmazonOAuthAuthorizeURL(c *gin.Context) {
 func (h *Handler) AmazonOAuthCallback(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireShopOperatePath(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

@@ -84,7 +84,7 @@ func (t *AuthRefreshToken) BeforeCreate(tx *gorm.DB) error {
 type AuthLoginAttempt struct {
 	ID           uuid.UUID  `gorm:"type:char(36);primaryKey" json:"id"`
 	TenantID     int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	AccountKey   string     `gorm:"size:256;not null;index" json:"accountKey"`
+	AccountKey   string     `gorm:"size:256;not null;uniqueIndex" json:"accountKey"`
 	IPHash       string     `gorm:"size:64;index" json:"ipHash"`
 	FailedCount  int        `gorm:"not null;default:0" json:"failedCount"`
 	LockedUntil  *time.Time `gorm:"index" json:"lockedUntil,omitempty"`
@@ -92,6 +92,17 @@ type AuthLoginAttempt struct {
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
 }
+
+// Tenant is the minimal tenant record created with a self-service account.
+// Keeping it in auth makes tenant creation and the first administrator atomic.
+type Tenant struct {
+	ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	Name      string    `gorm:"size:128;not null" json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+func (Tenant) TableName() string { return "tenants" }
 
 func (AuthLoginAttempt) TableName() string { return "auth_login_attempts" }
 

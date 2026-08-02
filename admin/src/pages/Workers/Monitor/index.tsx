@@ -1,5 +1,7 @@
 import { ProCard } from '@ant-design/pro-components';
+import PermissionGuard from '@/components/PermissionGuard';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
+import { PERMISSIONS } from '@/utils/permission';
 import { commonStatusLabel } from '@/constants/copywriting';
 import { formatDateTime } from '@/utils/formatTime';
 import type { ProColumns } from '@ant-design/pro-components';
@@ -65,7 +67,7 @@ function WorkerStatusMetrics({ summary }: { summary: WorkerMonitorSummary }) {
   );
 }
 
-export default function WorkersMonitorPage() {
+function WorkersMonitorPageContent() {
   const [data, setData] = useState<WorkerMonitorData | null>(null);
   const [failSum, setFailSum] = useState<FailuresSummary | null>(null);
 
@@ -290,5 +292,13 @@ export default function WorkersMonitorPage() {
         </ProCard>
       ))}
     </TmPageContainer>
+  );
+}
+
+export default function WorkersMonitorPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <WorkersMonitorPageContent />
+    </PermissionGuard>
   );
 }

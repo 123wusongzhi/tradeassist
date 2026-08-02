@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/order"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // ContextSummary is a safe, user-visible AI context digest (no raw platform data).
@@ -70,8 +71,12 @@ func (s *Service) buildProductContexts(c *gin.Context, orderID uuid.UUID) []Prod
 	if s == nil || s.DB == nil || orderID == uuid.Nil {
 		return nil
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil
+	}
 	var items []order.OrderItem
-	if err := s.DB.WithContext(c.Request.Context()).Where("order_id = ?", orderID).Find(&items).Error; err != nil || len(items) == 0 {
+	if err := s.DB.WithContext(c.Request.Context()).Model(&order.OrderItem{}).Joins("JOIN orders ON orders.id = order_items.order_id").Where("order_items.order_id = ? AND orders.tenant_id = ?", orderID, tid).Find(&items).Error; err != nil || len(items) == 0 {
 		return nil
 	}
 	out := make([]ProductContextItem, 0, len(items))
@@ -102,14 +107,19 @@ func (s *Service) buildInventoryContexts(c *gin.Context, orderID uuid.UUID) []In
 		MatchStatus string `gorm:"column:match_status"`
 	}
 	var rows []row
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil
+	}
 	_ = s.DB.WithContext(c.Request.Context()).Raw(`
 SELECT oi.sku_code, oi.sku_name, ps.stock, COALESCE(m.match_status,'') AS match_status
 FROM order_items oi
+JOIN orders o ON o.id = oi.order_id
 LEFT JOIN order_item_sku_matches m ON m.order_item_id = oi.id
 LEFT JOIN product_skus ps ON ps.id = m.product_sku_id
-WHERE oi.order_id = ?
+WHERE oi.order_id = ? AND o.tenant_id = ?
 ORDER BY oi.created_at ASC
-`, orderID).Scan(&rows).Error
+`, orderID, tid).Scan(&rows).Error
 	if len(rows) == 0 {
 		return nil
 	}
@@ -128,16 +138,24 @@ ORDER BY oi.created_at ASC
 }
 
 func (s *Service) firstOrderProductTitle(c *gin.Context, orderID uuid.UUID) string {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return ""
+	}
 	var it order.OrderItem
-	if err := s.DB.WithContext(c.Request.Context()).Where("order_id = ?", orderID).Order("created_at ASC").First(&it).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Model(&order.OrderItem{}).Joins("JOIN orders ON orders.id = order_items.order_id").Where("order_items.order_id = ? AND orders.tenant_id = ?", orderID, tid).Order("order_items.created_at ASC").First(&it).Error; err != nil {
 		return ""
 	}
 	return strings.TrimSpace(it.ProductTitle)
 }
 
 func (s *Service) productOpsLabels(c *gin.Context, productID uuid.UUID) (publish, aiOps string) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return "—", "—"
+	}
 	var p product.Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("status", "ai_title").First(&p, "id = ?", productID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Select("status", "ai_title").Where("id = ? AND tenant_id = ?", productID, tid).First(&p).Error; err != nil {
 		return "—", "—"
 	}
 	publish = strings.TrimSpace(p.Status)
@@ -157,8 +175,12 @@ func (s *Service) skuStockStatus(c *gin.Context, skuCode string) string {
 	if code == "" || s.DB == nil {
 		return "—"
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return "—"
+	}
 	var ps product.ProductSKU
-	if err := s.DB.WithContext(c.Request.Context()).Where("sku_code = ?", code).First(&ps).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Model(&product.ProductSKU{}).Joins("JOIN products ON products.id = product_skus.product_id").Where("product_skus.sku_code = ? AND products.tenant_id = ?", code, tid).First(&ps).Error; err != nil {
 		return "—"
 	}
 	return humanStockStatus(product.CalculateSKUStockStatus(derefInt(ps.Stock), ps.WarningStock, ps.SafetyStock))

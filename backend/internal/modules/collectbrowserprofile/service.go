@@ -15,6 +15,7 @@ import (
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/collectdomain"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 )
 
 var (
@@ -89,8 +90,12 @@ func accessToLastCheck(access string) string {
 }
 
 func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
+	tenantID, err := profileTenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var row CollectBrowserProfile
-	err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error
+	err = s.DB.WithContext(ctx).First(&row, "id = ? AND tenant_id = ?", id, tenantID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProfileNotFound
@@ -98,6 +103,16 @@ func (s *Service) byID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfil
 		return nil, err
 	}
 	return &row, nil
+}
+
+// profileTenantID accepts only a trusted security context. Tenant zero remains
+// an explicit system-tenant scope and never acts as an unscoped wildcard.
+func profileTenantID(ctx context.Context) (int64, error) {
+	tc := security.FromContext(ctx)
+	if tc == nil || tc.TenantID < 0 {
+		return 0, fmt.Errorf("collect browser profile: tenant context required")
+	}
+	return tc.TenantID, nil
 }
 
 func (s *Service) activeByID(ctx context.Context, id uuid.UUID) (*CollectBrowserProfile, error) {
@@ -115,8 +130,12 @@ func (s *Service) List(ctx context.Context, q ListQuery) ([]RowDTO, int64, error
 	if s == nil || s.DB == nil {
 		return nil, 0, fmt.Errorf("collectbrowserprofile: no db")
 	}
+	tenantID, err := profileTenantID(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	page, ps := s.clampPage(q.Page, q.PageSize)
-	tx := s.DB.WithContext(ctx).Model(&CollectBrowserProfile{})
+	tx := s.DB.WithContext(ctx).Model(&CollectBrowserProfile{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.Domain); v != "" {
 		tx = tx.Where("LOWER(domain) LIKE ?", "%"+strings.ToLower(v)+"%")
 	}
@@ -145,6 +164,10 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("collectbrowserprofile: no db")
 	}
+	tenantID, err := profileTenantID(c.Request.Context())
+	if err != nil {
+		return nil, err
+	}
 	name := strings.TrimSpace(body.Name)
 	domain := collectdomain.NormalizeRuleDomain(body.Domain)
 	if name == "" || domain == "" {
@@ -155,6 +178,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, adminID *uuid.UUID) (*
 		provider = "custom"
 	}
 	row := CollectBrowserProfile{
+		TenantID:   tenantID,
 		Name:       name,
 		Domain:     domain,
 		Provider:   provider,
@@ -194,8 +218,12 @@ func (s *Service) Disable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) erro
 	if row.Status == StatusDisabled {
 		return nil
 	}
+	tenantID, err := profileTenantID(c.Request.Context())
+	if err != nil {
+		return err
+	}
 	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
+		Where("id = ? AND tenant_id = ?", id, tenantID).
 		Update("status", StatusDisabled)
 	if res.Error != nil {
 		return res.Error
@@ -223,8 +251,12 @@ func (s *Service) Enable(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if row.Status == StatusActive {
 		return nil
 	}
+	tenantID, err := profileTenantID(c.Request.Context())
+	if err != nil {
+		return err
+	}
 	res := s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).
-		Where("id = ?", id).
+		Where("id = ? AND tenant_id = ?", id, tenantID).
 		Update("status", StatusActive)
 	if res.Error != nil {
 		return res.Error
@@ -249,7 +281,11 @@ func (s *Service) Delete(c *gin.Context, id uuid.UUID, adminID *uuid.UUID) error
 	if err != nil {
 		return err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Delete(row).Error; err != nil {
+	tenantID, err := profileTenantID(c.Request.Context())
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(c.Request.Context()).Where("tenant_id = ?", tenantID).Delete(row).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {
@@ -337,7 +373,11 @@ func (s *Service) Check(c *gin.Context, id uuid.UUID, body URLBody, adminID *uui
 		"last_check_at":     &now,
 		"last_error_code":   strings.TrimSpace(out.ErrorCode),
 	}
-	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).Where("id = ?", id).Updates(updates).Error
+	tenantID, err := profileTenantID(c.Request.Context())
+	if err != nil {
+		return nil, err
+	}
+	_ = s.DB.WithContext(c.Request.Context()).Model(&CollectBrowserProfile{}).Where("id = ? AND tenant_id = ?", id, tenantID).Updates(updates).Error
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,

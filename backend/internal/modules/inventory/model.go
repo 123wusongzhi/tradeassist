@@ -11,19 +11,22 @@ import (
 // InventoryChangeLog is an append-only local stock / sync audit trail (hard-deleted rows only via admin tooling).
 type InventoryChangeLog struct {
 	model.HardDeleteBase
-	TenantID         int64      `gorm:"not null;default:0;index" json:"tenantId"`
-	ProductID        uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
-	ProductSKUID     uuid.UUID  `gorm:"column:product_sku_id;type:char(36);index;not null" json:"productSkuId"`
-	ChangeType       string     `gorm:"size:48;index;not null" json:"changeType"`
-	BeforeStock      int        `gorm:"not null" json:"beforeStock"`
-	AfterStock       int        `gorm:"not null" json:"afterStock"`
-	Delta            int        `gorm:"not null" json:"delta"`
-	Reason           string     `gorm:"size:128" json:"reason,omitempty"`
-	Remark           string     `gorm:"size:520" json:"remark,omitempty"`
-	CreatedBy        *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
-	RefOrderID       *uuid.UUID `gorm:"type:char(36);index" json:"refOrderId,omitempty"`
-	RefOrderItemID   *uuid.UUID `gorm:"type:char(36);index" json:"refOrderItemId,omitempty"`
-	BusinessEventKey string     `gorm:"size:255;uniqueIndex" json:"businessEventKey,omitempty"`
+	TenantID       int64      `gorm:"not null;default:0;index" json:"tenantId"`
+	ProductID      uuid.UUID  `gorm:"type:char(36);index;not null" json:"productId"`
+	ProductSKUID   uuid.UUID  `gorm:"column:product_sku_id;type:char(36);index;not null" json:"productSkuId"`
+	ChangeType     string     `gorm:"size:48;index;not null" json:"changeType"`
+	BeforeStock    int        `gorm:"not null" json:"beforeStock"`
+	AfterStock     int        `gorm:"not null" json:"afterStock"`
+	Delta          int        `gorm:"not null" json:"delta"`
+	Reason         string     `gorm:"size:128" json:"reason,omitempty"`
+	Remark         string     `gorm:"size:520" json:"remark,omitempty"`
+	CreatedBy      *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
+	RefOrderID     *uuid.UUID `gorm:"type:char(36);index" json:"refOrderId,omitempty"`
+	RefOrderItemID *uuid.UUID `gorm:"type:char(36);index" json:"refOrderItemId,omitempty"`
+	// Event-key idempotency is maintained by a partial database index. Keeping it
+	// out of GORM tags prevents AutoMigrate from recreating a global or non-partial
+	// index, and permits multiple audit rows without an event key.
+	BusinessEventKey string `gorm:"size:255" json:"businessEventKey,omitempty"`
 }
 
 func (InventoryChangeLog) TableName() string { return "inventory_change_logs" }

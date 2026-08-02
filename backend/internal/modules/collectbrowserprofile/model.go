@@ -19,6 +19,9 @@ const LastCheckFailed = "failed"
 // CollectBrowserProfile maps to collect_browser_profiles (login state lives in Collector FS only).
 type CollectBrowserProfile struct {
 	model.Base
+	// TenantID is mandatory for all newly-created profiles. Legacy rows without
+	// a provable business owner stay in the explicit system-tenant scope (0).
+	TenantID        int64      `gorm:"not null;default:0;index" json:"tenantId"`
 	Name            string     `gorm:"size:255;not null" json:"name"`
 	Domain          string     `gorm:"size:512;not null;index" json:"domain"`
 	ProfileKey      string     `gorm:"size:128;not null;uniqueIndex" json:"profileKey"`

@@ -9,8 +9,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/gorm"
 )
+
+func (s *Service) tenantSuggestion(c *gin.Context, id uuid.UUID) (*CustomerReplySuggestion, *CustomerConversation, error) {
+	convID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, nil, err
+	}
+	var row CustomerReplySuggestion
+	if err := s.DB.WithContext(c.Request.Context()).Model(&CustomerReplySuggestion{}).
+		Joins("JOIN customer_conversations ON customer_conversations.id = customer_reply_suggestions.conversation_id").
+		Where("customer_reply_suggestions.id = ? AND customer_conversations.tenant_id = ?", id, convID).First(&row).Error; err != nil {
+		return nil, nil, err
+	}
+	conv, err := s.tenantConversation(c, row.ConversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &row, conv, nil
+}
 
 // SuggestionDTO is safe suggestion row for admin (no full prompt).
 type SuggestionDTO struct {
@@ -53,8 +72,8 @@ func (s *Service) ListSuggestions(c *gin.Context, conversationID uuid.UUID) ([]S
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("customerchat: no db")
 	}
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.tenantConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 	var rows []CustomerReplySuggestion
@@ -65,7 +84,7 @@ func (s *Service) ListSuggestions(c *gin.Context, conversationID uuid.UUID) ([]S
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	ctxBase := s.buildContextSummary(c, &conv, "")
+	ctxBase := s.buildContextSummary(c, conv, "")
 	out := make([]SuggestionDTO, 0, len(rows))
 	for i := range rows {
 		d := suggestionToDTO(&rows[i], ctxBase)
@@ -86,8 +105,8 @@ func (s *Service) RejectSuggestion(c *gin.Context, id uuid.UUID, body RejectSugg
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("customerchat: no db")
 	}
-	var row CustomerReplySuggestion
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", id).Error; err != nil {
+	row, _, err := s.tenantSuggestion(c, id)
+	if err != nil {
 		return err
 	}
 	if row.Status == SuggestionAccepted {
@@ -95,7 +114,7 @@ func (s *Service) RejectSuggestion(c *gin.Context, id uuid.UUID, body RejectSugg
 	}
 	row.Status = SuggestionRejected
 	row.RejectReason = truncateRunes(strings.TrimSpace(body.Reason), 500)
-	if err := s.DB.WithContext(c.Request.Context()).Save(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND conversation_id = ?", row.ID, row.ConversationID).Save(row).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil {

@@ -36,7 +36,7 @@ func detachedGinContext(c *gin.Context) *gin.Context {
 		return c
 	}
 	cp := c.Copy()
-	cp.Request = cp.Request.WithContext(context.Background())
+	cp.Request = cp.Request.WithContext(context.WithoutCancel(c.Request.Context()))
 	return cp
 }
 
@@ -151,8 +151,12 @@ func promptTitle(p *product.Product) string {
 }
 
 func (s *Service) loadProducts(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var rows []product.Product
-	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", ids, tenantID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	m := make(map[uuid.UUID]*product.Product, len(rows))
@@ -329,11 +333,18 @@ func (s *Service) acquireTextBatch(c *gin.Context, ctx context.Context, idemKey 
 	if s == nil || s.Idempotency == nil || idemKey == "" {
 		return nil, nil, nil
 	}
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
 	owner := "ai-text-batch-create"
 	if c != nil {
 		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
 	}
-	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIText, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
+	// The idempotency service is shared across tenants; namespace user-supplied
+	// keys here so one tenant cannot hold another tenant's create request hostage.
+	scopedKey := fmt.Sprintf("tenant:%d:%s", tenantID, idemKey)
+	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopeAIText, scopedKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
 	decision, rec, _ := idempotency.Classify(res, err)
 	switch decision {
 	case idempotency.DecisionAlreadySucceeded:
@@ -391,7 +402,11 @@ func (s *Service) resolveExistingTextBatch(ctx context.Context, res *idempotency
 		}
 	}
 	var existing AIProductTextBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	}
 	return nil, fmt.Errorf("%s", errAITextBatchInProgress)
@@ -453,6 +468,10 @@ func sourceHashForProduct(p *product.Product, op string) string {
 // CreateBatch creates items and runs generation asynchronously (never auto-applies).
 func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *uuid.UUID) (*AIProductTextBatch, error) {
 	ctx := c.Request.Context()
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if !s.aiConfigured() {
 		s.ObserveAIText("unknown", "batch", "environment_blocked", "environment_blocked", "provider_missing", 0)
 		return nil, fmt.Errorf("AI 服务未配置")
@@ -485,7 +504,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 		return s.resolveExistingTextBatch(ctx, replayRes, idemKey)
 	}
 	var existing AIProductTextBatch
-	if err := s.DB.WithContext(ctx).Where("idempotency_key = ?", idemKey).First(&existing).Error; err == nil {
+	if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND tenant_id = ?", idemKey, tenantID).First(&existing).Error; err == nil {
 		return &existing, nil
 	} else if err != gorm.ErrRecordNotFound {
 		return nil, err
@@ -500,6 +519,7 @@ func (s *Service) CreateBatch(c *gin.Context, req CreateBatchRequest, adminID *u
 	itemCount := len(ids) * len(ops)
 	now := time.Now().UTC()
 	batch := &AIProductTextBatch{
+		TenantID:       tenantID,
 		BatchNo:        batchNo,
 		BatchType:      BatchTypeAIText,
 		Status:         BatchRunning,
@@ -608,7 +628,9 @@ func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op st
 	if item.Status == ItemCancelled || item.Status == ItemApplied {
 		return
 	}
-	_ = s.DB.WithContext(ctx).Model(&item).Update("status", ItemRunning).Error
+	if !s.claimItemForGeneration(ctx, item.ID) {
+		return
+	}
 
 	var (
 		taskID        string
@@ -671,6 +693,19 @@ func (s *Service) runOneItem(c *gin.Context, batchID, productID uuid.UUID, op st
 	_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).Where("id = ? AND status = ?", item.ID, ItemRunning).Updates(updates).Error
 }
 
+// claimItemForGeneration transitions only a still-pending item to running.
+// A cancellation that wins the race must not be overwritten by a worker that
+// loaded the item immediately before the cancellation request.
+func (s *Service) claimItemForGeneration(ctx context.Context, itemID uuid.UUID) bool {
+	if s == nil || s.DB == nil || itemID == uuid.Nil {
+		return false
+	}
+	res := s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
+		Where("id = ? AND status = ?", itemID, ItemPending).
+		Update("status", ItemRunning)
+	return res.Error == nil && res.RowsAffected == 1
+}
+
 func truncateMsg(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if max <= 0 || len(s) <= max {
@@ -680,13 +715,18 @@ func truncateMsg(s string, max int) string {
 }
 
 func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return
+	}
 	type counts struct {
 		Status string
 		N      int64
 	}
 	var rows []counts
 	_ = s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
-		Select("status, COUNT(*) as n").Where("batch_id = ?", batchID).
+		Select("status, COUNT(*) as n").
+		Where("batch_id = ? AND EXISTS (SELECT 1 FROM ai_product_text_batches b WHERE b.id = ai_product_text_items.batch_id AND b.tenant_id = ?)", batchID, tenantID).
 		Group("status").Find(&rows).Error
 	var success, failed, pending, running, applied int
 	for _, r := range rows {
@@ -714,7 +754,7 @@ func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
 	out := map[string]any{"successCount": success, "failedCount": failed, "appliedCount": applied}
 	outJSON, _ := json.Marshal(out)
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&AIProductTextBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&AIProductTextBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(map[string]any{
 		"success_count": success,
 		"failed_count":  failed,
 		"applied_count": applied,
@@ -725,14 +765,22 @@ func (s *Service) finalizeBatch(ctx context.Context, batchID uuid.UUID) {
 }
 
 func (s *Service) GetBatchByID(ctx context.Context, id uuid.UUID) (*AIProductTextBatch, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var b AIProductTextBatch
-	if err := s.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
 }
 
 func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchListItem, int64, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	if page < 1 {
 		page = 1
 	}
@@ -743,7 +791,7 @@ func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchL
 		pageSize = 100
 	}
 	var total int64
-	tx := s.DB.WithContext(ctx).Model(&AIProductTextBatch{})
+	tx := s.DB.WithContext(ctx).Model(&AIProductTextBatch{}).Where("tenant_id = ?", tenantID)
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -861,7 +909,8 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 	products := map[uuid.UUID]*product.Product{}
 	if len(pids) > 0 {
 		var rows []product.Product
-		_ = s.DB.WithContext(ctx).Where("id IN ?", pids).Find(&rows).Error
+		tenantID, _ := tenantIDFromContext(ctx)
+		_ = s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", pids, tenantID).Find(&rows).Error
 		for i := range rows {
 			products[rows[i].ID] = &rows[i]
 		}
@@ -924,6 +973,17 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	var wg sync.WaitGroup
 	for _, item := range retryItems {
 		item := item
+		// Retry can only re-queue the state observed by this request.  In
+		// particular, it must not revive an item a concurrent cancellation has
+		// already made terminal.
+		if item.Status != ItemPending {
+			res := s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
+				Where("id = ? AND status = ?", item.ID, item.Status).
+				Updates(map[string]any{"status": ItemPending, "error_code": "", "error_message": ""})
+			if res.Error != nil || res.RowsAffected != 1 {
+				continue
+			}
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func() {
@@ -964,6 +1024,9 @@ func intFromAny(v any) int {
 
 // CancelPending cancels pending items without affecting success items.
 func (s *Service) CancelPending(ctx context.Context, batchID uuid.UUID) (int, error) {
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return 0, err
+	}
 	res := s.DB.WithContext(ctx).Model(&AIProductTextItem{}).
 		Where("batch_id = ? AND status = ?", batchID, ItemPending).
 		Update("status", ItemCancelled)
@@ -976,8 +1039,12 @@ func (s *Service) CancelPending(ctx context.Context, batchID uuid.UUID) (int, er
 
 // UpdateEditedText saves user-edited text before apply.
 func (s *Service) UpdateEditedText(ctx context.Context, itemID uuid.UUID, text string) error {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	var item AIProductTextItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_text_batches b ON b.id = ai_product_text_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_text_items.id = ?", itemID).First(&item).Error; err != nil {
 		return err
 	}
 	if item.Status != ItemPendingReview && item.Status != ItemSuccess {
@@ -988,8 +1055,12 @@ func (s *Service) UpdateEditedText(ctx context.Context, itemID uuid.UUID, text s
 
 // RejectItem marks item as rejected.
 func (s *Service) RejectItem(ctx context.Context, itemID uuid.UUID) error {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	var item AIProductTextItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_text_batches b ON b.id = ai_product_text_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_text_items.id = ?", itemID).First(&item).Error; err != nil {
 		return err
 	}
 	if item.Status != ItemPendingReview && item.Status != ItemSuccess {
@@ -1001,8 +1072,12 @@ func (s *Service) RejectItem(ctx context.Context, itemID uuid.UUID) error {
 // RegenerateItem re-runs AI for one item.
 func (s *Service) RegenerateItem(c *gin.Context, itemID uuid.UUID, adminID *uuid.UUID) (*ItemDetailDTO, error) {
 	ctx := c.Request.Context()
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var item AIProductTextItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_text_batches b ON b.id = ai_product_text_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_text_items.id = ?", itemID).First(&item).Error; err != nil {
 		return nil, err
 	}
 	b, err := s.GetBatchByID(ctx, item.BatchID)
@@ -1035,6 +1110,10 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 		ProductID: item.ProductID.String(),
 	}
 	ctx := c.Request.Context()
+	if err := s.verifyApplyTargets(ctx, item); err != nil {
+		result.Status, result.StatusLabel, result.ErrorMessage = "failed", "失败", "目标不存在或不可访问"
+		return result
+	}
 	allowReplay := item.Status == ItemApplied && s.Idempotency != nil
 	if item.Status == ItemApplied && !allowReplay {
 		result.Status = ItemConflict
@@ -1069,7 +1148,8 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductTextItem, text str
 	}
 
 	var prod product.Product
-	if err := s.DB.WithContext(ctx).First(&prod, "id = ?", item.ProductID).Error; err != nil {
+	tenantID, _ := tenantIDFromContext(ctx)
+	if err := s.DB.WithContext(ctx).First(&prod, "id = ? AND tenant_id = ?", item.ProductID, tenantID).Error; err != nil {
 		result.Status = "failed"
 		result.StatusLabel = "失败"
 		result.ErrorMessage = err.Error()
@@ -1235,8 +1315,12 @@ func applyIdempotencyOwner(c *gin.Context, prefix string) string {
 
 // ApplyItem applies one reviewed item with conflict protection.
 func (s *Service) ApplyItem(c *gin.Context, itemID uuid.UUID, body ApplyItemBody, adminID *uuid.UUID) (*ApplyItemResult, error) {
+	tenantID, err := tenantIDFromContext(c.Request.Context())
+	if err != nil {
+		return nil, err
+	}
 	var item AIProductTextItem
-	if err := s.DB.WithContext(c.Request.Context()).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Joins("JOIN ai_product_text_batches b ON b.id = ai_product_text_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_text_items.id = ?", itemID).First(&item).Error; err != nil {
 		return nil, err
 	}
 	r := s.applyOneItem(c, &item, body.Text, adminID)
@@ -1247,6 +1331,9 @@ func (s *Service) ApplyItem(c *gin.Context, itemID uuid.UUID, body ApplyItemBody
 // ApplySelected applies multiple reviewed items; partial success allowed.
 func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySelectedBody, adminID *uuid.UUID) (*ApplyResultSummary, error) {
 	ctx := c.Request.Context()
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return nil, err
+	}
 	if len(body.ItemIDs) == 0 {
 		return nil, fmt.Errorf("请选择要应用的结果")
 	}
@@ -1257,7 +1344,8 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 			continue
 		}
 		var item AIProductTextItem
-		if err := s.DB.WithContext(ctx).Where("id = ? AND batch_id = ?", id, batchID).First(&item).Error; err != nil {
+		tenantID, _ := tenantIDFromContext(ctx)
+		if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_text_batches b ON b.id = ai_product_text_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_text_items.id = ? AND ai_product_text_items.batch_id = ?", id, batchID).First(&item).Error; err != nil {
 			continue
 		}
 		r := s.applyOneItem(c, &item, "", adminID)
@@ -1295,6 +1383,9 @@ func (s *Service) refreshAppliedCount(ctx context.Context, batchID uuid.UUID) {
 // UndoApplied undoes applied items from this batch only.
 func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*UndoAppliedSummary, error) {
 	ctx := c.Request.Context()
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return nil, err
+	}
 	var items []AIProductTextItem
 	if err := s.DB.WithContext(ctx).
 		Where("batch_id = ? AND status = ? AND application_id IS NOT NULL", batchID, ItemApplied).

@@ -81,7 +81,7 @@ func (s *Service) GetTranslateManualEditState(ctx context.Context, id uuid.UUID)
 		Blocks:           manualBlocksFromOutput(out),
 	}
 	if state.BaseImageURL != "" {
-		if payload, loadErr := s.loadTranslateImagePayload(ctx, state.BaseImageURL); loadErr == nil && payload != nil {
+		if payload, loadErr := s.loadTenantImagePayload(ctx, task.TenantID, state.BaseImageURL); loadErr == nil && payload != nil {
 			state.ImageWidth = payload.Width
 			state.ImageHeight = payload.Height
 		} else {
@@ -113,7 +113,7 @@ func (s *Service) ManualRenderTranslateTask(ctx context.Context, id uuid.UUID, r
 	if baseURL == "" {
 		return nil, fmt.Errorf("no base image url")
 	}
-	payload, err := s.loadTranslateImagePayload(ctx, baseURL)
+	payload, err := s.loadTenantImagePayload(ctx, task.TenantID, baseURL)
 	if err != nil || payload == nil || len(payload.RawBytes) == 0 {
 		if err == nil {
 			err = fmt.Errorf("empty base image")

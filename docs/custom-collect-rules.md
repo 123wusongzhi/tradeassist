@@ -22,6 +22,10 @@
 
 创建采集任务：`POST /api/v1/collect/tasks`，`source=custom`，可选 `ruleId`；未传则按 **域名 + match_pattern + priority** 自动匹配启用规则。
 
+## 当前权限边界
+
+`collect_rules` 当前是实例级共享资源，不是租户业务资源。因此上述规则 CRUD、读取、测试、启停仅允许 `tenant_id=0` 的全局设置管理员（`settings.manage`）；非零租户管理员无权读取或修改。此边界不改变浏览器 Profile 与采集任务按可信租户隔离的规则。
+
 ## 规则 JSON（≤64KB）
 
 ### 简写格式（推荐入门）
@@ -115,7 +119,7 @@ Collector 在规则未命中时会自动尝试：内置京东选择器、JSON-LD
 
 ### 采集浏览器 Profile（登录态）
 
-表 **`collect_browser_profiles`**（元数据在 PostgreSQL，Cookie 在 Collector 目录 `browser-profiles/custom/{profileKey}`）。
+表 **`collect_browser_profiles`**（元数据在 PostgreSQL，Cookie 在 Collector 目录 `browser-profiles/custom/{profileKey}`）。自定义 Profile 是租户资源：列表、读取、启用/停用、登录与检测均只在当前可信租户内按 `tenant_id` 查询；`tenant_id=0` 是显式系统域，不是跨租户通配符。所有这些接口均要求 `collect_profile.manage` 写权限。
 
 | API | 说明 |
 |-----|------|
@@ -138,6 +142,8 @@ Collector 在规则未命中时会自动尝试：内置京东选择器、JSON-LD
 ```
 
 无头 Collector 无法 `open-login`，需 **`COLLECTOR_HEADLESS=0`**。
+
+固定来源的登录态也按租户隔离：非零租户使用 `tenant_{id}_{provider}`（例如 `tenant_42_1688`）作为 Collector Profile key；系统域 `tenant_id=0` 保留历史 provider key。请求中的 Profile ID / key 只用于定位，后端仍须以当前租户和 URL 域名校验后才会传给 Collector。
 
 ## 约束
 

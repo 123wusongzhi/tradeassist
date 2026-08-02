@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
@@ -85,6 +86,13 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	p, err := s.findTenantProduct(c, productID, "Images", "SKUs")
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	if s.Prompts == nil || s.AITasks == nil || s.AIGateway == nil {
 		return nil, fmt.Errorf("product: ai not configured")
 	}
@@ -102,14 +110,6 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 		tone = "professional"
 	}
 
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).
-		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
-		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		First(&p, "id = ?", productID).Error; err != nil {
-		return nil, err
-	}
-
 	promptRow, err := s.Prompts.GetEnabledByCode(c.Request.Context(), aiprompt.CodeProductDescriptionGenerate)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -124,11 +124,11 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	}
 
 	vars := map[string]string{
-		"title":         productPromptTitle(&p),
+		"title":         productPromptTitle(p),
 		"originalTitle": strings.TrimSpace(p.OriginalTitle),
 		"aiTitle":       aiTitleVal,
-		"attributes":    productAttributesSummary(&p),
-		"skus":          productSKUSummary(&p),
+		"attributes":    productAttributesSummary(p),
+		"skus":          productSKUSummary(p),
 		"language":      lang,
 		"platform":      platform,
 		"tone":          tone,
@@ -169,6 +169,7 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	inputJSON, _ := json.Marshal(inputPayload)
 
 	task := &aitask.AITask{
+		TenantID:    p.TenantID,
 		TaskType:    "product_description_generate",
 		Provider:    s.providerNameFromSettings(c),
 		Model:       model,
@@ -234,7 +235,7 @@ func (s *Service) generateDescriptionWithExtra(c *gin.Context, productID uuid.UU
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
 	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.Description) != "" {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_description", strings.TrimSpace(parsed.Description)).Error
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ? AND tenant_id = ?", p.ID, p.TenantID).Update("ai_description", strings.TrimSpace(parsed.Description)).Error
 	}
 
 	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
@@ -276,8 +277,15 @@ func (s *Service) ApplyAIDescription(c *gin.Context, productID uuid.UUID, body A
 	if err != nil {
 		return nil, fmt.Errorf("invalid taskId")
 	}
+	p, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	if s.AITasks != nil {
-		tk, err := s.AITasks.GetByID(c.Request.Context(), taskUUID)
+		tk, err := s.findTenantAITask(c, taskUUID, productID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, fmt.Errorf("task not found")
@@ -289,11 +297,7 @@ func (s *Service) ApplyAIDescription(c *gin.Context, productID uuid.UUID, body A
 		}
 	}
 
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
-		return nil, err
-	}
-	if err := s.applyAIContent(c, &p, AIContentFieldDescription, text, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
+	if err := s.applyAIContent(c, p, AIContentFieldDescription, text, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {

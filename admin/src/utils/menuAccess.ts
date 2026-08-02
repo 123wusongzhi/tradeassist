@@ -3,6 +3,7 @@ import {
   hasPermission,
   normalizeRole,
   PERMISSIONS,
+  ROLES,
   type PermissionKey,
 } from '@/utils/permission';
 
@@ -10,16 +11,16 @@ import {
 export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> = {
   '/dashboard': PERMISSIONS.PRODUCT_VIEW,
   '/system/operation-logs': PERMISSIONS.OPERATIONLOG_VIEW,
-  '/ops/workers/monitor': PERMISSIONS.TASK_RETRY,
+  '/ops/workers/monitor': PERMISSIONS.SETTINGS_MANAGE,
   '/ops/task-center/failures': PERMISSIONS.TASK_RETRY,
   '/ops/task-center/alerts': PERMISSIONS.TASK_RETRY,
   '/ops/task-center/operation-tasks': PERMISSIONS.OPERATION_TASK_AUDIT_READ,
-  '/ops/observability': PERMISSIONS.OBSERVABILITY_READ,
-  '/ops/backups': PERMISSIONS.BACKUP_READ,
-  '/ops/restores': PERMISSIONS.RESTORE_READ,
-  '/ops/releases': PERMISSIONS.RELEASE_READ,
-  '/ops/disaster-recovery': PERMISSIONS.DR_READ,
-  '/ops/platform-runtime': PERMISSIONS.STORE_VIEW,
+  '/ops/observability': PERMISSIONS.SETTINGS_MANAGE,
+  '/ops/backups': PERMISSIONS.SETTINGS_MANAGE,
+  '/ops/restores': PERMISSIONS.SETTINGS_MANAGE,
+  '/ops/releases': PERMISSIONS.SETTINGS_MANAGE,
+  '/ops/disaster-recovery': PERMISSIONS.SETTINGS_MANAGE,
+  '/ops/platform-runtime': PERMISSIONS.SETTINGS_MANAGE,
   '/files': PERMISSIONS.PRODUCT_VIEW,
   '/ai/prompts': PERMISSIONS.SETTINGS_MANAGE,
   '/ai/tasks': PERMISSIONS.PRODUCT_VIEW,
@@ -32,7 +33,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/collect/hub': PERMISSIONS.PRODUCT_VIEW,
   '/collect/tasks': PERMISSIONS.PRODUCT_VIEW,
   '/collect/batches': PERMISSIONS.PRODUCT_VIEW,
-  '/collect/browser-profiles': PERMISSIONS.SETTINGS_MANAGE,
+  '/collect/browser-profiles': PERMISSIONS.COLLECT_PROFILE_MANAGE,
   '/collect/rules': PERMISSIONS.SETTINGS_MANAGE,
   '/collect/monitor': PERMISSIONS.SETTINGS_MANAGE,
   '/shops/manage': PERMISSIONS.STORE_VIEW,
@@ -66,6 +67,26 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/settings/users': PERMISSIONS.USER_MANAGE,
 };
 
+// These pages expose instance-wide worker, alert, backup, restore, release,
+// disaster-recovery, and collector-monitor data. Their APIs require RequireGlobalAdmin, so the
+// client must not advertise them to a tenant-scoped administrator.
+const GLOBAL_OPERATIONS_ROUTE_PREFIXES = [
+  '/ops/workers/monitor',
+  '/ops/observability',
+  '/ops/backups',
+  '/ops/restores',
+  '/ops/releases',
+  '/ops/disaster-recovery',
+  '/ops/platform-runtime',
+  '/collect/monitor',
+];
+
+function isGlobalOperationsRoute(path: string): boolean {
+  return GLOBAL_OPERATIONS_ROUTE_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
+}
+
 function routePerm(path?: string): PermissionKey | PermissionKey[] | undefined {
   if (!path) return undefined;
   const exact = ROUTE_PERMISSIONS[path];
@@ -82,6 +103,9 @@ function canAccessRoute(
   role?: string | null,
   profilePerms?: string[],
 ): boolean {
+  if (path && isGlobalOperationsRoute(path) && normalizeRole(role) !== ROLES.ADMIN) {
+    return false;
+  }
   const perm = routePerm(path);
   if (!perm) return true;
   const list = Array.isArray(perm) ? perm : [perm];

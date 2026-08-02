@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // GetTaskItem loads one task item by id.
@@ -46,6 +47,7 @@ func (s *Service) SetItemAsMain(ctx context.Context, itemID uuid.UUID, productID
 
 // ScoreImageRequest is input for synchronous image scoring.
 type ScoreImageRequest struct {
+	TenantID       int64
 	ProductID      *uuid.UUID
 	SourceImageID  *uuid.UUID
 	SourceImageURL string
@@ -65,24 +67,36 @@ func (s *Service) ScoreImageHTTP(ctx context.Context, req ScoreImageRequest) (Im
 	productTitle := ""
 	if req.ProductID != nil && s.DB != nil {
 		var p product.Product
-		if err := s.DB.WithContext(ctx).Select("title").First(&p, "id = ?", *req.ProductID).Error; err == nil {
-			productTitle = strings.TrimSpace(p.Title)
+		if err := s.DB.WithContext(ctx).Select("title").First(&p, "id = ? AND tenant_id = ?", *req.ProductID, req.TenantID).Error; err != nil {
+			return ImageScore{}, err
 		}
+		productTitle = strings.TrimSpace(p.Title)
 	}
-	if imageURL == "" && req.SourceImageID != nil && s.DB != nil {
+	var sourceProductID *uuid.UUID
+	if req.SourceImageID != nil && s.DB != nil {
 		var im product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&im, "id = ?", *req.SourceImageID).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Table("product_images AS pi").
+			Select("pi.*").
+			Joins("JOIN products AS p ON p.id = pi.product_id AND p.deleted_at IS NULL").
+			Where("pi.id = ? AND p.tenant_id = ?", *req.SourceImageID, req.TenantID).
+			Take(&im).Error; err != nil {
+			return ImageScore{}, err
+		}
+		if imageURL == "" {
 			imageURL = strings.TrimSpace(im.PublicURL)
 			if imageURL == "" {
 				imageURL = strings.TrimSpace(im.OriginURL)
 			}
-			if imageType == "main" && strings.TrimSpace(im.ImageType) != "" {
-				imageType = strings.TrimSpace(im.ImageType)
-			}
-			if req.ProductID == nil {
-				pid := im.ProductID
-				req.ProductID = &pid
-			}
+		}
+		if imageType == "main" && strings.TrimSpace(im.ImageType) != "" {
+			imageType = strings.TrimSpace(im.ImageType)
+		}
+		pid := im.ProductID
+		sourceProductID = &pid
+		if req.ProductID == nil {
+			req.ProductID = &pid
+		} else if *req.ProductID != pid {
+			return ImageScore{}, fmt.Errorf("productId mismatch")
 		}
 	}
 	if imageURL == "" {
@@ -94,15 +108,24 @@ func (s *Service) ScoreImageHTTP(ctx context.Context, req ScoreImageRequest) (Im
 	}
 	if req.SourceImageID != nil && s.DB != nil {
 		v := score.OverallScore
-		_ = s.DB.WithContext(ctx).Model(&product.ProductImage{}).
-			Where("id = ?", *req.SourceImageID).
-			Update("score", v).Error
+		if sourceProductID == nil {
+			return ImageScore{}, fmt.Errorf("source image ownership unavailable")
+		}
+		res := s.DB.WithContext(ctx).Model(&product.ProductImage{}).
+			Where("id = ? AND product_id = ?", *req.SourceImageID, *sourceProductID).
+			Update("score", v)
+		if res.Error != nil {
+			return ImageScore{}, res.Error
+		}
+		if res.RowsAffected != 1 {
+			return ImageScore{}, gorm.ErrRecordNotFound
+		}
 	}
 	return score, nil
 }
 
 // CreateSelectBestMainTask creates and optionally executes select_best_main for a product.
-func (s *Service) CreateSelectBestMainTask(ctx context.Context, productID uuid.UUID, mode string, createdBy *uuid.UUID) (*ImageTask, error) {
+func (s *Service) CreateSelectBestMainTask(ctx context.Context, tenantID int64, productID uuid.UUID, mode string, createdBy *uuid.UUID) (*ImageTask, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("imagetask: no db")
 	}
@@ -110,6 +133,7 @@ func (s *Service) CreateSelectBestMainTask(ctx context.Context, productID uuid.U
 	in := map[string]any{"selectMode": mode}
 	raw, _ := json.Marshal(in)
 	row, err := s.CreateAndPersist(ctx, CreatePayload{
+		TenantID:  tenantID,
 		TaskType:  TaskTypeSelectBestMain,
 		ProductID: &productID,
 		Input:     datatypes.JSON(raw),

@@ -3,6 +3,7 @@ package customersync
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,30 @@ func openCustomerSyncLeaseTestDB(t *testing.T) *gorm.DB {
 	require.NoError(t, err)
 	require.NoError(t, db.AutoMigrate(&CustomerMessageSyncTask{}))
 	return db
+}
+
+func TestRecoverLeaseExpiredDoesNotClearRenewedLease(t *testing.T) {
+	db := openCustomerSyncLeaseTestDB(t)
+	svc := &Service{DB: db}
+	id := uuid.New()
+	worker := "worker-a"
+	past := time.Now().UTC().Add(-time.Minute)
+	future := time.Now().UTC().Add(time.Minute)
+	require.NoError(t, db.Create(&CustomerMessageSyncTask{HardDeleteBase: model.HardDeleteBase{ID: id}, TenantID: 0, ShopID: uuid.New(), Platform: "douyin_shop", TaskType: "pull_messages", Mode: "incremental", Status: StatusRunning, LockedBy: &worker, LockedUntil: &past, LockVersion: 1}).Error)
+	var renew sync.Once
+	require.NoError(t, db.Callback().Update().Before("gorm:update").Register("customer_renew_before_recovery", func(tx *gorm.DB) {
+		renew.Do(func() {
+			tx.Exec("UPDATE customer_message_sync_tasks SET locked_until = ?, heartbeat_at = ? WHERE id = ?", future, future, id)
+		})
+	}))
+	require.NoError(t, svc.RecoverLeaseExpired(context.Background(), id))
+	var got CustomerMessageSyncTask
+	require.NoError(t, db.First(&got, "id = ?", id).Error)
+	require.Equal(t, StatusRunning, got.Status)
+	require.NotNil(t, got.LockedUntil)
+	require.True(t, got.LockedUntil.After(time.Now().UTC()))
+	require.NotNil(t, got.LockedBy)
+	require.Equal(t, worker, *got.LockedBy)
 }
 
 func TestCustomerSyncStaleWorkerFinishFails(t *testing.T) {

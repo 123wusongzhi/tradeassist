@@ -80,24 +80,32 @@ func runInventorySyncWorker(ctx context.Context, log *slog.Logger, svc *Service,
 			continue
 		}
 
-		jobCtx := context.Background()
-		plat := ""
-		var shopID uuid.UUID
-		if svc.DB != nil {
-			var probe InventorySyncTask
-			if err := svc.DB.WithContext(jobCtx).Select("platform, shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err == nil {
-				plat = strings.TrimSpace(strings.ToLower(probe.Platform))
-				shopID = probe.ShopID
-				wctx, _, terr := tasktenant.BeginWorker(jobCtx, svc.DB, probe.TenantID, shopID, "inventory_sync")
-				if terr != nil {
-					if log != nil {
-						log.Warn("inventory_sync_worker_tenant_missing", "worker", slot, "taskId", tid.String(), "error", tasktenant.WrapError(terr))
-					}
-					continue
-				}
-				jobCtx = wctx
+		if svc.DB == nil {
+			if log != nil {
+				log.Warn("inventory_sync_worker_db_missing", "worker", slot, "taskId", tid.String())
 			}
+			continue
 		}
+		jobCtx := context.Background()
+		var probe InventorySyncTask
+		if err := svc.DB.WithContext(jobCtx).Select("platform, shop_id, tenant_id").First(&probe, "id = ?", tid).Error; err != nil {
+			if log != nil {
+				log.Warn("inventory_sync_worker_task_not_found", "worker", slot, "taskId", tid.String(), "error", err)
+			}
+			continue
+		}
+		// Queue data grants no tenant authority: resolve the durable shop scope,
+		// including legacy tenant 0, and require it to match the task row.
+		var shopTenant int64
+		shopScope := svc.DB.WithContext(jobCtx).Table("shops").Where("id = ?", probe.ShopID).Select("tenant_id").Scan(&shopTenant)
+		if shopScope.Error != nil || shopScope.RowsAffected != 1 || shopTenant < 0 || shopTenant != probe.TenantID {
+			if log != nil {
+				log.Warn("inventory_sync_worker_tenant_invalid", "worker", slot, "taskId", tid.String(), "error", shopScope.Error)
+			}
+			continue
+		}
+		plat := strings.TrimSpace(strings.ToLower(probe.Platform))
+		jobCtx = tasktenant.BuildWorkerContext(tasktenant.TaskScope{TenantID: shopTenant, ShopID: probe.ShopID}, uuid.Nil, "inventory_sync")
 		deferRate, rerr := svc.InventoryRateDefer(jobCtx, plat)
 		if rerr == nil && deferRate && svc.Redis != nil && svc.Redis.Client != nil {
 			deferCount := svc.inventoryRateDeferCount(jobCtx, tid)

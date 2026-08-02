@@ -40,6 +40,17 @@ func TestLoadTranslateImagePayloadDataURL(t *testing.T) {
 	}
 }
 
+func TestPayloadFromDataURLRejectsExcessiveDimensions(t *testing.T) {
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 9000, 1))); err != nil {
+		t.Fatal(err)
+	}
+	_, err := payloadFromDataURL("data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes()))
+	if err == nil {
+		t.Fatal("expected excessive image dimensions to be rejected")
+	}
+}
+
 func TestVerifyAllowsSkippedReOCRWhenImageChanged(t *testing.T) {
 	s := &Service{}
 	src := []byte{1, 2, 3, 4}

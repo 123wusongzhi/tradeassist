@@ -4,43 +4,79 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"path/filepath"
 	"strings"
-	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
-	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"gorm.io/gorm"
 )
 
 // tikTokListingImageFetcher resolves product listing images via Storage Provider or public HTTP (never logs secrets).
 type tikTokListingImageFetcher struct {
+	db       *gorm.DB
 	settings *settings.Service
 }
 
-func newTikTokListingImageFetcher(s *settings.Service) *tikTokListingImageFetcher {
-	return &tikTokListingImageFetcher{settings: s}
+func newTikTokListingImageFetcher(db *gorm.DB, s *settings.Service) *tikTokListingImageFetcher {
+	return &tikTokListingImageFetcher{db: db, settings: s}
 }
 
 func (f *tikTokListingImageFetcher) FetchProductImageBytes(ctx context.Context, img platformp.PlatformProductImage) ([]byte, string, error) {
-	if f == nil || f.settings == nil {
+	if f == nil || f.db == nil || f.settings == nil {
 		return nil, "", fmt.Errorf("settings unavailable for image fetch")
+	}
+	if img.TenantID < 0 {
+		return nil, "", fmt.Errorf("trusted tenant is required for image fetch")
+	}
+
+	key := strings.TrimSpace(img.ObjectKey)
+	if key != "" {
+		return f.fetchTenantFile(ctx, img.TenantID, key)
+	}
+
+	// A product may have been linked before object keys were persisted. An exact
+	// tenant-scoped metadata match preserves that compatible path without ever
+	// treating a static/public URL as a storage key.
+	if rawURL := strings.TrimSpace(img.URL); rawURL != "" {
+		var record files.FileRecord
+		if err := f.db.WithContext(ctx).Where("tenant_id = ? AND public_url = ? AND security_status = ?", img.TenantID, rawURL, files.SecurityClean).First(&record).Error; err == nil {
+			return f.fetchTenantFile(ctx, img.TenantID, record.ObjectKey)
+		}
+	}
+
+	rawURL := strings.TrimSpace(img.URL)
+	if rawURL == "" {
+		return nil, "", fmt.Errorf("image has no url or object_key")
+	}
+	res, err := safedownload.Download(ctx, rawURL, safedownload.DefaultOptions())
+	if err != nil {
+		return nil, "", fmt.Errorf("download listing image: %w", err)
+	}
+	return res.Data, res.ContentType, nil
+}
+
+func (f *tikTokListingImageFetcher) fetchTenantFile(ctx context.Context, tenantID int64, key string) ([]byte, string, error) {
+	clean, err := sanitizeObjectKey(key)
+	if err != nil {
+		return nil, "", err
+	}
+	var record files.FileRecord
+	if err := f.db.WithContext(ctx).Where("tenant_id = ? AND object_key = ? AND security_status = ?", tenantID, clean, files.SecurityClean).First(&record).Error; err != nil {
+		return nil, "", fmt.Errorf("clean tenant image not found")
 	}
 	sm, err := f.settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return nil, "", fmt.Errorf("load storage settings: %w", err)
 	}
-
-	key := strings.TrimSpace(img.ObjectKey)
-	if key != "" {
-		clean, err := sanitizeObjectKey(key)
-		if err != nil {
-			return nil, "", err
+	{
+		kind := strings.TrimSpace(record.StorageKind)
+		if kind == "" {
+			kind = normalizedStorageKind(sm)
 		}
-		kind := normalizedStorageKind(sm)
 		prov, _, err := storage.NewFromPlainForStoredKind(sm, kind)
 		if err != nil {
 			return nil, "", fmt.Errorf("storage provider: %w", err)
@@ -50,59 +86,16 @@ func (f *tikTokListingImageFetcher) FetchProductImageBytes(ctx context.Context, 
 			return nil, "", fmt.Errorf("storage get image: %w", err)
 		}
 		defer rc.Close()
-		b, err := io.ReadAll(io.LimitReader(rc, 6<<20))
+		b, err := io.ReadAll(io.LimitReader(rc, (10<<20)+1))
 		if err != nil {
 			return nil, "", err
 		}
-		fn := filepath.Base(clean)
-		return b, contentTypeGuess(fn, ""), nil
+		contentType := strings.TrimSpace(record.ContentType)
+		if err := safedownload.ValidateImageBytes(b, contentTypeGuess(filepath.Base(clean), contentType), safedownload.DefaultOptions()); err != nil {
+			return nil, "", fmt.Errorf("stored listing image: %w", err)
+		}
+		return b, contentTypeGuess(filepath.Base(clean), contentType), nil
 	}
-
-	rawURL := strings.TrimSpace(img.URL)
-	if rawURL == "" {
-		return nil, "", fmt.Errorf("image has no url or object_key")
-	}
-
-	if key2, ok := staticURLToObjectKey(rawURL); ok {
-		prov, _, err := storage.NewFromPlainForStoredKind(sm, "local")
-		if err != nil {
-			return nil, "", err
-		}
-		rc, err := prov.Get(ctx, key2)
-		if err != nil {
-			return nil, "", fmt.Errorf("storage get static image: %w", err)
-		}
-		defer rc.Close()
-		b, err := io.ReadAll(io.LimitReader(rc, 6<<20))
-		if err != nil {
-			return nil, "", err
-		}
-		return b, contentTypeGuess(filepath.Base(key2), ""), nil
-	}
-
-	if httppublic.IsPublicHTTPURL(rawURL) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-		if err != nil {
-			return nil, "", err
-		}
-		client := http.Client{Timeout: 45 * time.Second}
-		res, err := client.Do(req)
-		if err != nil {
-			return nil, "", fmt.Errorf("download listing image: %w", err)
-		}
-		defer res.Body.Close()
-		if res.StatusCode < 200 || res.StatusCode >= 300 {
-			return nil, "", fmt.Errorf("download listing image: http %d", res.StatusCode)
-		}
-		b, err := io.ReadAll(io.LimitReader(res.Body, 6<<20))
-		if err != nil {
-			return nil, "", err
-		}
-		ct := strings.TrimSpace(res.Header.Get("Content-Type"))
-		return b, ct, nil
-	}
-
-	return nil, "", fmt.Errorf("image url is not publicly reachable; upload via TradeMind files or configure public_base/static URL")
 }
 
 func normalizedStorageKind(sm map[string]string) string {
@@ -119,45 +112,6 @@ func sanitizeObjectKey(raw string) (string, error) {
 		return "", fmt.Errorf("invalid object key")
 	}
 	return s, nil
-}
-
-func staticURLToObjectKey(raw string) (string, bool) {
-	u := strings.TrimSpace(raw)
-	if u == "" {
-		return "", false
-	}
-	if !strings.Contains(u, "://") {
-		p := strings.TrimPrefix(u, "/")
-		if !strings.HasPrefix(strings.ToLower(p), "static/") {
-			return "", false
-		}
-		rest := strings.TrimPrefix(p, "static/")
-		rest = strings.TrimPrefix(rest, "/")
-		key, err := sanitizeObjectKey(rest)
-		if err != nil {
-			return "", false
-		}
-		return key, true
-	}
-	parsed, err := url.Parse(u)
-	if err != nil || parsed == nil {
-		return "", false
-	}
-	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
-	if host != "" && host != "localhost" && host != "127.0.0.1" && host != "::1" {
-		return "", false
-	}
-	path := strings.Trim(strings.TrimSpace(parsed.Path), "/")
-	if !strings.HasPrefix(strings.ToLower(path), "static/") {
-		return "", false
-	}
-	rest := strings.TrimPrefix(path, "static/")
-	rest = strings.TrimPrefix(rest, "/")
-	key, err := sanitizeObjectKey(rest)
-	if err != nil {
-		return "", false
-	}
-	return key, true
 }
 
 func contentTypeGuess(filename string, hint string) string {

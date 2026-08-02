@@ -1,4 +1,5 @@
 import { TmPageContainer } from '@/components/ui';
+import PermissionGuard from '@/components/PermissionGuard';
 import { PLATFORM_STATUS_META } from '@/constants/platformAppConfig';
 import {
   isPlatformRuntimeSupported,
@@ -7,6 +8,7 @@ import {
 } from '@/constants/platformRuntime';
 import { preferredPlatformTabOrder } from '@/services/platformOpen';
 import { queryPlatformProviders, type PlatformProviderMeta } from '@/services/shops';
+import { PERMISSIONS } from '@/utils/permission';
 import { history, useLocation } from '@umijs/max';
 import { Alert, Spin, Tabs, Tag } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -25,7 +27,7 @@ function renderPlatformPanel(meta: PlatformProviderMeta) {
   return <PlatformRuntimeUnavailablePanel meta={meta} />;
 }
 
-export default function PlatformRuntimePage() {
+function PlatformRuntimePageContent() {
   const location = useLocation();
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
@@ -116,5 +118,13 @@ export default function PlatformRuntimePage() {
         )}
       </Spin>
     </TmPageContainer>
+  );
+}
+
+export default function PlatformRuntimePage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <PlatformRuntimePageContent />
+    </PermissionGuard>
   );
 }

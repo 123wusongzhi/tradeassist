@@ -20,6 +20,7 @@ const (
 
 	ErrorDouyinCreateProductFailed   = "DOUYIN_CREATE_PRODUCT_FAILED"
 	ErrorDouyinProductPayloadInvalid = "DOUYIN_PRODUCT_PAYLOAD_INVALID"
+	ErrorDouyinTenantMismatch        = "DOUYIN_TENANT_MISMATCH"
 	ErrorUnknownDouyinPublish        = "UNKNOWN_DOUYIN_ERROR"
 )
 

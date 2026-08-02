@@ -74,6 +74,11 @@ func (h *Handler) requireView(c *gin.Context) bool {
 		response.Fail(c, 500, response.CodeInternalError, "配置状态中心不可用")
 		return false
 	}
+	// The status center aggregates instance configuration, provider readiness,
+	// worker health and cross-tenant counts. It is not a tenant-scoped view.
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return false
+	}
 	return adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermSettingsManage)
 }
 

@@ -48,6 +48,24 @@ func (h *Handler) Apply(c *gin.Context) {
 		}
 		itemID = &u
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), taskID, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
+	if err := h.Svc.requireProductTenant(c.Request.Context(), pid, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
+	if itemID != nil {
+		if err := h.Svc.requireTaskItemTenant(c.Request.Context(), *itemID, &taskID, tenantID); err != nil {
+			handleTenantResourceError(c, err)
+			return
+		}
+	}
 	row, err := h.Svc.ApplyTaskResultHTTP(c, pid, taskID, itemID, body.ApplyMode, body.SetBest, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -80,6 +98,14 @@ func (h *Handler) ListItems(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), taskID, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
 	items, err := h.Svc.ListTaskItems(c.Request.Context(), taskID)
 	if err != nil {
 		response.HandleError(c, err)
@@ -102,6 +128,18 @@ func (h *Handler) DeleteItem(c *gin.Context) {
 	itemID, err := uuid.Parse(strings.TrimSpace(c.Param("itemId")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid itemId")
+		return
+	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), taskID, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
+	if err := h.Svc.requireTaskItemTenant(c.Request.Context(), itemID, &taskID, tenantID); err != nil {
+		handleTenantResourceError(c, err)
 		return
 	}
 	if err := h.Svc.DeleteTaskItem(c.Request.Context(), taskID, itemID); err != nil {

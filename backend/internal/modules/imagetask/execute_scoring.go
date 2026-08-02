@@ -103,6 +103,7 @@ func (s *Service) executeScoringTask(ctx context.Context, task *ImageTask, hints
 		for i, r := range rankedList {
 			raw, _ := scoreJSONFromScore(r.score)
 			item := &ImageTaskItem{
+				TenantID:       task.TenantID,
 				TaskID:         task.ID,
 				ProductID:      task.ProductID,
 				SourceImageID:  ptrUUID(r.img.ID),

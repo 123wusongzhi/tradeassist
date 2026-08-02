@@ -184,7 +184,7 @@ func collectFailureHint(code, source string, sameURLSucceeded, inBatch bool) str
 	}
 }
 
-func (s *Service) computeBatchStats(ctx context.Context, batchID uuid.UUID) BatchStatsDTO {
+func (s *Service) computeBatchStats(ctx context.Context, batchID uuid.UUID, tenantID int64) BatchStatsDTO {
 	out := BatchStatsDTO{ErrorSummary: map[string]int{}}
 	if s == nil || s.DB == nil {
 		return out
@@ -194,14 +194,14 @@ func (s *Service) computeBatchStats(ctx context.Context, batchID uuid.UUID) Batc
 	}
 
 	var batch CollectBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&batch, "id = ? AND tenant_id = ?", batchID, tenantID).Error; err != nil {
 		return out
 	}
 	policy := s.batchPolicyForSource(ctx, batch.Source)
 
 	var tasks []CollectTask
 	if err := s.DB.WithContext(ctx).
-		Where("batch_id = ?", batchID).
+		Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).
 		Find(&tasks).Error; err != nil {
 		return out
 	}

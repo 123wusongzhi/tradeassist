@@ -25,6 +25,8 @@ Collector Provider
 - 共享 **`compatclient`** HTTP 实现，各 Provider 负责默认地址、错误码中文化与后续扩展入口
 - Prompt 模板、AI 调用记录、标题优化、描述生成、客服建议回复
 
+当前 AI Prompt 模板为实例级设置，不是租户业务数据；其读取和变更仅限 `tenant_id=0` 的全局设置管理员（`settings.manage`）。
+
 后续可扩展：
 
 - DeepSeek / Qwen 专属错误码、多模态、Embedding、Rerank、用量统计
@@ -116,6 +118,16 @@ Ozon (`ozon`) beta — 店铺级凭证接入（`Client-ID` + `Api-Key`，无需 
 - 客服消息同步与人工发送
 
 平台 App Secret、Access Token、Refresh Token 等必须加密存储。
+
+平台开放应用配置与刊登配置均保存在 tenant 0 的实例级设置域。包括返回脱敏值的读取在内，均只允许全局配置管理员；非零租户管理员不能借配置接口推断或读取实例设置。店铺、店铺授权与刊登目标仍严格按当前可信租户查询。
+
+抖店 runtime、health/metrics、release gate、production preflight 及 Storage 公网检测是实例级运维接口，仅全局管理员可访问；其中 pause/resume/emergency-disable、health-check 和 preflight 等写操作仍额外要求配置权限。这些门禁与预检结果不构成生产就绪声明。
+
+平台授权与后台任务还必须遵守租户信任边界：OAuth `state` 同时绑定平台、租户和店铺，回调写入 Token 或授权状态时必须使用 `tenant_id + shop_id` 条件；Provider 调用只接受由已校验店铺恢复出的标准租户上下文。队列中的 task/shop ID 只是定位信息，不能作为租户授权依据，worker 必须重新读取持久化店铺并校验租户后才能执行平台读写。
+
+### SMTP 传输安全
+
+SMTP 隐式 TLS 使用 TLS 1.2+，并以配置的 SMTP 主机名执行证书与主机名验证（不允许跳过验证）。显式 `UseTLS` 时，服务器若不支持 STARTTLS 会直接失败；支持 STARTTLS 时升级失败同样失败。未启用隐式 TLS 的连接在服务器宣告 STARTTLS 时会升级，凭据不完整会被拒绝。
 
 ## Collector Provider
 

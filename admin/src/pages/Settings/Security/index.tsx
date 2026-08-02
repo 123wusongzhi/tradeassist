@@ -39,6 +39,8 @@ import {
 } from '@/constants/securitySettings';
 import { fetchConfigStatusOverview, type ConfigStatusItem } from '@/services/configStatus';
 import { fetchSettingsList, saveSettingsItems } from '@/services/settings';
+import { useInitialStateModel } from '@/hooks/useInitialStateModel';
+import { finishAuthenticatedLogout } from '@/services/authenticatedLogout';
 import {
   fetchAuditIntegrityStatus,
   fetchAuthSessions,
@@ -196,6 +198,7 @@ function SecurityToggleCard({
 }
 
 export default function SecuritySettingsPage() {
+  const { setInitialState } = useInitialStateModel();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [overview, setOverview] = useState<SecurityOverview | null>(null);
@@ -544,8 +547,8 @@ export default function SecuritySettingsPage() {
                     okType: 'danger',
                     onOk: async () => {
                       await logoutAllSessions();
+                      await finishAuthenticatedLogout(setInitialState);
                       message.success('已全部登出');
-                      history.push('/user/login');
                     },
                   });
                 }}

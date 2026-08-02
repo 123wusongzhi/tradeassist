@@ -6,6 +6,7 @@ import type { CollectFeature } from '../../types/provider-meta.js';
 import type { NormalizedProduct } from '../../types/product.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 import { PAGE_EVALUATE_POLYFILL } from '../../browser/evaluate-in-page.js';
+import { installPublicNetworkGuard } from '../../security/public-url.js';
 import { detectPinduoduoAccessStatus, throwAccessError } from './access-detect.js';
 import { extractAndAssemblePinduoduo } from './parser.js';
 import { isPlatformTitle } from './wholesale-detail-shared.js';
@@ -97,7 +98,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     const profileKey = String(input.options?.profileKey ?? '').trim();
     const useDedicatedProfile =
       input.options?.useBrowserProfile === true &&
-      profileKey === PINDUODUO_PROFILE_KEY;
+      (profileKey === PINDUODUO_PROFILE_KEY || /^tenant_[1-9][0-9]*_pinduoduo$/.test(profileKey));
     const gotoTimeout = resolveGotoTimeoutMs(input.options);
     const runAccessCheck = accessCheckEnabled(input.options);
 
@@ -179,7 +180,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
     };
 
     if (useDedicatedProfile) {
-      return browser.withPinduoduoPage(run);
+      return browser.withPinduoduoPage(profileKey, run);
     }
 
     const browserInstance = await browser.ensureBrowser();
@@ -192,6 +193,7 @@ class PinduoduoCollectorProvider implements CollectorProvider {
       isMobile: false,
       hasTouch: false,
     });
+    await installPublicNetworkGuard(context);
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(gotoTimeout);

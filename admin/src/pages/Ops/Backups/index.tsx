@@ -1,4 +1,6 @@
 import { TmPageContainer } from '@/components/ui';
+import PermissionGuard from '@/components/PermissionGuard';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   createBackup,
   fetchBackups,
@@ -17,7 +19,7 @@ function statusColor(status?: string) {
   return 'blue';
 }
 
-export default function BackupsPage() {
+function BackupsPageContent() {
   const [items, setItems] = useState<BackupJob[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -123,5 +125,13 @@ export default function BackupsPage() {
         />
       </Space>
     </TmPageContainer>
+  );
+}
+
+export default function BackupsPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <BackupsPageContent />
+    </PermissionGuard>
   );
 }

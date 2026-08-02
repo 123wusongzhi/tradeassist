@@ -1,17 +1,37 @@
 package pricing
 
 import (
+	"errors"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
+	"gorm.io/gorm"
 )
 
 // Handler exposes pricing HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+func pricingTenantID(c *gin.Context) (int64, bool) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return 0, false
+	}
+	return tenantID, true
+}
+
+func handlePricingError(c *gin.Context, err error) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, 404, response.CodeNotFound, "resource not found")
+		return
+	}
+	response.HandleError(c, err)
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {
@@ -36,9 +56,13 @@ func (h *Handler) Calculate(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
-	out, err := h.Svc.Calculate(c.Request.Context(), body)
+	tenantID, ok := pricingTenantID(c)
+	if !ok {
+		return
+	}
+	out, err := h.Svc.Calculate(c, tenantID, body)
 	if err != nil {
-		response.HandleError(c, err)
+		handlePricingError(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -60,18 +84,22 @@ func (h *Handler) ApplyProduct(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	tenantID, ok := pricingTenantID(c)
+	if !ok {
+		return
+	}
 	if !body.Confirm {
-		out, err := h.Svc.PreviewProduct(c.Request.Context(), pid, body)
+		out, err := h.Svc.PreviewProduct(c, tenantID, pid, body)
 		if err != nil {
-			response.HandleError(c, err)
+			handlePricingError(c, err)
 			return
 		}
 		response.OK(c, out)
 		return
 	}
-	out, err := h.Svc.ApplyProduct(c.Request.Context(), pid, body, adminUUID(c))
+	out, err := h.Svc.ApplyProduct(c, tenantID, pid, body, adminUUID(c))
 	if err != nil {
-		response.HandleError(c, err)
+		handlePricingError(c, err)
 		return
 	}
 	response.OK(c, out)
@@ -88,18 +116,22 @@ func (h *Handler) BatchApply(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	tenantID, ok := pricingTenantID(c)
+	if !ok {
+		return
+	}
 	if !body.Confirm {
-		out, err := h.Svc.BatchPreview(c.Request.Context(), body)
+		out, err := h.Svc.BatchPreview(c, tenantID, body)
 		if err != nil {
-			response.HandleError(c, err)
+			handlePricingError(c, err)
 			return
 		}
 		response.OK(c, out)
 		return
 	}
-	out, err := h.Svc.BatchApply(c.Request.Context(), body, adminUUID(c))
+	out, err := h.Svc.BatchApply(c, tenantID, body, adminUUID(c))
 	if err != nil {
-		response.HandleError(c, err)
+		handlePricingError(c, err)
 		return
 	}
 	response.OK(c, out)

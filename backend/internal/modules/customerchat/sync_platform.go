@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
@@ -23,6 +24,14 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 		return 0, 0, fmt.Errorf("invalid sync payload")
 	}
 	shopID := shopRow.ID
+	if shopRow.TenantID < 0 || shopID == uuid.Nil {
+		return 0, 0, gorm.ErrRecordNotFound
+	}
+	tenantID := shopRow.TenantID
+	var trustedShop shop.Shop
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&trustedShop).Error; err != nil {
+		return 0, 0, err
+	}
 	platformKey := strings.TrimSpace(shopRow.Platform)
 
 	err = s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -34,7 +43,7 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 			}
 
 			var conv CustomerConversation
-			q := tx.Where("shop_id = ? AND platform = ? AND external_conversation_id = ?", shopID, platformKey, ext)
+			q := tx.Where("tenant_id = ? AND shop_id = ? AND platform = ? AND external_conversation_id = ?", tenantID, shopID, platformKey, ext)
 			findErr := q.First(&conv).Error
 			rawConv := platformp.TrimRawMap(pc.RawData, 12, 400)
 			rawJSON, _ := json.Marshal(rawConv)
@@ -57,6 +66,7 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 			if errors.Is(findErr, gorm.ErrRecordNotFound) {
 				extCopy := ext
 				conv = CustomerConversation{
+					TenantID:               tenantID,
 					Platform:               platformKey,
 					ShopID:                 &shopID,
 					ExternalConversationID: &extCopy,
@@ -85,7 +95,7 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 				if lastAt != nil {
 					updates["last_message_at"] = lastAt
 				}
-				if err := tx.Model(&CustomerConversation{}).Where("id = ?", conv.ID).Updates(updates).Error; err != nil {
+				if err := tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", conv.ID, tenantID).Updates(updates).Error; err != nil {
 					return err
 				}
 				conversationsTouched++
@@ -153,7 +163,7 @@ func (s *Service) SyncPlatformCustomerMessages(ctx context.Context, shopRow *sho
 				case RoleAgent:
 					st = StatusReplied
 				}
-				_ = tx.Model(&CustomerConversation{}).Where("id = ?", conv.ID).Updates(map[string]any{
+				_ = tx.Model(&CustomerConversation{}).Where("id = ? AND tenant_id = ?", conv.ID, tenantID).Updates(map[string]any{
 					"last_message_at": latestAt,
 					"status":          st,
 					"updated_at":      time.Now().UTC(),

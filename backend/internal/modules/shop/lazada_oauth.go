@@ -37,8 +37,12 @@ func (s *Service) LazadaOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required for OAuth state")
 	}
-	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	ctx, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.tenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "lazada" {
@@ -61,7 +65,11 @@ func (s *Service) LazadaOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 		return nil, err
 	}
 	key := lazadaOAuthRedisPrefix + st
-	if err := s.Redis.Set(c.Request.Context(), key, shopID.String(), 10*time.Minute).Err(); err != nil {
+	saved, err := encodePlatformOAuthState("lazada", tenantID, shopID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Redis.Set(ctx, key, saved, 10*time.Minute).Err(); err != nil {
 		return nil, err
 	}
 	return &LazadaAuthorizeURLResult{AuthorizeURL: u, State: st}, nil
@@ -76,21 +84,28 @@ func (s *Service) LazadaOAuthCallback(c *gin.Context, shopID uuid.UUID, body Laz
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required")
 	}
+	ctxBase, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.tenantShop(c, shopID); err != nil {
+		return nil, err
+	}
 	key := lazadaOAuthRedisPrefix + st
-	saved, err := s.Redis.Get(c.Request.Context(), key).Result()
+	saved, err := s.Redis.Get(ctxBase, key).Result()
 	if err != nil || strings.TrimSpace(saved) == "" {
 		return nil, fmt.Errorf("invalid or expired oauth state")
 	}
-	_ = s.Redis.Del(c.Request.Context(), key)
-	if strings.TrimSpace(saved) != shopID.String() {
-		return nil, fmt.Errorf("state does not match shop")
+	if err := decodePlatformOAuthState(saved, "lazada", tenantID, shopID); err != nil {
+		return nil, err
 	}
+	_ = s.Redis.Del(ctxBase, key)
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctxBase, 45*time.Second)
 	defer cancel()
 
-	var row Shop
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
+	row, err := s.tenantShopCtx(ctx, tenantID, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "lazada" {
@@ -107,7 +122,7 @@ func (s *Service) LazadaOAuthCallback(c *gin.Context, shopID uuid.UUID, body Laz
 	tok, err := platformlazada.ExchangeAuthCode(ctx, auth, code)
 	if err != nil {
 		s.oauthLazadaLog(c, adminID, shopID, "failed", err.Error())
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthError)
+		_ = s.setAuthStatusCtx(ctx, tenantID, shopID, AuthError)
 		return nil, err
 	}
 
@@ -151,7 +166,7 @@ func (s *Service) LazadaOAuthCallback(c *gin.Context, shopID uuid.UUID, body Laz
 				if region != "" {
 					updates["region"] = region
 				}
-				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(updates).Error
+				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenantID).Updates(updates).Error
 			}
 		}
 	}
@@ -163,7 +178,7 @@ func (s *Service) LazadaOAuthCallback(c *gin.Context, shopID uuid.UUID, body Laz
 		"seller_ref": strings.TrimSpace(tok.SellerID),
 	}
 	rawB, _ := json.Marshal(raw)
-	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).
+	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ? AND EXISTS (SELECT 1 FROM shops sh WHERE sh.id = shop_auth_tokens.shop_id AND sh.tenant_id = ?)", shopID, tenantID).
 		Updates(map[string]any{"raw_data": datatypes.JSON(rawB)}).Error
 
 	s.oauthLazadaLog(c, adminID, shopID, "success", "lazada oauth tokens saved")

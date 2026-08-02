@@ -45,6 +45,7 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	if err := s.DB.WithContext(ctx).
 		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
 		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
+		Where("tenant_id = ?", req.TenantID).
 		First(&prod, "id = ?", req.ProductID).Error; err != nil {
 		return nil, err
 	}
@@ -736,7 +737,7 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 		return out, nil
 	}
 
-	row, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, *shopID)
+	row, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, prod.TenantID, *shopID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			out = append(out, CheckItem{
@@ -770,7 +771,7 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 			Suggestion: "请选择对应平台的店铺。",
 		})
 	}
-	if prod.TenantID != 0 && row.TenantID != 0 && prod.TenantID != row.TenantID {
+	if prod.TenantID != row.TenantID {
 		out = append(out, CheckItem{
 			Group:      "platform",
 			Code:       "platform.tenant_mismatch",

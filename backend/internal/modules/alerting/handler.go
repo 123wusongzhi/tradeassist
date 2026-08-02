@@ -32,6 +32,9 @@ func Register(r gin.IRouter, h *Handler) {
 
 // List returns recent alerts.
 func (h *Handler) List(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermAlertsRead) {
 		return
 	}
@@ -53,6 +56,9 @@ func (h *Handler) List(c *gin.Context) {
 
 // Ack acknowledges an alert.
 func (h *Handler) Ack(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermAlertsAck) {
 		return
 	}
@@ -71,6 +77,9 @@ type silenceReq struct {
 
 // Silence silences an alert.
 func (h *Handler) Silence(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermAlertsSilence) {
 		return
 	}

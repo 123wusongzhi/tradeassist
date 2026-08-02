@@ -8,8 +8,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -33,10 +37,24 @@ func newOperationProgressTestDB(t *testing.T) *gorm.DB {
 		&ProductAIContentApplication{},
 		&operationImageTaskProbe{},
 		&aitask.AITask{},
+		&admin.AdminUser{},
 	); err != nil {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func operationTenantAdminContext(t *testing.T, db *gorm.DB, tenantID int64) *gin.Context {
+	t.Helper()
+	u := &admin.AdminUser{TenantID: tenantID, Username: admin.NewInternalUsername(), PasswordHash: "test", Role: "tenant_admin", Status: admin.StatusActive}
+	if err := db.Create(u).Error; err != nil {
+		t.Fatal(err)
+	}
+	c := testGinContext()
+	c.Set(ctxkey.TenantID, tenantID)
+	c.Set(ctxkey.AdminID, u.ID.String())
+	c.Set("adminperm.principal", &adminperm.Principal{UserID: u.ID, TenantID: tenantID, Role: adminperm.RoleTenantAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleTenantAdmin)})
+	return c
 }
 
 func TestOperationProgressCalculatesReadyFromContent(t *testing.T) {
@@ -137,7 +155,7 @@ func TestAIContentApplyRejectsConflictAndUndoProtectsManualChange(t *testing.T) 
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db, AITasks: &aitask.Service{DB: db}}
-	c := testGinContext()
+	c := operationTenantAdminContext(t, db, 1)
 
 	_, err := svc.ApplyAITitle(c, p.ID, ApplyAITitleBody{
 		AITitle:           "AI portable coffee grinder title",
@@ -200,7 +218,7 @@ func TestAIContentApplyRejectsFailedTaskAndStaleSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	svc := &Service{DB: db, AITasks: &aitask.Service{DB: db}}
-	c := testGinContext()
+	c := operationTenantAdminContext(t, db, 1)
 
 	if _, err := svc.ApplyAITitle(c, p.ID, ApplyAITitleBody{
 		AITitle:           "should not apply from failed task",

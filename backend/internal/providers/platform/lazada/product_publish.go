@@ -84,7 +84,7 @@ func (lazadaProvider) PublishProduct(ctx context.Context, req platformp.PublishP
 	skuPrepend := make([]string, len(d.SKUs))
 	for i, sku := range d.SKUs {
 		if u := strings.TrimSpace(sku.ImageURL); u != "" {
-			mu, ierr := resolveSKUPreviewToLazadaURL(ctx, cfg, access, u, seenSKUImg)
+			mu, ierr := resolveSKUPreviewToLazadaURL(ctx, cfg, access, sku.TenantID, u, seenSKUImg)
 			if ierr != nil {
 				return nil, ierr
 			}

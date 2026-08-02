@@ -11,8 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/datatypes"
@@ -62,6 +64,11 @@ func (h *Handler) Create(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body createBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
@@ -93,7 +100,7 @@ func (h *Handler) Create(c *gin.Context) {
 			return
 		}
 		var n int64
-		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&product.Product{}).Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
+		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", pid, tenantID).Count(&n).Error; err != nil || n == 0 {
 			response.Fail(c, 400, response.CodeBadRequest, "product not found")
 			return
 		}
@@ -107,6 +114,24 @@ func (h *Handler) Create(c *gin.Context) {
 			return
 		}
 		srcImgID = &u
+		var fileCount, productImageCount int64
+		if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&files.FileRecord{}).
+			Where("id = ? AND tenant_id = ? AND security_status = ?", u, tenantID, files.SecurityClean).
+			Count(&fileCount).Error; err != nil {
+			response.HandleError(c, err)
+			return
+		}
+		if err := h.Svc.DB.WithContext(c.Request.Context()).Table("product_images AS pi").
+			Joins("JOIN products AS p ON p.id = pi.product_id AND p.deleted_at IS NULL").
+			Where("pi.id = ? AND p.tenant_id = ?", u, tenantID).
+			Count(&productImageCount).Error; err != nil {
+			response.HandleError(c, err)
+			return
+		}
+		if fileCount == 0 && productImageCount == 0 {
+			response.Fail(c, 400, response.CodeBadRequest, "source image not found")
+			return
+		}
 	}
 	inBytes := body.Input
 	if len(inBytes) == 0 {
@@ -118,6 +143,7 @@ func (h *Handler) Create(c *gin.Context) {
 	}
 
 	row, err := h.Svc.CreateAndPersist(c.Request.Context(), CreatePayload{
+		TenantID:       tenantID,
 		TaskType:       tt,
 		Provider:       body.Provider,
 		ProductID:      productID,
@@ -180,6 +206,9 @@ func logMessage(row *ImageTask) string {
 func (h *Handler) List(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
+		return
+	}
+	if _, ok := handlerTenantID(c); !ok {
 		return
 	}
 	q := ListQuery{
@@ -298,7 +327,11 @@ func (h *Handler) Monitor(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "image tasks unavailable")
 		return
 	}
-	snap, err := h.Svc.BuildMonitorSnapshot(c.Request.Context())
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	snap, err := h.Svc.BuildMonitorSnapshot(c.Request.Context(), tenantID)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -315,6 +348,14 @@ func (h *Handler) Get(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), id, tenantID); err != nil {
+		handleTenantResourceError(c, err)
 		return
 	}
 	row, err := h.Svc.GetByID(c.Request.Context(), id)
@@ -338,6 +379,14 @@ func (h *Handler) Retry(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), id, tenantID); err != nil {
+		handleTenantResourceError(c, err)
 		return
 	}
 	if err := h.Svc.RetryEnqueue(c, id); err != nil {

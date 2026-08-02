@@ -16,20 +16,26 @@ type StoreGrant struct {
 // Principal is the resolved admin authorization context.
 type Principal struct {
 	UserID      uuid.UUID
+	TenantID    int64
 	Role        string
 	Disabled    bool
 	Permissions []string
 	StoreGrants []StoreGrant
 }
 
+// IsTenantAdmin reports whether this is an administrator of a real tenant.
+func (p *Principal) IsTenantAdmin() bool {
+	return p != nil && !p.Disabled && roleForTenant(p.Role, p.TenantID) == RoleTenantAdmin
+}
+
 // IsAdmin returns true for global admin role.
 func (p *Principal) IsAdmin() bool {
-	return p != nil && !p.Disabled && normalizeRole(p.Role) == RoleAdmin
+	return p != nil && !p.Disabled && p.TenantID == 0 && normalizeRole(p.Role) == RoleAdmin
 }
 
 // IsReadonly returns true for readonly role.
 func (p *Principal) IsReadonly() bool {
-	return p == nil || p.Disabled || normalizeRole(p.Role) == RoleReadonly
+	return p == nil || p.Disabled || roleForTenant(p.Role, p.TenantID) == "" || roleForTenant(p.Role, p.TenantID) == RoleReadonly
 }
 
 // Can returns true when principal has a permission key.
@@ -37,7 +43,21 @@ func (p *Principal) Can(perm string) bool {
 	if p == nil || p.Disabled {
 		return false
 	}
-	return HasPermission(p.Role, perm)
+	return HasPermission(roleForTenant(p.Role, p.TenantID), perm)
+}
+
+// roleForTenant makes the tenant boundary part of role interpretation. Legacy
+// nonzero-tenant "admin" rows receive tenant-admin business scope, while an
+// invalid system-tenant tenant_admin row fails closed.
+func roleForTenant(role string, tenantID int64) string {
+	r := strictRole(role)
+	if r == RoleAdmin && tenantID > 0 {
+		return RoleTenantAdmin
+	}
+	if r == RoleTenantAdmin && tenantID <= 0 {
+		return ""
+	}
+	return r
 }
 
 // AllowedStoreIDs returns nil for admin (all stores), otherwise explicit store ids.
@@ -101,16 +121,13 @@ func (p *Principal) CanOperateStore(storeID uuid.UUID) bool {
 }
 
 func normalizeRole(role string) string {
-	if r := strictRole(role); r != "" {
-		return r
-	}
-	return RoleAdmin
+	return strictRole(role)
 }
 
 func strictRole(role string) string {
 	r := strings.TrimSpace(strings.ToLower(role))
 	switch r {
-	case RoleReadonly, RoleOperator, RoleAdmin, RoleReviewer:
+	case RoleReadonly, RoleOperator, RoleAdmin, RoleTenantAdmin, RoleReviewer:
 		return r
 	default:
 		return ""

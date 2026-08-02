@@ -101,20 +101,17 @@ func taskCursorScope(p ListFailureParams) (filterFingerprint string, shopScopeHa
 }
 
 func (s *Service) applyTenantListFilter(q *gorm.DB, p ListFailureParams) *gorm.DB {
-	if p.TenantID > 0 {
-		return q.Where("tenant_id = ?", p.TenantID)
-	}
-	return q
+	return q.Where("tenant_id = ?", p.TenantID)
 }
 
-func (s *Service) summarizeGlobalMarks(ctx context.Context) (ignored int64, handled int64, err error) {
+func (s *Service) summarizeMarks(ctx context.Context, tenantID int64) (ignored int64, handled int64, err error) {
 	if s == nil || s.DB == nil {
 		return 0, 0, fmt.Errorf("taskcenter: no db")
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("mark_type = ?", MarkIgnored).Count(&ignored).Error; err != nil {
+	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkIgnored).Count(&ignored).Error; err != nil {
 		return 0, 0, err
 	}
-	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("mark_type = ?", MarkHandled).Count(&handled).Error; err != nil {
+	if err = s.DB.WithContext(ctx).Model(&TaskFailureMark{}).Where("tenant_id = ? AND mark_type = ?", tenantID, MarkHandled).Count(&handled).Error; err != nil {
 		return 0, 0, err
 	}
 	return ignored, handled, nil
@@ -130,7 +127,7 @@ func (s *Service) Summary(ctx context.Context, p ListFailureParams) (FailuresSum
 		ByPlatform: map[string]int64{},
 	}
 	su.fillFromMerged(merged)
-	ig, hd, err := s.summarizeGlobalMarks(ctx)
+	ig, hd, err := s.summarizeMarks(ctx, p.TenantID)
 	if err != nil {
 		return FailuresSummary{}, err
 	}
@@ -218,8 +215,9 @@ func (s *Service) collectMerged(ctx context.Context, p ListFailureParams, perTyp
 	return merged, nil
 }
 
-func (s *Service) marksSubquery(tx *gorm.DB, taskType string, idSQL string) *gorm.DB {
+func (s *Service) marksSubquery(tx *gorm.DB, tenantID int64, taskType string, idSQL string) *gorm.DB {
 	return tx.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
+		Where("m.tenant_id = ?", tenantID).
 		Where("m.task_type = ?", taskType).
 		Where("m.source_id = "+idSQL).
 		Where("m.mark_type IN ?", []string{MarkIgnored, MarkHandled})
@@ -229,19 +227,21 @@ func (s *Service) applyMarkFilters(db *gorm.DB, taskType string, idSQL string, p
 	switch {
 	case p.RequireIgnored:
 		sub := db.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
+			Where("m.tenant_id = ?", p.TenantID).
 			Where("m.task_type = ?", taskType).
 			Where("m.source_id = "+idSQL).
 			Where("m.mark_type = ?", MarkIgnored)
 		db = db.Where("EXISTS (?)", sub)
 	case p.RequireHandled:
 		sub := db.Session(&gorm.Session{NewDB: true}).Table("task_failure_marks AS m").Select("1").
+			Where("m.tenant_id = ?", p.TenantID).
 			Where("m.task_type = ?", taskType).
 			Where("m.source_id = "+idSQL).
 			Where("m.mark_type = ?", MarkHandled)
 		db = db.Where("EXISTS (?)", sub)
 	default:
 		if !p.IncludeMarked {
-			db = db.Where("NOT EXISTS (?)", s.marksSubquery(s.DB, taskType, idSQL))
+			db = db.Where("NOT EXISTS (?)", s.marksSubquery(s.DB, p.TenantID, taskType, idSQL))
 		}
 	}
 	return db
@@ -284,14 +284,14 @@ func failureRowFilter(db *gorm.DB, now time.Time, includeResolved bool, trackRet
 	return db.Where("("+strings.TrimSpace(q)+")", args...)
 }
 
-func (s *Service) fetchMarks(ctx context.Context, taskType string, ids []string) (markSet, error) {
+func (s *Service) fetchMarks(ctx context.Context, tenantID int64, taskType string, ids []string) (markSet, error) {
 	out := markSet{}
 	if len(ids) == 0 {
 		return out, nil
 	}
 	var rows []TaskFailureMark
 	if err := s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id IN ? AND mark_type IN ?", taskType, ids, []string{MarkIgnored, MarkHandled}).
+		Where("tenant_id = ? AND task_type = ? AND source_id IN ? AND mark_type IN ?", tenantID, taskType, ids, []string{MarkIgnored, MarkHandled}).
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -466,7 +466,7 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 		if err != nil {
 			return zero, err
 		}
-		if err := s.attachAlertStatuses(ctx, merged); err != nil {
+		if err := s.attachAlertStatuses(ctx, p.TenantID, merged); err != nil {
 			return zero, err
 		}
 		summary := FailuresSummary{ByType: map[string]int64{}, ByPlatform: map[string]int64{}}
@@ -492,7 +492,7 @@ func (s *Service) ListFailures(ctx context.Context, p ListFailureParams) (ListFa
 	if err != nil {
 		return zero, err
 	}
-	if err := s.attachAlertStatuses(ctx, merged); err != nil {
+	if err := s.attachAlertStatuses(ctx, p.TenantID, merged); err != nil {
 		return zero, err
 	}
 	summary := FailuresSummary{ByType: map[string]int64{}, ByPlatform: map[string]int64{}}

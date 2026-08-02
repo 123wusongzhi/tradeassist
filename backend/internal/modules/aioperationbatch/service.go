@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -33,6 +34,18 @@ type Service struct {
 	Products *product.Service
 	Image    *imagetask.Service
 	OpLog    *operationlog.Service
+}
+
+func batchTenantID(c *gin.Context) (int64, error) {
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return 0, err
+	}
+	// Legacy/unassigned batches remain fail-closed.
+	if tenantID <= 0 {
+		return 0, fmt.Errorf("ai batch: tenant context required")
+	}
+	return tenantID, nil
 }
 
 func truncateForLog(s string, max int) string {
@@ -169,7 +182,7 @@ func parseProductIDs(raw []string) ([]uuid.UUID, error) {
 }
 
 // resolveProductIDs resolves explicit ids or filter query; enforces scope + max.
-func (s *Service) resolveProductIDs(ctx context.Context, ids []uuid.UUID, f ProductFilters, maxN int, confirmAll bool) ([]uuid.UUID, error) {
+func (s *Service) resolveProductIDs(ctx context.Context, tenantID int64, ids []uuid.UUID, f ProductFilters, maxN int, confirmAll bool) ([]uuid.UUID, error) {
 	if !batchScopePresent(ids, f) && !confirmAll {
 		return nil, fmt.Errorf("empty batch scope: provide productIds / filters or confirmAll=true")
 	}
@@ -177,13 +190,24 @@ func (s *Service) resolveProductIDs(ctx context.Context, ids []uuid.UUID, f Prod
 		if len(ids) > maxN {
 			return nil, fmt.Errorf("product count exceeds ai_batch_max_size (%d)", maxN)
 		}
+		var owned []uuid.UUID
+		if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id IN ? AND tenant_id = ?", ids, tenantID).Pluck("id", &owned).Error; err != nil {
+			return nil, err
+		}
+		requested := make(map[uuid.UUID]struct{}, len(ids))
+		for _, id := range ids {
+			requested[id] = struct{}{}
+		}
+		if len(owned) != len(requested) {
+			return nil, fmt.Errorf("one or more products not found")
+		}
 		return ids, nil
 	}
 	if !batchFiltersNarrow(f) && !confirmAll {
 		return nil, fmt.Errorf("filters too broad: set confirmAll=true for full-table selection")
 	}
 
-	tx := s.DB.WithContext(ctx).Model(&product.Product{}).Select("id")
+	tx := s.DB.WithContext(ctx).Model(&product.Product{}).Select("id").Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(f.Status); v != "" {
 		tx = tx.Where("status = ?", v)
 	}
@@ -277,6 +301,10 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	if s == nil || s.DB == nil || s.Products == nil {
 		return nil, fmt.Errorf("ai batch unavailable")
 	}
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	if !s.aiBatchEnabled(ctx) {
 		return nil, fmt.Errorf("bulk AI disabled (settings.ai.ai_batch_enabled=false)")
 	}
@@ -291,7 +319,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	if err != nil {
 		return nil, err
 	}
-	ids, err = s.resolveProductIDs(ctx, ids, body.Filters, maxN, body.ConfirmAll)
+	ids, err = s.resolveProductIDs(ctx, tenantID, ids, body.Filters, maxN, body.ConfirmAll)
 	if err != nil {
 		return nil, err
 	}
@@ -315,6 +343,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -363,7 +392,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 		pid := pid
 		if op == OperationTitleOptimize && body.Filters.OnlyMissingAiTitle {
 			var has string
-			_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("COALESCE(ai_title,'')").Where("id = ?", pid).Scan(&has).Error
+			_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("COALESCE(ai_title,'')").Where("id = ? AND tenant_id = ?", pid, tenantID).Scan(&has).Error
 			if strings.TrimSpace(has) != "" {
 				mu.Lock()
 				skipN++
@@ -373,7 +402,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 		}
 		if op == OperationDescriptionGenerate && body.Filters.OnlyMissingAiDescription {
 			var has string
-			_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("COALESCE(ai_description,'')").Where("id = ?", pid).Scan(&has).Error
+			_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("COALESCE(ai_description,'')").Where("id = ? AND tenant_id = ?", pid, tenantID).Scan(&has).Error
 			if strings.TrimSpace(has) != "" {
 				mu.Lock()
 				skipN++
@@ -440,7 +469,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 		"status":        st,
 		"finished_at":   &fin,
 	}
-	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ?", batchID).Updates(updates).Error
+	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(updates).Error
 
 	batchAction := "ai.batch.success"
 	if failN > 0 && successN > 0 {
@@ -459,7 +488,7 @@ func (s *Service) CreateProductTextBatch(c *gin.Context, body CreateProductTextB
 		})
 	}
 
-	return s.GetByID(ctx, batchID)
+	return s.getByID(ctx, tenantID, batchID)
 }
 
 func deriveTextBatchStatus(success, fail, attempted int) string {
@@ -535,6 +564,10 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	if s == nil || s.DB == nil || s.Image == nil {
 		return nil, fmt.Errorf("ai batch unavailable")
 	}
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	if !s.aiBatchEnabled(ctx) {
 		return nil, fmt.Errorf("bulk AI disabled (settings.ai.ai_batch_enabled=false)")
 	}
@@ -564,7 +597,7 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	if err != nil {
 		return nil, err
 	}
-	ids, err = s.resolveProductIDs(ctx, ids, body.Filters, maxN, body.ConfirmAll)
+	ids, err = s.resolveProductIDs(ctx, tenantID, ids, body.Filters, maxN, body.ConfirmAll)
 	if err != nil {
 		return nil, err
 	}
@@ -580,6 +613,7 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	inJSON, _ := json.Marshal(inSum)
 
 	batch := &AIOperationBatch{
+		TenantID:      tenantID,
 		BatchNo:       batchNo,
 		OperationType: op,
 		Status:        StatusRunning,
@@ -625,7 +659,8 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 		var srcURL string
 		if needsMainImage {
 			err := s.DB.WithContext(ctx).
-				Where("product_id = ? AND image_type = ?", pid, product.ImageTypeMain).
+				Joins("JOIN products ON products.id = product_images.product_id AND products.tenant_id = ?", tenantID).
+				Where("product_images.product_id = ? AND product_images.image_type = ?", pid, product.ImageTypeMain).
 				Order("sort_order ASC, created_at ASC").
 				First(&img).Error
 			if err != nil {
@@ -683,8 +718,8 @@ func (s *Service) CreateProductImagesBatch(c *gin.Context, body CreateProductIma
 	}
 
 	_ = s.reconcileImageBatch(ctx, batchID)
-	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ?", batchID).Update("skipped_count", skipN).Error
-	batch2, _ := s.GetByID(ctx, batchID)
+	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Update("skipped_count", skipN).Error
+	batch2, _ := s.getByID(ctx, tenantID, batchID)
 
 	batchAction := "ai.batch.success"
 	if failN > 0 && createN > 0 {
@@ -832,6 +867,10 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 	if s == nil || s.DB == nil {
 		return nil, 0, fmt.Errorf("no db")
 	}
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return nil, 0, err
+	}
 	page := q.Page
 	if page < 1 {
 		page = 1
@@ -843,7 +882,7 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 	if ps > 100 {
 		ps = 100
 	}
-	tx := s.DB.WithContext(c.Request.Context()).Model(&AIOperationBatch{})
+	tx := s.DB.WithContext(c.Request.Context()).Model(&AIOperationBatch{}).Where("tenant_id = ?", tenantID)
 	if v := strings.TrimSpace(q.OperationType); v != "" {
 		tx = tx.Where("operation_type = ?", v)
 	}
@@ -877,21 +916,29 @@ func (s *Service) ListBatches(c *gin.Context, q ListBatchesQuery) ([]AIOperation
 	return items, total, nil
 }
 
-// GetByID returns a batch (reconciles image stats if applicable).
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AIOperationBatch, error) {
+func (s *Service) getByID(ctx context.Context, tenantID int64, id uuid.UUID) (*AIOperationBatch, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("no db")
 	}
 	var b AIOperationBatch
-	if err := s.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		return nil, err
 	}
 	switch strings.TrimSpace(b.OperationType) {
 	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
 		_ = s.reconcileImageBatch(ctx, id)
-		_ = s.DB.WithContext(ctx).First(&b, "id = ?", id).Error
+		_ = s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error
 	}
 	return &b, nil
+}
+
+// GetByID returns only a batch owned by the current non-legacy tenant.
+func (s *Service) GetByID(c *gin.Context, id uuid.UUID) (*AIOperationBatch, error) {
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+	return s.getByID(c.Request.Context(), tenantID, id)
 }
 
 // ListBatchAITasks returns ai_tasks for a text batch.
@@ -966,24 +1013,28 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 	if s == nil || s.DB == nil || s.Products == nil || s.Image == nil {
 		return nil, fmt.Errorf("ai batch unavailable")
 	}
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 	if !s.aiBatchEnabled(ctx) {
 		return nil, fmt.Errorf("bulk AI disabled")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.getByID(ctx, tenantID, batchID)
 	if err != nil {
 		return nil, err
 	}
 	switch strings.TrimSpace(b.OperationType) {
 	case OperationTitleOptimize, OperationDescriptionGenerate:
-		return s.retryFailedText(c, b, adminID)
+		return s.retryFailedText(c, tenantID, b, adminID)
 	case OperationImageRemoveBackground, OperationImageGenerateScene, OperationImageReplaceBackground, OperationImageTranslateImageText:
-		return s.retryFailedImage(c, b, adminID)
+		return s.retryFailedImage(c, tenantID, b, adminID)
 	default:
 		return nil, fmt.Errorf("unsupported operation for retry")
 	}
 }
 
-func (s *Service) retryFailedText(c *gin.Context, b *AIOperationBatch, adminID *uuid.UUID) (*AIOperationBatch, error) {
+func (s *Service) retryFailedText(c *gin.Context, tenantID int64, b *AIOperationBatch, adminID *uuid.UUID) (*AIOperationBatch, error) {
 	ctx := c.Request.Context()
 	var in map[string]any
 	_ = json.Unmarshal(b.Input, &in)
@@ -1011,7 +1062,7 @@ func (s *Service) retryFailedText(c *gin.Context, b *AIOperationBatch, adminID *
 		return nil, err
 	}
 	if len(failRows) == 0 {
-		return s.GetByID(ctx, b.ID)
+		return s.getByID(ctx, tenantID, b.ID)
 	}
 	fails := failRows
 
@@ -1053,7 +1104,7 @@ func (s *Service) retryFailedText(c *gin.Context, b *AIOperationBatch, adminID *
 		st = StatusFailed
 	}
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ?", b.ID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&AIOperationBatch{}).Where("id = ? AND tenant_id = ?", b.ID, tenantID).Updates(map[string]any{
 		"success_count": successN,
 		"failed_count":  failN,
 		"task_count":    taskCount,
@@ -1072,10 +1123,10 @@ func (s *Service) retryFailedText(c *gin.Context, b *AIOperationBatch, adminID *
 			Message:     fmt.Sprintf("batchNo=%s retriedProducts=%d", b.BatchNo, len(fails)),
 		})
 	}
-	return s.GetByID(ctx, b.ID)
+	return s.getByID(ctx, tenantID, b.ID)
 }
 
-func (s *Service) retryFailedImage(c *gin.Context, b *AIOperationBatch, adminID *uuid.UUID) (*AIOperationBatch, error) {
+func (s *Service) retryFailedImage(c *gin.Context, tenantID int64, b *AIOperationBatch, adminID *uuid.UUID) (*AIOperationBatch, error) {
 	ctx := c.Request.Context()
 	var ids []uuid.UUID
 	if err := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
@@ -1119,7 +1170,7 @@ func (s *Service) retryFailedImage(c *gin.Context, b *AIOperationBatch, adminID 
 			Message:     fmt.Sprintf("batchNo=%s imageTasks=%d", b.BatchNo, len(ids)),
 		})
 	}
-	return s.GetByID(ctx, b.ID)
+	return s.getByID(ctx, tenantID, b.ID)
 }
 
 // ApplyBatchResults writes successful task outputs to ai_title / ai_description only.
@@ -1128,10 +1179,14 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 	if s == nil || s.DB == nil {
 		return 0, fmt.Errorf("no db")
 	}
+	tenantID, err := batchTenantID(c)
+	if err != nil {
+		return 0, err
+	}
 	if strings.TrimSpace(body.Target) != applyTargetAIField {
 		return 0, fmt.Errorf("unsupported target")
 	}
-	b, err := s.GetByID(ctx, batchID)
+	b, err := s.getByID(ctx, tenantID, batchID)
 	if err != nil {
 		return 0, err
 	}
@@ -1174,7 +1229,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 			if err := json.Unmarshal(t.Output, &out); err != nil || strings.TrimSpace(out.OptimizedTitle) == "" {
 				continue
 			}
-			if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", t.ProductID).Update("ai_title", strings.TrimSpace(out.OptimizedTitle)).Error; err == nil {
+			if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", t.ProductID, tenantID).Update("ai_title", strings.TrimSpace(out.OptimizedTitle)).Error; err == nil {
 				applied++
 			}
 		}
@@ -1207,7 +1262,7 @@ func (s *Service) ApplyBatchResults(c *gin.Context, batchID uuid.UUID, body Appl
 			if err := json.Unmarshal(t.Output, &out); err != nil || strings.TrimSpace(out.Description) == "" {
 				continue
 			}
-			if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ?", t.ProductID).Update("ai_description", strings.TrimSpace(out.Description)).Error; err == nil {
+			if err := s.DB.WithContext(ctx).Model(&product.Product{}).Where("id = ? AND tenant_id = ?", t.ProductID, tenantID).Update("ai_description", strings.TrimSpace(out.Description)).Error; err == nil {
 				applied++
 			}
 		}

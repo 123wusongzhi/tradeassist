@@ -78,9 +78,57 @@ func TestRefreshTokenConcurrentRotation(t *testing.T) {
 	}
 	var active int64
 	db.Model(&AuthRefreshToken{}).Where("status = ?", RefreshStatusActive).Count(&active)
-	if active != 1 {
-		t.Fatalf("expected 1 active refresh token, got %d", active)
+	if active > 1 {
+		t.Fatalf("concurrent rotation created %d active refresh tokens", active)
 	}
+}
+
+func TestRefreshTokenReuseRevokesFamilyAndSession(t *testing.T) {
+	db, svc, raw := newRefreshTestSession(t)
+	first, err := svc.RotateRefresh(context.Background(), raw, "127.0.0.1", "test")
+	if err != nil || first == nil || first.RefreshToken == "" {
+		t.Fatalf("first refresh: result=%+v err=%v", first, err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), raw, "127.0.0.1", "test"); err == nil || err.Error() != ErrRefreshTokenReused {
+		t.Fatalf("reuse error = %v, want %s", err, ErrRefreshTokenReused)
+	}
+	var session AuthSession
+	if err := db.First(&session).Error; err != nil || session.Status != SessionStatusRevoked {
+		t.Fatalf("session after reuse = %+v, err=%v", session, err)
+	}
+	var active int64
+	if err := db.Model(&AuthRefreshToken{}).Where("status = ?", RefreshStatusActive).Count(&active).Error; err != nil || active != 0 {
+		t.Fatalf("active tokens after reuse = %d, err=%v", active, err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), first.RefreshToken, "127.0.0.1", "test"); err == nil || err.Error() != ErrRefreshTokenRevoked {
+		t.Fatalf("family token after reuse error = %v", err)
+	}
+}
+
+func newRefreshTestSession(t testing.TB) (*gorm.DB, *SessionService, string) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&AuthSession{}, &AuthRefreshToken{}, &AuthLoginAttempt{}, &admin.AdminUser{}); err != nil {
+		t.Fatal(err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte("test-password-123"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := "reuse-" + uuid.NewString() + "@example.com"
+	if err := db.Create(&admin.AdminUser{Base: model.Base{ID: uuid.New()}, Username: admin.NewInternalUsername(), Email: email, PasswordHash: string(hash), Role: "admin", Status: "active", TenantID: 1}).Error; err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{JWTSecret: "test-jwt-secret-with-enough-length-32", Auth: config.AuthConfig{SessionMode: config.AuthSessionModeSecure, AccessTokenTTLMinutes: 15, RefreshTokenTTLDays: 7}}
+	svc := &SessionService{Cfg: cfg, DB: db, Admins: &admin.Store{DB: db}}
+	res, err := svc.CreateSession(context.Background(), email, "test-password-123", "127.0.0.1", "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, svc, res.RefreshToken
 }
 
 func TestHashTokenStable(t *testing.T) {
@@ -88,6 +136,38 @@ func TestHashTokenStable(t *testing.T) {
 	b := authutil.HashToken("abc", "pepper")
 	if a != b {
 		t.Fatal("hash not stable")
+	}
+}
+
+func TestValidateSessionAccessRejectsTenantMismatch(t *testing.T) {
+	db, svc, _ := newRefreshTestSession(t)
+	var session AuthSession
+	if err := db.First(&session).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ValidateSessionAccess(context.Background(), session.ID, session.UserID, session.TenantID+1, 1); err == nil || err.Error() != ErrSessionRevoked {
+		t.Fatalf("tenant-mismatched access token error = %v, want %s", err, ErrSessionRevoked)
+	}
+}
+
+func TestRotateRefreshRejectsStoredTenantMismatch(t *testing.T) {
+	db, svc, raw := newRefreshTestSession(t)
+	var token AuthRefreshToken
+	if err := db.First(&token).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&AuthRefreshToken{}).Where("id = ?", token.ID).Update("tenant_id", token.TenantID+1).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RotateRefresh(context.Background(), raw, "127.0.0.1", "test"); err == nil || err.Error() != ErrSessionRevoked {
+		t.Fatalf("tenant-mismatched refresh error = %v, want %s", err, ErrSessionRevoked)
+	}
+	var session AuthSession
+	if err := db.First(&session).Error; err != nil {
+		t.Fatal(err)
+	}
+	if session.Status != SessionStatusRevoked {
+		t.Fatalf("mismatched session status = %q, want revoked", session.Status)
 	}
 }
 

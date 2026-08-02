@@ -114,8 +114,10 @@ pnpm dev
 `.env` 保持以下关键值：
 
 ```env
-COLLECTOR_HTTP_ADDR=:3001
+COLLECTOR_HTTP_ADDR=127.0.0.1:3001
 COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001
+# 回环本地开发可留空；非回环部署必须与 backend 配置相同的随机长值。
+COLLECTOR_INTERNAL_TOKEN=
 OPENCLI_BRIDGE_ENABLED=false
 ```
 
@@ -386,7 +388,7 @@ OpenCLI 采集淘宝/天猫时，才需要在宿主机安装并启动 Bridge。
 当前管理端采集设置页保留了一个历史 `collector_http_addr` 展示/保存项；数据库没有
 该项时，前端的旧回退值仍可能显示 `:3100`。它不会改写正在运行的 Collector 进程，
 也不是双引擎路由来源。实际 Playwright 监听地址以进程环境变量
-`COLLECTOR_HTTP_ADDR=:3001` 和 `/health` 结果为准，backend 地址以
+`COLLECTOR_HTTP_ADDR`（本地默认 `127.0.0.1:3001`）和 `/health` 结果为准，backend 地址以
 `COLLECTOR_PLAYWRIGHT_BASE_URL` 为准。
 
 这是已知的 UI 默认值漂移，后续代码任务应把展示默认值同步为 `:3001`，或移除这个

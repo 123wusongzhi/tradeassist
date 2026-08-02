@@ -3,6 +3,9 @@ import type { BrowserManager } from '../../browser/manager.js';
 import { evaluateInPage } from '../../browser/evaluate-in-page.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 import {
+  assertPublicHttpURL,
+} from '../../security/public-url.js';
+import {
   evaluateGenericPageAccess,
   resolveAccessStatusFromSignals,
 } from './access-detect.js';
@@ -356,6 +359,7 @@ export async function analyzeCustomPage(
   urlStr: string,
   opts: AnalyzePageOptions = {},
 ): Promise<PageStructureDigest> {
+  await assertPublicHttpURL(urlStr);
   const maxCandidates = Math.min(Math.max(opts.maxCandidates ?? DEFAULT_MAX_CANDIDATES, 1), 20);
   const profileKey = opts.profileKey?.trim() ?? '';
   const useProfile = Boolean(opts.useBrowserProfile && profileKey);

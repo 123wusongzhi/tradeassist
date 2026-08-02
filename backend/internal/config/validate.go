@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -103,6 +104,12 @@ func (c *Config) validateCollectEngines() error {
 		if err := validateHTTPBaseURL("COLLECTOR_PLAYWRIGHT_BASE_URL", c.CollectorBaseURL); err != nil {
 			return err
 		}
+		if !isLoopbackHTTPURL(c.CollectorBaseURL) && strings.TrimSpace(c.CollectorToken) == "" {
+			return fmt.Errorf(
+				"%s: COLLECTOR_INTERNAL_TOKEN is required when COLLECTOR_PLAYWRIGHT_BASE_URL is not loopback",
+				ErrCodeConfigRequired,
+			)
+		}
 	}
 	if c.OpenCLIBridgeEnabled {
 		if strings.TrimSpace(c.OpenCLIBridgeBaseURL) == "" {
@@ -113,6 +120,19 @@ func (c *Config) validateCollectEngines() error {
 		}
 	}
 	return nil
+}
+
+func isLoopbackHTTPURL(value string) bool {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func validateHTTPBaseURL(name, value string) error {

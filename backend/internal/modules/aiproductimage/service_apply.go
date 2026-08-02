@@ -22,6 +22,10 @@ func (s *Service) applyOneItem(c *gin.Context, item *AIProductImageItem, applyMo
 		ProductID: item.ProductID.String(),
 	}
 	ctx := c.Request.Context()
+	if err := s.verifyApplyTargets(ctx, item); err != nil {
+		result.Status, result.StatusLabel, result.ErrorMessage = "failed", "失败", "目标不存在或不可访问"
+		return result
+	}
 	allowReplay := item.Status == ItemApplied && s.Idempotency != nil
 	if item.Status == ItemApplied && !allowReplay {
 		result.Status = ItemConflict
@@ -272,12 +276,13 @@ func (s *Service) applyReplaceImage(c *gin.Context, item *AIProductImageItem, ad
 	}
 	ctx := c.Request.Context()
 	var orig product.ProductImage
-	if err := s.DB.WithContext(ctx).First(&orig, "id = ? AND product_id = ?", *item.ImageID, item.ProductID).Error; err != nil {
+	tenantID, _ := tenantIDFromContext(ctx)
+	if err := s.DB.WithContext(ctx).Joins("JOIN products p ON p.id = product_images.product_id AND p.tenant_id = ?", tenantID).First(&orig, "product_images.id = ? AND product_images.product_id = ?", *item.ImageID, item.ProductID).Error; err != nil {
 		return nil, err
 	}
 	prevSnap, _ := json.Marshal(orig)
 	var task imagetask.ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", *item.ImageTaskID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&task, "id = ? AND tenant_id = ? AND product_id = ?", *item.ImageTaskID, tenantID, item.ProductID).Error; err != nil {
 		return nil, err
 	}
 	resultURL := strings.TrimSpace(item.ResultImageURL)
@@ -330,8 +335,12 @@ func (s *Service) applyReplaceImage(c *gin.Context, item *AIProductImageItem, ad
 }
 
 func (s *Service) ApplyItem(c *gin.Context, itemID uuid.UUID, body ApplyItemBody, adminID *uuid.UUID) (*ApplyItemResult, error) {
+	tenantID, err := tenantIDFromContext(c.Request.Context())
+	if err != nil {
+		return nil, err
+	}
 	var item AIProductImageItem
-	if err := s.DB.WithContext(c.Request.Context()).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Joins("JOIN ai_product_image_batches b ON b.id = ai_product_image_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_image_items.id = ?", itemID).First(&item).Error; err != nil {
 		return nil, err
 	}
 	r := s.applyOneItem(c, &item, body.ApplyMode, adminID)
@@ -341,6 +350,9 @@ func (s *Service) ApplyItem(c *gin.Context, itemID uuid.UUID, body ApplyItemBody
 
 func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySelectedBody, adminID *uuid.UUID) (*ApplyResultSummary, error) {
 	ctx := c.Request.Context()
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return nil, err
+	}
 	if len(body.ItemIDs) == 0 {
 		return nil, fmt.Errorf("请选择要应用的结果")
 	}
@@ -351,7 +363,8 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 			continue
 		}
 		var item AIProductImageItem
-		if err := s.DB.WithContext(ctx).Where("id = ? AND batch_id = ?", id, batchID).First(&item).Error; err != nil {
+		tenantID, _ := tenantIDFromContext(ctx)
+		if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_image_batches b ON b.id = ai_product_image_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_image_items.id = ? AND ai_product_image_items.batch_id = ?", id, batchID).First(&item).Error; err != nil {
 			continue
 		}
 		mode := body.ApplyMode
@@ -385,6 +398,9 @@ func (s *Service) ApplySelected(c *gin.Context, batchID uuid.UUID, body ApplySel
 
 func (s *Service) UndoApplied(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*UndoAppliedSummary, error) {
 	ctx := c.Request.Context()
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return nil, err
+	}
 	var items []AIProductImageItem
 	if err := s.DB.WithContext(ctx).
 		Where("batch_id = ? AND status = ? AND application_id IS NOT NULL", batchID, ItemApplied).

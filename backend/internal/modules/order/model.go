@@ -11,11 +11,11 @@ import (
 // Order is manually managed internal draft order (no marketplace sync).
 type Order struct {
 	model.Base
-	TenantID          int64          `gorm:"default:0;index" json:"tenantId"`
+	TenantID          int64          `gorm:"default:0;index;uniqueIndex:ux_orders_tenant_order_no,priority:1" json:"tenantId"`
 	Platform          string         `gorm:"size:64;index;not null" json:"platform"`
 	ShopID            *uuid.UUID     `gorm:"type:char(36);index" json:"shopId,omitempty"`
 	ExternalOrderID   *string        `gorm:"size:255;index" json:"externalOrderId,omitempty"`
-	OrderNo           string         `gorm:"size:128;uniqueIndex;not null" json:"orderNo"`
+	OrderNo           string         `gorm:"size:128;not null;uniqueIndex:ux_orders_tenant_order_no,priority:2" json:"orderNo"`
 	CustomerName      string         `gorm:"size:255;index;not null" json:"customerName"`
 	CustomerEmail     string         `gorm:"size:255" json:"customerEmail,omitempty"`
 	CustomerPhone     string         `gorm:"size:64" json:"customerPhone,omitempty"`

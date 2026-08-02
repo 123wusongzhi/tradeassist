@@ -1,6 +1,7 @@
 package aiproducttext
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,10 +13,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 )
@@ -37,6 +40,7 @@ func openTextApplyTestDB(t *testing.T) *gorm.DB {
 		&product.ProductImage{},
 		&product.ProductSKU{},
 		&product.ProductAIContentApplication{},
+		&aitask.AITask{},
 		&AIProductTextBatch{},
 		&AIProductTextItem{},
 		&idempotency.Record{},
@@ -51,11 +55,12 @@ func testGinContext() *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	c.Request = req
+	c.Request = req.WithContext(context.WithValue(req.Context(), tenantContextKey{}, int64(1)))
 	c.Set(ctxkey.TenantID, int64(1))
 	c.Set(ctxkey.AdminID, uuid.New().String())
 	c.Set("adminperm.principal", &adminperm.Principal{
-		Role: adminperm.RoleAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleAdmin),
+		TenantID: 1,
+		Role:     adminperm.RoleAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleAdmin),
 	})
 	security.SetGin(c, &security.TenantContext{TenantID: 1, AuthSource: security.AuthSourceAccessToken})
 	return c
@@ -82,6 +87,7 @@ func TestConcurrentApplySameItemOnce(t *testing.T) {
 	}
 	pu := p.UpdatedAt.UTC()
 	batch := AIProductTextBatch{
+		TenantID:     1,
 		BatchNo:      "ATTEST0001",
 		BatchType:    BatchTypeAIText,
 		Status:       BatchSuccess,
@@ -92,6 +98,9 @@ func TestConcurrentApplySameItemOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	taskID := uuid.New()
+	if err := db.Create(&aitask.AITask{HardDeleteBase: model.HardDeleteBase{ID: taskID}, TenantID: 1, ProductID: &p.ID, TaskType: "title", Provider: "noop", Status: aitask.StatusSuccess}).Error; err != nil {
+		t.Fatal(err)
+	}
 	item := AIProductTextItem{
 		BatchID:          batch.ID,
 		ProductID:        p.ID,
@@ -161,16 +170,19 @@ func TestApplyTargetVersionConflict(t *testing.T) {
 		Products:    prodSvc,
 		Idempotency: &idempotency.Service{DB: db},
 	}
-	p := product.Product{Source: "manual", Title: "T", Currency: "USD", Status: product.StatusDraft}
+	p := product.Product{TenantID: 1, Source: "manual", Title: "T", Currency: "USD", Status: product.StatusDraft}
 	if err := db.Create(&p).Error; err != nil {
 		t.Fatal(err)
 	}
 	stale := p.UpdatedAt.Add(-2 * time.Second)
-	batch := AIProductTextBatch{BatchNo: "ATTEST0002", BatchType: BatchTypeAIText, Status: BatchSuccess}
+	batch := AIProductTextBatch{TenantID: 1, BatchNo: "ATTEST0002", BatchType: BatchTypeAIText, Status: BatchSuccess}
 	if err := db.Create(&batch).Error; err != nil {
 		t.Fatal(err)
 	}
 	taskID := uuid.New()
+	if err := db.Create(&aitask.AITask{HardDeleteBase: model.HardDeleteBase{ID: taskID}, TenantID: 1, ProductID: &p.ID, TaskType: "title", Provider: "noop", Status: aitask.StatusSuccess}).Error; err != nil {
+		t.Fatal(err)
+	}
 	item := AIProductTextItem{
 		BatchID: batch.ID, ProductID: p.ID, OperationType: OpTitle,
 		Status: ItemPendingReview, AITaskID: &taskID, GeneratedText: "New",

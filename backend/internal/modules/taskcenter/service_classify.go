@@ -56,7 +56,7 @@ type alertTriple struct {
 	FailureCategory string
 }
 
-func (s *Service) batchAlertStatuses(ctx context.Context, keys []alertTriple) (map[alertTriple]*TaskAlert, error) {
+func (s *Service) batchAlertStatuses(ctx context.Context, tenantID int64, keys []alertTriple) (map[alertTriple]*TaskAlert, error) {
 	out := make(map[alertTriple]*TaskAlert)
 	if s == nil || s.DB == nil || len(keys) == 0 {
 		return out, nil
@@ -78,7 +78,9 @@ func (s *Service) batchAlertStatuses(ctx context.Context, keys []alertTriple) (m
 		args = append(args, k.TaskType, k.SourceID, k.FailureCategory)
 	}
 	var rows []TaskAlert
-	q := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where(strings.Join(conds, " OR "), args...)
+	q := s.DB.WithContext(ctx).Model(&TaskAlert{}).
+		Where("tenant_id = ?", tenantID).
+		Where(strings.Join(conds, " OR "), args...)
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -91,7 +93,7 @@ func (s *Service) batchAlertStatuses(ctx context.Context, keys []alertTriple) (m
 }
 
 // attachAlertStatuses loads related task_alerts for already-classified rows.
-func (s *Service) attachAlertStatuses(ctx context.Context, rows []UnifiedTaskDTO) error {
+func (s *Service) attachAlertStatuses(ctx context.Context, tenantID int64, rows []UnifiedTaskDTO) error {
 	if len(rows) == 0 {
 		return nil
 	}
@@ -103,7 +105,7 @@ func (s *Service) attachAlertStatuses(ctx context.Context, rows []UnifiedTaskDTO
 			FailureCategory: rows[i].FailureCategory,
 		})
 	}
-	m, err := s.batchAlertStatuses(ctx, keys)
+	m, err := s.batchAlertStatuses(ctx, tenantID, keys)
 	if err != nil {
 		return err
 	}
@@ -121,12 +123,12 @@ func (s *Service) attachAlertStatuses(ctx context.Context, rows []UnifiedTaskDTO
 }
 
 // ClassifyOne classifies one row and attaches alert linkage (detail view).
-func (s *Service) ClassifyOne(ctx context.Context, d *UnifiedTaskDTO) error {
+func (s *Service) ClassifyOne(ctx context.Context, tenantID int64, d *UnifiedTaskDTO) error {
 	if d == nil {
 		return nil
 	}
 	applyClassification(d)
-	m, err := s.batchAlertStatuses(ctx, []alertTriple{{
+	m, err := s.batchAlertStatuses(ctx, tenantID, []alertTriple{{
 		TaskType: d.TaskType, SourceID: d.SourceID, FailureCategory: d.FailureCategory,
 	}})
 	if err != nil {

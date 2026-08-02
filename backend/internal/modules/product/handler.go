@@ -25,6 +25,20 @@ type Handler struct {
 	Files *files.Service
 }
 
+// requireTenantProduct establishes the tenant-scoped parent boundary before a
+// product subresource handler reads data, writes state, or invokes a provider.
+func (h *Handler) requireTenantProduct(c *gin.Context, id uuid.UUID) bool {
+	if _, err := h.Svc.findTenantProduct(c, id); err != nil {
+		if err == gorm.ErrRecordNotFound {
+			response.Fail(c, 404, response.CodeNotFound, "not found")
+		} else {
+			response.HandleError(c, err)
+		}
+		return false
+	}
+	return true
+}
+
 func failProductPlatformConfig(c *gin.Context, err error) {
 	var ce *shop.DouyinCategoryError
 	if errors.As(err, &ce) {
@@ -129,6 +143,9 @@ func (h *Handler) GetOperationProgress(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
 	out, err := h.Svc.GetOperationProgress(c.Request.Context(), id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -188,6 +205,9 @@ func (h *Handler) undoAIContent(c *gin.Context, field string) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -245,6 +265,9 @@ func (h *Handler) Put(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -278,6 +301,9 @@ func (h *Handler) GetPlatformPublishConfig(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
 	out, err := h.Svc.GetPlatformPublishConfig(c, id, c.Param("platform"))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -300,9 +326,15 @@ func (h *Handler) PutPlatformPublishConfig(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
 		return
 	}
 	var body PlatformPublishConfigBody
@@ -324,9 +356,15 @@ func (h *Handler) BuildDouyinDraftMapping(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
 		return
 	}
 	var body struct {
@@ -335,6 +373,17 @@ func (h *Handler) BuildDouyinDraftMapping(c *gin.Context) {
 	if c.Request.ContentLength > 0 {
 		if err := c.ShouldBindJSON(&body); err != nil {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
+	}
+	if raw := strings.TrimSpace(body.ShopID); raw != "" {
+		shopID, err := uuid.Parse(raw)
+		if err != nil || shopID == uuid.Nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		if err := h.Svc.requireDouyinShopOperate(c, shopID); err != nil {
+			response.HandleError(c, err)
 			return
 		}
 	}
@@ -380,6 +429,9 @@ func (h *Handler) GetDouyinDraftMapping(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
 	out, err := h.Svc.GetDouyinDraftMapping(c.Request.Context(), id)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -398,15 +450,32 @@ func (h *Handler) PutDouyinDraftMapping(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
 		return
 	}
 	var body DouyinDraftMapping
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
+	}
+	if raw := strings.TrimSpace(body.ShopID); raw != "" {
+		shopID, err := uuid.Parse(raw)
+		if err != nil || shopID == uuid.Nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		if err := h.Svc.requireDouyinShopOperate(c, shopID); err != nil {
+			response.HandleError(c, err)
+			return
+		}
 	}
 	if err := h.Svc.SaveDouyinDraftMapping(c.Request.Context(), id, &body); err != nil {
 		if h.Svc.OpLog != nil {
@@ -445,6 +514,9 @@ func (h *Handler) ValidateDouyinDraftMapping(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
 		return
 	}
 	var mapping *DouyinDraftMapping
@@ -489,13 +561,23 @@ func (h *Handler) ValidateDouyinDraftMapping(c *gin.Context) {
 
 // UploadDouyinImages POST /api/v1/products/:id/platform-configs/douyin_shop/images/upload
 func (h *Handler) UploadDouyinImages(c *gin.Context) {
-	if h == nil || h.Svc == nil || h.Files == nil {
+	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
+	if h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
 	var body DouyinImageUploadBody
@@ -515,13 +597,23 @@ func (h *Handler) UploadDouyinImages(c *gin.Context) {
 
 // RetryDouyinImage POST /api/v1/products/:id/platform-configs/douyin_shop/images/:imageKey/retry
 func (h *Handler) RetryDouyinImage(c *gin.Context) {
-	if h == nil || h.Svc == nil || h.Files == nil {
+	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
+	if h.Files == nil {
+		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
 	out, err := h.Svc.RetryDouyinImage(c, id, c.Param("imageKey"), adminUUID(c), h.Files)
@@ -543,6 +635,9 @@ func (h *Handler) GetDouyinImageStatus(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	if !h.requireTenantProduct(c, id) {
+		return
+	}
 	out, err := h.Svc.GetDouyinImageStatus(c.Request.Context(), id)
 	if err != nil {
 		response.HandleError(c, err)
@@ -555,6 +650,9 @@ func (h *Handler) GetDouyinImageStatus(c *gin.Context) {
 func (h *Handler) Delete(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -577,6 +675,9 @@ func (h *Handler) Delete(c *gin.Context) {
 func (h *Handler) OptimizeTitle(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -607,6 +708,9 @@ func (h *Handler) OptimizeTitle(c *gin.Context) {
 func (h *Handler) ApplyAITitle(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -641,6 +745,9 @@ func (h *Handler) GenerateDescription(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
 		return
 	}
+	if h.denyWrite(c) {
+		return
+	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
@@ -669,6 +776,9 @@ func (h *Handler) GenerateDescription(c *gin.Context) {
 func (h *Handler) ApplyAIDescription(c *gin.Context) {
 	if h == nil || h.Svc == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
@@ -724,6 +834,9 @@ func (h *Handler) ListAITasks(c *gin.Context) {
 func (h *Handler) SyncImages(c *gin.Context) {
 	if h == nil || h.Svc == nil || h.Files == nil {
 		response.Fail(c, 500, response.CodeInternalError, "products unavailable")
+		return
+	}
+	if h.denyWrite(c) {
 		return
 	}
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))

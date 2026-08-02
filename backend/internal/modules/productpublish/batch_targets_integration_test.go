@@ -16,6 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/model"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -40,10 +42,12 @@ func newBatchIntegrationDB(t *testing.T) *gorm.DB {
 		&product.Product{},
 		&product.ProductImage{},
 		&product.ProductSKU{},
+		&product.ProductPlatformPublishConfig{},
 		&shop.Shop{},
 		&ProductPublishBatch{},
 		&ProductPublishTask{},
 		&ProductPublication{},
+		&ProductPublicationSKU{},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +68,8 @@ func testGinContext() *gin.Context {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/test", nil)
+	c.Set(ctxkey.TenantID, int64(0))
+	c.Set("adminperm.principal", &adminperm.Principal{TenantID: 0, Role: adminperm.RoleAdmin})
 	return c
 }
 
@@ -384,7 +390,7 @@ func TestDouyinSuccessDedupSkipsCreate(t *testing.T) {
 	if err := db.Create(&existing).Error; err != nil {
 		t.Fatal(err)
 	}
-	dup, ok := svc.findExistingSuccessfulTask(context.Background(), pid, "douyin_shop", &sid, eff)
+	dup, ok := svc.findExistingSuccessfulTask(context.Background(), 0, pid, "douyin_shop", &sid, eff)
 	if !ok || dup == nil {
 		t.Fatal("expected douyin dedup")
 	}
@@ -485,12 +491,12 @@ func TestSameConfigHashSkipsTaskCreate(t *testing.T) {
 	if err := db.Create(&row).Error; err != nil {
 		t.Fatal(err)
 	}
-	dup, ok := svc.findExistingSuccessfulTask(context.Background(), pid, "shopee", &sid, eff)
+	dup, ok := svc.findExistingSuccessfulTask(context.Background(), 0, pid, "shopee", &sid, eff)
 	if !ok || dup.ID != row.ID {
 		t.Fatal("expected same-config dedup")
 	}
 	otherEff := mergeEffectiveConfig(map[string]any{"remark": "y"}, PublishConfigOverrides{}, pid.String(), "shopee", sid.String())
-	if _, ok := svc.findExistingSuccessfulTask(context.Background(), pid, "shopee", &sid, otherEff); ok {
+	if _, ok := svc.findExistingSuccessfulTask(context.Background(), 0, pid, "shopee", &sid, otherEff); ok {
 		t.Fatal("different config should not dedup")
 	}
 }

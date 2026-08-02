@@ -21,9 +21,12 @@ type Commands struct {
 }
 
 // BindSKU binds a local SKU via order.Service then optionally deducts / syncs like POST /order-items/:id/bind-sku.
-func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, body BindSKURequest, admin *uuid.UUID) (map[string]any, error) {
+func (c *Commands) BindSKU(ctx context.Context, tenantID int64, sourceType, sourceID string, body BindSKURequest, admin *uuid.UUID) (map[string]any, error) {
 	if c == nil || c.Svc == nil || c.Orders == nil || c.Inv == nil || c.Orders.DB == nil {
 		return nil, fmt.Errorf("orderexception bind unavailable")
+	}
+	if err := c.Svc.assertSourceTenant(ctx, tenantID, sourceType, sourceID); err != nil {
+		return nil, fmt.Errorf("not found")
 	}
 	itemID, err := c.Svc.ResolveOrderItemForBind(ctx, sourceType, sourceID)
 	if err != nil {
@@ -38,7 +41,7 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 		return nil, err
 	}
 	var line order.OrderItem
-	if err := c.Orders.DB.WithContext(ctx).First(&line, "id = ?", itemID).Error; err != nil {
+	if err := c.Orders.DB.WithContext(ctx).Joins("JOIN orders ON orders.id = order_items.order_id").First(&line, "order_items.id = ? AND orders.tenant_id = ?", itemID, tenantID).Error; err != nil {
 		return nil, fmt.Errorf("order item not found")
 	}
 	has, err := c.Inv.HasSuccessfulOrderDeduction(ctx, line.OrderID)
@@ -106,9 +109,12 @@ func (c *Commands) BindSKU(ctx context.Context, sourceType, sourceID string, bod
 }
 
 // RetryDeduct calls DeductInventoryForOrder for an exception-bearing order line / effect source.
-func (c *Commands) RetryDeduct(ctx context.Context, sourceType, sourceID string, syncPlatforms bool, admin *uuid.UUID) (*inventory.DeductionSummary, error) {
+func (c *Commands) RetryDeduct(ctx context.Context, tenantID int64, sourceType, sourceID string, syncPlatforms bool, admin *uuid.UUID) (*inventory.DeductionSummary, error) {
 	if c == nil || c.Svc == nil || c.Inv == nil {
 		return nil, fmt.Errorf("orderexception retry unavailable")
+	}
+	if err := c.Svc.assertSourceTenant(ctx, tenantID, sourceType, sourceID); err != nil {
+		return nil, fmt.Errorf("not found")
 	}
 	orderID, err := c.resolveOrderID(ctx, sourceType, sourceID)
 	if err != nil {
@@ -138,9 +144,13 @@ func (c *Commands) resolveOrderID(ctx context.Context, sourceType, sourceID stri
 }
 
 // RetryInventorySync enqueues retry for a failed inventory_sync_tasks row.
-func (c *Commands) RetryInventorySync(cctx *gin.Context, taskID uuid.UUID, admin *uuid.UUID) (*inventory.TaskDTO, error) {
-	if c == nil || c.Inv == nil {
+func (c *Commands) RetryInventorySync(cctx *gin.Context, tenantID int64, taskID uuid.UUID, admin *uuid.UUID) (*inventory.TaskDTO, error) {
+	if c == nil || c.Inv == nil || c.Inv.DB == nil {
 		return nil, fmt.Errorf("inventory unavailable")
+	}
+	var task inventory.InventorySyncTask
+	if err := c.Inv.DB.WithContext(cctx.Request.Context()).First(&task, "id = ? AND tenant_id = ?", taskID, tenantID).Error; err != nil {
+		return nil, fmt.Errorf("not found")
 	}
 	return c.Inv.RetryInventorySyncTask(cctx, taskID, admin)
 }

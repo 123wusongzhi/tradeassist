@@ -60,16 +60,16 @@ func (s *Service) batchMaxURLsForSource(ctx context.Context, source string) int 
 	return s.batchMaxURLs()
 }
 
-func (s *Service) ensureTaobaoTmallBatchReady(ctx context.Context, firstValidURL string) error {
+func (s *Service) ensureTaobaoTmallBatchReady(ctx context.Context, tenantID int64, firstValidURL string) error {
 	if s == nil || s.Client == nil {
 		return fmt.Errorf("collect: collector client unavailable")
 	}
-	contextURL, settingsTestURL := s.ResolveTaobaoTmallAuthCheckInputs(ctx, firstValidURL)
+	contextURL, settingsTestURL := s.ResolveTaobaoTmallAuthCheckInputs(ctx, tenantID, firstValidURL)
 	checkURL := strings.TrimSpace(contextURL)
 	if checkURL == "" {
 		checkURL = strings.TrimSpace(settingsTestURL)
 	}
-	out, err := s.Client.CheckTaobaoTmallLogin(ctx, checkURL, settingsTestURL)
+	out, err := s.Client.CheckTaobaoTmallLogin(ctx, providerProfileKey(tenantID, TaobaoTmallProfileKey), checkURL, settingsTestURL)
 	if err != nil {
 		return fmt.Errorf("collector login check failed: %w", err)
 	}

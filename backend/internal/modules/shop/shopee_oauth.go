@@ -40,8 +40,12 @@ func (s *Service) ShopeeOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required for OAuth state")
 	}
-	var row Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ?", shopID).Error; err != nil {
+	ctx, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	row, err := s.tenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "shopee" {
@@ -66,7 +70,11 @@ func (s *Service) ShopeeOAuthAuthorizeURL(c *gin.Context, shopID uuid.UUID, redi
 	}
 
 	key := shopeeOAuthRedisPrefix + st
-	if err := s.Redis.Set(c.Request.Context(), key, shopID.String(), 10*time.Minute).Err(); err != nil {
+	saved, err := encodePlatformOAuthState("shopee", tenantID, shopID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.Redis.Set(ctx, key, saved, 10*time.Minute).Err(); err != nil {
 		return nil, err
 	}
 	return &ShopeeAuthorizeURLResult{AuthorizeURL: u, State: st}, nil
@@ -81,20 +89,27 @@ func (s *Service) ShopeeOAuthCallback(c *gin.Context, shopID uuid.UUID, body Sho
 	if s.Redis == nil || s.Redis.Client == nil {
 		return nil, fmt.Errorf("redis required")
 	}
+	ctxBase, tenantID, err := oauthTenantContext(c)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.tenantShop(c, shopID); err != nil {
+		return nil, err
+	}
 	key := shopeeOAuthRedisPrefix + st
-	saved, err := s.Redis.Get(c.Request.Context(), key).Result()
+	saved, err := s.Redis.Get(ctxBase, key).Result()
 	if err != nil || strings.TrimSpace(saved) == "" {
 		return nil, fmt.Errorf("invalid or expired oauth state")
 	}
-	_ = s.Redis.Del(c.Request.Context(), key)
-	if strings.TrimSpace(saved) != shopID.String() {
-		return nil, fmt.Errorf("state does not match shop")
+	if err := decodePlatformOAuthState(saved, "shopee", tenantID, shopID); err != nil {
+		return nil, err
 	}
+	_ = s.Redis.Del(ctxBase, key)
 
 	shopIDIntStr := strings.TrimSpace(body.ShopID)
 	if shopIDIntStr == "" {
 		s.oauthShopeeLog(c, adminID, shopID, "failed", "shopId required in callback body")
-		_ = s.setAuthStatusCtx(c.Request.Context(), shopID, AuthError)
+		_ = s.setAuthStatusCtx(ctxBase, tenantID, shopID, AuthError)
 		return nil, fmt.Errorf("shopId is required (paste from Shopee redirect)")
 	}
 	shopeeShopID, err := strconv.ParseInt(shopIDIntStr, 10, 64)
@@ -102,11 +117,11 @@ func (s *Service) ShopeeOAuthCallback(c *gin.Context, shopID uuid.UUID, body Sho
 		return nil, fmt.Errorf("invalid shopId")
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(ctxBase, 45*time.Second)
 	defer cancel()
 
-	var row Shop
-	if err := s.DB.WithContext(ctx).First(&row, "id = ?", shopID).Error; err != nil {
+	row, err := s.tenantShopCtx(ctx, tenantID, shopID)
+	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(row.Platform) != "shopee" {
@@ -124,7 +139,7 @@ func (s *Service) ShopeeOAuthCallback(c *gin.Context, shopID uuid.UUID, body Sho
 	tokEnv, err := platformshopee.ExchangeAuthCode(ctx, auth, code, shopeeShopID)
 	if err != nil {
 		s.oauthShopeeLog(c, adminID, shopID, "failed", err.Error())
-		_ = s.setAuthStatusCtx(ctx, shopID, AuthError)
+		_ = s.setAuthStatusCtx(ctx, tenantID, shopID, AuthError)
 		return nil, err
 	}
 
@@ -161,7 +176,7 @@ func (s *Service) ShopeeOAuthCallback(c *gin.Context, shopID uuid.UUID, body Sho
 				if currency != "" {
 					updates["currency"] = strings.ToUpper(currency)
 				}
-				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ?", shopID).Updates(updates).Error
+				_ = s.DB.WithContext(ctx).Model(&Shop{}).Where("id = ? AND tenant_id = ?", shopID, tenantID).Updates(updates).Error
 			}
 		}
 	}
@@ -173,7 +188,7 @@ func (s *Service) ShopeeOAuthCallback(c *gin.Context, shopID uuid.UUID, body Sho
 		"saved_at":        time.Now().UTC().Format(time.RFC3339),
 	}
 	rawB, _ := json.Marshal(raw)
-	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ?", shopID).
+	_ = s.DB.WithContext(ctx).Model(&ShopAuthToken{}).Where("shop_id = ? AND EXISTS (SELECT 1 FROM shops sh WHERE sh.id = shop_auth_tokens.shop_id AND sh.tenant_id = ?)", shopID, tenantID).
 		Updates(map[string]any{"raw_data": datatypes.JSON(rawB)}).Error
 
 	s.oauthShopeeLog(c, adminID, shopID, "success", "shopee oauth tokens saved")

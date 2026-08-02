@@ -12,10 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -206,6 +208,15 @@ func TestDouyinMappingLogsDoNotContainTokenOrSecret(t *testing.T) {
 		t.Fatal(err)
 	}
 	r := gin.New()
+	actor := admin.AdminUser{Username: admin.NewInternalUsername(), Email: "mapping-admin@example.test", PasswordHash: "test", Role: admin.RoleAdmin, Status: admin.StatusActive}
+	if err := db.Create(&actor).Error; err != nil {
+		t.Fatal(err)
+	}
+	r.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, actor.ID.String())
+		c.Set(ctxkey.TenantID, int64(0))
+		c.Next()
+	})
 	Register(r.Group("/api/v1"), &Handler{Svc: svc})
 	body := bytes.NewBufferString(`{}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/products/"+prod.ID.String()+"/platform-configs/douyin_shop/build-mapping", body)
@@ -237,6 +248,7 @@ func newDouyinMappingTestDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	if err := db.AutoMigrate(
+		&admin.AdminUser{},
 		&Product{},
 		&ProductImage{},
 		&ProductSKU{},

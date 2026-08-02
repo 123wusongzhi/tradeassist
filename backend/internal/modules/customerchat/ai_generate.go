@@ -189,8 +189,8 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 		return nil, fmt.Errorf("customerchat: ai not configured")
 	}
 
-	var conv CustomerConversation
-	if err := s.DB.WithContext(c.Request.Context()).First(&conv, "id = ?", conversationID).Error; err != nil {
+	conv, err := s.tenantConversation(c, conversationID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -247,7 +247,7 @@ func (s *Service) GenerateReply(c *gin.Context, conversationID uuid.UUID, body G
 	if conv.OrderID != nil {
 		productInfo = s.firstOrderProductTitle(c, *conv.OrderID)
 	}
-	ctxSummary := s.buildContextSummary(c, &conv, customerMsg)
+	ctxSummary := s.buildContextSummary(c, conv, customerMsg)
 
 	var octx *order.AIContext
 	cautiousOrder := false

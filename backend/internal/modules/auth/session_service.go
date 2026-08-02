@@ -36,6 +36,10 @@ type LoginSessionResult struct {
 	User         userView
 }
 
+// bcrypt hash for a fixed non-secret value. Comparing it on an unknown account
+// keeps credential-verification work comparable to a wrong password.
+const dummyPasswordHash = "$2a$10$7EqJtq98hPqEX7fNZaFWoO.HIDR6YgBf2M3aMcMxtdbqRNPTXpK2e"
+
 // CreateSession authenticates and creates session + refresh token family.
 func (s *SessionService) CreateSession(ctx context.Context, account, password, ip, userAgent string) (*LoginSessionResult, error) {
 	if s == nil || s.Admins == nil || s.Cfg == nil || s.DB == nil {
@@ -75,7 +79,10 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 			p7diag.Path(p7diag.RouteAuthInvalidLogin, "account_missing")
 			p7diag.Path(p7diag.RouteAuthInvalidLogin, p7diag.PathUnknownAccount)
 			p7diag.Count(p7diag.RouteAuthInvalidLogin, "unknownAccountQueryCount", 1)
-			p7diag.ObservePasswordVerify(p7diag.PathUnknownAccount, p7diag.PasswordAlgoBcrypt, bcrypt.DefaultCost, 0, time.Now())
+			verifyStart := time.Now()
+			_ = admin.CheckPassword(dummyPasswordHash, password)
+			p7diag.ObservePasswordVerify(p7diag.PathUnknownAccount, p7diag.PasswordAlgoBcrypt, bcrypt.DefaultCost, 1, verifyStart)
+			p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 			_ = guard.RecordFailure(ctx, account, ip)
 			return nil, errors.New(ErrInvalidCredentials)
 		}
@@ -109,6 +116,7 @@ func (s *SessionService) CreateSession(ctx context.Context, account, password, i
 
 	now := time.Now().UTC()
 	session := &AuthSession{
+		ID:               uuid.New(),
 		TenantID:         u.TenantID,
 		UserID:           u.ID,
 		Status:           SessionStatusActive,
@@ -203,6 +211,7 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 	now := time.Now().UTC()
 
 	var result *RefreshResult
+	var identityTenantMismatch bool
 	err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row AuthRefreshToken
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -217,8 +226,13 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		case RefreshStatusActive:
 			// proceed
 		case RefreshStatusRotated:
-			_ = s.revokeTokenFamilyTx(tx, row.TokenFamilyID, RefreshStatusCompromised, "reuse_detected")
-			return errors.New(ErrRefreshTokenReused)
+			// Return the stable error only after the revocation transaction commits.
+			// Returning it from this callback would roll the revocation back.
+			if err := s.revokeTokenFamilyAndSessionTx(tx, row.TokenFamilyID, row.SessionID, "reuse_detected"); err != nil {
+				return err
+			}
+			result = nil
+			return nil
 		case RefreshStatusRevoked, RefreshStatusCompromised, RefreshStatusReuseDetected:
 			return errors.New(ErrRefreshTokenRevoked)
 		default:
@@ -237,6 +251,13 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		if sess.Status != SessionStatusActive {
 			return errors.New(ErrSessionRevoked)
 		}
+		if sess.UserID != row.UserID || sess.TenantID != row.TenantID {
+			if err := s.revokeSessionTx(tx, sess.ID, "identity_tenant_mismatch"); err != nil {
+				return err
+			}
+			identityTenantMismatch = true
+			return nil
+		}
 
 		var u admin.AdminUser
 		if err := tx.Select("id", "tenant_id", "role", "status", "token_version", "email", "phone", "display_name").
@@ -246,6 +267,13 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
 			_ = s.revokeSessionTx(tx, sess.ID, "user_disabled")
 			return errors.New(ErrUserDisabled)
+		}
+		// A refresh credential is valid only for the exact user/tenant/session
+		// tuple it was issued for. Do not mint a token if stored rows drift.
+		if u.ID != row.UserID || u.TenantID != row.TenantID || u.TenantID != sess.TenantID {
+			_ = s.revokeSessionTx(tx, sess.ID, "identity_tenant_mismatch")
+			identityTenantMismatch = true
+			return nil
 		}
 
 		newRaw, err := authutil.NewOpaqueToken(32)
@@ -314,8 +342,27 @@ func (s *SessionService) RotateRefresh(ctx context.Context, refreshRaw, ip, user
 		}
 		return nil, err
 	}
+	if identityTenantMismatch {
+		s.ObserveAuth("refresh", "failure", "identity_tenant_mismatch", "refresh_token")
+		return nil, errors.New(ErrSessionRevoked)
+	}
+	if result == nil {
+		s.ObserveAuth("refresh", "failure", "reuse_detected", "refresh_token")
+		s.ObserveAuth("refresh_reuse", "failure", "reuse_detected", "refresh_token")
+		return nil, errors.New(ErrRefreshTokenReused)
+	}
 	s.ObserveAuth("refresh", "success", "success", "refresh_token")
 	return result, nil
+}
+
+func (s *SessionService) revokeTokenFamilyAndSessionTx(tx *gorm.DB, familyID, sessionID uuid.UUID, reason string) error {
+	if err := s.revokeTokenFamilyTx(tx, familyID, RefreshStatusCompromised, reason); err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	return tx.Model(&AuthSession{}).Where("id = ?", sessionID).Updates(map[string]any{
+		"status": SessionStatusRevoked, "revoked_at": &now, "revoke_reason": reason,
+	}).Error
 }
 
 func (s *SessionService) revokeTokenFamilyTx(tx *gorm.DB, familyID uuid.UUID, status, reason string) error {
@@ -428,31 +475,35 @@ func (s *SessionService) ListSessions(ctx context.Context, userID uuid.UUID) ([]
 }
 
 // ValidateSessionAccess checks session is active for access token binding.
-func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uuid.UUID, userID uuid.UUID, tokenVersion int) error {
+// Its boolean result is true only for an active global system administrator.
+func (s *SessionService) ValidateSessionAccess(ctx context.Context, sessionID uuid.UUID, userID uuid.UUID, tenantID int64, tokenVersion int) (bool, error) {
 	if sessionID == uuid.Nil {
-		return nil
+		return false, nil
 	}
 	if s == nil || s.DB == nil {
-		return fmt.Errorf("auth: misconfigured")
+		return false, fmt.Errorf("auth: misconfigured")
 	}
 	var sess AuthSession
-	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id").First(&sess, "id = ?", sessionID).Error; err != nil {
-		return errors.New(ErrSessionRevoked)
+	if err := s.DB.WithContext(ctx).Select("id", "status", "user_id", "tenant_id").First(&sess, "id = ?", sessionID).Error; err != nil {
+		return false, errors.New(ErrSessionRevoked)
 	}
-	if sess.Status != SessionStatusActive || sess.UserID != userID {
-		return errors.New(ErrSessionRevoked)
+	if sess.Status != SessionStatusActive || sess.UserID != userID || sess.TenantID != tenantID {
+		return false, errors.New(ErrSessionRevoked)
 	}
 	var u admin.AdminUser
-	if err := s.DB.WithContext(ctx).Select("token_version", "status").First(&u, "id = ?", userID).Error; err != nil {
-		return errors.New(ErrSessionRevoked)
+	if err := s.DB.WithContext(ctx).Select("token_version", "status", "tenant_id", "role").First(&u, "id = ?", userID).Error; err != nil {
+		return false, errors.New(ErrSessionRevoked)
+	}
+	if u.TenantID != tenantID {
+		return false, errors.New(ErrSessionRevoked)
 	}
 	if st := strings.TrimSpace(strings.ToLower(u.Status)); st == "disabled" || st == "inactive" {
-		return errors.New(ErrUserDisabled)
+		return false, errors.New(ErrUserDisabled)
 	}
 	if tokenVersion > 0 && u.TokenVersion > 0 && tokenVersion != u.TokenVersion {
-		return errors.New(ErrSessionRevoked)
+		return false, errors.New(ErrSessionRevoked)
 	}
-	return nil
+	return tenantID == 0 && strings.TrimSpace(strings.ToLower(u.Role)) == "admin", nil
 }
 
 // RevokeByRefreshToken revokes session linked to refresh token (logout).

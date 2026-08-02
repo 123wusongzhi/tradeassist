@@ -113,7 +113,7 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 	}
 
 	var markRows []OrderExceptionMark
-	if err := s.DB.WithContext(ctx).Find(&markRows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("tenant_id = ?", req.TenantID).Find(&markRows).Error; err != nil {
 		return nil, err
 	}
 	marks := buildMarkIndex(markRows)
@@ -160,6 +160,10 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 				appendUniqueAgg(&rows, x)
 			}
 		}
+	}
+	rows, err := s.tenantRows(ctx, req.TenantID, rows)
+	if err != nil {
+		return nil, err
 	}
 
 	sum := ExceptionSummaryDTO{}
@@ -223,6 +227,22 @@ func (s *Service) ListOrderExceptions(ctx context.Context, req ListOrderExceptio
 		Total:   total,
 		Summary: sum,
 	}, nil
+}
+
+// tenantRows makes the parent order the authority for every order-derived
+// exception. Rows with no uniquely scoped parent are deliberately hidden.
+func (s *Service) tenantRows(ctx context.Context, tenantID int64, rows []aggRow) ([]aggRow, error) {
+	out := make([]aggRow, 0, len(rows))
+	for _, r := range rows {
+		if r.orderID == uuid.Nil {
+			continue
+		}
+		var o order.Order
+		if err := s.DB.WithContext(ctx).Select("id").First(&o, "id = ? AND tenant_id = ? AND deleted_at IS NULL", r.orderID, tenantID).Error; err == nil {
+			out = append(out, r)
+		}
+	}
+	return out, nil
 }
 
 func filterAggRows(rows []aggRow, marks map[string]markPair, req ListOrderExceptionsRequest) []aggRow {
@@ -797,6 +817,29 @@ func (s *Service) GetOrderExceptionDetail(ctx context.Context, sourceType, sourc
 	}
 }
 
+// GetOrderExceptionDetailForTenant prevents source UUIDs from becoming global capabilities.
+func (s *Service) GetOrderExceptionDetailForTenant(ctx context.Context, tenantID int64, sourceType, sourceID string) (*OrderExceptionDTO, error) {
+	if err := s.assertSourceTenant(ctx, tenantID, sourceType, sourceID); err != nil {
+		return nil, err
+	}
+	return s.GetOrderExceptionDetail(ctx, sourceType, sourceID)
+}
+
+func (s *Service) assertSourceTenant(ctx context.Context, tenantID int64, sourceType, sourceID string) error {
+	oid, _, err := s.resolveOrderPointers(ctx, sourceType, sourceID)
+	if err != nil {
+		return err
+	}
+	if oid == nil {
+		return gorm.ErrRecordNotFound
+	}
+	var o order.Order
+	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND tenant_id = ? AND deleted_at IS NULL", *oid, tenantID).Error; err != nil {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func applyMarkDTO(d *OrderExceptionDTO, marks map[string]markPair) {
 	mp := marks[markKey(d.ExceptionType, d.SourceType, d.SourceID)]
 	d.Handled = mp.handled
@@ -918,6 +961,10 @@ func (s *Service) rowFromOrderItem(ctx context.Context, oi order.OrderItem) (agg
 }
 
 func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sourceID, markType, remark string, admin *uuid.UUID) error {
+	return s.UpsertMarkForTenant(ctx, 0, exceptionType, sourceType, sourceID, markType, remark, admin)
+}
+
+func (s *Service) UpsertMarkForTenant(ctx context.Context, tenantID int64, exceptionType, sourceType, sourceID, markType, remark string, admin *uuid.UUID) error {
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("orderexception: unavailable")
 	}
@@ -925,8 +972,12 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 	if err != nil {
 		return err
 	}
+	if err := s.assertSourceTenant(ctx, tenantID, sourceType, sourceID); err != nil {
+		return err
+	}
 	now := time.Now().UTC()
 	row := OrderExceptionMark{
+		TenantID:      tenantID,
 		ExceptionType: strings.TrimSpace(exceptionType),
 		SourceType:    strings.TrimSpace(sourceType),
 		SourceID:      strings.TrimSpace(sourceID),
@@ -944,12 +995,12 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 		opposite = MarkHandled
 	}
 	_ = s.DB.WithContext(ctx).
-		Where("exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", row.ExceptionType, row.SourceType, row.SourceID, opposite).
+		Where("tenant_id = ? AND exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", tenantID, row.ExceptionType, row.SourceType, row.SourceID, opposite).
 		Delete(&OrderExceptionMark{}).Error
 
 	var existing OrderExceptionMark
 	err = s.DB.WithContext(ctx).
-		Where("exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", row.ExceptionType, row.SourceType, row.SourceID, row.MarkType).
+		Where("tenant_id = ? AND exception_type = ? AND source_type = ? AND source_id = ? AND mark_type = ?", tenantID, row.ExceptionType, row.SourceType, row.SourceID, row.MarkType).
 		First(&existing).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return s.DB.WithContext(ctx).Create(&row).Error
@@ -967,8 +1018,15 @@ func (s *Service) UpsertMark(ctx context.Context, exceptionType, sourceType, sou
 }
 
 func (s *Service) DeleteMarks(ctx context.Context, sourceType, sourceID string) error {
+	return s.DeleteMarksForTenant(ctx, 0, sourceType, sourceID)
+}
+
+func (s *Service) DeleteMarksForTenant(ctx context.Context, tenantID int64, sourceType, sourceID string) error {
+	if err := s.assertSourceTenant(ctx, tenantID, sourceType, sourceID); err != nil {
+		return err
+	}
 	return s.DB.WithContext(ctx).
-		Where("source_type = ? AND source_id = ?", strings.TrimSpace(sourceType), strings.TrimSpace(sourceID)).
+		Where("tenant_id = ? AND source_type = ? AND source_id = ?", tenantID, strings.TrimSpace(sourceType), strings.TrimSpace(sourceID)).
 		Delete(&OrderExceptionMark{}).Error
 }
 

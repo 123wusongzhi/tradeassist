@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"github.com/trademind-ai/trademind/backend/internal/rdb"
 	"gorm.io/datatypes"
@@ -544,8 +545,12 @@ func (s *Service) BatchSummaries(c *gin.Context, ids []uuid.UUID) (map[uuid.UUID
 	if s == nil || s.DB == nil || len(ids) == 0 {
 		return out, nil
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	var rows []Shop
-	if err := s.DB.WithContext(c.Request.Context()).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id IN ? AND tenant_id = ?", ids, tid).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, r := range rows {
@@ -566,8 +571,12 @@ func (s *Service) Exists(c *gin.Context, id uuid.UUID) (bool, error) {
 	if s == nil || s.DB == nil || id == uuid.Nil {
 		return false, nil
 	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return false, err
+	}
 	var n int64
-	if err := s.DB.WithContext(c.Request.Context()).Model(&Shop{}).Where("id = ?", id).Count(&n).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Model(&Shop{}).Where("id = ? AND tenant_id = ?", id, tid).Count(&n).Error; err != nil {
 		return false, err
 	}
 	return n > 0, nil
@@ -607,8 +616,8 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
 	}
-	var shopRow Shop
-	if err := s.DB.WithContext(c.Request.Context()).First(&shopRow, "id = ?", shopID).Error; err != nil {
+	shopRow, err := s.tenantShop(c, shopID)
+	if err != nil {
 		return nil, err
 	}
 	prov := platformp.Get(shopRow.Platform)
@@ -657,7 +666,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	}
 
 	var tok ShopAuthToken
-	err := s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
+	err = s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		tok = ShopAuthToken{ShopID: shopID, Platform: shopRow.Platform, AuthType: authTypeIn}
 		err = nil
@@ -730,7 +739,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	}
 
 	shopRow.AuthStatus = AuthAuthorized
-	_ = s.DB.WithContext(c.Request.Context()).Model(&shopRow).Update("auth_status", AuthAuthorized).Error
+	_ = s.DB.WithContext(c.Request.Context()).Model(shopRow).Update("auth_status", AuthAuthorized).Error
 
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -748,37 +757,87 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 // PlainAuthForProvider decrypts stored credentials for outbound Platform Provider calls (never log secrets).
 func (s *Service) PlainAuthForProvider(c *gin.Context, shopID uuid.UUID) (*Shop, platformp.TestConnectionRequest, error) {
 	if c == nil {
-		return s.PlainAuthForProviderCtx(context.Background(), shopID)
+		return nil, platformp.TestConnectionRequest{}, fmt.Errorf("shop: request context is required")
 	}
-	return s.PlainAuthForProviderCtx(c.Request.Context(), shopID)
+	shopRow, err := s.tenantShop(c, shopID)
+	if err != nil {
+		return nil, platformp.TestConnectionRequest{}, err
+	}
+	_, _, req, err := s.decryptedAuthForShop(c.Request.Context(), shopRow)
+	return shopRow, req, err
 }
 
-// PlainAuthForProviderCtx is PlainAuthForProvider for background workers (no *gin.Context).
-func (s *Service) PlainAuthForProviderCtx(ctx context.Context, shopID uuid.UUID) (*Shop, platformp.TestConnectionRequest, error) {
-	shopRow, _, req, err := s.decryptedAuthCtx(ctx, shopID)
+// PlainAuthForProviderCtx is the background-worker variant. The caller must
+// supply the tenant obtained from a trusted task or other internal source.
+func (s *Service) PlainAuthForProviderCtx(ctx context.Context, tenantID int64, shopID uuid.UUID) (*Shop, platformp.TestConnectionRequest, error) {
+	shopRow, err := s.tenantShopCtx(ctx, tenantID, shopID)
+	if err != nil {
+		return nil, platformp.TestConnectionRequest{}, err
+	}
+	_, _, req, err := s.decryptedAuthForShop(ctx, shopRow)
 	if err != nil {
 		return nil, platformp.TestConnectionRequest{}, err
 	}
 	return shopRow, req, nil
 }
 
+func (s *Service) tenantShopCtx(ctx context.Context, tenantID int64, shopID uuid.UUID) (*Shop, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("shop: no db")
+	}
+	if tenantID < 0 || shopID == uuid.Nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var row Shop
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 // decryptedAuth builds a TestConnectionRequest from DB (for test-connection only).
 func (s *Service) decryptedAuth(c *gin.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
 	if c == nil {
-		return s.decryptedAuthCtx(context.Background(), shopID)
+		return nil, nil, platformp.TestConnectionRequest{}, fmt.Errorf("shop: request context is required")
 	}
-	return s.decryptedAuthCtx(c.Request.Context(), shopID)
-}
-
-func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
-	var shopRow Shop
-	if err := s.DB.WithContext(ctx).First(&shopRow, "id = ?", shopID).Error; err != nil {
+	shopRow, err := s.tenantShop(c, shopID)
+	if err != nil {
 		return nil, nil, platformp.TestConnectionRequest{}, err
 	}
+	return s.decryptedAuthForShop(c.Request.Context(), shopRow)
+}
+
+// tenantShop resolves a shop only after constraining it to the request tenant.
+// ShopAuthToken has no tenant_id, so every credential path must pass through this lookup.
+func (s *Service) tenantShop(c *gin.Context, shopID uuid.UUID) (*Shop, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("shop: no db")
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var row Shop
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", shopID, tid).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// TenantShop resolves a shop for a trusted HTTP request tenant.
+func (s *Service) TenantShop(c *gin.Context, shopID uuid.UUID) (*Shop, error) {
+	return s.tenantShop(c, shopID)
+}
+
+func (s *Service) decryptedAuthForShop(ctx context.Context, shopRow *Shop) (*Shop, *ShopAuthToken, platformp.TestConnectionRequest, error) {
+	if shopRow == nil {
+		return nil, nil, platformp.TestConnectionRequest{}, gorm.ErrRecordNotFound
+	}
+	shopID := shopRow.ID
 	var tok ShopAuthToken
 	if err := s.DB.WithContext(ctx).Where("shop_id = ?", shopID).First(&tok).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &shopRow, nil, platformp.TestConnectionRequest{}, nil
+			return shopRow, nil, platformp.TestConnectionRequest{}, nil
 		}
 		return nil, nil, platformp.TestConnectionRequest{}, err
 	}
@@ -792,18 +851,7 @@ func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop
 		}
 		return string(b)
 	}
-	req := platformp.TestConnectionRequest{
-		AuthType:              tok.AuthType,
-		AppKey:                tok.AppKey,
-		AppSecret:             dec(tok.AppSecretEnc),
-		AccessToken:           dec(tok.AccessTokenEnc),
-		RefreshToken:          dec(tok.RefreshTokenEnc),
-		SellerID:              tok.SellerID,
-		MerchantID:            tok.MerchantID,
-		MarketplaceID:         tok.MarketplaceID,
-		AccessTokenExpiresAt:  tok.ExpiresAt,
-		RefreshTokenExpiresAt: tok.RefreshExpiresAt,
-	}
+	req := platformp.TestConnectionRequest{AuthType: tok.AuthType, AppKey: tok.AppKey, AppSecret: dec(tok.AppSecretEnc), AccessToken: dec(tok.AccessTokenEnc), RefreshToken: dec(tok.RefreshTokenEnc), SellerID: tok.SellerID, MerchantID: tok.MerchantID, MarketplaceID: tok.MarketplaceID, AccessTokenExpiresAt: tok.ExpiresAt, RefreshTokenExpiresAt: tok.RefreshExpiresAt}
 	if len(tok.AuthConfig) > 0 {
 		var m map[string]any
 		_ = json.Unmarshal(tok.AuthConfig, &m)
@@ -814,12 +862,16 @@ func (s *Service) decryptedAuthCtx(ctx context.Context, shopID uuid.UUID) (*Shop
 			}
 		}
 	}
-	return &shopRow, &tok, req, nil
+	return shopRow, &tok, req, nil
 }
 
 func (s *Service) TestConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid.UUID) (*platformp.TestConnectionResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil || tenantID < 0 {
+		return nil, fmt.Errorf("tenant context required")
 	}
 	shopRow, _, req, err := s.decryptedAuth(c, shopID)
 	if err != nil {
@@ -829,7 +881,8 @@ func (s *Service) TestConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid
 	if p == nil {
 		return nil, fmt.Errorf("unknown platform")
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+	ctxBase := security.WithTenantContext(c.Request.Context(), &security.TenantContext{TenantID: tenantID})
+	ctx, cancel := context.WithTimeout(ctxBase, 15*time.Second)
 	defer cancel()
 
 	tryLog := func(res *platformp.TestConnectionResult, err error) {

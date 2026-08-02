@@ -44,7 +44,8 @@ Built by `BuildKeySet(cfg)` from environment configuration.
 | `JWT_ACTIVE_SECRET` | Current HMAC secret (falls back to `JWT_SECRET`) |
 | `JWT_PREVIOUS_KEY_ID` | Previous `kid` during rotation |
 | `JWT_PREVIOUS_SECRET` | Previous HMAC secret |
-| `JWT_ROTATION_GRACE_MINUTES` | Accept previous key until this many minutes from process start (default 60) |
+| `JWT_ROTATION_GRACE_MINUTES` | Accept previous key for this many minutes from the fixed rotation start (default 60) |
+| `JWT_ROTATION_STARTED_AT` | Rotation start as RFC3339 UTC (`...Z`); required in staging/production when a previous key and grace are configured |
 
 Legacy path: if `JWT_ACTIVE_SECRET` empty, uses root `JWT_SECRET`.
 
@@ -94,8 +95,9 @@ Used by `BearerAuthWithDB` middleware on every authenticated request.
    JWT_ACTIVE_KEY_ID=<new-id>
    JWT_ACTIVE_SECRET=<new-secret>
    JWT_ROTATION_GRACE_MINUTES=60
+   JWT_ROTATION_STARTED_AT=2026-08-02T00:00:00Z
    ```
-2. Restart all API instances (grace timer starts per process)
+2. Deploy the identical fixed start time to all API instances; restarts do not extend the grace window
 3. New logins receive tokens with new `kid`
 4. Old tokens validate until grace expires
 

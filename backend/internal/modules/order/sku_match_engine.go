@@ -59,7 +59,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 1: publication external_sku_id
 	if extSku != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
-		hits, err := s.findPublicationSKUsByExternalSKUID(ctx, plat, *o.ShopID, extSku)
+		hits, err := s.findPublicationSKUsByExternalSKUID(ctx, o.TenantID, plat, *o.ShopID, extSku)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 2: publication sku_code
 	if codeOrSeller != "" && o.ShopID != nil && *o.ShopID != uuid.Nil {
-		hits, err := s.findPublicationSKUsBySKUCode(ctx, plat, *o.ShopID, codeOrSeller)
+		hits, err := s.findPublicationSKUsBySKUCode(ctx, o.TenantID, plat, *o.ShopID, codeOrSeller)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func (s *Service) MatchOrderItemToSKU(ctx context.Context, o *Order, it *OrderIt
 
 	// Priority 3: local sku_code (product_skus)
 	if codeOrSeller != "" {
-		skus, err := s.findLocalSKUsByCode(ctx, codeOrSeller)
+		skus, err := s.findLocalSKUsByCode(ctx, o.TenantID, codeOrSeller)
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +241,7 @@ func localSKUsToCandidates(rows []product.ProductSKU) []map[string]any {
 	return out
 }
 
-func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platform string, shopID uuid.UUID, ext string) ([]publicationSKUHit, error) {
+func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, tenantID int64, platform string, shopID uuid.UUID, ext string) ([]publicationSKUHit, error) {
 	var rows []struct {
 		PSKU  *uuid.UUID `gorm:"column:product_sku_id"`
 		PID   uuid.UUID  `gorm:"column:product_id"`
@@ -250,7 +250,8 @@ func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platfo
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
+		Joins("JOIN products p ON p.id = skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
 		Where("pp.platform = ? AND pp.shop_id = ? AND pps.external_sku_id = ? AND pps.product_sku_id IS NOT NULL", platform, shopID, ext).
 		Find(&rows).Error
 	if err != nil {
@@ -266,7 +267,7 @@ func (s *Service) findPublicationSKUsByExternalSKUID(ctx context.Context, platfo
 	return hits, nil
 }
 
-func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform string, shopID uuid.UUID, code string) ([]publicationSKUHit, error) {
+func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, tenantID int64, platform string, shopID uuid.UUID, code string) ([]publicationSKUHit, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil, nil
@@ -279,7 +280,8 @@ func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform str
 	err := s.DB.WithContext(ctx).Table("product_publication_skus AS pps").
 		Select("pps.product_sku_id AS product_sku_id, skus.product_id AS product_id, pps.sku_code AS pub_code").
 		Joins("JOIN product_publications pp ON pp.id = pps.publication_id AND pp.deleted_at IS NULL").
-		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id AND skus.deleted_at IS NULL").
+		Joins("JOIN product_skus skus ON skus.id = pps.product_sku_id").
+		Joins("JOIN products p ON p.id = skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
 		Where("pp.platform = ? AND pp.shop_id = ? AND LOWER(TRIM(pps.sku_code)) = LOWER(?)", platform, shopID, code).
 		Find(&rows).Error
 	if err != nil {
@@ -295,23 +297,26 @@ func (s *Service) findPublicationSKUsBySKUCode(ctx context.Context, platform str
 	return hits, nil
 }
 
-func (s *Service) findLocalSKUsByCode(ctx context.Context, code string) ([]product.ProductSKU, error) {
+func (s *Service) findLocalSKUsByCode(ctx context.Context, tenantID int64, code string) ([]product.ProductSKU, error) {
 	code = strings.TrimSpace(code)
 	if code == "" {
 		return nil, nil
 	}
 	var skus []product.ProductSKU
-	err := s.DB.WithContext(ctx).
-		Where("deleted_at IS NULL AND LOWER(TRIM(sku_code)) = LOWER(?)", code).
-		Order("created_at ASC, id ASC").
+	err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		Where("LOWER(TRIM(product_skus.sku_code)) = LOWER(?)", code).
+		Order("product_skus.created_at ASC, product_skus.id ASC").
 		Find(&skus).Error
 	return skus, err
 }
 
 // LoadSKUForBind returns the SKU row after ownership checks (no soft-deleted).
-func (s *Service) LoadSKUForBind(ctx context.Context, skuID uuid.UUID) (*product.ProductSKU, error) {
+func (s *Service) LoadSKUForBind(ctx context.Context, tenantID int64, skuID uuid.UUID) (*product.ProductSKU, error) {
 	var sku product.ProductSKU
-	if err := s.DB.WithContext(ctx).First(&sku, "id = ? AND deleted_at IS NULL", skuID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+		First(&sku, "product_skus.id = ?", skuID).Error; err != nil {
 		return nil, err
 	}
 	return &sku, nil

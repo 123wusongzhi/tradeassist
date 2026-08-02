@@ -1,6 +1,7 @@
 package imagetask
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,11 +9,10 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
 
@@ -89,41 +89,24 @@ func probeImageSize(ctx context.Context, imageURL string) (int, int, error) {
 	if u == "" {
 		return 0, 0, fmt.Errorf("empty image url")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = 8 << 20
+	opts.ResponseTimeout = 20 * time.Second
+	result, err := safedownload.Download(ctx, u, opts)
 	if err != nil {
 		return 0, 0, err
 	}
-	cli := &http.Client{Timeout: 20 * time.Second}
-	resp, err := cli.Do(req)
-	if err != nil {
-		return 0, 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return 0, 0, fmt.Errorf("probe image HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
-	if err != nil {
-		return 0, 0, err
-	}
-	cfg, _, err := image.DecodeConfig(bytesReader(data))
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(result.Data))
 	if err != nil {
 		return 0, 0, err
 	}
 	return cfg.Width, cfg.Height, nil
 }
 
-type bytesReader []byte
-
-func (b bytesReader) Read(p []byte) (int, error) {
-	if len(b) == 0 {
-		return 0, io.EOF
-	}
-	n := copy(p, b)
-	return n, nil
-}
-
 func (s *Service) scoreImageURL(ctx context.Context, imageURL, imageType, productTitle string) (ImageScore, error) {
+	if err := safedownload.ValidateURL(ctx, imageURL); err != nil {
+		return ImageScore{}, fmt.Errorf("unsafe image URL: %w", err)
+	}
 	w, h, err := probeImageSize(ctx, imageURL)
 	if err != nil {
 		w, h = 0, 0

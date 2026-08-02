@@ -34,6 +34,7 @@ const (
 // AIOperationBatch groups bulk AI tasks (text or image orchestration metadata).
 type AIOperationBatch struct {
 	model.Base
+	TenantID      int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchNo       string         `gorm:"size:48;uniqueIndex;not null" json:"batchNo"`
 	OperationType string         `gorm:"size:64;index;not null" json:"operationType"`
 	Status        string         `gorm:"size:32;index;not null" json:"status"`

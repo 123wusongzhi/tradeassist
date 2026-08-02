@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 // ListQuery binds query params for global AI task listing.
@@ -39,6 +40,10 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("aitask: no db")
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	page := q.Page
 	if page < 1 {
 		page = 1
@@ -54,7 +59,8 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	tx := s.DB.WithContext(c.Request.Context()).Model(&AITask{}).
 		Select("id", "task_type", "provider", "model", "prompt_code", "status", "error_message",
 			"token_input", "token_output", "cost_amount", "product_id", "conversation_id", "created_by",
-			"batch_id", "batch_no", "started_at", "finished_at", "created_at", "updated_at")
+			"batch_id", "batch_no", "started_at", "finished_at", "created_at", "updated_at").
+		Where("tenant_id = ?", tenantID)
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
 		tx = tx.Where("task_type = ?", v)

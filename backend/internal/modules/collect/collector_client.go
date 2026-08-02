@@ -17,20 +17,33 @@ import (
 type CollectorClient struct {
 	BaseURL string
 	Client  *http.Client
+	Token   string
 }
 
 // NewCollectorClient builds an HTTP client using baseURL (no trailing slash) and timeout.
-func NewCollectorClient(baseURL string, timeout time.Duration) *CollectorClient {
+func NewCollectorClient(baseURL string, timeout time.Duration, tokens ...string) *CollectorClient {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	token := ""
+	if len(tokens) > 0 {
+		token = strings.TrimSpace(tokens[0])
+	}
 	if timeout <= 0 {
 		timeout = 60 * time.Second
 	}
 	return &CollectorClient{
 		BaseURL: baseURL,
+		Token:   token,
 		Client: &http.Client{
 			Timeout: timeout,
 		},
 	}
+}
+
+func (c *CollectorClient) authorize(req *http.Request) {
+	if c == nil || req == nil || c.Token == "" {
+		return
+	}
+	req.Header.Set("Authorization", "Bearer "+c.Token)
 }
 
 // CollectorRejectedError is returned when collector responds with ok=false (e.g. HTTP 422).
@@ -112,6 +125,7 @@ func (c *CollectorClient) AnalyzePage(ctx context.Context, rawURL string, option
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("collector request: %w", err)
@@ -163,6 +177,7 @@ func (c *CollectorClient) CustomRuleTest(ctx context.Context, rawURL string, opt
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("collector request: %w", err)
@@ -228,6 +243,7 @@ func (c *CollectorClient) OpenBrowserProfileLogin(ctx context.Context, profileKe
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("collector request: %w", err)
@@ -275,6 +291,7 @@ func (c *CollectorClient) CheckBrowserProfileAccess(ctx context.Context, profile
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("collector request: %w", err)
@@ -337,6 +354,7 @@ func (c *CollectorClient) CollectWithTimeout(ctx context.Context, source, rawURL
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
 
 	httpClient := c.Client
 	if timeout > 0 {
@@ -418,6 +436,7 @@ func (c *CollectorClient) FetchProviders(parent context.Context) ([]CollectProvi
 	if err != nil {
 		return nil, err
 	}
+	c.authorize(req)
 	client := &http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -492,6 +511,7 @@ func (c *CollectorClient) decodeDataEnvelope(parent context.Context, method, pat
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	c.authorize(req)
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -553,6 +573,7 @@ func (c *CollectorClient) decodeDataEnvelopeWithBody(
 	if method == http.MethodPost || method == http.MethodPut {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	c.authorize(req)
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -585,8 +606,9 @@ func (c *CollectorClient) decodeDataEnvelopeWithBody(
 }
 
 // Get1688AuthStatus calls GET /v1/providers/1688/auth-status.
-func (c *CollectorClient) Get1688AuthStatus(parent context.Context) (*Provider1688AuthStatusDTO, error) {
-	raw, err := c.decodeDataEnvelope(parent, http.MethodGet, "/v1/providers/1688/auth-status", 90*time.Second)
+func (c *CollectorClient) Get1688AuthStatus(parent context.Context, profileKey string) (*Provider1688AuthStatusDTO, error) {
+	path := "/v1/providers/1688/auth-status?profileKey=" + url.QueryEscape(strings.TrimSpace(profileKey))
+	raw, err := c.decodeDataEnvelope(parent, http.MethodGet, path, 90*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -599,8 +621,9 @@ func (c *CollectorClient) Get1688AuthStatus(parent context.Context) (*Provider16
 }
 
 // Open1688LoginBrowser calls POST /v1/providers/1688/open-login-browser.
-func (c *CollectorClient) Open1688LoginBrowser(parent context.Context) (*Provider1688OpenLoginResultDTO, error) {
-	raw, err := c.decodeDataEnvelope(parent, http.MethodPost, "/v1/providers/1688/open-login-browser", 60*time.Second)
+func (c *CollectorClient) Open1688LoginBrowser(parent context.Context, profileKey string) (*Provider1688OpenLoginResultDTO, error) {
+	body, _ := json.Marshal(map[string]string{"profileKey": strings.TrimSpace(profileKey)})
+	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/1688/open-login-browser", body, 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -613,15 +636,16 @@ func (c *CollectorClient) Open1688LoginBrowser(parent context.Context) (*Provide
 }
 
 // GetPinduoduoAuthStatus calls GET /v1/providers/pinduoduo/auth-status (legacy; prefer CheckPinduoduoLogin).
-func (c *CollectorClient) GetPinduoduoAuthStatus(parent context.Context, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
-	return c.CheckPinduoduoLogin(parent, checkURL, settingsTestURL)
+func (c *CollectorClient) GetPinduoduoAuthStatus(parent context.Context, profileKey, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
+	return c.CheckPinduoduoLogin(parent, profileKey, checkURL, settingsTestURL)
 }
 
 // CheckPinduoduoLogin calls POST /v1/providers/pinduoduo/check-login.
-func (c *CollectorClient) CheckPinduoduoLogin(parent context.Context, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
+func (c *CollectorClient) CheckPinduoduoLogin(parent context.Context, profileKey, checkURL, settingsTestURL string) (*ProviderPinduoduoAuthStatusDTO, error) {
 	body, _ := json.Marshal(map[string]string{
-		"url":     strings.TrimSpace(checkURL),
-		"testUrl": strings.TrimSpace(settingsTestURL),
+		"profileKey": strings.TrimSpace(profileKey),
+		"url":        strings.TrimSpace(checkURL),
+		"testUrl":    strings.TrimSpace(settingsTestURL),
 	})
 	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/pinduoduo/check-login", body, 90*time.Second)
 	if err != nil {
@@ -636,8 +660,8 @@ func (c *CollectorClient) CheckPinduoduoLogin(parent context.Context, checkURL, 
 }
 
 // OpenPinduoduoLoginBrowser calls POST /v1/providers/pinduoduo/open-login-browser.
-func (c *CollectorClient) OpenPinduoduoLoginBrowser(parent context.Context, loginURL string) (*ProviderPinduoduoOpenLoginResultDTO, error) {
-	body, _ := json.Marshal(map[string]string{"url": strings.TrimSpace(loginURL)})
+func (c *CollectorClient) OpenPinduoduoLoginBrowser(parent context.Context, profileKey, loginURL string) (*ProviderPinduoduoOpenLoginResultDTO, error) {
+	body, _ := json.Marshal(map[string]string{"profileKey": strings.TrimSpace(profileKey), "url": strings.TrimSpace(loginURL)})
 	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/pinduoduo/open-login-browser", body, 60*time.Second)
 	if err != nil {
 		return nil, err
@@ -651,10 +675,11 @@ func (c *CollectorClient) OpenPinduoduoLoginBrowser(parent context.Context, logi
 }
 
 // CheckTaobaoTmallLogin calls POST /v1/providers/taobao_tmall/check-login.
-func (c *CollectorClient) CheckTaobaoTmallLogin(parent context.Context, checkURL, settingsTestURL string) (*ProviderTaobaoTmallAuthStatusDTO, error) {
+func (c *CollectorClient) CheckTaobaoTmallLogin(parent context.Context, profileKey, checkURL, settingsTestURL string) (*ProviderTaobaoTmallAuthStatusDTO, error) {
 	body, _ := json.Marshal(map[string]string{
-		"url":     strings.TrimSpace(checkURL),
-		"testUrl": strings.TrimSpace(settingsTestURL),
+		"profileKey": strings.TrimSpace(profileKey),
+		"url":        strings.TrimSpace(checkURL),
+		"testUrl":    strings.TrimSpace(settingsTestURL),
 	})
 	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/taobao_tmall/check-login", body, 90*time.Second)
 	if err != nil {
@@ -669,8 +694,8 @@ func (c *CollectorClient) CheckTaobaoTmallLogin(parent context.Context, checkURL
 }
 
 // OpenTaobaoTmallLoginBrowser calls POST /v1/providers/taobao_tmall/open-login-browser.
-func (c *CollectorClient) OpenTaobaoTmallLoginBrowser(parent context.Context, loginURL string) (*ProviderTaobaoTmallOpenLoginResultDTO, error) {
-	body, _ := json.Marshal(map[string]string{"url": strings.TrimSpace(loginURL)})
+func (c *CollectorClient) OpenTaobaoTmallLoginBrowser(parent context.Context, profileKey, loginURL string) (*ProviderTaobaoTmallOpenLoginResultDTO, error) {
+	body, _ := json.Marshal(map[string]string{"profileKey": strings.TrimSpace(profileKey), "url": strings.TrimSpace(loginURL)})
 	raw, err := c.decodeDataEnvelopeWithBody(parent, http.MethodPost, "/v1/providers/taobao_tmall/open-login-browser", body, 60*time.Second)
 	if err != nil {
 		return nil, err

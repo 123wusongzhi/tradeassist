@@ -113,7 +113,7 @@ func (h *Handler) Get(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	row, err := h.Svc.GetByID(c, id)
+	row, err := h.Svc.GetByIDForTenant(c, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")

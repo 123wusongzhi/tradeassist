@@ -3,6 +3,9 @@ import { CustomProfileSessionManager } from './profile-sessions.js';
 import { BrowserSessionManager } from './session-manager.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { installPublicNetworkGuard } from '../security/public-url.js';
+import { pinnedBrowserProxy, pinnedChromiumArgs } from '../security/pinned-browser-network.js';
+import { assertProviderProfileKey, isLegacyProviderProfileKey } from './provider-profile-key.js';
 
 /**
  * 统一管理 Chromium 实例，避免各 Provider 自行 newBrowser 导致泄漏。
@@ -20,23 +23,28 @@ export class BrowserManager {
 
   async ensureBrowser(): Promise<Browser> {
     if (this.browser) return this.browser;
+    const proxy = await pinnedBrowserProxy();
     this.browser = await chromium.launch({
       headless: getBrowserHeadless(),
-      args: ['--disable-blink-features=AutomationControlled'],
+      args: pinnedChromiumArgs(['--disable-blink-features=AutomationControlled']),
+      proxy,
     });
     return this.browser;
   }
 
-  async with1688Page<T>(fn: (page: Page) => Promise<T>): Promise<T> {
-    return this.sessions.withProviderPage('1688', fn);
+  async with1688Page<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
+    const key = assertProviderProfileKey('1688', profileKey);
+    return isLegacyProviderProfileKey('1688', key) ? this.sessions.withProviderPage('1688', fn) : this.customProfiles.withProfilePage(key, fn);
   }
 
-  async withPinduoduoPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
-    return this.sessions.withProviderPage('pinduoduo', fn);
+  async withPinduoduoPage<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
+    const key = assertProviderProfileKey('pinduoduo', profileKey);
+    return isLegacyProviderProfileKey('pinduoduo', key) ? this.sessions.withProviderPage('pinduoduo', fn) : this.customProfiles.withProfilePage(key, fn);
   }
 
-  async withTaobaoTmallPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
-    return this.sessions.withProviderPage('taobao_tmall', fn);
+  async withTaobaoTmallPage<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
+    const key = assertProviderProfileKey('taobao_tmall', profileKey);
+    return isLegacyProviderProfileKey('taobao_tmall', key) ? this.sessions.withProviderPage('taobao_tmall', fn) : this.customProfiles.withProfilePage(key, fn);
   }
 
   async withCustomProfilePage<T>(profileKey: string, fn: (page: Page) => Promise<T>): Promise<T> {
@@ -51,6 +59,7 @@ export class BrowserManager {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       locale: 'zh-CN',
     });
+    await installPublicNetworkGuard(context);
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());

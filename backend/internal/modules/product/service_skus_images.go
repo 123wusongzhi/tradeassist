@@ -14,6 +14,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func validateProductStatus(s string) error {
@@ -86,8 +87,10 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 		return nil, fmt.Errorf("skuName is required")
 	}
 
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return nil, err
 	}
 
@@ -138,6 +141,12 @@ func (s *Service) CreateSKU(c *gin.Context, productID uuid.UUID, body SKUBody, a
 func (s *Service) UpdateSKU(c *gin.Context, productID, skuID uuid.UUID, body SKUUpdateBody, adminID *uuid.UUID) (*ProductSKU, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
+	}
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
 	}
 	var row ProductSKU
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", skuID, productID).Error; err != nil {
@@ -203,6 +212,12 @@ func (s *Service) DeleteSKU(c *gin.Context, productID, skuID uuid.UUID, adminID 
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return err
+	}
 	res := s.DB.WithContext(c.Request.Context()).Delete(&ProductSKU{}, "id = ? AND product_id = ?", skuID, productID)
 	if res.Error != nil {
 		return res.Error
@@ -233,8 +248,11 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 		return nil, err
 	}
 
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	product, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return nil, err
 	}
 
@@ -248,7 +266,7 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 
 	if body.FileID != nil && *body.FileID != uuid.Nil {
 		var fr files.FileRecord
-		if err := s.DB.WithContext(c.Request.Context()).First(&fr, "id = ?", *body.FileID).Error; err != nil {
+		if err := s.DB.WithContext(c.Request.Context()).First(&fr, "id = ? AND tenant_id = ? AND security_status = ?", *body.FileID, product.TenantID, files.SecurityClean).Error; err != nil {
 			return nil, err
 		}
 		if objKey == "" {
@@ -262,6 +280,19 @@ func (s *Service) CreateProductImage(c *gin.Context, productID uuid.UUID, body I
 		}
 		if origin == "" {
 			origin = pub
+		}
+	}
+	if body.FileID == nil || *body.FileID == uuid.Nil {
+		if objKey != "" || storageKey != "" {
+			var fr files.FileRecord
+			key := firstNonEmpty(storageKey, objKey)
+			if err := s.DB.WithContext(c.Request.Context()).First(&fr, "tenant_id = ? AND object_key = ? AND security_status = ?", product.TenantID, key, files.SecurityClean).Error; err != nil {
+				return nil, fmt.Errorf("clean tenant file is required for objectKey/storageKey")
+			}
+			objKey, storageKey = fr.ObjectKey, fr.ObjectKey
+			if pub == "" {
+				pub = strings.TrimSpace(fr.PublicURL)
+			}
 		}
 	}
 
@@ -341,6 +372,13 @@ func (s *Service) UpdateProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	product, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	var row ProductImage
 	if err := s.DB.WithContext(c.Request.Context()).First(&row, "id = ? AND product_id = ?", imageID, productID).Error; err != nil {
 		return nil, err
@@ -360,6 +398,14 @@ func (s *Service) UpdateProductImage(c *gin.Context, productID, imageID uuid.UUI
 		row.StorageKey = strings.TrimSpace(*body.StorageKey)
 	} else if body.ObjectKey != nil {
 		row.StorageKey = row.ObjectKey
+	}
+	if body.ObjectKey != nil || body.StorageKey != nil {
+		key := firstNonEmpty(row.StorageKey, row.ObjectKey)
+		var fr files.FileRecord
+		if key == "" || s.DB.WithContext(c.Request.Context()).First(&fr, "tenant_id = ? AND object_key = ? AND security_status = ?", product.TenantID, key, files.SecurityClean).Error != nil {
+			return nil, fmt.Errorf("clean tenant file is required for objectKey/storageKey")
+		}
+		row.ObjectKey, row.StorageKey = fr.ObjectKey, fr.ObjectKey
 	}
 	if body.OriginURL != nil {
 		row.OriginURL = strings.TrimSpace(*body.OriginURL)
@@ -405,6 +451,12 @@ func (s *Service) DeleteProductImage(c *gin.Context, productID, imageID uuid.UUI
 	if s == nil || s.DB == nil {
 		return fmt.Errorf("product: no db")
 	}
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return err
+	}
 	res := s.DB.WithContext(c.Request.Context()).Delete(&ProductImage{}, "id = ? AND product_id = ?", imageID, productID)
 	if res.Error != nil {
 		return res.Error
@@ -431,8 +483,10 @@ func (s *Service) ReorderProductImages(c *gin.Context, productID uuid.UUID, body
 		return fmt.Errorf("product: no db")
 	}
 
-	var probe Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&probe, "id = ?", productID).Error; err != nil {
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return err
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
@@ -162,9 +163,9 @@ func (s *Service) validateBatchTargets(targets []PublishTargetRef) error {
 	return nil
 }
 
-func (s *Service) loadProductsForBatch(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
+func (s *Service) loadProductsForBatch(ctx context.Context, tenantID int64, ids []uuid.UUID) (map[uuid.UUID]*product.Product, error) {
 	var rows []product.Product
-	if err := s.DB.WithContext(ctx).Where("id IN ?", ids).Find(&rows).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", ids, tenantID).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	m := make(map[uuid.UUID]*product.Product, len(rows))
@@ -187,7 +188,7 @@ func (s *Service) loadProductsForBatch(ctx context.Context, ids []uuid.UUID) (ma
 }
 
 // CheckBatchTargets runs independent checks for each product × target (no side effects).
-func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRequest) (*BatchTargetsCheckResponse, error) {
+func (s *Service) CheckBatchTargets(ctx context.Context, tenantID int64, req BatchTargetsCheckRequest) (*BatchTargetsCheckResponse, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
@@ -201,7 +202,7 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 	if err := s.validateBatchTaskCount(len(productIDs), len(req.Targets)); err != nil {
 		return nil, err
 	}
-	products, err := s.loadProductsForBatch(ctx, productIDs)
+	products, err := s.loadProductsForBatch(ctx, tenantID, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -214,7 +215,7 @@ func (s *Service) CheckBatchTargets(ctx context.Context, req BatchTargetsCheckRe
 	for _, pid := range productIDs {
 		prod := products[pid]
 		for _, t := range req.Targets {
-			chk := s.checkOnePublishTarget(ctx, pid, t)
+			chk := s.checkOnePublishTarget(ctx, tenantID, pid, t)
 			item := BatchTargetCheckItem{
 				ProductID:     pid.String(),
 				ProductTitle:  strings.TrimSpace(prod.Title),
@@ -276,8 +277,20 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, err
+	}
 	productIDs, err := s.parseBatchProductIDs(req.ProductIDs)
 	if err != nil {
+		return nil, err
+	}
+	for _, productID := range productIDs {
+		if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+			return nil, err
+		}
+	}
+	if err := requireTargetStoreOperate(c, s.DB, req.Targets); err != nil {
 		return nil, err
 	}
 	if err := s.validateBatchTargets(req.Targets); err != nil {
@@ -289,7 +302,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if !req.IncludeWarnings && !req.OnlyReady {
 		req.IncludeWarnings = true
 	}
-	products, err := s.loadProductsForBatch(ctx, productIDs)
+	products, err := s.loadProductsForBatch(ctx, tenantID, productIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -312,13 +325,13 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}
 	var existing ProductPublishBatch
 	if idemKey != "" {
-		if err := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
+		if err := s.DB.WithContext(ctx).Where("tenant_id = ? AND idempotency_key = ? AND status NOT IN ?", tenantID, idemKey, []string{BatchFailed, BatchCancelled}).
 			Order("created_at DESC").First(&existing).Error; err == nil {
 			return s.batchCreateResponseFromExisting(ctx, &existing)
 		}
 	}
 
-	checkRes, err := s.CheckBatchTargets(ctx, BatchTargetsCheckRequest{
+	checkRes, err := s.CheckBatchTargets(ctx, tenantID, BatchTargetsCheckRequest{
 		ProductIDs:   req.ProductIDs,
 		Targets:      req.Targets,
 		CommonConfig: req.CommonConfig,
@@ -334,6 +347,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	}
 
 	batch := ProductPublishBatch{
+		TenantID:       tenantID,
 		BatchType:      BatchTypeMultiProduct,
 		Name:           strings.TrimSpace(req.Name),
 		Status:         BatchRunning,
@@ -347,7 +361,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 	if err := s.DB.WithContext(ctx).Create(&batch).Error; err != nil {
 		if isDuplicateKeyError(err) && idemKey != "" {
 			var dupBatch ProductPublishBatch
-			if err2 := s.DB.WithContext(ctx).Where("idempotency_key = ? AND status NOT IN ?", idemKey, []string{BatchFailed, BatchCancelled}).
+			if err2 := s.DB.WithContext(ctx).Where("tenant_id = ? AND idempotency_key = ? AND status NOT IN ?", tenantID, idemKey, []string{BatchFailed, BatchCancelled}).
 				Order("created_at DESC").First(&dupBatch).Error; err2 == nil {
 				return s.batchCreateResponseFromExisting(ctx, &dupBatch)
 			}
@@ -404,7 +418,7 @@ func (s *Service) CreateBatchTargetDrafts(c *gin.Context, req BatchTargetsCreate
 			}
 
 			eff := mergeEffectiveConfig(req.CommonConfig, req.Overrides, pid.String(), plat, shopIDString(sid))
-			if dup, ok := s.findExistingSuccessfulTask(ctx, pid, plat, sid, eff); ok && dup != nil {
+			if dup, ok := s.findExistingSuccessfulTask(ctx, tenantID, pid, plat, sid, eff); ok && dup != nil {
 				successN++
 				base.TaskID = dup.ID.String()
 				base.Status = dup.Status
@@ -527,14 +541,14 @@ func extractTaskIdempotencyKey(raw datatypes.JSON) string {
 	return ""
 }
 
-func (s *Service) findExistingSuccessfulTask(ctx context.Context, productID uuid.UUID, plat string, sid *uuid.UUID, eff EffectivePublishConfig) (*ProductPublishTask, bool) {
+func (s *Service) findExistingSuccessfulTask(ctx context.Context, tenantID int64, productID uuid.UUID, plat string, sid *uuid.UUID, eff EffectivePublishConfig) (*ProductPublishTask, bool) {
 	if sid == nil {
 		return nil, false
 	}
 	wantKey := taskIdempotencyKey(productID.String(), plat, shopIDString(sid), eff)
 	var rows []ProductPublishTask
-	q := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ? AND shop_id = ? AND status = ?",
-		productID, plat, *sid, TaskSuccess)
+	q := s.DB.WithContext(ctx).Where("tenant_id = ? AND product_id = ? AND platform = ? AND shop_id = ? AND status = ?",
+		tenantID, productID, plat, *sid, TaskSuccess)
 	if err := q.Order("created_at DESC").Find(&rows).Error; err != nil || len(rows) == 0 {
 		return nil, false
 	}
@@ -573,7 +587,7 @@ func (s *Service) batchCreateResponseFromExisting(ctx context.Context, batch *Pr
 	if err != nil {
 		return nil, err
 	}
-	items := s.tasksToBatchResults(ctx, tasks)
+	items := s.tasksToBatchResults(ctx, batch.TenantID, tasks)
 	return &BatchTargetsCreateDraftsResponse{
 		BatchID:      batch.ID.String(),
 		Status:       batch.Status,
@@ -596,8 +610,12 @@ func (s *Service) ListPublishBatches(c *gin.Context, page, pageSize int) ([]Publ
 	if pageSize < 1 || pageSize > 100 {
 		pageSize = 20
 	}
-	q := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishBatch{}).Where("batch_type = ?", BatchTypeMultiProduct)
-	taskSub := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Select("DISTINCT batch_id").Where("batch_id IS NOT NULL")
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, 0, err
+	}
+	q := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishBatch{}).Where("batch_type = ? AND tenant_id = ?", BatchTypeMultiProduct, tenantID)
+	taskSub := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Select("DISTINCT batch_id").Where("batch_id IS NOT NULL AND tenant_id = ?", tenantID)
 	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, taskSub, "shop_id"); err != nil {
 		return nil, 0, err
 	} else {
@@ -659,17 +677,131 @@ func (s *Service) GetPublishBatchDetail(ctx context.Context, batchID uuid.UUID, 
 	if err := s.assertBatchAccess(batch, adminID); err != nil {
 		return nil, err
 	}
+	return s.publishBatchDetailDTO(ctx, batch, tasks)
+}
+
+// GetPublishBatchDetailScoped is the HTTP-facing batch lookup. A batch UUID is
+// not an authorization token: both the parent and every referenced child must
+// still belong to the authenticated tenant and remain visible to the caller.
+func (s *Service) GetPublishBatchDetailScoped(c *gin.Context, batchID uuid.UUID, adminID *uuid.UUID) (*PublishBatchDetailDTO, error) {
+	if s == nil || s.DB == nil || c == nil || c.Request == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, err
+	}
+	ctx := c.Request.Context()
+	var batch ProductPublishBatch
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", batchID, tenantID).First(&batch).Error; err != nil {
+		return nil, err
+	}
+	if err := s.assertBatchAccess(&batch, adminID); err != nil {
+		return nil, err
+	}
+	var tasks []ProductPublishTask
+	if err := s.DB.WithContext(ctx).
+		Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).
+		Order("created_at ASC").
+		Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	if batch.ProductID != nil {
+		if err := s.ensureTenantProductVisible(c, tenantID, *batch.ProductID); err != nil {
+			return nil, err
+		}
+	}
+	for i := range tasks {
+		if err := s.ensureTenantProductVisible(c, tenantID, tasks[i].ProductID); err != nil {
+			return nil, err
+		}
+		if err := s.ensureTenantStoreVisible(c, tenantID, tasks[i].ShopID); err != nil {
+			return nil, err
+		}
+		if tasks[i].TargetStoreID != uuid.Nil && tasks[i].TargetStoreID != tasks[i].ShopID {
+			if err := s.ensureTenantStoreVisible(c, tenantID, tasks[i].TargetStoreID); err != nil {
+				return nil, err
+			}
+		}
+	}
+	var storedInput BatchTargetsCreateDraftsRequest
+	if len(batch.Input) > 0 {
+		if err := json.Unmarshal(batch.Input, &storedInput); err != nil {
+			return nil, fmt.Errorf("decode publish batch input: %w", err)
+		}
+	}
+	for _, rawID := range storedInput.ProductIDs {
+		productID, err := uuid.Parse(strings.TrimSpace(rawID))
+		if err != nil {
+			return nil, gorm.ErrRecordNotFound
+		}
+		if err := s.ensureTenantProductVisible(c, tenantID, productID); err != nil {
+			return nil, err
+		}
+	}
+	for _, target := range storedInput.Targets {
+		if target.ShopID == nil || strings.TrimSpace(*target.ShopID) == "" {
+			continue
+		}
+		shopID, err := uuid.Parse(strings.TrimSpace(*target.ShopID))
+		if err != nil {
+			return nil, gorm.ErrRecordNotFound
+		}
+		if err := s.ensureTenantStoreVisible(c, tenantID, shopID); err != nil {
+			return nil, err
+		}
+	}
+	return s.publishBatchDetailDTO(ctx, &batch, tasks)
+}
+
+func (s *Service) ensureTenantProductVisible(c *gin.Context, tenantID int64, productID uuid.UUID) error {
+	if productID == uuid.Nil {
+		return gorm.ErrRecordNotFound
+	}
+	var count int64
+	if err := s.DB.WithContext(c.Request.Context()).Model(&product.Product{}).
+		Where("id = ? AND tenant_id = ?", productID, tenantID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return adminperm.EnsureProductVisible(c, s.DB, productID)
+}
+
+func (s *Service) ensureTenantStoreVisible(c *gin.Context, tenantID int64, shopID uuid.UUID) error {
+	if shopID == uuid.Nil {
+		return nil
+	}
+	var count int64
+	if err := s.DB.WithContext(c.Request.Context()).Table("shops").
+		Where("id = ? AND tenant_id = ? AND deleted_at IS NULL", shopID, tenantID).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return adminperm.EnsureStoreVisible(c, s.DB, &shopID)
+}
+
+func (s *Service) publishBatchDetailDTO(ctx context.Context, batch *ProductPublishBatch, tasks []ProductPublishTask) (*PublishBatchDetailDTO, error) {
 	item := batchToListItem(*batch)
 	var input map[string]any
-	_ = json.Unmarshal(batch.Input, &input)
+	if len(batch.Input) > 0 {
+		if err := json.Unmarshal(batch.Input, &input); err != nil {
+			return nil, fmt.Errorf("decode publish batch input: %w", err)
+		}
+	}
 	return &PublishBatchDetailDTO{
 		PublishBatchListItem: item,
-		Items:                s.tasksToBatchResults(ctx, tasks),
+		Items:                s.tasksToBatchResults(ctx, batch.TenantID, tasks),
 		Input:                input,
 	}, nil
 }
 
-func (s *Service) tasksToBatchResults(ctx context.Context, tasks []ProductPublishTask) []BatchTargetTaskResult {
+func (s *Service) tasksToBatchResults(ctx context.Context, tenantID int64, tasks []ProductPublishTask) []BatchTargetTaskResult {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -677,7 +809,7 @@ func (s *Service) tasksToBatchResults(ctx context.Context, tasks []ProductPublis
 	for _, t := range tasks {
 		pids = append(pids, t.ProductID)
 	}
-	titles := s.batchProductTitles(ctx, pids)
+	titles := s.batchProductTitles(ctx, tenantID, pids)
 	out := make([]BatchTargetTaskResult, 0, len(tasks))
 	for _, t := range tasks {
 		capability := CapLocalDraftOnly
@@ -704,7 +836,7 @@ func (s *Service) tasksToBatchResults(ctx context.Context, tasks []ProductPublis
 	return out
 }
 
-func (s *Service) batchProductTitles(ctx context.Context, ids []uuid.UUID) map[uuid.UUID]string {
+func (s *Service) batchProductTitles(ctx context.Context, tenantID int64, ids []uuid.UUID) map[uuid.UUID]string {
 	out := map[uuid.UUID]string{}
 	if s == nil || s.DB == nil || len(ids) == 0 {
 		return out
@@ -722,7 +854,7 @@ func (s *Service) batchProductTitles(ctx context.Context, ids []uuid.UUID) map[u
 		ID    uuid.UUID
 		Title string
 	}
-	_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("id", "title").Where("id IN ?", uniq).Scan(&rows).Error
+	_ = s.DB.WithContext(ctx).Model(&product.Product{}).Select("id", "title").Where("tenant_id = ? AND id IN ?", tenantID, uniq).Scan(&rows).Error
 	for _, r := range rows {
 		out[r.ID] = strings.TrimSpace(r.Title)
 	}
@@ -735,8 +867,12 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, err
+	}
 	var batch ProductPublishBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", batchID, tenantID).First(&batch).Error; err != nil {
 		return nil, err
 	}
 	if err := s.assertBatchAccess(&batch, adminID); err != nil {
@@ -746,12 +882,20 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	_ = json.Unmarshal(batch.Input, &in)
 
 	var failedTasks []ProductPublishTask
-	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND status = ?", batchID, TaskFailed).Find(&failedTasks).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ? AND status = ?", batchID, tenantID, TaskFailed).Find(&failedTasks).Error; err != nil {
 		return nil, err
 	}
 	if len(failedTasks) == 0 {
 		// Concurrent or duplicate retry: another caller may have already claimed failures.
 		return s.batchCreateResponseFromExisting(ctx, &batch)
+	}
+	for i := range failedTasks {
+		if !adminperm.RequireStoreOperate(c, s.DB, failedTasks[i].ShopID) {
+			return nil, fmt.Errorf("store operate permission required")
+		}
+		if err := adminperm.EnsureProductOperate(c, s.DB, failedTasks[i].ProductID); err != nil {
+			return nil, err
+		}
 	}
 
 	results := make([]BatchTargetTaskResult, 0, len(failedTasks))
@@ -759,7 +903,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	for _, ft := range failedTasks {
 		claimFin := time.Now().UTC()
 		claim := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
-			Where("id = ? AND status = ?", ft.ID, TaskFailed).
+			Where("id = ? AND tenant_id = ? AND status = ?", ft.ID, tenantID, TaskFailed).
 			Updates(map[string]any{
 				"status":        TaskCancelled,
 				"finished_at":   &claimFin,
@@ -771,7 +915,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 
 		sid := ft.ShopID
 		t := PublishTargetRef{Platform: ft.Platform, ShopID: ptrString(sid.String())}
-		chk := s.checkOnePublishTarget(ctx, ft.ProductID, t)
+		chk := s.checkOnePublishTarget(ctx, tenantID, ft.ProductID, t)
 		base := BatchTargetTaskResult{
 			ProductID:     ft.ProductID.String(),
 			TargetKey:     ft.TargetKey,
@@ -781,7 +925,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 			ShopName:      chk.ShopName,
 			Capability:    chk.Capability,
 		}
-		titles := s.batchProductTitles(ctx, []uuid.UUID{ft.ProductID})
+		titles := s.batchProductTitles(ctx, ft.TenantID, []uuid.UUID{ft.ProductID})
 		base.ProductTitle = titles[ft.ProductID]
 
 		if chk.Status == statusBlocked {
@@ -796,7 +940,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		}
 
 		eff := mergeEffectiveConfig(in.CommonConfig, in.Overrides, ft.ProductID.String(), ft.Platform, sid.String())
-		if dup, ok := s.findExistingSuccessfulTask(ctx, ft.ProductID, ft.Platform, &sid, eff); ok && dup != nil {
+		if dup, ok := s.findExistingSuccessfulTask(ctx, tenantID, ft.ProductID, ft.Platform, &sid, eff); ok && dup != nil {
 			successN++
 			base.TaskID = dup.ID.String()
 			base.Status = dup.Status
@@ -822,7 +966,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 	}
 
 	var allTasks []ProductPublishTask
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Find(&allTasks).Error
+	_ = s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).Find(&allTasks).Error
 	var totalSuccess, totalFailed, totalSkipped int
 	for _, t := range allTasks {
 		switch t.Status {
@@ -835,7 +979,7 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		}
 	}
 	batchStatus, fin := finalizeBatchStatus(totalSuccess, totalFailed, totalSkipped)
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(map[string]any{
 		"status": batchStatus, "success_count": totalSuccess, "failed_count": totalFailed,
 		"skipped_count": totalSkipped, "finished_at": &fin,
 	}).Error
@@ -862,22 +1006,35 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := trustedTenantOrLegacy(c)
+	if err != nil {
+		return nil, err
+	}
 	var batch ProductPublishBatch
-	if err := s.DB.WithContext(ctx).First(&batch, "id = ?", batchID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", batchID, tenantID).First(&batch).Error; err != nil {
 		return nil, err
 	}
 	if err := s.assertBatchAccess(&batch, adminID); err != nil {
 		return nil, err
 	}
+	var pendingTasks []ProductPublishTask
+	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ? AND status = ?", batchID, tenantID, TaskPending).Find(&pendingTasks).Error; err != nil {
+		return nil, err
+	}
+	for i := range pendingTasks {
+		if !adminperm.RequireStoreOperate(c, s.DB, pendingTasks[i].ShopID) {
+			return nil, fmt.Errorf("store operate permission required")
+		}
+	}
 	fin := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
-		Where("batch_id = ? AND status IN ?", batchID, []string{TaskPending}).
+		Where("batch_id = ? AND tenant_id = ? AND status IN ?", batchID, tenantID, []string{TaskPending}).
 		Updates(map[string]any{"status": TaskCancelled, "finished_at": &fin, "error_message": "用户取消等待中的任务"})
 	cancelled := res.RowsAffected
 
 	var totalSuccess, totalFailed, totalSkipped int
 	var tasks []ProductPublishTask
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Find(&tasks).Error
+	_ = s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ?", batchID, tenantID).Find(&tasks).Error
 	for _, t := range tasks {
 		switch t.Status {
 		case TaskSuccess:
@@ -895,14 +1052,14 @@ func (s *Service) CancelPendingBatchTasks(c *gin.Context, batchID uuid.UUID, adm
 			batchStatus = BatchCancelled
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("id = ?", batchID).Updates(map[string]any{
+	_ = s.DB.WithContext(ctx).Model(&ProductPublishBatch{}).Where("id = ? AND tenant_id = ?", batchID, tenantID).Updates(map[string]any{
 		"status": batchStatus, "success_count": totalSuccess, "failed_count": totalFailed,
 		"skipped_count": totalSkipped, "finished_at": &fin,
 	}).Error
 
 	s.writeBatchOpLog(c, batchID, batchStatus, int(cancelled), 0, int(totalSkipped), "product.publish.batch.cancel_pending")
 
-	return s.GetPublishBatchDetail(ctx, batchID, adminID)
+	return s.GetPublishBatchDetailScoped(c, batchID, adminID)
 }
 
 func (s *Service) writeBatchOpLog(c *gin.Context, batchID uuid.UUID, status string, successN, failedN, skippedN int, action string) {

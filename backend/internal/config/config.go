@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -18,6 +19,9 @@ type Config struct {
 	APIPublicURL   string
 	LogLevel       string
 	MasterKey      string
+	// TrustedProxies contains explicitly configured reverse-proxy IPs/CIDRs.
+	// An empty list makes Gin ignore forwarding headers.
+	TrustedProxies []string
 
 	// Feature gates (production must disable dangerous flags).
 	EnableSwagger        bool
@@ -43,6 +47,8 @@ type Config struct {
 	// runtime compatibility field while COLLECTOR_PLAYWRIGHT_BASE_URL is the
 	// preferred environment variable.
 	CollectorBaseURL string
+	// CollectorToken authenticates backend calls to Collector /v1 endpoints.
+	CollectorToken string
 	// CollectorTimeoutSeconds caps outbound HTTP calls to the Playwright collector.
 	CollectorTimeoutSeconds int
 	// OpenCLIBridgeEnabled enables routing supported collect tasks to the
@@ -208,6 +214,10 @@ type RedisConfig struct {
 // Load reads configuration from environment variables (after optional .env in main).
 func Load() (*Config, error) {
 	appEnv := NormalizeEnv(firstNonEmpty(os.Getenv("APP_ENV"), EnvDevelopment))
+	trustedProxies, err := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
+	if err != nil {
+		return nil, fmt.Errorf("TRUSTED_PROXIES: %w", err)
+	}
 	cfg := &Config{
 		AppEnv:               appEnv,
 		AppName:              firstNonEmpty(os.Getenv("APP_NAME"), "TradeMind"),
@@ -217,6 +227,7 @@ func Load() (*Config, error) {
 		APIPublicURL:         strings.TrimSpace(os.Getenv("API_PUBLIC_URL")),
 		LogLevel:             firstNonEmpty(os.Getenv("LOG_LEVEL"), defaultLogLevel(appEnv)),
 		MasterKey:            os.Getenv("APP_MASTER_KEY"),
+		TrustedProxies:       trustedProxies,
 		EnableSwagger:        envBool(os.Getenv("ENABLE_SWAGGER"), appEnv != EnvProduction),
 		EnableDevRoutes:      envBool(os.Getenv("ENABLE_DEV_ROUTES"), appEnv != EnvProduction && appEnv != EnvStaging),
 		EnableDemoSeed:       envBool(os.Getenv("ENABLE_DEMO_SEED"), appEnv == EnvDevelopment || appEnv == EnvDemo),
@@ -248,6 +259,7 @@ func Load() (*Config, error) {
 			os.Getenv("COLLECTOR_PLAYWRIGHT_BASE_URL"),
 			firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3001"),
 		)), "/"),
+		CollectorToken:              strings.TrimSpace(os.Getenv("COLLECTOR_INTERNAL_TOKEN")),
 		CollectorTimeoutSeconds:     atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 120),
 		OpenCLIBridgeEnabled:        envBool(os.Getenv("OPENCLI_BRIDGE_ENABLED"), false),
 		OpenCLIBridgeBaseURL:        strings.TrimRight(strings.TrimSpace(firstNonEmpty(os.Getenv("OPENCLI_BRIDGE_BASE_URL"), "http://127.0.0.1:3100")), "/"),
@@ -400,6 +412,24 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func parseTrustedProxies(raw string) ([]string, error) {
+	entries := splitCSV(raw)
+	for _, entry := range entries {
+		if ip := net.ParseIP(entry); ip != nil {
+			continue
+		}
+		_, network, err := net.ParseCIDR(entry)
+		if err != nil || network == nil {
+			return nil, fmt.Errorf("invalid proxy IP or CIDR %q", entry)
+		}
+		ones, bits := network.Mask.Size()
+		if ones == 0 && bits > 0 {
+			return nil, fmt.Errorf("broad proxy CIDR %q is not allowed", entry)
+		}
+	}
+	return entries, nil
 }
 
 func defaultLogLevel(appEnv string) string {

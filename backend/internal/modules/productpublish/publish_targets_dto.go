@@ -31,6 +31,7 @@ const (
 // ProductPublishBatch groups multi-target draft creation for one or many products.
 type ProductPublishBatch struct {
 	model.HardDeleteBase
+	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	BatchType      string         `gorm:"size:32;index;default:single_product;not null" json:"batchType"`
 	Name           string         `gorm:"size:256" json:"name,omitempty"`
 	ProductID      *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`

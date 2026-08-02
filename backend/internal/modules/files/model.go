@@ -20,8 +20,11 @@ type FileRecord struct {
 	StorageKind    string     `gorm:"size:32;not null" json:"storageKind"`
 	SecurityStatus string     `gorm:"size:32;not null;default:'pending_scan';index" json:"securityStatus"`
 	ScanStatus     string     `gorm:"size:32;not null;default:'pending_scan';index" json:"scanStatus"`
+	ScanClaimID    string     `gorm:"size:36;index" json:"-"`
+	ScanLeaseUntil *time.Time `gorm:"index" json:"-"`
 	CreatedBy      *uuid.UUID `gorm:"type:char(36);index" json:"createdBy,omitempty"`
 	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
 }
 
 // TableName keeps a stable table name for migrations.

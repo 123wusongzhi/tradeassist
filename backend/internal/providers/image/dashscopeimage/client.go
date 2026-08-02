@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 )
 
 const (
@@ -303,31 +305,16 @@ func (c *Client) download(ctx context.Context, rawURL string) ([]byte, string, e
 	if u == "" {
 		return nil, "", fmt.Errorf("dashscope_image: empty url")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, "", err
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = 30 << 20
+	if c != nil && c.httpClient != nil && c.httpClient.Timeout > 0 {
+		opts.ResponseTimeout = c.httpClient.Timeout
 	}
-	resp, err := c.httpClient.Do(req)
+	result, err := safedownload.Download(ctx, u, opts)
 	if err != nil {
 		return nil, "", fmt.Errorf("dashscope_image: download: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slurp, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return nil, "", fmt.Errorf("dashscope_image: download HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(slurp)))
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 30<<20))
-	if err != nil {
-		return nil, "", err
-	}
-	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if ct == "" {
-		ct = http.DetectContentType(data)
-	}
-	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
-		ct = "image/png"
-	}
-	return data, ct, nil
+	return result.Data, result.ContentType, nil
 }
 
 func normalizeSize(raw string) string {

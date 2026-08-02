@@ -34,7 +34,11 @@ func (s *Service) blockDouyinOrderTask(ctx context.Context, taskID uuid.UUID, ge
 		UserMessage:    ge.Message,
 		TechnicalCode:  ge.Code,
 	})
-	_ = s.DB.WithContext(ctx).Model(&OrderSyncTask{}).Where("id = ?", taskID).
+	if task.LockedBy == nil || task.ExecutionID == nil {
+		return ge
+	}
+	update := s.DB.WithContext(ctx).Model(&OrderSyncTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND lock_version = ? AND locked_by = ? AND execution_id = ?", taskID, task.TenantID, StatusRunning, task.LockVersion, *task.LockedBy, *task.ExecutionID).
 		Updates(map[string]any{
 			"status":        StatusCancelled,
 			"error_message": ge.Message,
@@ -43,7 +47,10 @@ func (s *Service) blockDouyinOrderTask(ctx context.Context, taskID uuid.UUID, ge
 			"locked_by":     nil,
 			"locked_until":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if update.Error != nil || update.RowsAffected == 0 {
+		return ge
+	}
 	return ge
 }
 

@@ -18,6 +18,7 @@ import (
 
 // ListAlertsParams binds GET /task-center/alerts.
 type ListAlertsParams struct {
+	TenantID        int64
 	Status          string
 	Severity        string
 	FailureCategory string
@@ -144,7 +145,7 @@ func (s *Service) ListAlerts(ctx context.Context, p ListAlertsParams) (ListAlert
 		return out, fmt.Errorf("taskcenter: no db")
 	}
 	page, pageSize := clampPage(p.Page, p.PageSize)
-	q := s.DB.WithContext(ctx).Model(&TaskAlert{})
+	q := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("tenant_id = ?", p.TenantID)
 	if st := strings.TrimSpace(p.Status); st != "" {
 		q = q.Where("status = ?", st)
 	}
@@ -194,7 +195,7 @@ func (s *Service) ListAlerts(ctx context.Context, p ListAlertsParams) (ListAlert
 }
 
 // UpsertAlertForFailure creates or bumps an OPEN alert row. force=true skips policy gate and can reopen handled/ignored.
-func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO, class failureclassifier.Result, now time.Time, force bool, admin *uuid.UUID) (generated bool, updatedOpen bool, err error) {
+func (s *Service) UpsertAlertForFailure(ctx context.Context, tenantID int64, dto UnifiedTaskDTO, class failureclassifier.Result, now time.Time, force bool, admin *uuid.UUID) (generated bool, updatedOpen bool, err error) {
 	if s == nil || s.DB == nil {
 		return false, false, fmt.Errorf("taskcenter: no db")
 	}
@@ -207,12 +208,13 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 
 	var cur TaskAlert
 	errFind := s.DB.WithContext(ctx).
-		Where("task_type = ? AND source_id = ? AND failure_category = ?", dto.TaskType, dto.SourceID, class.Category).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?", tenantID, dto.TaskType, dto.SourceID, class.Category).
 		First(&cur).Error
 
 	if errors.Is(errFind, gorm.ErrRecordNotFound) {
 		a := TaskAlert{
 			ID:              newTaskAlertID(),
+			TenantID:        tenantID,
 			TaskType:        dto.TaskType,
 			SourceID:        dto.SourceID,
 			SourceTable:     dto.SourceTable,
@@ -281,13 +283,14 @@ func (s *Service) UpsertAlertForFailure(ctx context.Context, dto UnifiedTaskDTO,
 }
 
 // ScanAndGenerateTaskAlerts evaluates recent problematic tasks and upserts OPEN alerts according to settings.
-func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSummary, error) {
+func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context, tenantID int64) (ScanAlertsSummary, error) {
 	var sum ScanAlertsSummary
 	if s == nil || s.DB == nil {
 		return sum, fmt.Errorf("taskcenter: no db")
 	}
 	now := time.Now().UTC()
 	p := ListFailureParams{
+		TenantID:        tenantID,
 		Page:            1,
 		PageSize:        100,
 		IncludeMarked:   true,
@@ -314,7 +317,7 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 			class := applyClassification(&part[i])
 			d := part[i]
 			scanned++
-			generated, bumped, err := s.UpsertAlertForFailure(ctx, d, class, now, false, nil)
+			generated, bumped, err := s.UpsertAlertForFailure(ctx, tenantID, d, class, now, false, nil)
 			if err != nil {
 				return sum, err
 			}
@@ -329,7 +332,7 @@ func (s *Service) ScanAndGenerateTaskAlerts(ctx context.Context) (ScanAlertsSumm
 			if generated || bumped {
 				var a TaskAlert
 				if err := s.DB.WithContext(ctx).
-					Where("task_type = ? AND source_id = ? AND failure_category = ?", d.TaskType, d.SourceID, class.Category).
+					Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?", tenantID, d.TaskType, d.SourceID, class.Category).
 					First(&a).Error; err == nil {
 					candidates = append(candidates, alertNotifyCandidate{Alert: a, IsNew: generated})
 				}
@@ -352,7 +355,11 @@ func (s *Service) HandleTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	}
 	ctx := c.Request.Context()
 	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(ctx).First(&a, "id = ? AND tenant_id = ?", alertID, tenantID).Error; err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -366,7 +373,11 @@ func (s *Service) IgnoreTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	}
 	ctx := c.Request.Context()
 	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(ctx).First(&a, "id = ? AND tenant_id = ?", alertID, tenantID).Error; err != nil {
 		return err
 	}
 	now := time.Now().UTC()
@@ -380,11 +391,15 @@ func (s *Service) UnmarkTaskAlert(c *gin.Context, alertID uuid.UUID) error {
 	}
 	ctx := c.Request.Context()
 	var a TaskAlert
-	if err := s.DB.WithContext(ctx).First(&a, "id = ?", alertID).Error; err != nil {
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	if err := s.DB.WithContext(ctx).First(&a, "id = ? AND tenant_id = ?", alertID, tenantID).Error; err != nil {
 		return err
 	}
 	now := time.Now().UTC()
-	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ?", alertID).
+	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", alertID, tenantID).
 		Updates(map[string]any{
 			"status":     TaskAlertStatusOpen,
 			"handled_at": nil,
@@ -412,7 +427,7 @@ func summarizeAlertAudit(taskType, sourceID, category, severity string) string {
 
 func (s *Service) finishAlertStatusChange(ctx context.Context, ginC *gin.Context, a TaskAlert, st string, now time.Time, admin *uuid.UUID, action string) error {
 	up := map[string]any{"status": st, "handled_at": now, "handled_by": admin, "updated_at": now}
-	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ?", a.ID).Updates(up).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&TaskAlert{}).Where("id = ? AND tenant_id = ?", a.ID, a.TenantID).Updates(up).Error; err != nil {
 		return err
 	}
 	if s.OpLog != nil && ginC != nil {
@@ -436,13 +451,17 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 	if err != nil {
 		return nil, err
 	}
-	base, err := s.unifiedOne(c.Request.Context(), taskType, id, time.Now().UTC())
+	tenantID, err := tenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	base, err := s.unifiedOne(c.Request.Context(), tenantID, taskType, id, time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
 	class := applyClassification(&base)
 	now := time.Now().UTC()
-	gen, bumped, err := s.UpsertAlertForFailure(c.Request.Context(), base, class, now, true, adminFromGin(c))
+	gen, bumped, err := s.UpsertAlertForFailure(c.Request.Context(), tenantID, base, class, now, true, adminFromGin(c))
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +470,7 @@ func (s *Service) GenerateAlertForFailure(c *gin.Context, taskTypeRaw string, id
 	}
 	var al TaskAlert
 	err = s.DB.WithContext(c.Request.Context()).
-		Where("task_type = ? AND source_id = ? AND failure_category = ?", base.TaskType, base.SourceID, class.Category).
+		Where("tenant_id = ? AND task_type = ? AND source_id = ? AND failure_category = ?", tenantID, base.TaskType, base.SourceID, class.Category).
 		First(&al).Error
 	if err != nil {
 		return nil, err

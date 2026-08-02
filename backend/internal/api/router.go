@@ -63,6 +63,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/observability"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -230,17 +231,21 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	fileSvc := &files.Service{DB: dep.DB, Redis: dep.Redis, Settings: settingsSvc, MaxBytes: maxUp, Metrics: metricCatalog}
 	fileH := &files.Handler{Svc: fileSvc}
-	staticH := &files.StaticHandler{Settings: settingsSvc}
+	staticH := &files.StaticHandler{Settings: settingsSvc, DB: dep.DB}
 
 	collectorTimeout := 120 * time.Second
 	if dep.Config != nil && dep.Config.CollectorTimeoutSeconds > 0 {
 		collectorTimeout = time.Duration(dep.Config.CollectorTimeoutSeconds) * time.Second
 	}
 	collectorBase := "http://127.0.0.1:3001"
-	if dep.Config != nil && dep.Config.CollectorBaseURL != "" {
-		collectorBase = dep.Config.CollectorBaseURL
+	collectorToken := ""
+	if dep.Config != nil {
+		if dep.Config.CollectorBaseURL != "" {
+			collectorBase = dep.Config.CollectorBaseURL
+		}
+		collectorToken = dep.Config.CollectorToken
 	}
-	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout)
+	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout, collectorToken)
 	opencliBridgeEnabled := false
 	opencliBridgeBase := "http://127.0.0.1:3100"
 	opencliBridgeToken := ""
@@ -399,15 +404,15 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	productSvc.Shops = shopSvc
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
-	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
+	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(dep.DB, settingsSvc))
 	platformdouyin.BindShops(shopSvc.DouyinShopsBridge())
 	platformdouyin.RegisterProvider()
 	platformtiktok.RegisterProvider()
 	platformshopee.BindShops(shopSvc.ShopeeShopsBridge())
-	platformshopee.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
+	platformshopee.BindPublishImages(newTikTokListingImageFetcher(dep.DB, settingsSvc))
 	platformshopee.RegisterProvider()
 	platformlazada.BindShops(shopSvc.LazadaShopsBridge())
-	platformlazada.BindPublishImages(newTikTokListingImageFetcher(settingsSvc))
+	platformlazada.BindPublishImages(newTikTokListingImageFetcher(dep.DB, settingsSvc))
 	platformlazada.RegisterProvider()
 	platformamazon.BindShops(shopSvc.AmazonShopsBridge())
 	platformamazon.RegisterProvider()
@@ -610,16 +615,22 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	authed.DELETE("/auth/sessions/:id", sessionH.DeleteSession)
 	authed.POST("/auth/sessions/revoke-others", sessionH.RevokeOthers)
 	authed.POST("/auth/logout-all", sessionH.LogoutAll)
-	authed.GET("/settings", setH.List)
-	authed.PUT("/settings", setH.Put)
-	authed.GET("/settings/integration-schemas", setH.IntegrationSchemas)
-	authed.GET("/settings/integrations/overview", setH.IntegrationOverview)
-	authed.POST("/settings/test-ai", setH.TestAI)
-	authed.POST("/settings/test-image", imageTaskH.TestImage)
-	authed.POST("/settings/test-ocr", imageTaskH.TestOCR)
-	authed.POST("/settings/test-storage", setH.TestStorage)
-	authed.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
-	authed.POST("/settings/test-email", setH.TestEmail)
+	globalSettings := authed.Group("")
+	globalSettings.Use(func(c *gin.Context) {
+		if !adminperm.RequireGlobalAdmin(c, dep.DB) {
+			c.Abort()
+		}
+	})
+	globalSettings.GET("/settings", setH.List)
+	globalSettings.PUT("/settings", setH.Put)
+	globalSettings.GET("/settings/integration-schemas", setH.IntegrationSchemas)
+	globalSettings.GET("/settings/integrations/overview", setH.IntegrationOverview)
+	globalSettings.POST("/settings/test-ai", setH.TestAI)
+	globalSettings.POST("/settings/test-image", imageTaskH.TestImage)
+	globalSettings.POST("/settings/test-ocr", imageTaskH.TestOCR)
+	globalSettings.POST("/settings/test-storage", setH.TestStorage)
+	globalSettings.POST("/settings/test-platform-tiktok", setH.TestPlatformTikTok)
+	globalSettings.POST("/settings/test-email", setH.TestEmail)
 
 	authed.GET("/operation-logs", opLogH.List)
 	authed.POST("/files/upload", fileH.Upload)
@@ -665,13 +676,19 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	// 1688 采集浏览器登录态（与 /api/v1/collector/... 等价，便于前端与文档引用）
 	collectorAlias := r.Group("/api/collector")
 	collectorAlias.Use(middleware.BearerAuthWithDB(dep.Config, dep.DB, sessionSvc))
+	collectorAliasWrite := collectorAlias.Group("")
+	collectorAliasWrite.Use(func(c *gin.Context) {
+		if !adminperm.RequireWrite(c, dep.DB, adminperm.PermProductWrite) {
+			c.Abort()
+		}
+	})
 	collectorAlias.GET("/providers/1688/auth-status", collectH.Get1688AuthStatus)
-	collectorAlias.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
+	collectorAliasWrite.POST("/providers/1688/open-login-browser", collectH.Open1688LoginBrowser)
 	collectorAlias.GET("/providers/pinduoduo/auth-status", collectH.GetPinduoduoAuthStatus)
-	collectorAlias.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
-	collectorAlias.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
-	collectorAlias.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
-	collectorAlias.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
+	collectorAliasWrite.POST("/providers/pinduoduo/check-login", collectH.CheckPinduoduoLogin)
+	collectorAliasWrite.POST("/providers/pinduoduo/open-login-browser", collectH.OpenPinduoduoLoginBrowser)
+	collectorAliasWrite.POST("/providers/taobao_tmall/check-login", collectH.CheckTaobaoTmallLogin)
+	collectorAliasWrite.POST("/providers/taobao_tmall/open-login-browser", collectH.OpenTaobaoTmallLoginBrowser)
 	productcheck.Register(authed, readinessH)
 	order.Register(authed, orderH)
 	skuCandH := &skucandidate.Handler{Svc: &skucandidate.Service{DB: dep.DB}}
@@ -786,7 +803,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	aiOpsWorkbenchH := &aiopsworkbench.Handler{Svc: aiOpsWorkbenchSvc}
 	aiopsworkbench.Register(authed, aiOpsWorkbenchH)
 
-	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc}
+	adminUserSvc := &adminuser.Service{DB: dep.DB, OpLog: opLogSvc, Cfg: dep.Config}
 	adminUserH := &adminuser.Handler{Svc: adminUserSvc}
 	adminuser.Register(authed, adminUserH)
 

@@ -46,6 +46,7 @@ type Service struct {
 
 // CreatePayload is the normalized create input.
 type CreatePayload struct {
+	TenantID       int64
 	TaskType       string
 	Provider       string
 	ProductID      *uuid.UUID
@@ -229,6 +230,10 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	if !isValidTaskType(p.TaskType) {
 		return nil, fmt.Errorf("invalid taskType")
 	}
+	tenantID, err := s.resolveCreateTenant(ctx, p)
+	if err != nil {
+		return nil, err
+	}
 
 	var effectiveProv string
 	if IsScoringTaskType(p.TaskType) {
@@ -271,7 +276,7 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 				return nil, imgprov.UnsupportedTaskError(effectiveProv, p.TaskType)
 			}
 			if s.Settings != nil {
-				m, err := s.Settings.PlainByGroup(ctx, 0, "image")
+				m, err := s.Settings.PlainByGroup(ctx, tenantID, "image")
 				if err != nil {
 					return nil, err
 				}
@@ -300,13 +305,14 @@ func (s *Service) CreateAndPersist(ctx context.Context, p CreatePayload) (*Image
 	var srcURL string
 	if hasSource {
 		var rsErr error
-		imgID, srcURL, rsErr = s.ResolveSource(ctx, p.SourceImageID, p.SourceImageURL)
+		imgID, srcURL, rsErr = s.ResolveSource(ctx, tenantID, p.SourceImageID, p.SourceImageURL)
 		if rsErr != nil {
 			return nil, rsErr
 		}
 	}
 
 	row := &ImageTask{
+		TenantID:       tenantID,
 		TaskType:       p.TaskType,
 		Provider:       effectiveProv,
 		Status:         StatusPending,
@@ -652,9 +658,14 @@ func (s *Service) scheduleImageAutoRetry(ctx context.Context, task *ImageTask, m
 	}
 	workerID, claim := imageLeaseFrom(ctx)
 	if claim != nil && strings.TrimSpace(workerID) != "" {
-		_ = s.finishImageTask(ctx, task.ID, workerID, claim, updates)
+		if err := s.finishImageTask(ctx, task.ID, workerID, claim, updates); err != nil {
+			return
+		}
 	} else {
-		_ = s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ?", task.ID).Updates(updates).Error
+		res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", task.ID, StatusRunning).Updates(updates)
+		if res.Error != nil || res.RowsAffected == 0 {
+			return
+		}
 	}
 
 	maxR := s.effectiveMaxRetries(task)
@@ -831,9 +842,13 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		return fmt.Errorf("imagetask: no db")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return err
+	}
 
 	var task ImageTask
-	if err := s.DB.WithContext(ctx).First(&task, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&task, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		return err
 	}
 	if task.Status != StatusFailed {
@@ -856,7 +871,7 @@ func (s *Service) RetryEnqueue(c *gin.Context, id uuid.UUID) error {
 		"locked_by":         nil,
 		"locked_until":      nil,
 	}
-	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND status = ?", id, StatusFailed).Updates(updates)
+	res := s.DB.WithContext(ctx).Model(&ImageTask{}).Where("id = ? AND tenant_id = ? AND status = ?", id, tenantID, StatusFailed).Updates(updates)
 	if res.Error != nil {
 		return res.Error
 	}

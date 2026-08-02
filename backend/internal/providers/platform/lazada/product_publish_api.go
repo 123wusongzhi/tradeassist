@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
 
@@ -203,19 +202,8 @@ func extractLazadaHostedImageURL(root map[string]any) string {
 }
 
 func resolveListingImageToLazadaURL(ctx context.Context, cfg RuntimeConfig, access string, im platformp.PlatformProductImage) (string, error) {
-	rawURL := strings.TrimSpace(im.URL)
-	if httppublic.IsPublicHTTPURL(rawURL) {
-		u, st, err := lazadaMigrateImageURL(ctx, cfg, access, rawURL)
-		if err == nil && u != "" {
-			return u, nil
-		}
-		if er := classifyLazadaPublishError(st, nil, err); er != nil {
-			return "", er
-		}
-		return "", err
-	}
 	if publishImages == nil {
-		return "", fmt.Errorf("listing image fetcher not configured or url not public for lazada migrate")
+		return "", fmt.Errorf("listing image fetcher not configured")
 	}
 	blob, ct, err := publishImages.FetchProductImageBytes(ctx, im)
 	if err != nil {
@@ -258,7 +246,7 @@ func collectLazadaListingImageURLs(ctx context.Context, cfg RuntimeConfig, acces
 	return out, nil
 }
 
-func resolveSKUPreviewToLazadaURL(ctx context.Context, cfg RuntimeConfig, access, raw string, seen map[string]string) (string, error) {
+func resolveSKUPreviewToLazadaURL(ctx context.Context, cfg RuntimeConfig, access string, tenantID int64, raw string, seen map[string]string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", nil
@@ -266,7 +254,7 @@ func resolveSKUPreviewToLazadaURL(ctx context.Context, cfg RuntimeConfig, access
 	if v, ok := seen[raw]; ok {
 		return v, nil
 	}
-	im := platformp.PlatformProductImage{URL: raw, Type: "sku"}
+	im := platformp.PlatformProductImage{TenantID: tenantID, URL: raw, Type: "sku"}
 	u, err := resolveListingImageToLazadaURL(ctx, cfg, access, im)
 	if err != nil {
 		return "", err

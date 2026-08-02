@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	_ "golang.org/x/image/webp"
 )
 
@@ -37,6 +38,8 @@ type Client struct {
 	opts   Options
 	httpCl *http.Client
 }
+
+const comfyMaxResultBytes int64 = 40 << 20
 
 // NewClient builds a ComfyUI client with sane defaults.
 func NewClient(opts Options) (*Client, error) {
@@ -361,18 +364,31 @@ func (c *Client) downloadView(ctx context.Context, filename, subfolder, typ stri
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, "", fmt.Errorf("comfyui GET /view: status %d: %s", resp.StatusCode, c.readErrorBody(resp))
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 40<<20))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, comfyMaxResultBytes+1))
 	if err != nil {
 		return nil, "", err
 	}
+	if int64(len(data)) > comfyMaxResultBytes {
+		return nil, "", fmt.Errorf("comfyui GET /view: result exceeds %d bytes", comfyMaxResultBytes)
+	}
 	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	if ct == "" {
-		ct = "image/png"
+		ct = http.DetectContentType(data)
+	}
+	validationOpts := safedownload.DefaultOptions()
+	validationOpts.MaxBodyBytes = comfyMaxResultBytes
+	if err := safedownload.ValidateImageBytes(data, ct, validationOpts); err != nil {
+		return nil, "", fmt.Errorf("comfyui GET /view: unsafe result image: %w", err)
 	}
 	return data, ct, nil
 }
 
 func encodeAsPNG(b []byte) ([]byte, error) {
+	validationOpts := safedownload.DefaultOptions()
+	validationOpts.MaxBodyBytes = comfyMaxResultBytes
+	if err := safedownload.ValidateImageBytes(b, http.DetectContentType(b), validationOpts); err != nil {
+		return nil, fmt.Errorf("validate result image: %w", err)
+	}
 	img, format, err := image.Decode(bytes.NewReader(b))
 	if err != nil {
 		return nil, fmt.Errorf("decode result image (%s): %w", format, err)
@@ -434,20 +450,17 @@ func (c *Client) downloadSource(ctx context.Context, imageURL string, maxBytes i
 	if u == "" {
 		return nil, fmt.Errorf("empty source image url")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.httpCl.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("download source image: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("download source image: status %d: %s", resp.StatusCode, c.readErrorBody(resp))
-	}
 	if maxBytes <= 0 {
 		maxBytes = 15 << 20
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, maxBytes))
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = maxBytes
+	if c != nil && c.opts.HTTPTimeout > 0 {
+		opts.ResponseTimeout = c.opts.HTTPTimeout
+	}
+	result, err := safedownload.Download(ctx, u, opts)
+	if err != nil {
+		return nil, fmt.Errorf("download source image: %w", err)
+	}
+	return result.Data, nil
 }

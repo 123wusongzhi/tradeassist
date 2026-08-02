@@ -19,6 +19,7 @@ const (
 // AITask records one AI invocation (audit + observability).
 type AITask struct {
 	model.HardDeleteBase
+	TenantID       int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskType       string         `gorm:"size:64;index;not null" json:"taskType"`
 	Provider       string         `gorm:"size:64" json:"provider"`
 	Model          string         `gorm:"size:128" json:"model"`

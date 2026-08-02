@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
 import { Result } from 'antd';
 import { usePermission } from '@/hooks/usePermission';
-import { PERMISSION_DENIED_MESSAGE, type PermissionKey } from '@/utils/permission';
+import { PERMISSION_DENIED_MESSAGE, ROLES, type PermissionKey } from '@/utils/permission';
 
 type Props = {
   require?: PermissionKey;
   requireWrite?: PermissionKey;
+  requireGlobalAdmin?: boolean;
   children: ReactNode;
   fallback?: ReactNode;
   showForbiddenPage?: boolean;
@@ -14,14 +15,21 @@ type Props = {
 export default function PermissionGuard({
   require,
   requireWrite,
+  requireGlobalAdmin,
   children,
   fallback,
   showForbiddenPage,
 }: Props) {
-  const { can, readonly } = usePermission();
+  const { can, readonly, role } = usePermission();
   const perm = requireWrite || require;
-  if (!perm) {
+  if (!perm && !requireGlobalAdmin) {
     return <>{children}</>;
+  }
+  if (requireGlobalAdmin && role !== ROLES.ADMIN) {
+    if (showForbiddenPage) {
+      return <Result status="403" title="无权限" subTitle={PERMISSION_DENIED_MESSAGE} />;
+    }
+    return <>{fallback ?? null}</>;
   }
   if (readonly && requireWrite) {
     if (showForbiddenPage) {

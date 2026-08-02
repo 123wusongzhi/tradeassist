@@ -36,6 +36,7 @@ type AuthConfig struct {
 	JWTPreviousKeyID             string
 	JWTPreviousSecret            string
 	JWTRotationGraceMinutes      int
+	JWTRotationStartedAt         string
 	AppMasterActiveKeyID         string
 	AppMasterActiveKey           string
 	AppMasterPreviousKeys        string
@@ -112,11 +113,10 @@ func (c *Config) AuthPasswordMinLength() int {
 func loadAuthConfig(appEnv string) AuthConfig {
 	mode := strings.TrimSpace(os.Getenv("AUTH_SESSION_MODE"))
 	if mode == "" {
-		if IsStagingOrProduction(appEnv) {
-			mode = AuthSessionModeSecure
-		} else {
-			mode = AuthSessionModeLegacy
-		}
+		// Secure server-side sessions are the safe default in every environment.
+		// Legacy local-storage transport remains available only when a developer
+		// opts in explicitly, and is still forbidden in staging/production.
+		mode = AuthSessionModeSecure
 	}
 	return AuthConfig{
 		SessionMode:                  mode,
@@ -137,6 +137,7 @@ func loadAuthConfig(appEnv string) AuthConfig {
 		JWTPreviousKeyID:             strings.TrimSpace(os.Getenv("JWT_PREVIOUS_KEY_ID")),
 		JWTPreviousSecret:            strings.TrimSpace(os.Getenv("JWT_PREVIOUS_SECRET")),
 		JWTRotationGraceMinutes:      atoiOrDefault(os.Getenv("JWT_ROTATION_GRACE_MINUTES"), 60),
+		JWTRotationStartedAt:         strings.TrimSpace(os.Getenv("JWT_ROTATION_STARTED_AT")),
 		AppMasterActiveKeyID:         strings.TrimSpace(os.Getenv("APP_MASTER_ACTIVE_KEY_ID")),
 		AppMasterActiveKey:           strings.TrimSpace(os.Getenv("APP_MASTER_ACTIVE_KEY")),
 		AppMasterPreviousKeys:        strings.TrimSpace(os.Getenv("APP_MASTER_PREVIOUS_KEYS")),
@@ -152,8 +153,20 @@ func (c *Config) validateAuthSecurity() error {
 	if c == nil {
 		return nil
 	}
+	// Load normalizes an empty value to the environment default. Keep Validate
+	// equally safe for programmatically-built Config values used by tests and
+	// embedders, but reject every non-enumerated value instead of silently
+	// falling into the legacy path.
+	mode := strings.TrimSpace(c.Auth.SessionMode)
+	if mode == "" {
+		mode = AuthSessionModeSecure
+		c.Auth.SessionMode = mode
+	}
+	if mode != AuthSessionModeSecure && mode != AuthSessionModeLegacy {
+		return fmt.Errorf("%s: AUTH_SESSION_MODE must be %q or %q", ErrCodeInsecureAuthConfig, AuthSessionModeSecure, AuthSessionModeLegacy)
+	}
 	if IsStagingOrProduction(c.AppEnv) {
-		if c.Auth.SessionMode == AuthSessionModeLegacy {
+		if mode == AuthSessionModeLegacy {
 			return fmt.Errorf("%s: AUTH_SESSION_MODE=legacy_local_storage forbidden in staging/production", ErrCodeInsecureLegacyAuthForbidden)
 		}
 		if !c.Auth.SecureCookie {
@@ -161,6 +174,24 @@ func (c *Config) validateAuthSecurity() error {
 		}
 		if c.Auth.AccessTokenTTLMinutes <= 0 || c.Auth.AccessTokenTTLMinutes > 24*60 {
 			return fmt.Errorf("%s: AUTH_ACCESS_TOKEN_TTL_MINUTES must be between 1 and 1440", ErrCodeInsecureAuthConfig)
+		}
+		activeSecret := strings.TrimSpace(c.Auth.JWTActiveSecret)
+		if activeSecret == "" {
+			activeSecret = strings.TrimSpace(c.JWTSecret)
+		}
+		if isInsecureSecret(activeSecret) {
+			return fmt.Errorf("%s: effective JWT signing key must be a strong unique value", ErrCodeKeyringConfigInvalid)
+		}
+		previousKeyID := strings.TrimSpace(c.Auth.JWTPreviousKeyID)
+		previousSecret := strings.TrimSpace(c.Auth.JWTPreviousSecret)
+		if previousKeyID != "" && previousSecret != "" && c.Auth.JWTRotationGraceMinutes > 0 && isInsecureSecret(previousSecret) {
+			return fmt.Errorf("%s: previous JWT verification key must be a strong unique value", ErrCodeKeyringConfigInvalid)
+		}
+		if previousKeyID != "" && previousSecret != "" && c.Auth.JWTRotationGraceMinutes > 0 {
+			started, err := time.Parse(time.RFC3339, strings.TrimSpace(c.Auth.JWTRotationStartedAt))
+			if err != nil || !strings.HasSuffix(strings.TrimSpace(c.Auth.JWTRotationStartedAt), "Z") || started.After(time.Now().UTC()) {
+				return fmt.Errorf("%s: JWT_ROTATION_STARTED_AT must be a non-future RFC3339 UTC timestamp when a previous JWT key is configured", ErrCodeKeyringConfigInvalid)
+			}
 		}
 	}
 	activeKey := strings.TrimSpace(c.Auth.AppMasterActiveKey)

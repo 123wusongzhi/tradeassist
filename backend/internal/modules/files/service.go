@@ -3,6 +3,7 @@ package files
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -11,6 +12,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -20,6 +22,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/filescanner"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/metrics"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
@@ -30,12 +33,17 @@ import (
 
 // Service handles uploads and file metadata.
 type Service struct {
-	DB       *gorm.DB
-	Redis    *rdb.Client
-	Settings *settings.Service
-	MaxBytes int64
-	Metrics  *metrics.Catalog
+	DB        *gorm.DB
+	Redis     *rdb.Client
+	Settings  *settings.Service
+	MaxBytes  int64
+	Metrics   *metrics.Catalog
+	scanQueue scanQueue
 }
+
+// Storage is configured as a system-wide integration in the Admin settings UI.
+// Tenant identity scopes metadata and object keys, not the provider credentials.
+const globalStorageSettingsTenantID int64 = 0
 
 // UploadResult is returned to the HTTP layer after a successful upload.
 type UploadResult struct {
@@ -106,7 +114,7 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		return nil, err
 	}
 
-	plain, err := s.Settings.PlainByGroup(reqCtx, 0, "storage")
+	plain, err := s.Settings.PlainByGroup(reqCtx, globalStorageSettingsTenantID, "storage")
 	if err != nil {
 		return nil, err
 	}
@@ -114,9 +122,12 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 	if err != nil {
 		return nil, err
 	}
+	if err := requirePrivateQuarantineStorage(kind, plain); err != nil {
+		return nil, err
+	}
 
 	day := time.Now().UTC().Format("2006/01/02")
-	objKey := fmt.Sprintf("t%d/%s/%s%s", tid, day, uuid.NewString(), ext)
+	objKey := fmt.Sprintf("quarantine/t%d/%s/%s%s", tid, day, uuid.NewString(), ext)
 	if strings.Contains(objKey, "..") {
 		return nil, fmt.Errorf("invalid object key")
 	}
@@ -124,17 +135,12 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 	if err := prov.Put(reqCtx, objKey, bytes.NewReader(data), int64(len(data)), ct); err != nil {
 		return nil, err
 	}
-	pubURL, err := prov.GetURL(reqCtx, objKey)
-	if err != nil {
-		_ = prov.Delete(reqCtx, objKey)
-		return nil, err
-	}
 
 	row := &FileRecord{
 		TenantID:       tid,
 		OriginalName:   strings.TrimSpace(originalName),
 		ObjectKey:      objKey,
-		PublicURL:      pubURL,
+		PublicURL:      "",
 		ContentType:    ct,
 		Size:           int64(len(data)),
 		StorageKind:    kind,
@@ -146,20 +152,44 @@ func (s *Service) Upload(c *gin.Context, originalName string, r io.Reader) (*Upl
 		_ = prov.Delete(reqCtx, objKey)
 		return nil, err
 	}
-	_ = s.EnqueueSecurityScan(reqCtx, tid, row.ID)
+	if err := s.EnqueueSecurityScan(reqCtx, tid, row.ID); err != nil {
+		dbErr := s.DB.WithContext(reqCtx).Delete(&FileRecord{}, "id = ?", row.ID).Error
+		objectErr := prov.Delete(reqCtx, objKey)
+		return nil, fmt.Errorf("files: enqueue security scan: %w", errors.Join(err, dbErr, objectErr))
+	}
 
 	return &UploadResult{
 		ID:          row.ID.String(),
 		Filename:    row.OriginalName,
 		ObjectKey:   row.ObjectKey,
-		URL:         row.PublicURL,
+		URL:         "",
 		ContentType: row.ContentType,
 		Size:        row.Size,
 	}, nil
 }
 
+// The current storage Provider abstraction has one namespace per provider. A
+// public object-store/CDN namespace cannot safely hold pending objects: callers
+// could construct public_base/quarantine/<key> outside the /static gate.
+// Local storage is safe only when callers use the same-origin /static route,
+// where StaticHandler authorizes every read by status. A direct local/CDN
+// public_base would expose the returned quarantine object key.
+// Remote quarantine requires a separate private provider/bucket adapter.
+func requirePrivateQuarantineStorage(kind string, plain map[string]string) error {
+	if !strings.EqualFold(strings.TrimSpace(kind), "local") {
+		return fmt.Errorf("files: remote public storage cannot be used for quarantine without a private storage provider")
+	}
+	publicBase := strings.TrimRight(strings.TrimSpace(plain["public_base"]), "/")
+	if publicBase == "" || publicBase == "/static" {
+		return nil
+	}
+	return fmt.Errorf("files: local quarantine requires public_base=/static so reads pass through the security-status gate")
+}
+
 // SaveProcessedOpts writes arbitrary bytes via the configured Storage Provider (e.g. AI pipeline output).
 type SaveProcessedOpts struct {
+	TenantID     int64
+	SourceFileID uuid.UUID
 	OriginalName string
 	ObjectKey    string
 	Data         []byte
@@ -169,8 +199,28 @@ type SaveProcessedOpts struct {
 
 // SaveProcessed stores bytes under ObjectKey and persists a files row (same path as multipart Upload).
 func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*FileRecord, error) {
+	return s.saveProcessed(ctx, opts)
+}
+
+// SaveUntrustedProcessed persists internally-produced or remotely-fetched bytes
+// without asserting a clean source file. It is deliberately not exported by an
+// HTTP handler; bytes are synchronously scanned before publication.
+func (s *Service) SaveUntrustedProcessed(ctx context.Context, opts SaveProcessedOpts) (*FileRecord, error) {
+	return s.saveProcessed(ctx, opts)
+}
+
+func (s *Service) saveProcessed(ctx context.Context, opts SaveProcessedOpts) (*FileRecord, error) {
 	if s == nil || s.DB == nil || s.Settings == nil {
 		return nil, fmt.Errorf("files: misconfigured")
+	}
+	if opts.TenantID <= 0 {
+		return nil, fmt.Errorf("files: tenant is required")
+	}
+	if opts.SourceFileID != uuid.Nil {
+		var source FileRecord
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ? AND security_status = ?", opts.SourceFileID, opts.TenantID, SecurityClean).First(&source).Error; err != nil {
+			return nil, fmt.Errorf("files: clean source file not found: %w", err)
+		}
 	}
 	max := s.MaxBytes
 	if max <= 0 {
@@ -187,12 +237,18 @@ func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*F
 	if objKey == "" {
 		return nil, fmt.Errorf("objectKey required")
 	}
+	if strings.HasPrefix(objKey, "quarantine/") || strings.Contains(objKey, "..") {
+		return nil, fmt.Errorf("invalid processed object key")
+	}
 	ct := strings.TrimSpace(opts.ContentType)
 	if ct == "" {
 		ct = http.DetectContentType(data)
 	}
+	if err := scanProcessedBytes(ctx, opts.TenantID, objKey, ct, data, max); err != nil {
+		return nil, err
+	}
 
-	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	plain, err := s.Settings.PlainByGroup(ctx, globalStorageSettingsTenantID, "storage")
 	if err != nil {
 		return nil, err
 	}
@@ -209,21 +265,48 @@ func (s *Service) SaveProcessed(ctx context.Context, opts SaveProcessedOpts) (*F
 		_ = prov.Delete(ctx, objKey)
 		return nil, err
 	}
-
 	row := &FileRecord{
-		OriginalName: strings.TrimSpace(opts.OriginalName),
-		ObjectKey:    objKey,
-		PublicURL:    pubURL,
-		ContentType:  ct,
-		Size:         int64(len(data)),
-		StorageKind:  kind,
-		CreatedBy:    opts.CreatedBy,
+		TenantID:       opts.TenantID,
+		OriginalName:   strings.TrimSpace(opts.OriginalName),
+		ObjectKey:      objKey,
+		PublicURL:      pubURL,
+		ContentType:    ct,
+		Size:           int64(len(data)),
+		StorageKind:    kind,
+		SecurityStatus: SecurityClean,
+		ScanStatus:     SecurityClean,
+		CreatedBy:      opts.CreatedBy,
 	}
 	if err := s.DB.WithContext(ctx).Create(row).Error; err != nil {
 		_ = prov.Delete(ctx, objKey)
 		return nil, err
 	}
 	return row, nil
+}
+
+func scanProcessedBytes(ctx context.Context, tenantID int64, key, contentType string, data []byte, max int64) error {
+	f, err := os.CreateTemp("", "tm-processed-scan-*")
+	if err != nil {
+		return err
+	}
+	path := f.Name()
+	defer os.Remove(path)
+	if _, err = f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	sc := filescanner.NewImageDecodeScanner(max, 50_000_000, 8192, 8192, 300)
+	res, err := (&filescanner.CompositeFileScanner{Scanners: []filescanner.FileScanner{&filescanner.BasicFilePolicyScanner{}, sc}}).Scan(ctx, filescanner.ScanInput{TenantID: tenantID, ObjectKey: key, MimeType: contentType, Size: int64(len(data)), LocalTempPath: path})
+	if err != nil {
+		return fmt.Errorf("files: processed scan: %w", err)
+	}
+	if res.Status != filescanner.ResultClean {
+		return fmt.Errorf("files: processed scan rejected: %s", res.ReasonCode)
+	}
+	return nil
 }
 
 func extForContentType(ct string) (string, bool) {
@@ -377,7 +460,7 @@ func (s *Service) DeleteRecordByTenant(c *gin.Context, id uuid.UUID) error {
 }
 
 func (s *Service) deleteRecord(ctx context.Context, row *FileRecord) error {
-	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	plain, err := s.Settings.PlainByGroup(ctx, globalStorageSettingsTenantID, "storage")
 	if err != nil {
 		return err
 	}
@@ -397,7 +480,7 @@ func (s *Service) DeleteStorageObject(ctx context.Context, objectKey string) err
 	if s == nil || s.Settings == nil || objectKey == "" {
 		return nil
 	}
-	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	plain, err := s.Settings.PlainByGroup(ctx, globalStorageSettingsTenantID, "storage")
 	if err != nil {
 		return err
 	}

@@ -5,6 +5,8 @@ import { getCustomProfileUserDataDir } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { sanitizeProfileKey } from './profile-key.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { installPublicNetworkGuard } from '../security/public-url.js';
+import { pinnedBrowserProxy, pinnedChromiumArgs } from '../security/pinned-browser-network.js';
 
 function persistentContextOptions(headless: boolean) {
   return {
@@ -13,7 +15,7 @@ function persistentContextOptions(headless: boolean) {
     userAgent:
       process.env.COLLECTOR_USER_AGENT ??
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    args: ['--disable-blink-features=AutomationControlled'],
+    args: pinnedChromiumArgs(['--disable-blink-features=AutomationControlled']),
     viewport: { width: 1280, height: 800 },
   };
 }
@@ -59,10 +61,12 @@ export class CustomProfileSessionManager {
     }
 
     const userDataDir = getCustomProfileUserDataDir(key);
+    const proxy = await pinnedBrowserProxy();
     const context = await chromium.launchPersistentContext(
       userDataDir,
-      persistentContextOptions(wantHeadless),
+      { ...persistentContextOptions(wantHeadless), proxy },
     );
+    await installPublicNetworkGuard(context);
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const timeout = getDefaultNavigationTimeoutMs();
     context.setDefaultNavigationTimeout(timeout);

@@ -20,11 +20,19 @@ type douyinBridge struct {
 }
 
 func (b douyinBridge) PersistOAuthTokenRefresh(ctx context.Context, shopID uuid.UUID, access, refresh string, accessExp, refreshExp *time.Time) error {
-	return b.svc.persistOAuthTokenRefresh(ctx, shopID, access, refresh, accessExp, refreshExp)
+	tenantID, err := trustedBridgeTenant(ctx)
+	if err != nil {
+		return err
+	}
+	return b.svc.persistOAuthTokenRefresh(ctx, tenantID, shopID, access, refresh, accessExp, refreshExp)
 }
 
 func (b douyinBridge) SetShopAuthStatus(ctx context.Context, shopID uuid.UUID, status string) error {
-	return b.svc.setAuthStatusCtx(ctx, shopID, status)
+	tenantID, err := trustedBridgeTenant(ctx)
+	if err != nil {
+		return err
+	}
+	return b.svc.setAuthStatusCtx(ctx, tenantID, shopID, status)
 }
 
 func (b douyinBridge) DouyinGlobalSettings(ctx context.Context) (map[string]string, error) {

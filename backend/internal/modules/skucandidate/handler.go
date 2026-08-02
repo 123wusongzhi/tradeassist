@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
 
@@ -33,7 +34,12 @@ func (h *Handler) GetByItem(c *gin.Context) {
 	}
 	inc := strings.EqualFold(strings.TrimSpace(c.Query("includeLowConfidence")), "true")
 
-	dto, err := h.Svc.SuggestForOrderItem(c.Request.Context(), iid, SuggestOpts{
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, err.Error())
+		return
+	}
+	dto, err := h.Svc.SuggestForOrderItem(requestTenantContext(c.Request.Context(), tenantID), iid, SuggestOpts{
 		Limit:                limit,
 		IncludeLowConfidence: inc,
 	})
@@ -73,7 +79,12 @@ func (h *Handler) PostBatch(c *gin.Context) {
 		body.Limit = 20
 	}
 
-	dto, err := h.Svc.BatchForOrder(c.Request.Context(), oid, body)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusUnauthorized, response.CodeUnauthorized, err.Error())
+		return
+	}
+	dto, err := h.Svc.BatchForOrder(requestTenantContext(c.Request.Context(), tenantID), oid, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

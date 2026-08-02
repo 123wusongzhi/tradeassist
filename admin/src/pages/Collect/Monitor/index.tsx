@@ -8,6 +8,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { COLLECT_BATCH_STATUS, COLLECT_TASK_STATUS } from '@/constants/status';
 import { CollectTaskEventDrawer } from '@/pages/Collect/components/CollectTaskEventDrawer';
 import { type CollectMonitorData, getCollectMonitor } from '@/services/collectMonitor';
+import PermissionGuard from '@/components/PermissionGuard';
+import { PERMISSIONS } from '@/utils/permission';
 
 const POLL_MS = 5000;
 
@@ -21,7 +23,7 @@ function sumBatches(b: CollectMonitorData['batches']) {
   return b.running + b.partialSuccess + b.success + b.failed + b.cancelled;
 }
 
-export default function CollectMonitorPage() {
+function CollectMonitorPageContent() {
   const [data, setData] = useState<CollectMonitorData | null>(null);
   const [eventDrawerOpen, setEventDrawerOpen] = useState(false);
   const [eventDrawerTaskId, setEventDrawerTaskId] = useState<string | null>(null);
@@ -386,5 +388,13 @@ export default function CollectMonitorPage() {
         }}
       />
     </TmPageContainer>
+  );
+}
+
+export default function CollectMonitorPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <CollectMonitorPageContent />
+    </PermissionGuard>
   );
 }

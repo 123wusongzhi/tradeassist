@@ -36,6 +36,8 @@ import {
 } from './browser-paths.js';
 import { PAGE_EVALUATE_POLYFILL } from './evaluate-in-page.js';
 import { getBrowserHeadless, getDefaultNavigationTimeoutMs } from '../config/env.js';
+import { installPublicNetworkGuard } from '../security/public-url.js';
+import { pinnedBrowserProxy, pinnedChromiumArgs } from '../security/pinned-browser-network.js';
 
 const PROVIDER_1688 = '1688';
 const PROVIDER_PINDUODUO = 'pinduoduo';
@@ -77,7 +79,7 @@ function persistentContextOptions(headless: boolean, provider: string = PROVIDER
       locale: 'zh-CN' as const,
       userAgent: defaultUserAgent(),
       args: [
-        '--disable-blink-features=AutomationControlled',
+        ...pinnedChromiumArgs(['--disable-blink-features=AutomationControlled']),
         `--window-size=${PDD_LOGIN_VIEWPORT.width},${PDD_LOGIN_VIEWPORT.height}`,
       ],
       viewport: PDD_LOGIN_VIEWPORT,
@@ -87,7 +89,7 @@ function persistentContextOptions(headless: boolean, provider: string = PROVIDER
     headless,
     locale: 'zh-CN' as const,
     userAgent: defaultUserAgent(),
-    args: ['--disable-blink-features=AutomationControlled'],
+    args: pinnedChromiumArgs(['--disable-blink-features=AutomationControlled']),
     viewport: { width: 1280, height: 800 },
   };
 }
@@ -155,11 +157,13 @@ export class BrowserSessionManager {
 
     ensureBrowserDataDirs();
     const userDataDir = this.providerUserDataDir(provider);
+    const proxy = await pinnedBrowserProxy();
 
     const context = await chromium.launchPersistentContext(
       userDataDir,
-      persistentContextOptions(wantHeadless, provider),
+      { ...persistentContextOptions(wantHeadless, provider), proxy },
     );
+    await installPublicNetworkGuard(context);
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     context.setDefaultNavigationTimeout(getDefaultNavigationTimeoutMs());
     context.setDefaultTimeout(getDefaultNavigationTimeoutMs());

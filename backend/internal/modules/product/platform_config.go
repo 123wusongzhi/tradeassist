@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,6 +20,9 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		return nil, fmt.Errorf("product: no db")
 	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return nil, err
+	}
 	var row ProductPlatformPublishConfig
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("product_id = ? AND platform = ?", productID, plat).
@@ -39,8 +43,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if plat != "douyin_shop" {
 		return nil, fmt.Errorf("platform config is currently supported for douyin_shop only")
 	}
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&p, "id = ?", productID).Error; err != nil {
+	if _, err := s.findTenantProduct(c, productID); err != nil {
 		return nil, err
 	}
 	var shopID *uuid.UUID
@@ -50,6 +53,9 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			return nil, fmt.Errorf("invalid shopId")
 		}
 		shopID = &u
+		if err := s.requireDouyinShopOperate(c, u); err != nil {
+			return nil, err
+		}
 	}
 	cid := strings.TrimSpace(body.CategoryID)
 	if cid != "" {
@@ -109,6 +115,24 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		})
 	}
 	return platformConfigDTO(row), nil
+}
+
+func (s *Service) requireDouyinShopOperate(c *gin.Context, shopID uuid.UUID) error {
+	if shopID == uuid.Nil {
+		return fmt.Errorf("invalid shopId")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return err
+	}
+	var row shop.Shop
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
+		return err
+	}
+	if !adminperm.RequireStoreOperate(c, s.DB, shopID) {
+		return fmt.Errorf("store operation is not permitted")
+	}
+	return nil
 }
 
 func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigDTO {

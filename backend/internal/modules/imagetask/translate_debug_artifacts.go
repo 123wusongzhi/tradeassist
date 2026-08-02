@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 )
 
@@ -18,13 +19,24 @@ func (s *Service) uploadTranslateDebugPNG(
 		return "", ""
 	}
 	objKey := fmt.Sprintf("ai-image/debug/%s/%s", task.ID.String(), filename)
-	fr, err := s.Files.SaveProcessed(ctx, files.SaveProcessedOpts{
+	opts := files.SaveProcessedOpts{
+		TenantID:     s.persistTenantID(ctx, task),
 		OriginalName: filename,
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  "image/png",
 		CreatedBy:    task.CreatedBy,
-	})
+	}
+	if task.SourceImageID != nil && s.isCleanSourceFile(ctx, opts.TenantID, *task.SourceImageID) {
+		opts.SourceFileID = *task.SourceImageID
+	}
+	var fr *files.FileRecord
+	var err error
+	if opts.SourceFileID != uuid.Nil {
+		fr, err = s.Files.SaveProcessed(ctx, opts)
+	} else {
+		fr, err = s.Files.SaveUntrustedProcessed(ctx, opts)
+	}
 	if err != nil {
 		return "", ""
 	}

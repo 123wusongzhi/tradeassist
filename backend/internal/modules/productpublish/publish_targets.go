@@ -17,6 +17,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/productcheck"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/opslabels"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
@@ -148,12 +149,15 @@ func publishTargetKey(platform string, shopID *uuid.UUID) string {
 }
 
 // ListPublishTargets returns platforms/shops available for publishing one product.
-func (s *Service) ListPublishTargets(ctx context.Context, productID uuid.UUID) (*PublishTargetsResponse, error) {
+func (s *Service) ListPublishTargets(c *gin.Context, tenantID int64, productID uuid.UUID) (*PublishTargetsResponse, error) {
 	if s == nil || s.DB == nil || s.Shops == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
-	if _, err := s.loadProductForPublish(ctx, productID); err != nil {
-		return nil, err
+	ctx := c.Request.Context()
+	if productID != uuid.Nil {
+		if _, err := s.productForTenant(ctx, tenantID, productID); err != nil {
+			return nil, err
+		}
 	}
 
 	providers := platformp.All()
@@ -162,7 +166,15 @@ func (s *Service) ListPublishTargets(ctx context.Context, productID uuid.UUID) (
 	})
 
 	var shops []shop.Shop
-	_ = s.DB.WithContext(ctx).Where("status <> ?", shop.StatusDisabled).Order("platform ASC, shop_name ASC").Find(&shops).Error
+	shopQuery := s.DB.WithContext(ctx).Where("tenant_id = ? AND status <> ?", tenantID, shop.StatusDisabled)
+	if scoped, err := adminperm.ApplyStoreScope(c, s.DB, shopQuery, "id"); err != nil {
+		return nil, err
+	} else {
+		shopQuery = scoped
+	}
+	if err := shopQuery.Order("platform ASC, shop_name ASC").Find(&shops).Error; err != nil {
+		return nil, err
+	}
 	shopsByPlat := map[string][]shop.Shop{}
 	for _, sh := range shops {
 		plat := strings.TrimSpace(strings.ToLower(sh.Platform))
@@ -285,21 +297,21 @@ func partnerConfigLooksComplete(m map[string]string, sch platformp.PlatformAppCo
 }
 
 // CheckPublishTargets runs independent readiness checks per target (no side effects).
-func (s *Service) CheckPublishTargets(ctx context.Context, productID uuid.UUID, req PublishTargetsCheckRequest) (*PublishTargetsCheckResponse, error) {
+func (s *Service) CheckPublishTargets(ctx context.Context, tenantID int64, productID uuid.UUID, req PublishTargetsCheckRequest) (*PublishTargetsCheckResponse, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	if len(req.Targets) == 0 {
 		return nil, fmt.Errorf("targets required")
 	}
-	if _, err := s.loadProductForPublish(ctx, productID); err != nil {
+	if _, err := s.productForTenant(ctx, tenantID, productID); err != nil {
 		return nil, err
 	}
 
 	targets := make([]PublishTargetCheckResult, 0, len(req.Targets))
 	var readyN, warnN, blockedN int
 	for _, t := range req.Targets {
-		res := s.checkOnePublishTarget(ctx, productID, t)
+		res := s.checkOnePublishTarget(ctx, tenantID, productID, t)
 		targets = append(targets, res)
 		switch res.Status {
 		case statusReady:
@@ -327,7 +339,7 @@ const (
 	statusBlocked = "blocked"
 )
 
-func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID, t PublishTargetRef) PublishTargetCheckResult {
+func (s *Service) checkOnePublishTarget(ctx context.Context, tenantID int64, productID uuid.UUID, t PublishTargetRef) PublishTargetCheckResult {
 	plat := strings.TrimSpace(strings.ToLower(t.Platform))
 	var sid *uuid.UUID
 	shopName := ""
@@ -336,7 +348,7 @@ func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID
 		if u, err := uuid.Parse(strings.TrimSpace(*t.ShopID)); err == nil {
 			sid = &u
 			if s.Shops != nil {
-				if row, _, err := s.Shops.PlainAuthForProviderCtx(ctx, u); err == nil && row != nil {
+				if row, _, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, u); err == nil && row != nil {
 					shopName = strings.TrimSpace(row.ShopName)
 					if strings.TrimSpace(strings.ToLower(row.AuthStatus)) != shop.AuthAuthorized {
 						return blockedTargetResult(plat, sid, shopName, capability, []PublishTargetIssue{
@@ -370,6 +382,7 @@ func (s *Service) checkOnePublishTarget(ctx context.Context, productID uuid.UUID
 
 	if s.Readiness != nil {
 		rreq := productcheck.CheckProductReadinessRequest{
+			TenantID:  tenantID,
 			ProductID: productID,
 			Mode:      "publish",
 		}
@@ -519,9 +532,16 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	targets := req.Targets
 	if req.RetryFailedOnly && strings.TrimSpace(req.BatchID) != "" {
-		retryTargets, err := s.failedTargetsFromBatch(ctx, req.BatchID)
+		retryTargets, err := s.failedTargetsFromBatch(ctx, tenantID, productID, req.BatchID)
 		if err != nil {
 			return nil, err
 		}
@@ -533,8 +553,14 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	if len(targets) == 0 {
 		return nil, fmt.Errorf("targets required")
 	}
+	if err := requireTargetStoreOperate(c, s.DB, targets); err != nil {
+		return nil, err
+	}
 
-	checkRes, err := s.CheckPublishTargets(ctx, productID, PublishTargetsCheckRequest{Targets: targets})
+	if _, err := s.productForTenant(ctx, tenantID, productID); err != nil {
+		return nil, err
+	}
+	checkRes, err := s.CheckPublishTargets(ctx, tenantID, productID, PublishTargetsCheckRequest{Targets: targets})
 	if err != nil {
 		return nil, err
 	}
@@ -546,6 +572,7 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	inRaw, _ := json.Marshal(req)
 	pid := productID
 	batch := ProductPublishBatch{
+		TenantID:    tenantID,
 		BatchType:   BatchTypeSingleProduct,
 		ProductID:   &pid,
 		Status:      BatchRunning,
@@ -664,6 +691,22 @@ func (s *Service) CreateDraftsForTargets(c *gin.Context, productID uuid.UUID, re
 	}, nil
 }
 
+func requireTargetStoreOperate(c *gin.Context, db *gorm.DB, targets []PublishTargetRef) error {
+	for _, target := range targets {
+		if target.ShopID == nil || strings.TrimSpace(*target.ShopID) == "" {
+			continue
+		}
+		shopID, err := uuid.Parse(strings.TrimSpace(*target.ShopID))
+		if err != nil || shopID == uuid.Nil {
+			return fmt.Errorf("invalid shopId")
+		}
+		if !adminperm.RequireStoreOperate(c, db, shopID) {
+			return fmt.Errorf("store operate permission required")
+		}
+	}
+	return nil
+}
+
 func (s *Service) createDouyinDraftForTarget(c *gin.Context, productID, shopID, batchID uuid.UUID, adminID *uuid.UUID, force bool, chk PublishTargetCheckResult) PublishTargetTaskResult {
 	key := publishTargetKey("douyin_shop", &shopID)
 	base := PublishTargetTaskResult{
@@ -743,6 +786,7 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 
 	fin := time.Now().UTC()
 	pubRow := ProductPublication{
+		TenantID:      prod.TenantID,
 		ProductID:     productID,
 		ShopID:        *sid,
 		Platform:      plat,
@@ -774,6 +818,7 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 
 	outSnap, _ := json.Marshal(snap)
 	task := ProductPublishTask{
+		TenantID:      prod.TenantID,
 		ProductID:     productID,
 		ShopID:        *sid,
 		TargetStoreID: *sid,
@@ -807,13 +852,20 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 	return res
 }
 
-func (s *Service) failedTargetsFromBatch(ctx context.Context, batchID string) ([]PublishTargetRef, error) {
+func (s *Service) failedTargetsFromBatch(ctx context.Context, tenantID int64, productID uuid.UUID, batchID string) ([]PublishTargetRef, error) {
 	bid, err := uuid.Parse(strings.TrimSpace(batchID))
 	if err != nil {
 		return nil, fmt.Errorf("invalid batchId")
 	}
+	var batch ProductPublishBatch
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", bid, tenantID).First(&batch).Error; err != nil {
+		return nil, err
+	}
+	if batch.BatchType != BatchTypeSingleProduct || batch.ProductID == nil || *batch.ProductID != productID {
+		return nil, fmt.Errorf("batch does not belong to product")
+	}
 	var tasks []ProductPublishTask
-	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND status = ?", bid, TaskFailed).Find(&tasks).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Where("batch_id = ? AND tenant_id = ? AND status = ?", bid, tenantID, TaskFailed).Find(&tasks).Error; err != nil {
 		return nil, err
 	}
 	out := make([]PublishTargetRef, 0, len(tasks))
@@ -822,10 +874,6 @@ func (s *Service) failedTargetsFromBatch(ctx context.Context, batchID string) ([
 		out = append(out, PublishTargetRef{Platform: t.Platform, ShopID: &sid})
 	}
 	if len(out) == 0 {
-		var batch ProductPublishBatch
-		if err := s.DB.WithContext(ctx).First(&batch, "id = ?", bid).Error; err != nil {
-			return nil, err
-		}
 		var in PublishTargetsCreateDraftsRequest
 		_ = json.Unmarshal(batch.Input, &in)
 		out = in.Targets
@@ -840,6 +888,11 @@ func (s *Service) GetPublishBatch(ctx context.Context, batchID uuid.UUID) (*Prod
 		return nil, nil, err
 	}
 	var tasks []ProductPublishTask
-	_ = s.DB.WithContext(ctx).Where("batch_id = ?", batchID).Order("created_at ASC").Find(&tasks).Error
+	if err := s.DB.WithContext(ctx).
+		Where("batch_id = ? AND tenant_id = ?", batchID, batch.TenantID).
+		Order("created_at ASC").
+		Find(&tasks).Error; err != nil {
+		return nil, nil, err
+	}
 	return &batch, tasks, nil
 }

@@ -47,11 +47,16 @@ func (s *Service) List(c *gin.Context, q ListQuery) (*ListResult, error) {
 	if ps > 100 {
 		ps = 100
 	}
+	tenantID, err := requestTenantID(c)
+	if err != nil {
+		return nil, err
+	}
 
 	tx := s.DB.WithContext(c.Request.Context()).Model(&ImageTask{}).
-		Select("id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
+		Select("id", "tenant_id", "task_type", "provider", "status", "product_id", "source_image_id", "source_image_url",
 			"batch_id", "batch_no", "result_file_id", "result_url", "error_message", "retry_count", "max_retries", "next_retry_at", "retry_enqueued_at",
-			"created_by", "started_at", "finished_at", "created_at", "updated_at")
+			"created_by", "started_at", "finished_at", "created_at", "updated_at").
+		Where("tenant_id = ?", tenantID)
 
 	if v := strings.TrimSpace(q.TaskType); v != "" {
 		tx = tx.Where("task_type = ?", v)

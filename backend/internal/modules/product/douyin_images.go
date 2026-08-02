@@ -106,6 +106,10 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 	if s == nil || s.DB == nil || filesSvc == nil {
 		return nil, fmt.Errorf("product: misconfigured")
 	}
+	product, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return nil, err
+	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
 	defer cancel()
 	m, err := s.GetDouyinDraftMapping(ctx, productID)
@@ -115,6 +119,12 @@ func (s *Service) uploadDouyinImages(c *gin.Context, productID uuid.UUID, body D
 	shopID, err := uuid.Parse(strings.TrimSpace(m.ShopID))
 	if err != nil || shopID == uuid.Nil {
 		return nil, fmt.Errorf("douyin shopId required")
+	}
+	if product.TenantID <= 0 {
+		return nil, fmt.Errorf("product tenant unavailable")
+	}
+	if err := s.requireDouyinShopOperate(c, shopID); err != nil {
+		return nil, err
 	}
 	uploader, err := s.douyinUploaderForShop(c, ctx, shopID, adminID)
 	if err != nil {
@@ -259,9 +269,13 @@ func (s *Service) douyinUploaderForShop(c *gin.Context, ctx context.Context, sho
 }
 
 func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.UUID, img *DouyinDraftImage, adminID *uuid.UUID, filesSvc *files.Service) (*imageUploadSource, error) {
+	var prod Product
+	if err := s.DB.WithContext(ctx).Select("tenant_id").First(&prod, "id = ?", productID).Error; err != nil || prod.TenantID <= 0 {
+		return nil, imageCodeErr{code: StorageUploadFailed, msg: "product tenant unavailable"}
+	}
 	key := firstNonEmpty(img.StorageKey, img.ObjectKey)
 	if key != "" {
-		return s.readStorageDouyinImage(ctx, key, img)
+		return s.readStorageDouyinImage(ctx, prod.TenantID, key, img)
 	}
 	rawURL := firstNonEmpty(img.SourceURL, img.OriginURL, img.URL, img.PublicURL)
 	if rawURL == "" || strings.HasPrefix(strings.ToLower(strings.TrimSpace(rawURL)), "data:") {
@@ -276,7 +290,8 @@ func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.U
 		return nil, err
 	}
 	objKey := fmt.Sprintf("%s/douyin-sync-%s%s", time.Now().UTC().Format("2006/01/02"), randHex(8), ext)
-	rec, err := filesSvc.SaveProcessed(ctx, files.SaveProcessedOpts{
+	rec, err := filesSvc.SaveUntrustedProcessed(ctx, files.SaveProcessedOpts{
+		TenantID:     prod.TenantID,
 		OriginalName: filepath.Base(strings.Split(rawURL, "?")[0]),
 		ObjectKey:    objKey,
 		Data:         data,
@@ -297,12 +312,23 @@ func (s *Service) resolveDouyinImageSource(ctx context.Context, productID uuid.U
 	return &imageUploadSource{Data: data, FileName: rec.OriginalName, MimeType: mimeType, StorageURL: rec.PublicURL, StorageKey: rec.ObjectKey, SourceURL: rawURL}, nil
 }
 
-func (s *Service) readStorageDouyinImage(ctx context.Context, key string, img *DouyinDraftImage) (*imageUploadSource, error) {
+func (s *Service) readStorageDouyinImage(ctx context.Context, tenantID int64, key string, img *DouyinDraftImage) (*imageUploadSource, error) {
+	if tenantID <= 0 {
+		return nil, imageCodeErr{code: ImageReadFailed, msg: "image tenant unavailable"}
+	}
+	var record files.FileRecord
+	if err := s.DB.WithContext(ctx).
+		Where("tenant_id = ? AND object_key = ? AND security_status = ?", tenantID, key, files.SecurityClean).
+		First(&record).Error; err != nil {
+		return nil, imageCodeErr{code: ImageReadFailed, msg: "clean tenant image not found"}
+	}
+	// Storage provider credentials are a system-wide integration (tenant 0);
+	// tenantID above authorizes the file metadata row and object key.
 	plain, err := s.Settings.PlainByGroup(ctx, 0, "storage")
 	if err != nil {
 		return nil, imageCodeErr{code: ImageReadFailed, msg: err.Error()}
 	}
-	prov, _, err := storage.NewFromPlain(plain)
+	prov, _, err := storage.NewFromPlainForStoredKind(plain, record.StorageKind)
 	if err != nil {
 		return nil, imageCodeErr{code: ImageReadFailed, msg: err.Error()}
 	}
@@ -319,7 +345,10 @@ func (s *Service) readStorageDouyinImage(ctx context.Context, key string, img *D
 	if err != nil {
 		return nil, err
 	}
-	pubURL := strings.TrimSpace(img.StorageURL)
+	pubURL := strings.TrimSpace(record.PublicURL)
+	if pubURL == "" {
+		pubURL = strings.TrimSpace(img.StorageURL)
+	}
 	if pubURL == "" {
 		pubURL, _ = prov.GetURL(ctx, key)
 	}

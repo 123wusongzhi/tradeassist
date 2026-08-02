@@ -33,13 +33,43 @@ const manifest = readJSON('docs/p7-v2-r3b-run-manifest.json') || {};
 const runtime = readJSON('docs/p7-v2-runtime-environment.json') || {};
 const issues = [];
 
-function quoteIdent(value) {
-  return `"${String(value).replaceAll('"', '""')}"`;
+function validScopeValue(name, value, pattern) {
+  if (!value) return true;
+  if (pattern.test(value)) return true;
+  issues.push(`invalid ${name} scope`);
+  return false;
+}
+
+validScopeValue('run-id', targetScope.runId, /^[a-z0-9][a-z0-9_-]{0,95}$/i);
+validScopeValue('diagnostic-run-id', targetScope.diagnosticRunId, /^[a-z0-9][a-z0-9_-]{0,95}$/i);
+validScopeValue('database-name', targetScope.databaseName, /^trademind_p7v2_[a-z0-9_]{1,55}$/i);
+validScopeValue('pid', targetScope.pid, /^[1-9][0-9]{0,9}$/);
+if (args.includes('--validate-only')) {
+  if (issues.length) {
+    console.error(`BLOCKED: ${issues[0]}`);
+    process.exit(1);
+  }
+  console.log('PASS: cleanup scope validation (dry-run, no subprocess or SQL execution)');
+  process.exit(0);
+}
+if (issues.length) {
+  // Reject attacker-controlled scope before inventory, listener, or SQL helpers
+  // can start any subprocess. Validation is a hard boundary in every mode.
+  console.error(`BLOCKED: ${issues[0]}`);
+  process.exit(1);
+}
+
+function validDatabaseName(value) {
+  return /^trademind_p7v2_[a-z0-9_]{1,55}$/i.test(String(value || ''));
 }
 
 function psql(sql, timeout = 30000) {
-  const oneLineSql = String(sql).replace(/\s+/g, ' ').trim();
-  return runWSL(`psql -h /var/run/postgresql -U root -d postgres -At -v ON_ERROR_STOP=1 -c ${JSON.stringify(oneLineSql)}`, {
+  // SQL is sent as base64 stdin; no user-controlled value is interpolated into
+  // the shell command line.
+  const encoded = Buffer.from(String(sql), 'utf8').toString('base64');
+  return runWSL(`base64 -d <<'P7_SQL' | psql -h /var/run/postgresql -U root -d postgres -At -v ON_ERROR_STOP=1
+${encoded}
+P7_SQL`, {
     timeout,
     maxBuffer: 10 * 1024 * 1024,
   });
@@ -245,6 +275,10 @@ function executeActions(actions) {
       continue;
     }
     if (action.type === 'terminate_database_connections') {
+      if (!validDatabaseName(action.resourceId)) {
+        issues.push(`refusing unsafe database name ${String(action.resourceId).slice(0, 80)}`);
+        continue;
+      }
       const sql = `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${action.resourceId.replaceAll("'", "''")}' AND pid <> pg_backend_pid();`;
       const res = psql(sql);
       executed.push({
@@ -258,7 +292,12 @@ function executeActions(actions) {
       continue;
     }
     if (action.type === 'drop_database') {
-      const res = psql(`DROP DATABASE IF EXISTS ${quoteIdent(action.resourceId)};`, 60000);
+      if (!validDatabaseName(action.resourceId)) {
+        issues.push(`refusing unsafe database name ${String(action.resourceId).slice(0, 80)}`);
+        continue;
+      }
+      // Name is whitelisted; quote is defense-in-depth for PostgreSQL identifiers.
+      const res = psql(`DROP DATABASE IF EXISTS "${action.resourceId}";`, 60000);
       executed.push({
         ...action,
         startedAt: startedAtAction,

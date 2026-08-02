@@ -231,7 +231,7 @@ func uploadSKUVariationImages(ctx context.Context, cfg RuntimeConfig, shopID int
 		if u == "" {
 			continue
 		}
-		blob, ct, err := fetchListingImageBytes(ctx, platformp.PlatformProductImage{URL: u})
+		blob, ct, err := fetchListingImageBytes(ctx, platformp.PlatformProductImage{TenantID: sku.TenantID, URL: u})
 		if err != nil {
 			return nil, fmt.Errorf("shopee SKU image: %w", err)
 		}

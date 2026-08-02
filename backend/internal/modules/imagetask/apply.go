@@ -38,6 +38,10 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	if task.ProductID == nil || *task.ProductID != opts.ProductID {
 		return nil, fmt.Errorf("productId mismatch")
 	}
+	var targetProduct product.Product
+	if err := s.DB.WithContext(ctx).Select("id").First(&targetProduct, "id = ? AND tenant_id = ?", opts.ProductID, task.TenantID).Error; err != nil {
+		return nil, err
+	}
 
 	imgType := imageTypeFromApplyMode(opts.ApplyMode)
 	var (
@@ -51,7 +55,7 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 
 	if opts.ItemID != nil && *opts.ItemID != uuid.Nil {
 		var item ImageTaskItem
-		if err := s.DB.WithContext(ctx).First(&item, "id = ? AND task_id = ?", *opts.ItemID, opts.TaskID).Error; err != nil {
+		if err := s.DB.WithContext(ctx).First(&item, "id = ? AND task_id = ? AND tenant_id = ?", *opts.ItemID, opts.TaskID, task.TenantID).Error; err != nil {
 			return nil, err
 		}
 		if item.Status != ItemStatusSuccess {
@@ -86,7 +90,7 @@ func (s *Service) ApplyTaskResult(ctx context.Context, opts ApplyItemOpts) (*pro
 	}
 	if storageKey == "" && fileID != nil && s.Files != nil {
 		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).Where("id = ?", *fileID).First(&fr).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", *fileID, task.TenantID).First(&fr).Error; err == nil {
 			storageKey = strings.TrimSpace(fr.ObjectKey)
 		}
 	}

@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -25,6 +27,9 @@ func (s *Service) Create(ctx context.Context, row *AITask) error {
 	if row == nil {
 		return fmt.Errorf("aitask: nil row")
 	}
+	if err := s.assignTrustedTenant(ctx, row); err != nil {
+		return err
+	}
 	if row.Status == "" {
 		row.Status = StatusRunning
 	}
@@ -33,6 +38,63 @@ func (s *Service) Create(ctx context.Context, row *AITask) error {
 		row.StartedAt = &now
 	}
 	return s.DB.WithContext(ctx).Create(row).Error
+}
+
+// assignTrustedTenant derives ownership from stable domain records. A task with
+// conflicting or absent ownership is not persisted, so a later tenant-scoped
+// read cannot expose an unknown audit record.
+func (s *Service) assignTrustedTenant(ctx context.Context, row *AITask) error {
+	candidates, err := s.trustedTenantCandidates(ctx, row)
+	if err != nil {
+		return err
+	}
+	if len(candidates) == 0 {
+		if row.TenantID == 0 {
+			return fmt.Errorf("aitask: tenant ownership is required")
+		}
+		return nil // explicit non-zero tenant IDs are supplied by trusted internal callers.
+	}
+	if len(candidates) != 1 {
+		return fmt.Errorf("aitask: ambiguous tenant ownership")
+	}
+	for tenantID := range candidates {
+		if row.TenantID != 0 && row.TenantID != tenantID {
+			return fmt.Errorf("aitask: tenant ownership conflicts with linked record")
+		}
+		row.TenantID = tenantID
+	}
+	return nil
+}
+
+func (s *Service) trustedTenantCandidates(ctx context.Context, row *AITask) (map[int64]struct{}, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("aitask: no db")
+	}
+	candidates := make(map[int64]struct{})
+	lookups := []struct {
+		table string
+		id    *uuid.UUID
+	}{
+		{table: "products", id: row.ProductID},
+		{table: "customer_conversations", id: row.ConversationID},
+		{table: "admin_users", id: row.CreatedBy},
+		{table: "ai_operation_batches", id: row.BatchID},
+	}
+	for _, lookup := range lookups {
+		if lookup.id == nil || !s.DB.Migrator().HasTable(lookup.table) {
+			continue
+		}
+		var tenantID int64
+		err := s.DB.WithContext(ctx).Table(lookup.table).Select("tenant_id").Where("id = ?", *lookup.id).Take(&tenantID).Error
+		if err == nil {
+			candidates[tenantID] = struct{}{}
+			continue
+		}
+		if err != gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("aitask: resolve tenant from %s: %w", lookup.table, err)
+		}
+	}
+	return candidates, nil
 }
 
 // MarkSuccess updates a task with output and token usage.
@@ -94,6 +156,22 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*AITask, error) {
 	}
 	var row AITask
 	if err := s.DB.WithContext(ctx).First(&row, "id = ?", id).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+// GetByIDForTenant loads one task only when it belongs to the authenticated tenant.
+func (s *Service) GetByIDForTenant(c *gin.Context, id uuid.UUID) (*AITask, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("aitask: no db")
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	var row AITask
+	if err := s.DB.WithContext(c.Request.Context()).Where("tenant_id = ?", tenantID).First(&row, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &row, nil

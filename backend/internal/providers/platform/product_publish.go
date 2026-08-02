@@ -22,6 +22,9 @@ type PlatformProductDraft struct {
 
 // PlatformProductImage is one gallery/sku-linked image.
 type PlatformProductImage struct {
+	// TenantID is copied from the owned product, not from the API payload. Image
+	// loaders use it to authorize file metadata before reading an object.
+	TenantID  int64
 	URL       string
 	ObjectKey string // optional local/cloud object key — prefer Storage Provider Get when URL is not public
 	Type      string // main | detail | sku
@@ -30,6 +33,7 @@ type PlatformProductImage struct {
 
 // PlatformProductSKU is one variant line.
 type PlatformProductSKU struct {
+	TenantID   int64
 	LocalSKUID uuid.UUID
 	SKUCode    string
 	SKUName    string

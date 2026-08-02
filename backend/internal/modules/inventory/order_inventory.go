@@ -11,6 +11,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -190,8 +191,9 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 	}
 
 	var sku product.ProductSKU
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Model(&product.ProductSKU{}).
+		Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", o.TenantID).
+		First(&sku, "product_skus.id = ?", it.ProductSKUID).Error; err != nil {
 		return out, err
 	}
 	if it.ProductID != nil && *it.ProductID != uuid.Nil && sku.ProductID != *it.ProductID {
@@ -219,6 +221,7 @@ func (s *Service) deductOneOrderLine(ctx context.Context, tx *gorm.DB, orderID u
 
 	rm := remarkForOrderStock(o.OrderNo, it.ID.String(), it.ExternalItemID)
 	chg := InventoryChangeLog{
+		TenantID:         o.TenantID,
 		ProductID:        sku.ProductID,
 		ProductSKUID:     sku.ID,
 		ChangeType:       ChangeOrderDeduct,
@@ -330,6 +333,9 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
 		return nil, err
 	}
+	if err := validateOrderContextTenant(ctx, o.TenantID); err != nil {
+		return nil, err
+	}
 	if opts.PlatformAuto {
 		if !policy.AutoDeductPlatformOrders {
 			return &DeductionSummary{Skipped: true, SkipReason: "auto_deduct_platform_orders disabled"}, nil
@@ -341,6 +347,9 @@ func (s *Service) DeductInventoryForOrder(ctx context.Context, orderID uuid.UUID
 
 	items, err := s.loadOrderItems(ctx, orderID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateOrderSKUProductsTenant(ctx, o.TenantID, items); err != nil {
 		return nil, err
 	}
 
@@ -448,8 +457,14 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 	if err := s.DB.WithContext(ctx).First(&o, "id = ? AND deleted_at IS NULL", orderID).Error; err != nil {
 		return nil, err
 	}
+	if err := validateOrderContextTenant(ctx, o.TenantID); err != nil {
+		return nil, err
+	}
 	items, err := s.loadOrderItems(ctx, orderID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.validateOrderSKUProductsTenant(ctx, o.TenantID, items); err != nil {
 		return nil, err
 	}
 
@@ -495,14 +510,16 @@ func (s *Service) RestoreInventoryForOrder(ctx context.Context, orderID uuid.UUI
 			}
 
 			var sku product.ProductSKU
-			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-				First(&sku, "id = ? AND deleted_at IS NULL", it.ProductSKUID).Error; err != nil {
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Model(&product.ProductSKU{}).
+				Joins("JOIN products p ON p.id = product_skus.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", o.TenantID).
+				First(&sku, "product_skus.id = ?", it.ProductSKUID).Error; err != nil {
 				return err
 			}
 			before := derefStock(sku.Stock)
 			after := before + qty
 
 			chg := InventoryChangeLog{
+				TenantID:       o.TenantID,
 				ProductID:      sku.ProductID,
 				ProductSKUID:   sku.ID,
 				ChangeType:     ChangeOrderCancel,
@@ -605,6 +622,38 @@ func (s *Service) loadOrderItems(ctx context.Context, orderID uuid.UUID) ([]orde
 	var items []orderLineMirror
 	err := s.DB.WithContext(ctx).Where("order_id = ?", orderID).Order("created_at ASC, id ASC").Find(&items).Error
 	return items, err
+}
+
+// validateOrderSKUProductsTenant rejects an order before any stock mutation if a
+// bound SKU does not belong to a product owned by the order's tenant.
+func (s *Service) validateOrderSKUProductsTenant(ctx context.Context, tenantID int64, items []orderLineMirror) error {
+	for _, it := range items {
+		if it.ProductSKUID == nil || *it.ProductSKUID == uuid.Nil {
+			continue
+		}
+		var count int64
+		err := s.DB.WithContext(ctx).Table("product_skus AS ps").
+			Joins("JOIN products p ON p.id = ps.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID).
+			Where("ps.id = ?", *it.ProductSKUID).
+			Count(&count).Error
+		if err != nil {
+			return err
+		}
+		if count != 1 {
+			return fmt.Errorf("inventory: sku %s is not owned by order tenant", it.ProductSKUID.String())
+		}
+	}
+	return nil
+}
+
+// validateOrderContextTenant provides a service-layer boundary for authenticated
+// requests and tenant-scoped workers while preserving trusted internal callers
+// that do not yet attach a request context.
+func validateOrderContextTenant(ctx context.Context, orderTenantID int64) error {
+	if tc := security.FromContext(ctx); tc != nil && tc.TenantID != orderTenantID {
+		return security.ErrTenantAccessDenied
+	}
+	return nil
 }
 
 // InventorySummary exposes flags for admin order detail drawer.

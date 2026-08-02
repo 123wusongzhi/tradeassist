@@ -90,7 +90,10 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 			p7diag.Path(p7diag.RouteAuthInvalidLogin, "account_missing")
 			p7diag.Path(p7diag.RouteAuthInvalidLogin, p7diag.PathUnknownAccount)
 			p7diag.Count(p7diag.RouteAuthInvalidLogin, "unknownAccountQueryCount", 1)
-			p7diag.ObservePasswordVerify(p7diag.PathUnknownAccount, p7diag.PasswordAlgoBcrypt, bcrypt.DefaultCost, 0, time.Now())
+			verifyStart := time.Now()
+			_ = admin.CheckPassword(dummyPasswordHash, password)
+			p7diag.ObservePasswordVerify(p7diag.PathUnknownAccount, p7diag.PasswordAlgoBcrypt, bcrypt.DefaultCost, 1, verifyStart)
+			p7diag.Count(p7diag.RouteAuthInvalidLogin, "passwordVerifyCount", 1)
 			return nil, errors.New(ErrInvalidCredentials)
 		}
 		return nil, err
@@ -116,7 +119,7 @@ func (s *LoginService) legacyLogin(ctx context.Context, account, password string
 		return nil, errors.New(ErrUserDisabled)
 	}
 	label := u.LoginLabel()
-	token, exp, err := LegacyMintToken(s.Cfg, u.ID, label)
+	token, exp, err := legacyMintTokenForTenant(s.Cfg, u.ID, label, u.TenantID)
 	if err != nil {
 		return nil, err
 	}

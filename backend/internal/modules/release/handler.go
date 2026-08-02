@@ -28,6 +28,9 @@ func Register(r gin.IRouter, h *Handler) {
 }
 
 func (h *Handler) List(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermReleaseRead) {
 		return
 	}
@@ -42,6 +45,9 @@ func (h *Handler) List(c *gin.Context) {
 }
 
 func (h *Handler) Create(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermReleaseCreate) {
 		return
 	}
@@ -59,6 +65,9 @@ func (h *Handler) Create(c *gin.Context) {
 }
 
 func (h *Handler) Get(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermReleaseRead) {
 		return
 	}
@@ -71,6 +80,9 @@ func (h *Handler) Get(c *gin.Context) {
 }
 
 func (h *Handler) Execute(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermReleaseExecute) {
 		return
 	}
@@ -83,6 +95,9 @@ func (h *Handler) Execute(c *gin.Context) {
 }
 
 func (h *Handler) Rollback(c *gin.Context) {
+	if !adminperm.RequireGlobalAdmin(c, h.Svc.DB) {
+		return
+	}
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermReleaseRollback) {
 		return
 	}

@@ -53,6 +53,32 @@ func TestValidate_developmentAllowsDefaults(t *testing.T) {
 	}
 }
 
+func TestValidate_rejectsUnknownAuthSessionMode(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		AppEnv: EnvDevelopment,
+		Auth:   AuthConfig{SessionMode: "secure-session"},
+		DB:     DBConfig{Driver: "postgres", User: "u", Name: "db"},
+	}
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), ErrCodeInsecureAuthConfig) {
+		t.Fatalf("expected unknown auth session mode rejection, got %v", err)
+	}
+}
+
+func TestValidate_normalizesEmptyAuthSessionMode(t *testing.T) {
+	t.Parallel()
+	cfg := &Config{
+		AppEnv: EnvDevelopment,
+		DB:     DBConfig{Driver: "postgres", User: "u", Name: "db"},
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("empty auth session mode should use development default: %v", err)
+	}
+	if cfg.Auth.SessionMode != AuthSessionModeSecure {
+		t.Fatalf("normalized mode = %q, want %q", cfg.Auth.SessionMode, AuthSessionModeSecure)
+	}
+}
+
 func productionP4Auth() AuthConfig {
 	return AuthConfig{
 		SessionMode:           AuthSessionModeSecure,
@@ -140,6 +166,41 @@ func TestValidate_productionRequiresStrongJWT(t *testing.T) {
 	}
 	if err := cfg.Validate(); err != nil {
 		t.Fatalf("valid production config rejected: %v", err)
+	}
+}
+
+func TestValidate_stagingRejectsWeakConfiguredJWTKeyringSecrets(t *testing.T) {
+	for name, auth := range map[string]AuthConfig{
+		"active": {
+			SessionMode:           AuthSessionModeSecure,
+			SecureCookie:          true,
+			AccessTokenTTLMinutes: 15,
+			JWTActiveSecret:       "weak",
+		},
+		"previous": {
+			SessionMode:             AuthSessionModeSecure,
+			SecureCookie:            true,
+			AccessTokenTTLMinutes:   15,
+			JWTActiveSecret:         strings.Repeat("a", 48),
+			JWTPreviousKeyID:        "previous",
+			JWTPreviousSecret:       "weak",
+			JWTRotationGraceMinutes: 60,
+			JWTRotationStartedAt:    "2026-08-01T00:00:00Z",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := &Config{
+				AppEnv:             EnvStaging,
+				JWTSecret:          strings.Repeat("b", 48),
+				StorageProvider:    "cos",
+				CORSAllowedOrigins: []string{"https://admin.example.com"},
+				Auth:               auth,
+				DB:                 DBConfig{Driver: "postgres", User: "u", Name: "db"},
+			}
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), ErrCodeKeyringConfigInvalid) {
+				t.Fatalf("expected weak keyring secret rejection, got %v", err)
+			}
+		})
 	}
 }
 

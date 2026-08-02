@@ -9,7 +9,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/p7diag"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // LoginGuard enforces login rate limits and temporary account lockout.
@@ -75,53 +77,20 @@ func (g *LoginGuard) RecordFailure(ctx context.Context, account, ip string) erro
 		if key == "" || key == "|" {
 			continue
 		}
-		var row AuthLoginAttempt
 		stageStart := time.Now()
-		timing, err := p7diag.TimedGorm(g.DB, func() error {
-			return g.DB.WithContext(ctx).Where("account_key = ?", key).First(&row).Error
-		})
-		outcome := authOutcome(err)
-		p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", outcome, stageStart)
-		p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_read", outcome, stageStart)
-		p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.failed_attempt_read", "select", "auth_login_attempts", outcome, false, timing)
-		p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptReadCount", 1)
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			row = AuthLoginAttempt{
-				AccountKey:   key,
-				IPHash:       authutil.HashIP(ip),
-				FailedCount:  1,
-				LastFailedAt: &now,
-			}
-			stageStart = time.Now()
-			writeTiming, writeErr := p7diag.TimedGormRows(g.DB, func() (int64, error) {
-				res := g.DB.WithContext(ctx).Create(&row)
-				return res.RowsAffected, res.Error
-			})
-			writeOutcome := authOutcome(writeErr)
-			p7diag.ObserveStage(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", writeOutcome, stageStart)
-			p7diag.ObserveDBOperation(p7diag.RouteAuthInvalidLogin, "failed_attempt_write", writeOutcome, stageStart)
-			p7diag.ObserveSQL(p7diag.RouteAuthInvalidLogin, "auth", "auth.failed_attempt_update", "insert", "auth_login_attempts", writeOutcome, false, writeTiming)
-			if writeErr != nil {
-				return writeErr
-			}
-			p7diag.Count(p7diag.RouteAuthInvalidLogin, "failedAttemptWriteCount", 1)
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if row.LastFailedAt != nil && now.Sub(*row.LastFailedAt) > window {
-			row.FailedCount = 0
-		}
-		row.FailedCount++
-		row.LastFailedAt = &now
-		if maxAttempts > 0 && row.FailedCount >= maxAttempts {
-			lockUntil := now.Add(time.Duration(lockMinutes) * time.Minute)
-			row.LockedUntil = &lockUntil
-		}
-		stageStart = time.Now()
 		writeTiming, writeErr := p7diag.TimedGormRows(g.DB, func() (int64, error) {
-			res := g.DB.WithContext(ctx).Save(&row)
+			cutoff := now.Add(-window)
+			lockUntil := now.Add(time.Duration(lockMinutes) * time.Minute)
+			count := "CASE WHEN auth_login_attempts.last_failed_at IS NULL OR auth_login_attempts.last_failed_at < ? THEN 1 ELSE auth_login_attempts.failed_count + 1 END"
+			res := g.DB.WithContext(ctx).Clauses(clause.OnConflict{
+				Columns: []clause.Column{{Name: "account_key"}},
+				DoUpdates: clause.Assignments(map[string]any{
+					"ip_hash":        authutil.HashIP(ip),
+					"failed_count":   gorm.Expr(count, cutoff),
+					"last_failed_at": now,
+					"locked_until":   gorm.Expr("CASE WHEN ? > 0 AND ("+count+") >= ? THEN ? ELSE auth_login_attempts.locked_until END", maxAttempts, cutoff, maxAttempts, lockUntil),
+				}),
+			}).Create(&AuthLoginAttempt{AccountKey: key, IPHash: authutil.HashIP(ip), FailedCount: 1, LastFailedAt: &now})
 			return res.RowsAffected, res.Error
 		})
 		writeOutcome := authOutcome(writeErr)
@@ -153,28 +122,16 @@ func (g *LoginGuard) ClearFailures(ctx context.Context, account, ip string) erro
 
 // IsWeakPassword rejects common example passwords and enforces minimum length.
 func IsWeakPassword(cfg *config.Config, password string) bool {
-	if cfg == nil {
-		return len(password) < 8
+	min := 8
+	forbidden := ""
+	if cfg != nil {
+		min = cfg.AuthPasswordMinLength()
+		if config.IsProduction(cfg.AppEnv) {
+			forbidden = cfg.BootstrapAdminPassword
+		}
 	}
-	min := cfg.AuthPasswordMinLength()
 	if min <= 0 {
 		min = 8
 	}
-	if len(password) < min {
-		return true
-	}
-	low := strings.ToLower(strings.TrimSpace(password))
-	weak := []string{
-		"password", "12345678", "admin123", "changeme", "trademind",
-		"admin@123", "test1234", "qwerty123", "11111111",
-	}
-	for _, w := range weak {
-		if low == w {
-			return true
-		}
-	}
-	if cfg.BootstrapAdminPassword != "" && password == cfg.BootstrapAdminPassword && config.IsProduction(cfg.AppEnv) {
-		return true
-	}
-	return false
+	return passwordpolicy.IsWeakWithForbidden(password, min, forbidden)
 }

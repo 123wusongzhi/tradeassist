@@ -179,6 +179,7 @@ type InventoryAlertEntry struct {
 
 // AlertsListQuery filters GET /inventory/alerts.
 type AlertsListQuery struct {
+	TenantID      int64
 	Keyword       string
 	ProductID     *uuid.UUID
 	ProductSkuID  *uuid.UUID

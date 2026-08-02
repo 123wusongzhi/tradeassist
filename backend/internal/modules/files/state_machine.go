@@ -21,7 +21,7 @@ var allowedTransitions = map[string]map[string]struct{}{
 	SecurityUploaded:    {SecurityPendingScan: {}},
 	SecurityPendingScan: {SecurityScanning: {}},
 	SecurityScanning:    {SecurityClean: {}, SecurityRejected: {}, SecurityQuarantined: {}, SecurityScanFailed: {}},
-	SecurityScanFailed:  {SecurityPendingScan: {}},
+	SecurityScanFailed:  {SecurityPendingScan: {}, SecurityScanning: {}},
 	SecurityClean:       {SecurityQuarantined: {}},
 }
 

@@ -8,6 +8,7 @@ import (
 // OrderExceptionMark is a workbench-only overlay (does not mutate business tasks).
 type OrderExceptionMark struct {
 	model.HardDeleteBase
+	TenantID      int64      `gorm:"not null;default:0;index;uniqueIndex:ux_order_exception_mark_quad" json:"tenantId"`
 	ExceptionType string     `gorm:"size:64;not null;uniqueIndex:ux_order_exception_mark_quad" json:"exceptionType"`
 	SourceType    string     `gorm:"size:64;not null;uniqueIndex:ux_order_exception_mark_quad" json:"sourceType"`
 	SourceID      string     `gorm:"size:64;not null;uniqueIndex:ux_order_exception_mark_quad" json:"sourceId"`

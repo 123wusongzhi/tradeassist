@@ -9,20 +9,22 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage/localroot"
+	"gorm.io/gorm"
 )
 
 // StaticHandler serves uploaded local files from configured storage.local_root.
 type StaticHandler struct {
 	Settings *settings.Service
+	DB       *gorm.DB
 }
 
 // Serve GET /static/*filepath
 func (h *StaticHandler) Serve(c *gin.Context) {
-	if h == nil || h.Settings == nil {
+	if h == nil || h.Settings == nil || h.DB == nil {
 		c.Status(http.StatusNotFound)
 		return
 	}
-	m, err := h.Settings.PlainByGroup(c.Request.Context(), 0, "storage")
+	m, err := h.Settings.PlainByGroup(c.Request.Context(), globalStorageSettingsTenantID, "storage")
 	if err != nil {
 		c.Status(http.StatusNotFound)
 		return
@@ -40,6 +42,13 @@ func (h *StaticHandler) Serve(c *gin.Context) {
 	rel := strings.TrimPrefix(c.Param("filepath"), "/")
 	rel = strings.ReplaceAll(rel, "\\", "/")
 	if rel == "" || strings.Contains(rel, "..") {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	// The filesystem is not an authorization boundary.  A file becomes publicly
+	// readable only after its database record has reached the clean state.
+	var record FileRecord
+	if err := h.DB.WithContext(c.Request.Context()).Where("object_key = ? AND security_status = ?", rel, SecurityClean).First(&record).Error; err != nil {
 		c.Status(http.StatusNotFound)
 		return
 	}

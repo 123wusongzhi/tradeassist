@@ -97,7 +97,15 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			UserMessage:    platformdouyin.UserMessageForRecovery(recovery),
 			TechnicalCode:  code,
 		})
-		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+		recoveryUpdate := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+			Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, TaskRunning, now, task.LockVersion)
+		if task.LockedBy != nil {
+			recoveryUpdate = recoveryUpdate.Where("locked_by = ?", *task.LockedBy)
+		}
+		if task.ExecutionID != nil {
+			recoveryUpdate = recoveryUpdate.Where("execution_id = ?", *task.ExecutionID)
+		}
+		result := recoveryUpdate.
 			Updates(map[string]any{
 				"status":        TaskFailed,
 				"error_code":    code,
@@ -108,9 +116,23 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 				"locked_by":     nil,
 				"locked_until":  nil,
 				"updated_at":    fin,
-			}).Error
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
 	} else {
-		_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+		recoveryUpdate := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+			Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, TaskRunning, now, task.LockVersion)
+		if task.LockedBy != nil {
+			recoveryUpdate = recoveryUpdate.Where("locked_by = ?", *task.LockedBy)
+		}
+		if task.ExecutionID != nil {
+			recoveryUpdate = recoveryUpdate.Where("execution_id = ?", *task.ExecutionID)
+		}
+		result := recoveryUpdate.
 			Updates(map[string]any{
 				"status":        TaskFailed,
 				"error_message": msg,
@@ -118,10 +140,16 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 				"locked_by":     nil,
 				"locked_until":  nil,
 				"updated_at":    fin,
-			}).Error
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
 	}
 	if rid, ok := snapshotPublicationFromTask(&task); ok {
-		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", rid).
+		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, task.TenantID).
 			Updates(map[string]any{
 				"status":         StatusPubFailed,
 				"publish_status": StatusPubFailed,
@@ -160,7 +188,10 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 	}
 	fin := time.Now().UTC()
 	msg := "legacy running publish task recovered (no lease)"
-	_ = s.DB.WithContext(ctx).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+	result := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ?", taskID, task.TenantID, TaskRunning).
+		Where("locked_by IS NULL AND locked_until IS NULL AND execution_id IS NULL AND heartbeat_at IS NULL").
+		Where("lock_version = ? AND updated_at < ?", task.LockVersion, legacyCutoff).
 		Updates(map[string]any{
 			"status":        TaskFailed,
 			"error_message": msg,
@@ -168,6 +199,12 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 			"locked_by":     nil,
 			"locked_until":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	return nil
 }

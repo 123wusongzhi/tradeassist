@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	"gorm.io/gorm"
@@ -18,6 +19,26 @@ import (
 // Handler exposes collect task HTTP API.
 type Handler struct {
 	Svc *Service
+}
+
+func collectProviderProfileKey(c *gin.Context, provider string) (string, error) {
+	tid, err := collectTenantID(c)
+	if err != nil {
+		return "", err
+	}
+	return providerProfileKey(tid, provider), nil
+}
+
+// collectTenantID accepts the legacy system tenant (0), but never an absent or negative scope.
+func collectTenantID(c *gin.Context) (int64, error) {
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return 0, err
+	}
+	if tid < 0 {
+		return 0, errors.New("invalid tenant context")
+	}
+	return tid, nil
 }
 
 func collectAdminUUID(c *gin.Context) *uuid.UUID {
@@ -159,7 +180,7 @@ func (h *Handler) ListTaskEvents(c *gin.Context) {
 		Page:     atoiCollectQP(c, "page", 1),
 		PageSize: atoiCollectQP(c, "pageSize", 50),
 	}
-	res, err := h.Svc.ListTaskEvents(c.Request.Context(), id, q)
+	res, err := h.Svc.ListTaskEvents(c, id, q)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -249,7 +270,12 @@ func (h *Handler) Get1688AuthStatus(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
 		return
 	}
-	out, err := h.Svc.Client.Get1688AuthStatus(c.Request.Context())
+	key, err := collectProviderProfileKey(c, "1688")
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	out, err := h.Svc.Client.Get1688AuthStatus(c.Request.Context(), key)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -263,7 +289,12 @@ func (h *Handler) Open1688LoginBrowser(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
 		return
 	}
-	out, err := h.Svc.Client.Open1688LoginBrowser(c.Request.Context())
+	key, err := collectProviderProfileKey(c, "1688")
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	out, err := h.Svc.Client.Open1688LoginBrowser(c.Request.Context(), key)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -277,11 +308,14 @@ func (h *Handler) GetPinduoduoAuthStatus(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "collect unavailable")
 		return
 	}
-	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(
-		c.Request.Context(),
-		strings.TrimSpace(c.Query("url")),
-	)
-	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
+	tenantID, err := collectTenantID(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(c.Request.Context(), tenantID, strings.TrimSpace(c.Query("url")))
+	key := providerProfileKey(tenantID, PinduoduoProfileKey)
+	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), key, contextURL, settingsTestURL)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -297,11 +331,17 @@ func (h *Handler) CheckPinduoduoLogin(c *gin.Context) {
 	}
 	var body PinduoduoCheckLoginBody
 	_ = c.ShouldBindJSON(&body)
-	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(c.Request.Context(), body.URL)
+	tenantID, err := collectTenantID(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	contextURL, settingsTestURL := h.Svc.ResolvePinduoduoAuthCheckInputs(c.Request.Context(), tenantID, body.URL)
 	if t := strings.TrimSpace(body.TestURL); t != "" {
 		settingsTestURL = t
 	}
-	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), contextURL, settingsTestURL)
+	key := providerProfileKey(tenantID, PinduoduoProfileKey)
+	out, err := h.Svc.Client.CheckPinduoduoLogin(c.Request.Context(), key, contextURL, settingsTestURL)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -335,7 +375,12 @@ func (h *Handler) OpenPinduoduoLoginBrowser(c *gin.Context) {
 	var body PinduoduoOpenLoginBody
 	_ = c.ShouldBindJSON(&body)
 	loginURL := strings.TrimSpace(body.URL)
-	out, err := h.Svc.Client.OpenPinduoduoLoginBrowser(c.Request.Context(), loginURL)
+	key, err := collectProviderProfileKey(c, PinduoduoProfileKey)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	out, err := h.Svc.Client.OpenPinduoduoLoginBrowser(c.Request.Context(), key, loginURL)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -361,11 +406,17 @@ func (h *Handler) CheckTaobaoTmallLogin(c *gin.Context) {
 	}
 	var body TaobaoTmallCheckLoginBody
 	_ = c.ShouldBindJSON(&body)
-	contextURL, settingsTestURL := h.Svc.ResolveTaobaoTmallAuthCheckInputs(c.Request.Context(), body.URL)
+	tenantID, err := collectTenantID(c)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	contextURL, settingsTestURL := h.Svc.ResolveTaobaoTmallAuthCheckInputs(c.Request.Context(), tenantID, body.URL)
 	if t := strings.TrimSpace(body.TestURL); t != "" {
 		settingsTestURL = t
 	}
-	out, err := h.Svc.Client.CheckTaobaoTmallLogin(c.Request.Context(), contextURL, settingsTestURL)
+	key := providerProfileKey(tenantID, TaobaoTmallProfileKey)
+	out, err := h.Svc.Client.CheckTaobaoTmallLogin(c.Request.Context(), key, contextURL, settingsTestURL)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return
@@ -396,7 +447,12 @@ func (h *Handler) OpenTaobaoTmallLoginBrowser(c *gin.Context) {
 	var body TaobaoTmallOpenLoginBody
 	_ = c.ShouldBindJSON(&body)
 	loginURL := strings.TrimSpace(body.URL)
-	out, err := h.Svc.Client.OpenTaobaoTmallLoginBrowser(c.Request.Context(), loginURL)
+	key, err := collectProviderProfileKey(c, TaobaoTmallProfileKey)
+	if err != nil {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
+	out, err := h.Svc.Client.OpenTaobaoTmallLoginBrowser(c.Request.Context(), key, loginURL)
 	if err != nil {
 		response.Fail(c, http.StatusBadGateway, response.CodeInternalError, err.Error())
 		return

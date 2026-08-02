@@ -82,7 +82,7 @@ func (s *Service) listCollect(ctx context.Context, p ListFailureParams, now time
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCollect, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCollect, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (s *Service) listImage(ctx context.Context, p ListFailureParams, now time.T
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeImage, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeImage, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -174,7 +174,7 @@ func (s *Service) listOrderSync(ctx context.Context, p ListFailureParams, now ti
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeOrderSync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeOrderSync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func (s *Service) listCustomerSync(ctx context.Context, p ListFailureParams, now
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCustomerMessageSync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCustomerMessageSync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (s *Service) listProductPublish(ctx context.Context, p ListFailureParams, n
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeProductPublish, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeProductPublish, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -327,7 +327,7 @@ func (s *Service) listInventorySync(ctx context.Context, p ListFailureParams, no
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeInventorySync, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeInventorySync, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (s *Service) listAIProductText(ctx context.Context, p ListFailureParams, no
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeAIText, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeAIText, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -447,7 +447,7 @@ func (s *Service) listAIProductImage(ctx context.Context, p ListFailureParams, n
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeAIImage, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeAIImage, ids)
 	if err != nil {
 		return nil, err
 	}

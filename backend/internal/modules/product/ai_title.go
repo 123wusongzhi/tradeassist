@@ -13,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/aiprompt"
 	"github.com/trademind-ai/trademind/backend/internal/modules/aitask"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/aimodelparse"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
@@ -120,6 +121,16 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
+	// Establish tenant ownership before checking AI configuration or assembling a
+	// prompt.  Besides returning a uniform not-found response, this prevents an
+	// out-of-tenant request from consuming provider quota or exposing its data.
+	p, err := s.findTenantProduct(c, productID, "SKUs")
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	if s.Prompts == nil || s.AITasks == nil || s.AIGateway == nil {
 		return nil, fmt.Errorf("product: ai not configured")
 	}
@@ -143,13 +154,6 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 		tone = "professional"
 	}
 
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).
-		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		First(&p, "id = ?", productID).Error; err != nil {
-		return nil, err
-	}
-
 	promptRow, err := s.Prompts.GetEnabledByCode(c.Request.Context(), aiprompt.CodeProductTitleOptimize)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -159,9 +163,9 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	}
 
 	vars := map[string]string{
-		"title":      productPromptTitle(&p),
+		"title":      productPromptTitle(p),
 		"category":   productCategoryFromRaw(json.RawMessage(p.RawData)),
-		"attributes": productAttributesSummary(&p),
+		"attributes": productAttributesSummary(p),
 		"language":   lang,
 		"maxLength":  fmt.Sprintf("%d", maxLen),
 		"platform":   platform,
@@ -199,12 +203,13 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 		"language":           lang,
 		"platform":           platform,
 		"maxLength":          maxLen,
-		"sourceSnapshotHash": productContentHash(productPromptTitle(&p)),
+		"sourceSnapshotHash": productContentHash(productPromptTitle(p)),
 		"productUpdatedAt":   p.UpdatedAt.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
 	}
 	inputJSON, _ := json.Marshal(inputPayload)
 
 	task := &aitask.AITask{
+		TenantID:    p.TenantID,
 		TaskType:    "title_optimize",
 		Provider:    s.providerNameFromSettings(c),
 		Model:       model,
@@ -287,7 +292,7 @@ func (s *Service) optimizeTitleWithExtra(c *gin.Context, productID uuid.UUID, bo
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, outJSON, raw, resp.InputTokens, resp.OutputTokens, usedModel)
 
 	if extra != nil && extra.SaveAIField && strings.TrimSpace(parsed.OptimizedTitle) != "" {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ?", p.ID).Update("ai_title", strings.TrimSpace(parsed.OptimizedTitle)).Error
+		_ = s.DB.WithContext(c.Request.Context()).Model(&Product{}).Where("id = ? AND tenant_id = ?", p.ID, p.TenantID).Update("ai_title", strings.TrimSpace(parsed.OptimizedTitle)).Error
 	}
 
 	if s.OpLog != nil && (extra == nil || !extra.SkipSingleOpLog) {
@@ -326,8 +331,15 @@ func (s *Service) ApplyAITitle(c *gin.Context, productID uuid.UUID, body ApplyAI
 	if err != nil {
 		return nil, fmt.Errorf("invalid taskId")
 	}
+	p, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+		return nil, err
+	}
 	if s.AITasks != nil {
-		tk, err := s.AITasks.GetByID(c.Request.Context(), taskUUID)
+		tk, err := s.findTenantAITask(c, taskUUID, productID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				return nil, fmt.Errorf("task not found")
@@ -339,11 +351,7 @@ func (s *Service) ApplyAITitle(c *gin.Context, productID uuid.UUID, body ApplyAI
 		}
 	}
 
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).First(&p, "id = ?", productID).Error; err != nil {
-		return nil, err
-	}
-	if err := s.applyAIContent(c, &p, AIContentFieldTitle, title, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
+	if err := s.applyAIContent(c, p, AIContentFieldTitle, title, taskUUID, body.ExpectedUpdatedAt, body.SourceSnapshotHash, adminID); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -364,12 +372,22 @@ func (s *Service) ListRecentAITasks(c *gin.Context, productID uuid.UUID, limit i
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
-	var p Product
-	if err := s.DB.WithContext(c.Request.Context()).Select("id").First(&p, "id = ?", productID).Error; err != nil {
+	p, err := s.findTenantProduct(c, productID)
+	if err != nil {
 		return nil, err
 	}
 	if s.AITasks == nil {
 		return []aitask.AITask{}, nil
 	}
-	return s.AITasks.ListRecentForProduct(c.Request.Context(), productID, limit)
+	if limit < 1 {
+		limit = 10
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	var tasks []aitask.AITask
+	if err := s.DB.WithContext(c.Request.Context()).Where("product_id = ? AND tenant_id = ?", p.ID, p.TenantID).Order("created_at DESC").Limit(limit).Find(&tasks).Error; err != nil {
+		return nil, err
+	}
+	return tasks, nil
 }

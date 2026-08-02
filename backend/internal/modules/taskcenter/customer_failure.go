@@ -46,7 +46,7 @@ func (s *Service) listCustomerFailures(ctx context.Context, p ListFailureParams,
 	for i := range rows {
 		ids[i] = rows[i].ID.String()
 	}
-	ms, err := s.fetchMarks(ctx, TaskTypeCustomerFailure, ids)
+	ms, err := s.fetchMarks(ctx, p.TenantID, TaskTypeCustomerFailure, ids)
 	if err != nil {
 		return nil, err
 	}

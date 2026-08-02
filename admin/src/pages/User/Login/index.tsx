@@ -10,28 +10,36 @@ import {
   MailOutlined,
   RobotOutlined,
   SafetyCertificateOutlined,
-} from '@ant-design/icons';
-import { Form, Input, Checkbox, Button, Tabs, Row, Col } from 'antd';
-import { history } from '@umijs/max';
-import { useInitialStateModel } from '@/hooks/useInitialStateModel';
-import { message } from 'antd';
-import { useEffect, useState, useRef } from 'react';
-import BrandLogo from '@/components/BrandLogo';
-import { AUTH_TOKEN_KEY, AUTH_SESSION_MODE_KEY } from '@/constants/auth';
-import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { login, register, sendEmailCode } from '@/services/auth';
-import './index.less';
+} from "@ant-design/icons";
+import { Form, Input, Checkbox, Button, Tabs, Row, Col } from "antd";
+import { history } from "@umijs/max";
+import { useInitialStateModel } from "@/hooks/useInitialStateModel";
+import { message } from "antd";
+import { useEffect, useState, useRef } from "react";
+import BrandLogo from "@/components/BrandLogo";
+import { setSession } from "@/services/session";
+import { formatUserErrorMessage } from "@/constants/errorMessages";
+import { login, register, sendEmailCode } from "@/services/auth";
+import "./index.less";
 
 const FEATURE_TAGS = [
-  { icon: <CloudDownloadOutlined />, label: '多平台商品采集', className: 'tag-blue' },
-  { icon: <RobotOutlined />, label: 'AI 商品运营', className: 'tag-violet' },
-  { icon: <FileImageOutlined />, label: '图片智能处理', className: 'tag-teal' },
-  { icon: <CloudUploadOutlined />, label: '多平台刊登', className: 'tag-indigo' },
-  { icon: <InboxOutlined />, label: '库存同步', className: 'tag-green' },
-  { icon: <DashboardOutlined />, label: '运营看板', className: 'tag-amber' },
+  {
+    icon: <CloudDownloadOutlined />,
+    label: "多平台商品采集",
+    className: "tag-blue",
+  },
+  { icon: <RobotOutlined />, label: "AI 商品运营", className: "tag-violet" },
+  { icon: <FileImageOutlined />, label: "图片智能处理", className: "tag-teal" },
+  {
+    icon: <CloudUploadOutlined />,
+    label: "多平台刊登",
+    className: "tag-indigo",
+  },
+  { icon: <InboxOutlined />, label: "库存同步", className: "tag-green" },
+  { icon: <DashboardOutlined />, label: "运营看板", className: "tag-amber" },
 ] as const;
 
-const PLATFORM_ITEMS = ['1688', 'Shopee', 'Lazada', 'Temu'];
+const PLATFORM_ITEMS = ["1688", "Shopee", "Lazada", "Temu"];
 
 type ApiErrorLike = {
   response?: { data?: { message?: string } };
@@ -47,7 +55,7 @@ function getAuthErrorMessage(error: unknown, fallback: string) {
 export default function LoginPage() {
   const { setInitialState, initialState } = useInitialStateModel();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState("login");
 
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
@@ -59,7 +67,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loggedIn) return;
     const q = new URLSearchParams(history.location.search);
-    history.replace(q.get('redirect') || '/dashboard');
+    history.replace(q.get("redirect") || "/dashboard");
   }, [loggedIn]);
 
   useEffect(() => {
@@ -71,15 +79,15 @@ export default function LoginPage() {
   const onLogin = async (values: any) => {
     setLoading(true);
     try {
-      const data = await login(values.account as string, values.password as string);
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
-      if (data.sessionMode) {
-        localStorage.setItem(AUTH_SESSION_MODE_KEY, data.sessionMode);
-      }
+      const data = await login(
+        values.account as string,
+        values.password as string,
+      );
+      setSession(data.token, data.sessionMode);
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
-      message.success('登录成功');
+      message.success("登录成功");
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '登录失败'));
+      message.error(getAuthErrorMessage(e, "登录失败"));
     } finally {
       setLoading(false);
     }
@@ -94,11 +102,11 @@ export default function LoginPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
       });
-      localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+      setSession(data.token, data.sessionMode);
       await setInitialState((s) => ({ ...s, currentUser: data.user }));
-      message.success('注册并登录成功');
+      message.success("注册并登录成功");
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '注册失败'));
+      message.error(getAuthErrorMessage(e, "注册失败"));
     } finally {
       setLoading(false);
     }
@@ -106,14 +114,14 @@ export default function LoginPage() {
 
   const handleSendCode = async () => {
     try {
-      await registerForm.validateFields(['email']);
+      await registerForm.validateFields(["email"]);
     } catch {
       return;
     }
-    const email = registerForm.getFieldValue('email');
+    const email = registerForm.getFieldValue("email");
     try {
-      await sendEmailCode(email, 'register');
-      message.success('验证码已发送');
+      await sendEmailCode(email, "register");
+      message.success("验证码已发送");
       setCountdown(60);
       countdownTimer.current = setInterval(() => {
         setCountdown((c) => {
@@ -125,7 +133,7 @@ export default function LoginPage() {
         });
       }, 1000);
     } catch (e: unknown) {
-      message.error(getAuthErrorMessage(e, '发送失败'));
+      message.error(getAuthErrorMessage(e, "发送失败"));
     }
   };
 
@@ -223,208 +231,226 @@ export default function LoginPage() {
                 centered
                 onChange={setActiveTab}
                 items={[
-                  { key: 'login', label: '登录' },
-                  { key: 'register', label: '注册' },
+                  { key: "login", label: "登录" },
+                  { key: "register", label: "注册" },
                 ]}
               />
 
               <div className="welcome-text" key={`welcome-${activeTab}`}>
-                <h2>{activeTab === 'login' ? '欢迎回来' : '注册账号'}</h2>
+                <h2>{activeTab === "login" ? "欢迎回来" : "注册账号"}</h2>
                 <p>
-                  {activeTab === 'login'
-                    ? '登录你的 TradeMind 工作台'
-                    : '开启你的 AI 跨境之旅'}
+                  {activeTab === "login"
+                    ? "登录你的 TradeMind 工作台"
+                    : "开启你的 AI 跨境之旅"}
                 </p>
               </div>
 
-            {activeTab === 'login' ? (
-              <Form
-                form={loginForm}
-                layout="vertical"
-                onFinish={onLogin}
-                requiredMark={false}
-                autoComplete="off"
-              >
-                <Form.Item
-                  name="account"
-                  label="邮箱 / 手机号"
-                  rules={[{ required: true, message: '请输入邮箱或手机号' }]}
-                  validateTrigger="onBlur"
+              {activeTab === "login" ? (
+                <Form
+                  form={loginForm}
+                  layout="vertical"
+                  onFinish={onLogin}
+                  requiredMark={false}
+                  autoComplete="off"
                 >
-                  <Input
-                    placeholder="请输入邮箱或手机号"
-                    prefix={<MailOutlined />}
-                    autoComplete="off"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  name="password"
-                  label="密码"
-                  rules={[{ required: true, message: '请输入登录密码' }]}
-                  validateTrigger="onBlur"
-                >
-                  <Input.Password
-                    placeholder="请输入登录密码"
-                    prefix={<LockOutlined />}
-                    autoComplete="new-password"
-                    data-lpignore="true"
-                    data-1p-ignore="true"
-                  />
-                </Form.Item>
-
-                <div className="form-actions">
-                  <Form.Item name="remember" valuePropName="checked" noStyle initialValue={true}>
-                    <Checkbox>记住我</Checkbox>
+                  <Form.Item
+                    name="account"
+                    label="邮箱 / 手机号"
+                    rules={[{ required: true, message: "请输入邮箱或手机号" }]}
+                    validateTrigger="onBlur"
+                  >
+                    <Input
+                      placeholder="请输入邮箱或手机号"
+                      prefix={<MailOutlined />}
+                      autoComplete="off"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                    />
                   </Form.Item>
-                  <a href="#" className="forgot-link" onClick={(e) => e.preventDefault()}>
-                    忘记密码？
-                  </a>
-                </div>
 
-                <Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    className="submit-btn"
-                    loading={loading}
-                    disabled={loading}
+                  <Form.Item
+                    name="password"
+                    label="密码"
+                    rules={[{ required: true, message: "请输入登录密码" }]}
+                    validateTrigger="onBlur"
                   >
-                    登录工作台
-                    <ArrowRightOutlined />
-                  </Button>
-                </Form.Item>
+                    <Input.Password
+                      placeholder="请输入登录密码"
+                      prefix={<LockOutlined />}
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
+                    />
+                  </Form.Item>
 
-                <div className="register-link">
-                  还没有账号？
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setActiveTab('register');
-                    }}
-                  >
-                    立即注册
-                  </a>
-                </div>
-              </Form>
-            ) : (
-              <Form
-                form={registerForm}
-                layout="vertical"
-                onFinish={onRegister}
-                requiredMark={false}
-              >
-                <Form.Item
-                  name="email"
-                  label="邮箱"
-                  rules={[
-                    { required: true, message: '请输入邮箱' },
-                    { type: 'email', message: '请输入有效的邮箱地址' },
-                  ]}
-                  validateTrigger="onBlur"
+                  <div className="form-actions">
+                    <Form.Item
+                      name="remember"
+                      valuePropName="checked"
+                      noStyle
+                      initialValue={true}
+                    >
+                      <Checkbox>记住我</Checkbox>
+                    </Form.Item>
+                    <a
+                      href="#"
+                      className="forgot-link"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      忘记密码？
+                    </a>
+                  </div>
+
+                  <Form.Item>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      className="submit-btn"
+                      loading={loading}
+                      disabled={loading}
+                    >
+                      登录工作台
+                      <ArrowRightOutlined />
+                    </Button>
+                  </Form.Item>
+
+                  <div className="register-link">
+                    还没有账号？
+                    <a
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActiveTab("register");
+                      }}
+                    >
+                      立即注册
+                    </a>
+                  </div>
+                </Form>
+              ) : (
+                <Form
+                  form={registerForm}
+                  layout="vertical"
+                  onFinish={onRegister}
+                  requiredMark={false}
                 >
-                  <Input placeholder="请输入邮箱" prefix={<MailOutlined />} autoComplete="email" />
-                </Form.Item>
-
-                <Form.Item label="邮箱验证码" required>
-                  <Row gutter={8}>
-                    <Col span={15}>
-                      <Form.Item
-                        name="code"
-                        noStyle
-                        rules={[{ required: true, message: '请输入验证码' }]}
-                      >
-                        <Input placeholder="6位验证码" />
-                      </Form.Item>
-                    </Col>
-                    <Col span={9}>
-                      <Button
-                        className="code-btn"
-                        onClick={handleSendCode}
-                        disabled={countdown > 0}
-                      >
-                        {countdown > 0 ? `${countdown}s 后重发` : '获取验证码'}
-                      </Button>
-                    </Col>
-                  </Row>
-                </Form.Item>
-
-                <Form.Item
-                  name="password"
-                  label="密码"
-                  rules={[
-                    { required: true, message: '请输入密码' },
-                    { min: 6, message: '密码至少6位' },
-                  ]}
-                  validateTrigger="onBlur"
-                >
-                  <Input.Password
-                    placeholder="请输入至少6位密码"
-                    prefix={<LockOutlined />}
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-
-                <Form.Item
-                  name="confirmPassword"
-                  label="确认密码"
-                  dependencies={['password']}
-                  validateTrigger="onBlur"
-                  rules={[
-                    { required: true, message: '请确认密码' },
-                    ({ getFieldValue }) => ({
-                      validator(_, value) {
-                        if (!value || getFieldValue('password') === value) {
-                          return Promise.resolve();
-                        }
-                        return Promise.reject(new Error('两次输入的密码不一致!'));
-                      },
-                    }),
-                  ]}
-                >
-                  <Input.Password
-                    placeholder="请再次输入密码"
-                    prefix={<LockOutlined />}
-                    autoComplete="new-password"
-                  />
-                </Form.Item>
-
-                <Form.Item>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    className="submit-btn"
-                    loading={loading}
-                    disabled={loading}
+                  <Form.Item
+                    name="email"
+                    label="邮箱"
+                    rules={[
+                      { required: true, message: "请输入邮箱" },
+                      { type: "email", message: "请输入有效的邮箱地址" },
+                    ]}
+                    validateTrigger="onBlur"
                   >
-                    注册
-                    <ArrowRightOutlined />
-                  </Button>
-                </Form.Item>
+                    <Input
+                      placeholder="请输入邮箱"
+                      prefix={<MailOutlined />}
+                      autoComplete="email"
+                    />
+                  </Form.Item>
 
-                <div className="register-link">
-                  已有账号？
-                  <a
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setActiveTab('login');
-                    }}
+                  <Form.Item label="邮箱验证码" required>
+                    <Row gutter={8}>
+                      <Col span={15}>
+                        <Form.Item
+                          name="code"
+                          noStyle
+                          rules={[{ required: true, message: "请输入验证码" }]}
+                        >
+                          <Input placeholder="6位验证码" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={9}>
+                        <Button
+                          className="code-btn"
+                          onClick={handleSendCode}
+                          disabled={countdown > 0}
+                        >
+                          {countdown > 0
+                            ? `${countdown}s 后重发`
+                            : "获取验证码"}
+                        </Button>
+                      </Col>
+                    </Row>
+                  </Form.Item>
+
+                  <Form.Item
+                    name="password"
+                    label="密码"
+                    rules={[
+                      { required: true, message: "请输入密码" },
+                      { min: 8, message: "密码至少8位" },
+                    ]}
+                    validateTrigger="onBlur"
                   >
-                    去登录
-                  </a>
-                </div>
-              </Form>
-            )}
+                    <Input.Password
+                      placeholder="请输入至少8位密码"
+                      prefix={<LockOutlined />}
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
 
-            <div className="agreement">
-              登录即表示你同意 <a href="#">《用户协议》</a> 和 <a href="#">《隐私政策》</a>
+                  <Form.Item
+                    name="confirmPassword"
+                    label="确认密码"
+                    dependencies={["password"]}
+                    validateTrigger="onBlur"
+                    rules={[
+                      { required: true, message: "请确认密码" },
+                      ({ getFieldValue }) => ({
+                        validator(_, value) {
+                          if (!value || getFieldValue("password") === value) {
+                            return Promise.resolve();
+                          }
+                          return Promise.reject(
+                            new Error("两次输入的密码不一致!"),
+                          );
+                        },
+                      }),
+                    ]}
+                  >
+                    <Input.Password
+                      placeholder="请再次输入密码"
+                      prefix={<LockOutlined />}
+                      autoComplete="new-password"
+                    />
+                  </Form.Item>
+
+                  <Form.Item>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      className="submit-btn"
+                      loading={loading}
+                      disabled={loading}
+                    >
+                      注册
+                      <ArrowRightOutlined />
+                    </Button>
+                  </Form.Item>
+
+                  <div className="register-link">
+                    已有账号？
+                    <a
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setActiveTab("login");
+                      }}
+                    >
+                      去登录
+                    </a>
+                  </div>
+                </Form>
+              )}
+
+              <div className="agreement">
+                登录即表示你同意 <a href="#">《用户协议》</a> 和{" "}
+                <a href="#">《隐私政策》</a>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     </div>
   );
 }

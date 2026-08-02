@@ -1,4 +1,6 @@
 import { TmPageContainer } from '@/components/ui';
+import PermissionGuard from '@/components/PermissionGuard';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   createRelease,
   executeRelease,
@@ -10,7 +12,7 @@ import { BranchesOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Form, Input, Modal, Space, Table, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
-export default function ReleasesPage() {
+function ReleasesPageContent() {
   const [items, setItems] = useState<ReleaseRun[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -108,5 +110,13 @@ export default function ReleasesPage() {
         </Form>
       </Modal>
     </TmPageContainer>
+  );
+}
+
+export default function ReleasesPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <ReleasesPageContent />
+    </PermissionGuard>
   );
 }

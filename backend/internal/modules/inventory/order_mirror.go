@@ -9,6 +9,7 @@ import (
 // avoiding a cycle (order.Handler already depends on inventory.Service).
 type orderMirror struct {
 	model.Base
+	TenantID      int64  `gorm:"not null;default:0;index"`
 	OrderNo       string `gorm:"size:128;not null"`
 	Status        string `gorm:"size:32;not null"`
 	PaymentStatus string `gorm:"size:32;not null"`

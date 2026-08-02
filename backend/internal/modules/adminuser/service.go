@@ -9,10 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/passwordpolicy"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -27,6 +29,7 @@ var (
 type Service struct {
 	DB    *gorm.DB
 	OpLog *operationlog.Service
+	Cfg   *config.Config
 }
 
 // ListQuery filters admin users.
@@ -100,7 +103,7 @@ func hashPassword(raw string) (string, error) {
 func normalizeRole(role string) string {
 	r := strings.TrimSpace(strings.ToLower(role))
 	switch r {
-	case adminperm.RoleAdmin, adminperm.RoleOperator, adminperm.RoleReadonly:
+	case adminperm.RoleAdmin, adminperm.RoleTenantAdmin, adminperm.RoleOperator, adminperm.RoleReadonly:
 		return r
 	default:
 		return adminperm.RoleOperator
@@ -265,8 +268,12 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 		return nil, fmt.Errorf("邮箱或手机号必填")
 	}
 	pw := strings.TrimSpace(body.Password)
-	if len(pw) < 6 {
-		return nil, fmt.Errorf("密码至少 6 位")
+	forbidden := ""
+	if s.Cfg != nil && config.IsProduction(s.Cfg.AppEnv) {
+		forbidden = s.Cfg.BootstrapAdminPassword
+	}
+	if passwordpolicy.IsWeakWithForbidden(pw, s.Cfg.AuthPasswordMinLength(), forbidden) {
+		return nil, fmt.Errorf("密码不符合安全要求")
 	}
 	if em != "" {
 		var cnt int64
@@ -281,7 +288,7 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 	if ph != "" {
 		var cnt int64
 		if err := s.DB.WithContext(c.Request.Context()).Model(&admin.AdminUser{}).
-			Where("phone = ?", ph).Count(&cnt).Error; err != nil {
+			Where("TRIM(phone) = ?", ph).Count(&cnt).Error; err != nil {
 			return nil, err
 		}
 		if cnt > 0 {

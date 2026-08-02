@@ -59,6 +59,7 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 			hasMain = true
 		}
 		plImgs = append(plImgs, platformp.PlatformProductImage{
+			TenantID:  p.TenantID,
 			URL:       url,
 			ObjectKey: strings.TrimSpace(im.ObjectKey),
 			Type:      imgType,
@@ -110,6 +111,7 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 			_ = json.Unmarshal(s.Attrs, &skuAttrs)
 		}
 		skus = append(skus, platformp.PlatformProductSKU{
+			TenantID:   p.TenantID,
 			LocalSKUID: s.ID,
 			SKUCode:    strings.TrimSpace(s.SKUCode),
 			SKUName:    strings.TrimSpace(s.SKUName),

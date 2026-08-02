@@ -76,6 +76,52 @@ func (h *Handler) requireInventoryWrite(c *gin.Context) bool {
 	return true
 }
 
+func (h *Handler) requireInventoryView(c *gin.Context) bool {
+	if h == nil || h.Svc == nil || h.Svc.DB == nil {
+		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
+		return false
+	}
+	if !adminperm.CanViewInventory(c, h.Svc.DB) {
+		response.Fail(c, 403, response.CodeForbidden, "无库存查看权限")
+		return false
+	}
+	return true
+}
+
+func requestTenant(c *gin.Context) (int64, error) { return adminperm.TenantIDFromGin(c) }
+
+// requireTaskOperate performs the whole authorization pass before a retry can
+// reset, claim, or enqueue any task. Product scope is checked as well as the
+// target store: a task can otherwise mutate a shared product through a store
+// grant that is narrower than the product's operating scope.
+func (h *Handler) requireTaskOperate(c *gin.Context, tenantID int64, taskIDs []uuid.UUID) bool {
+	if len(taskIDs) == 0 {
+		return true
+	}
+	var tasks []InventorySyncTask
+	if err := h.Svc.DB.WithContext(c.Request.Context()).Where("id IN ? AND tenant_id = ?", taskIDs, tenantID).Find(&tasks).Error; err != nil || len(tasks) != len(taskIDs) {
+		response.Fail(c, 404, response.CodeNotFound, "资源不存在")
+		return false
+	}
+	seenProducts := make(map[uuid.UUID]struct{}, len(tasks))
+	for _, task := range tasks {
+		if _, seen := seenProducts[task.ProductID]; seen {
+			continue
+		}
+		if err := adminperm.EnsureProductOperate(c, h.Svc.DB, task.ProductID); err != nil {
+			response.HandleError(c, err)
+			return false
+		}
+		seenProducts[task.ProductID] = struct{}{}
+	}
+	for _, task := range tasks {
+		if !adminperm.RequireStoreOperate(c, h.Svc.DB, task.ShopID) {
+			return false
+		}
+	}
+	return true
+}
+
 // AdjustStock POST /products/:id/skus/:skuId/adjust-stock
 func (h *Handler) AdjustStock(c *gin.Context) {
 	if h == nil || h.Svc == nil {
@@ -129,7 +175,12 @@ func (h *Handler) ListSKULogs(c *gin.Context) {
 	}
 	page := atoiQ(c, "page", 1)
 	ps := atoiQ(c, "pageSize", 20)
-	res, err := h.Svc.ListSKUChangeLogs(c.Request.Context(), pid, sid, page, ps)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	res, err := h.Svc.ListSKUChangeLogs(c.Request.Context(), tid, pid, sid, page, ps)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -162,7 +213,12 @@ func (h *Handler) ListPublicationSkuRows(c *gin.Context) {
 			filter = &u
 		}
 	}
-	rows, err := h.Svc.ListPublicationSkus(c.Request.Context(), pid, filter)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	rows, err := h.Svc.ListPublicationSkus(c.Request.Context(), tid, pid, filter)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -266,7 +322,12 @@ func (h *Handler) ListGlobalLogs(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListGlobalLogs(c.Request.Context(), q)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	res, err := h.Svc.ListGlobalLogs(c.Request.Context(), tid, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -314,7 +375,12 @@ func (h *Handler) ListGlobalOrderEffects(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListOrderEffectsGlobal(c.Request.Context(), q)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	res, err := h.Svc.ListOrderEffectsGlobal(c.Request.Context(), tid, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -350,9 +416,12 @@ func (h *Handler) ListCenter(c *gin.Context) {
 		PageSize:      atoiQ(c, "pageSize", 20),
 	}
 	q.UseCursor = q.Cursor != "" || q.Limit > 0
-	if tid, err := adminperm.TenantIDFromGin(c); err == nil {
-		q.TenantID = tid
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
 	}
+	q.TenantID = tid
 	if raw := strings.TrimSpace(c.Query("productId")); raw != "" {
 		if u, err := uuid.Parse(raw); err == nil {
 			q.ProductID = &u
@@ -423,7 +492,13 @@ func (h *Handler) ListAlerts(c *gin.Context) {
 			q.ShopID = &u
 		}
 	}
-	res, err := h.Svc.ListInventoryAlerts(c.Request.Context(), q)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	q.TenantID = tid
+	res, err := h.Svc.ListInventoryAlertsTenant(c.Request.Context(), tid, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -539,6 +614,14 @@ func (h *Handler) RetryTask(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if !h.requireTaskOperate(c, tid, []uuid.UUID{id}) {
+		return
+	}
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
@@ -573,7 +656,12 @@ func (h *Handler) CreateInventorySyncBatch(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), body, adminUUID(c))
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.CreateInventorySyncBatch(c.Request.Context(), tid, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -606,7 +694,12 @@ func (h *Handler) ListInventorySyncBatches(c *gin.Context) {
 			q.End = &t
 		}
 	}
-	res, err := h.Svc.ListInventorySyncBatches(c.Request.Context(), q)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	res, err := h.Svc.ListInventorySyncBatches(c.Request.Context(), tid, q)
 	if err != nil {
 		response.HandleError(c, err)
 		return
@@ -637,7 +730,12 @@ func (h *Handler) GetInventorySyncBatch(c *gin.Context) {
 	if recent > 50 {
 		recent = 50
 	}
-	out, err := h.Svc.GetInventorySyncBatch(c.Request.Context(), id, recent)
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.GetInventorySyncBatch(c.Request.Context(), tid, id, recent)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -709,7 +807,19 @@ func (h *Handler) RetryInventorySyncBatchFailed(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), id, adminUUID(c))
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	var taskIDs []uuid.UUID
+	if err := h.Svc.DB.WithContext(c.Request.Context()).Model(&InventorySyncTask{}).Where("batch_id = ? AND tenant_id = ? AND status = ?", id, tid, StatusFailed).Pluck("id", &taskIDs).Error; err != nil || !h.requireTaskOperate(c, tid, taskIDs) {
+		if err != nil {
+			response.HandleError(c, err)
+		}
+		return
+	}
+	out, err := h.Svc.RetryInventorySyncBatchFailed(c.Request.Context(), tid, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -744,7 +854,15 @@ func (h *Handler) RetryInventorySyncTasksBatch(c *gin.Context) {
 		}
 		ids = append(ids, u)
 	}
-	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), ids, adminUUID(c))
+	tid, err := requestTenant(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if !h.requireTaskOperate(c, tid, ids) {
+		return
+	}
+	out, err := h.Svc.RetryInventorySyncTasksIntoBatch(c.Request.Context(), tid, ids, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -758,12 +876,20 @@ func (h *Handler) BatchPreviewStockSettings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "inventory unavailable")
 		return
 	}
+	if !h.requireInventoryView(c) {
+		return
+	}
+	tenantID, err := requestTenant(c)
+	if err != nil || tenantID < 0 {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body StockSettingsBatchPreviewBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.PreviewStockSettingsBatch(c.Request.Context(), body)
+	out, err := h.Svc.PreviewStockSettingsBatch(c, tenantID, body)
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
@@ -780,12 +906,17 @@ func (h *Handler) BatchUpdateStockSettings(c *gin.Context) {
 	if !h.requireInventoryWrite(c) {
 		return
 	}
+	tenantID, err := requestTenant(c)
+	if err != nil || tenantID < 0 {
+		response.Fail(c, 401, response.CodeUnauthorized, "tenant context required")
+		return
+	}
 	var body StockSettingsBatchUpdateBody
 	if err := c.ShouldBindJSON(&body); err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
 		return
 	}
-	out, err := h.Svc.BatchUpdateStockSettings(c.Request.Context(), body, adminUUID(c))
+	out, err := h.Svc.BatchUpdateStockSettings(c, tenantID, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

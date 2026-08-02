@@ -1,6 +1,7 @@
 package imagetask
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -14,12 +15,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr"
 	"github.com/trademind-ai/trademind/backend/internal/providers/ocr/ocrerror"
 )
 
 const layoutWarningPartialOCR = "partial_text_detected"
+const maxTranslateImageBytes int64 = 12 << 20
 
 type translateImagePayload struct {
 	DataURL  string
@@ -36,32 +39,48 @@ func (s *Service) loadTranslateImagePayload(ctx context.Context, imageURL string
 	if strings.HasPrefix(strings.ToLower(u), "data:") {
 		return payloadFromDataURL(u)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = maxTranslateImageBytes
+	opts.ResponseTimeout = 30 * time.Second
+	result, err := safedownload.Download(ctx, u, opts)
 	if err != nil {
 		return nil, err
 	}
-	cli := &http.Client{Timeout: 30 * time.Second}
-	resp, err := cli.Do(req)
-	if err != nil {
-		return nil, err
+	return payloadFromTrustedImageBytes(result.Data, result.ContentType)
+}
+
+func payloadFromTrustedImageBytes(data []byte, contentType string) (*translateImagePayload, error) {
+	if int64(len(data)) > maxTranslateImageBytes {
+		return nil, fmt.Errorf("image exceeds %d bytes", maxTranslateImageBytes)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("download image HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 12<<20))
-	if err != nil {
-		return nil, err
-	}
-	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
+	ct := strings.TrimSpace(contentType)
 	if ct == "" {
 		ct = http.DetectContentType(data)
 	}
 	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
-		ct = "image/jpeg"
+		return nil, fmt.Errorf("invalid image content type")
+	}
+	validationOpts := safedownload.DefaultOptions()
+	validationOpts.MaxBodyBytes = maxTranslateImageBytes
+	if err := safedownload.ValidateImageBytes(data, ct, validationOpts); err != nil {
+		return nil, err
 	}
 	b64 := base64.StdEncoding.EncodeToString(data)
 	return payloadFromImageBytes(data, ct, fmt.Sprintf("data:%s;base64,%s", ct, b64)), nil
+}
+
+func payloadFromTrustedImageReader(r io.Reader, contentType string) (*translateImagePayload, error) {
+	if r == nil {
+		return nil, fmt.Errorf("empty image reader")
+	}
+	data, err := io.ReadAll(io.LimitReader(r, maxTranslateImageBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxTranslateImageBytes {
+		return nil, fmt.Errorf("image exceeds %d bytes", maxTranslateImageBytes)
+	}
+	return payloadFromTrustedImageBytes(data, contentType)
 }
 
 func payloadFromDataURL(dataURL string) (*translateImagePayload, error) {
@@ -74,6 +93,9 @@ func payloadFromDataURL(dataURL string) (*translateImagePayload, error) {
 	payloadPart := strings.TrimSpace(dataURL[comma+1:])
 	if payloadPart == "" {
 		return nil, fmt.Errorf("empty data url payload")
+	}
+	if int64(len(payloadPart)) > (maxTranslateImageBytes*4/3)+16 {
+		return nil, fmt.Errorf("data url exceeds limit")
 	}
 
 	var data []byte
@@ -89,6 +111,9 @@ func payloadFromDataURL(dataURL string) (*translateImagePayload, error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("empty data url payload")
 	}
+	if int64(len(data)) > maxTranslateImageBytes {
+		return nil, fmt.Errorf("data url exceeds limit")
+	}
 
 	ct := "image/jpeg"
 	if strings.HasPrefix(strings.ToLower(meta), "data:") {
@@ -103,14 +128,19 @@ func payloadFromDataURL(dataURL string) (*translateImagePayload, error) {
 		ct = http.DetectContentType(data)
 	}
 	if !strings.HasPrefix(strings.ToLower(ct), "image/") {
-		ct = "image/jpeg"
+		return nil, fmt.Errorf("invalid image content type")
+	}
+	validationOpts := safedownload.DefaultOptions()
+	validationOpts.MaxBodyBytes = maxTranslateImageBytes
+	if err := safedownload.ValidateImageBytes(data, ct, validationOpts); err != nil {
+		return nil, err
 	}
 	return payloadFromImageBytes(data, ct, dataURL), nil
 }
 
 func payloadFromImageBytes(data []byte, contentType, dataURL string) *translateImagePayload {
 	w, h := 0, 0
-	if cfg, _, dErr := image.DecodeConfig(bytesReader(data)); dErr == nil {
+	if cfg, _, dErr := image.DecodeConfig(bytes.NewReader(data)); dErr == nil {
 		w, h = cfg.Width, cfg.Height
 	}
 	if strings.TrimSpace(dataURL) == "" {

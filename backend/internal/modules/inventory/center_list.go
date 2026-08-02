@@ -368,7 +368,7 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		th = 0
 	}
 
-	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+	base := s.buildSKUAlertBaseTX(ctx, q.TenantID, skuAlertBaseQuery{
 		Keyword:       q.Keyword,
 		ProductID:     q.ProductID,
 		ProductSkuID:  q.ProductSkuID,
@@ -377,9 +377,8 @@ func (s *Service) ListInventoryCenter(ctx context.Context, q CenterListQuery) (*
 		StockStatus:   q.StockStatus,
 		OnlyPublished: false,
 	})
-	base = base.Where("p.tenant_id = ?", q.TenantID)
 	if strings.TrimSpace(q.AlertStatus) != "" {
-		base = s.applyAlertsSQLAlertType(base, q.AlertStatus, th)
+		base = s.applyAlertsSQLAlertType(base, q.TenantID, q.AlertStatus, th)
 	}
 	if strings.TrimSpace(q.SkuBindStatus) != "" {
 		base = s.applyCenterBindFilter(base, q.SkuBindStatus)

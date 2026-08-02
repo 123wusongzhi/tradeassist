@@ -45,13 +45,17 @@ type DouyinPayloadBuildResult struct {
 }
 
 // BuildDouyinProductPayload assembles product.addV2 payload from saved mapping config.
-func BuildDouyinProductPayload(ctx context.Context, db *gorm.DB, productID uuid.UUID, configID string) (*DouyinPayloadBuildResult, error) {
-	_ = configID
+func BuildDouyinProductPayload(ctx context.Context, db *gorm.DB, tenantID int64, productID uuid.UUID, configID string) (*DouyinPayloadBuildResult, error) {
 	if db == nil {
 		return nil, fmt.Errorf("productpublish: no db")
 	}
 	var cfg product.ProductPlatformPublishConfig
-	if err := db.Where("product_id = ? AND platform = ?", productID, "douyin_shop").First(&cfg).Error; err != nil {
+	q := db.WithContext(ctx).Joins("JOIN products p ON p.id = product_platform_publish_configs.product_id AND p.tenant_id = ?", tenantID).
+		Where("product_platform_publish_configs.product_id = ? AND product_platform_publish_configs.platform = ?", productID, "douyin_shop")
+	if strings.TrimSpace(configID) != "" {
+		q = q.Where("product_platform_publish_configs.id = ?", configID)
+	}
+	if err := q.First(&cfg).Error; err != nil {
 		return nil, fmt.Errorf("douyin mapping config not found")
 	}
 	mapping := product.DouyinDraftMappingFromConfig(cfg)

@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-// TaobaoTmallProfileKey is the dedicated collector persistent profile (isolated from 1688/pinduoduo/custom).
+// TaobaoTmallProfileKey is the legacy tenant-0 collector profile. Non-zero tenants
+// receive a tenant-scoped key through providerProfileKey.
 const TaobaoTmallProfileKey = "taobao_tmall"
 
 func isTaobaoTmallCollectSource(source string) bool {
@@ -15,11 +16,11 @@ func isTaobaoTmallCollectSource(source string) bool {
 	return s == "taobao_tmall" || s == "taobao"
 }
 
-func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, _sourceURL string, useBrowserProfile bool) []byte {
+func (s *Service) buildTaobaoTmallRequestOptions(ctx context.Context, tenantID int64, _sourceURL string, useBrowserProfile bool) []byte {
 	opts := map[string]any{}
 	if useBrowserProfile {
 		opts["useBrowserProfile"] = true
-		opts["profileKey"] = TaobaoTmallProfileKey
+		opts["profileKey"] = providerProfileKey(tenantID, TaobaoTmallProfileKey)
 	}
 	if s != nil && s.Settings != nil {
 		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")

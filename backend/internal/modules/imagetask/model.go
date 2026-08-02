@@ -39,6 +39,7 @@ const (
 // ImageTask records one AI image processing job (ai_image_tasks in product docs).
 type ImageTask struct {
 	model.HardDeleteBase
+	TenantID        int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskType        string         `gorm:"size:64;index;not null" json:"taskType"`
 	Provider        string         `gorm:"size:64;index;not null" json:"provider"`
 	Status          string         `gorm:"size:32;index;not null" json:"status"`
@@ -77,6 +78,7 @@ func (ImageTask) TableName() string { return "image_tasks" }
 // ImageTaskItem is one source→result row within a task (ai_image_task_items).
 type ImageTaskItem struct {
 	model.HardDeleteBase
+	TenantID         int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	TaskID           uuid.UUID      `gorm:"type:char(36);index;not null" json:"taskId"`
 	ProductID        *uuid.UUID     `gorm:"type:char(36);index" json:"productId,omitempty"`
 	SourceImageID    *uuid.UUID     `gorm:"type:char(36);index" json:"sourceImageId,omitempty"`

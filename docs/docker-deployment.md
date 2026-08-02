@@ -60,6 +60,12 @@ REDIS_PUBLISH_PORT=6379
 `http://host.docker.internal:3100`。因此宿主机 Bridge 停止只会让 OpenCLI
 任务失败，不会影响 Playwright、backend 健康检查或其他采集来源。
 
+Compose 中的 Playwright Collector 监听容器网络，因此 `.env` 必须设置同一个随机长
+`COLLECTOR_INTERNAL_TOKEN` 供 backend 和 collector 使用；缺失时两端都会 fail-fast。
+宿主机 `3001` 映射默认只绑定 `127.0.0.1`。Backend 默认不信任任何转发头；如需保留
+反向代理后的真实客户端 IP，仅把实际 nginx/网关的精确 IP 或最小 CIDR 写入
+`TRUSTED_PROXIES`，不得使用 `/0`。
+
 默认 `OPENCLI_BRIDGE_ENABLED=false`，普通 Docker 用户不需要安装 OpenCLI。
 需要启用时：
 

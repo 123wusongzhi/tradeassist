@@ -21,6 +21,14 @@ func (h *Handler) GetTranslateEditState(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), id, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
 	state, err := h.Svc.GetTranslateManualEditState(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -42,6 +50,14 @@ func (h *Handler) ManualRenderTranslate(c *gin.Context) {
 	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskTenant(c.Request.Context(), id, tenantID); err != nil {
+		handleTenantResourceError(c, err)
 		return
 	}
 	var body TranslateManualRenderRequest

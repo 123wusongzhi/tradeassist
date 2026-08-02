@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
@@ -178,36 +176,6 @@ func boolFromHints(hints map[string]any, key string, def bool) bool {
 	default:
 		return def
 	}
-}
-
-func verifyImageAccessible(ctx context.Context, imageURL string) error {
-	u := strings.TrimSpace(imageURL)
-	if u == "" {
-		return newTranslateErr(errCodeImageFetchFailed, "图片地址为空，无法读取原图")
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, u, nil)
-	if err != nil {
-		return newTranslateErr(errCodeImageFetchFailed, "无法访问原图，请检查图片链接是否有效")
-	}
-	cli := &http.Client{Timeout: 20 * time.Second}
-	resp, err := cli.Do(req)
-	if err != nil {
-		// Some storage providers may not support HEAD; try GET with range.
-		getReq, gErr := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-		if gErr != nil {
-			return newTranslateErr(errCodeImageFetchFailed, "无法访问原图，请检查图片链接是否有效")
-		}
-		getReq.Header.Set("Range", "bytes=0-1023")
-		resp, err = cli.Do(getReq)
-		if err != nil {
-			return newTranslateErr(errCodeImageFetchFailed, "无法访问原图，请检查图片链接是否有效")
-		}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return newTranslateErr(errCodeImageFetchFailed, "无法访问原图，请检查图片链接是否有效")
-	}
-	return nil
 }
 
 func (s *Service) ensureBlocksTranslated(ctx context.Context, ocr *translateOCRResult, targetLang string) error {
@@ -591,10 +559,6 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	if src == "" {
 		return newTranslateErr(errCodeImageFetchFailed, "缺少源图地址，无法读取原图")
 	}
-	if err := verifyImageAccessible(ctx, src); err != nil {
-		return err
-	}
-
 	m, _ := s.Settings.PlainByGroup(ctx, 0, "image")
 	defaultEraseMode := strings.TrimSpace(m["erase_mode"])
 	renderOpts := parseTranslateRenderOptions(hints, defaultEraseMode)
@@ -602,7 +566,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	if task.SourceImageID != nil {
 		_ = s.supersedePriorTranslateResults(ctx, task, targetLang, task.ID)
 	}
-	payload, loadErr := s.loadTranslateImagePayload(ctx, src)
+	payload, loadErr := s.loadTaskSourcePayload(ctx, task)
 	if loadErr != nil || payload == nil {
 		return newTranslateErr(errCodeImageFetchFailed, "无法下载原图用于翻译")
 	}
@@ -614,7 +578,7 @@ func (s *Service) executeTranslateImageTextTask(ctx context.Context, task *Image
 	s.logTranslateAudit(ctx, task, "ai_image.translate_text.started", "success",
 		translateAuditMsg(task, map[string]any{"renderMode": renderOpts.RenderMode}))
 
-	ocr, err := s.runOCROnImage(ctx, src, sourceLang, targetLang, hints)
+	ocr, err := s.runOCROnImage(ctx, payload.DataURL, sourceLang, targetLang, hints)
 	if err != nil {
 		return err
 	}

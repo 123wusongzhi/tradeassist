@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/security"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 )
 
@@ -51,6 +52,10 @@ func (s *Service) validateInventoryLease(ctx context.Context, taskID uuid.UUID, 
 }
 
 func (s *Service) finishInventorySyncTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	tc := security.FromContext(ctx)
+	if tc == nil || tc.TenantID < 0 {
+		return security.ErrTenantContextMissing
+	}
 	if err := s.validateInventoryLease(ctx, taskID, workerID, claim); err != nil {
 		slog.Warn("inventory_sync_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
 		return err
@@ -60,8 +65,8 @@ func (s *Service) finishInventorySyncTask(ctx context.Context, taskID uuid.UUID,
 	updates["locked_until"] = nil
 	updates["updated_at"] = now
 	res := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
-		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
-			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
+		Where("id = ? AND tenant_id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
+			taskID, tc.TenantID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
 		Updates(updates)
 	if res.Error != nil {
 		return res.Error
@@ -125,7 +130,15 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		return nil
 	}
 	fin := now
-	_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
+	recovery := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, StatusRunning, now, task.LockVersion)
+	if task.LockedBy != nil {
+		recovery = recovery.Where("locked_by = ?", *task.LockedBy)
+	}
+	if task.ExecutionID != nil {
+		recovery = recovery.Where("execution_id = ?", *task.ExecutionID)
+	}
+	result := recovery.
 		Updates(map[string]any{
 			"status":        StatusFailed,
 			"error_message": "worker lease expired",
@@ -133,7 +146,13 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			"locked_by":     nil,
 			"locked_until":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	bid := task.BatchID
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -168,7 +187,10 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 		return nil
 	}
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ?", taskID).
+	result := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ?", taskID, task.TenantID, StatusRunning).
+		Where("locked_by IS NULL AND locked_until IS NULL AND execution_id IS NULL AND heartbeat_at IS NULL").
+		Where("lock_version = ? AND updated_at < ?", task.LockVersion, legacyCutoff).
 		Updates(map[string]any{
 			"status":        StatusFailed,
 			"error_message": "legacy running inventory_sync_task recovered (no lease)",
@@ -176,6 +198,12 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 			"locked_by":     nil,
 			"locked_until":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	return nil
 }

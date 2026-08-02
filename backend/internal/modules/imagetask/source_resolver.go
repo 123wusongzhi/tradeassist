@@ -14,7 +14,9 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/httppublic"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	"github.com/trademind-ai/trademind/backend/internal/providers/storage"
+	"gorm.io/gorm"
 )
 
 func sanitizeStorageObjectKey(raw string) (string, error) {
@@ -213,12 +215,12 @@ func firstNonEmpty(vals ...string) string {
 }
 
 // ResolveSource resolves source_image_id / source_image_url for persisting image_tasks (display URL + id).
-func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
+func (s *Service) ResolveSource(ctx context.Context, tenantID int64, sourceImageID *uuid.UUID, sourceURL string) (imageID *uuid.UUID, resolvedURL string, err error) {
 	urlStr := strings.TrimSpace(sourceURL)
 	if sourceImageID != nil && *sourceImageID != uuid.Nil {
 		sid := *sourceImageID
 		var fr files.FileRecord
-		if err := s.DB.WithContext(ctx).First(&fr, "id = ?", sid).Error; err == nil {
+		if err := s.DB.WithContext(ctx).First(&fr, "id = ? AND tenant_id = ? AND security_status = ?", sid, tenantID, files.SecurityClean).Error; err == nil {
 			out := firstNonEmpty(fr.PublicURL)
 			if out == "" && strings.TrimSpace(fr.ObjectKey) != "" && s.Settings != nil {
 				sm, e2 := s.Settings.PlainByGroup(ctx, 0, "storage")
@@ -233,7 +235,11 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 			return &sid, out, nil
 		}
 		var pi product.ProductImage
-		if err := s.DB.WithContext(ctx).First(&pi, "id = ?", sid).Error; err == nil {
+		if err := s.DB.WithContext(ctx).Table("product_images AS pi").
+			Select("pi.*").
+			Joins("JOIN products AS p ON p.id = pi.product_id AND p.deleted_at IS NULL").
+			Where("pi.id = ? AND p.tenant_id = ?", sid, tenantID).
+			Take(&pi).Error; err == nil {
 			out := firstNonEmpty(pi.PublicURL, pi.OriginURL)
 			if out == "" && strings.TrimSpace(pi.ObjectKey) != "" && s.Settings != nil {
 				sm, e2 := s.Settings.PlainByGroup(ctx, 0, "storage")
@@ -248,15 +254,102 @@ func (s *Service) ResolveSource(ctx context.Context, sourceImageID *uuid.UUID, s
 			}
 			return &sid, out, nil
 		}
-		if urlStr != "" {
-			return nil, urlStr, nil
-		}
 		return nil, "", fmt.Errorf("sourceImageId not found")
 	}
 	if urlStr != "" {
+		if err := safedownload.ValidateURL(ctx, urlStr); err != nil {
+			return nil, "", fmt.Errorf("unsafe sourceImageUrl: %w", err)
+		}
 		return nil, urlStr, nil
 	}
 	return nil, "", fmt.Errorf("sourceImageId or sourceImageUrl required")
+}
+
+// loadTaskSourcePayload prefers the tenant-scoped storage object referenced by
+// source_image_id. Raw URLs are fetched only through the DNS-pinned downloader.
+func (s *Service) loadTaskSourcePayload(ctx context.Context, task *ImageTask) (*translateImagePayload, error) {
+	if s == nil || s.DB == nil || task == nil {
+		return nil, fmt.Errorf("imagetask: source unavailable")
+	}
+	if task.SourceImageID == nil || *task.SourceImageID == uuid.Nil {
+		return s.loadTranslateImagePayload(ctx, task.SourceImageURL)
+	}
+	if s.Settings == nil {
+		return nil, fmt.Errorf("imagetask: storage settings unavailable")
+	}
+	sm, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	if err != nil {
+		return nil, err
+	}
+	sourceID := *task.SourceImageID
+	var fr files.FileRecord
+	fileErr := s.DB.WithContext(ctx).
+		First(&fr, "id = ? AND tenant_id = ? AND security_status = ?", sourceID, task.TenantID, files.SecurityClean).Error
+	if fileErr == nil {
+		if strings.TrimSpace(fr.ObjectKey) != "" {
+			rc, _, contentType, openErr := s.openFileRecordObject(ctx, sm, &fr)
+			if openErr != nil {
+				return nil, openErr
+			}
+			defer rc.Close()
+			return payloadFromTrustedImageReader(rc, contentType)
+		}
+		return s.loadTranslateImagePayload(ctx, fr.PublicURL)
+	}
+	if !errors.Is(fileErr, gorm.ErrRecordNotFound) {
+		return nil, fileErr
+	}
+
+	var pi product.ProductImage
+	imageErr := s.DB.WithContext(ctx).Table("product_images AS pi").
+		Select("pi.*").
+		Joins("JOIN products AS p ON p.id = pi.product_id AND p.deleted_at IS NULL").
+		Where("pi.id = ? AND p.tenant_id = ?", sourceID, task.TenantID).
+		Take(&pi).Error
+	if imageErr != nil {
+		return nil, imageErr
+	}
+	if strings.TrimSpace(pi.ObjectKey) != "" {
+		rc, _, contentType, openErr := s.openProductImageObject(ctx, sm, &pi)
+		if openErr != nil {
+			return nil, openErr
+		}
+		defer rc.Close()
+		return payloadFromTrustedImageReader(rc, contentType)
+	}
+	return s.loadTranslateImagePayload(ctx, firstNonEmpty(pi.PublicURL, pi.OriginURL))
+}
+
+func (s *Service) loadTenantImagePayload(ctx context.Context, tenantID int64, imageURL string) (*translateImagePayload, error) {
+	u := strings.TrimSpace(imageURL)
+	if u == "" {
+		return nil, fmt.Errorf("empty image url")
+	}
+	if strings.HasPrefix(strings.ToLower(u), "data:") {
+		return payloadFromDataURL(u)
+	}
+	objectKey, localStatic := staticURLToObjectKey(u, "local")
+	if !localStatic {
+		return s.loadTranslateImagePayload(ctx, u)
+	}
+	if s == nil || s.DB == nil || s.Settings == nil {
+		return nil, fmt.Errorf("imagetask: local image unavailable")
+	}
+	var fr files.FileRecord
+	if err := s.DB.WithContext(ctx).
+		First(&fr, "tenant_id = ? AND object_key = ? AND security_status = ?", tenantID, objectKey, files.SecurityClean).Error; err != nil {
+		return nil, err
+	}
+	sm, err := s.Settings.PlainByGroup(ctx, 0, "storage")
+	if err != nil {
+		return nil, err
+	}
+	rc, _, contentType, err := s.openFileRecordObject(ctx, sm, &fr)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+	return payloadFromTrustedImageReader(rc, contentType)
 }
 
 // removeBGSource is the outcome of resolving a remove_background source image.

@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
@@ -88,12 +89,13 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	filesSvc := &files.Service{DB: db, Settings: settingsSvc}
 	uploader := &stubDouyinUploader{}
 	svc := &Service{DB: db, Settings: settingsSvc, DouyinImageUploader: uploader}
-	prod := Product{Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
 	data := testPNG(t)
-	rec, err := filesSvc.SaveProcessed(context.Background(), files.SaveProcessedOpts{
+	rec, err := filesSvc.SaveUntrustedProcessed(context.Background(), files.SaveProcessedOpts{
+		TenantID:     1,
 		OriginalName: "main.png",
 		ObjectKey:    "products/main.png",
 		Data:         data,
@@ -105,6 +107,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	price := 10.0
 	stock := 1
 	shopID := uuid.NewString()
+	seedDouyinTestShop(t, db, shopID, 1)
 	mapping := validDouyinMapping(shopID, price, stock)
 	mapping.MainImages = []DouyinDraftImage{{
 		LocalImageID: uuid.NewString(),
@@ -118,7 +121,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	if err := svc.SaveDouyinDraftMapping(context.Background(), prod.ID, mapping); err != nil {
 		t.Fatal(err)
 	}
-	out, err := svc.UploadDouyinImages(testGinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"main"}}, nil, filesSvc)
+	out, err := svc.UploadDouyinImages(testDouyinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"main"}}, nil, filesSvc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +132,7 @@ func TestDouyinImageUploadReadsStorageAndPersistsPlatformImage(t *testing.T) {
 	if got.PlatformImageID == "" || got.PlatformImageURL == "" || got.UploadStatus != DouyinImageStatusUploaded {
 		t.Fatalf("platform image fields not persisted: %+v", got)
 	}
-	out2, err := svc.UploadDouyinImages(testGinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"main"}}, nil, filesSvc)
+	out2, err := svc.UploadDouyinImages(testDouyinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"main"}}, nil, filesSvc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,11 +148,12 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	seedLocalStorage(t, db, root, "https://cdn.example.test/static")
 	settingsSvc := &settings.Service{DB: db}
 	filesSvc := &files.Service{DB: db, Settings: settingsSvc}
-	prod := Product{Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
+	prod := Product{TenantID: 1, Source: "manual", Title: "Demo", Description: "Desc", Currency: "CNY", Status: StatusReady}
 	if err := db.Create(&prod).Error; err != nil {
 		t.Fatal(err)
 	}
-	rec, err := filesSvc.SaveProcessed(context.Background(), files.SaveProcessedOpts{
+	rec, err := filesSvc.SaveUntrustedProcessed(context.Background(), files.SaveProcessedOpts{
+		TenantID:     1,
 		OriginalName: "detail.png",
 		ObjectKey:    "products/detail.png",
 		Data:         testPNG(t),
@@ -161,7 +165,9 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	price := 10.0
 	stock := 1
 	imgID := uuid.NewString()
-	mapping := validDouyinMapping(uuid.NewString(), price, stock)
+	shopID := uuid.NewString()
+	seedDouyinTestShop(t, db, shopID, 1)
+	mapping := validDouyinMapping(shopID, price, stock)
 	mapping.MainImages[0].PlatformImageID = "already-ok"
 	mapping.MainImages[0].UploadStatus = DouyinImageStatusUploaded
 	mapping.DetailImages = []DouyinDraftImage{{
@@ -178,7 +184,7 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 	if err := svc.SaveDouyinDraftMapping(context.Background(), prod.ID, mapping); err != nil {
 		t.Fatal(err)
 	}
-	out, err := svc.UploadDouyinImages(testGinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"detail"}}, nil, filesSvc)
+	out, err := svc.UploadDouyinImages(testDouyinContext(), prod.ID, DouyinImageUploadBody{ImageTypes: []string{"detail"}}, nil, filesSvc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +193,7 @@ func TestDouyinImageUploadFailureAndRetry(t *testing.T) {
 		t.Fatalf("expected failed detail image with code: %+v", out.Mapping.DetailImages[0])
 	}
 	uploader.err = nil
-	out, err = svc.RetryDouyinImage(testGinContext(), prod.ID, imgID, nil, filesSvc)
+	out, err = svc.RetryDouyinImage(testDouyinContext(), prod.ID, imgID, nil, filesSvc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -221,6 +227,43 @@ func TestDouyinImageDownloadRejectsPrivateNetworkURL(t *testing.T) {
 	}
 }
 
+func TestReadStorageDouyinImageRequiresCleanTenantRecord(t *testing.T) {
+	db := newDouyinMappingTestDB(t)
+	seedLocalStorage(t, db, t.TempDir(), "https://cdn.example.test/static")
+	svc := &Service{DB: db, Settings: &settings.Service{DB: db}}
+	key := "products/cross-tenant.png"
+	if err := db.Create(&files.FileRecord{
+		TenantID:       2,
+		OriginalName:   "cross-tenant.png",
+		ObjectKey:      key,
+		ContentType:    "image/png",
+		StorageKind:    "local",
+		SecurityStatus: files.SecurityClean,
+		ScanStatus:     files.SecurityClean,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.readStorageDouyinImage(context.Background(), 1, key, &DouyinDraftImage{}); err == nil {
+		t.Fatal("tenant 1 read a tenant 2 storage object")
+	}
+
+	pendingKey := "products/pending.png"
+	if err := db.Create(&files.FileRecord{
+		TenantID:       1,
+		OriginalName:   "pending.png",
+		ObjectKey:      pendingKey,
+		ContentType:    "image/png",
+		StorageKind:    "local",
+		SecurityStatus: files.SecurityPendingScan,
+		ScanStatus:     files.SecurityPendingScan,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.readStorageDouyinImage(context.Background(), 1, pendingKey, &DouyinDraftImage{}); err == nil {
+		t.Fatal("pending storage object was accepted")
+	}
+}
+
 func seedLocalStorage(t *testing.T, db *gorm.DB, root, publicBase string) {
 	t.Helper()
 	for k, v := range map[string]string{"kind": "local", "local_root": root, "public_base": publicBase} {
@@ -228,6 +271,25 @@ func seedLocalStorage(t *testing.T, db *gorm.DB, root, publicBase string) {
 			t.Fatal(err)
 		}
 	}
+}
+
+func seedDouyinTestShop(t *testing.T, db *gorm.DB, rawID string, tenantID int64) {
+	t.Helper()
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	row := &shop.Shop{TenantID: tenantID, Platform: "douyin_shop", ShopName: "Test Douyin Shop", Status: "active", AuthStatus: "authorized"}
+	row.ID = id
+	if err := db.Create(row).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testDouyinContext() *gin.Context {
+	c := testGinContext()
+	c.Set("adminperm.principal", &adminperm.Principal{TenantID: 1, Role: adminperm.RoleTenantAdmin, Permissions: adminperm.PermissionsForRole(adminperm.RoleTenantAdmin)})
+	return c
 }
 
 func validDouyinMapping(shopID string, price float64, stock int) *DouyinDraftMapping {

@@ -51,12 +51,13 @@ services:
       - .env
     environment:
       # 编排约定：容器内固定监听 3001，宿主机端口见 COLLECTOR_PUBLISH_PORT
-      COLLECTOR_HTTP_ADDR: ":3001"
+      COLLECTOR_HTTP_ADDR: "0.0.0.0:3001"
+      COLLECTOR_INTERNAL_TOKEN: ${COLLECTOR_INTERNAL_TOKEN:-}
       COLLECTOR_BROWSER_PROFILE_DIR: /workspace/data/browser-profiles
       COLLECTOR_STORAGE_STATE_DIR: /workspace/data/storage-states
       NODE_ENV: production
     ports:
-      - "${COLLECTOR_PUBLISH_PORT:-3001}:3001"
+      - "127.0.0.1:${COLLECTOR_PUBLISH_PORT:-3001}:3001"
     volumes:
       - ./data/browser-profiles:/workspace/data/browser-profiles
       - ./data/storage-states:/workspace/data/storage-states
@@ -80,10 +81,12 @@ services:
       - .env
     environment:
       APP_HTTP_ADDR: ":8080"
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
       # Playwright 固定走 Compose 内 Collector；OpenCLI 固定走宿主机 Bridge。
       COLLECTOR_PLAYWRIGHT_BASE_URL: http://collector:3001
+      COLLECTOR_INTERNAL_TOKEN: ${COLLECTOR_INTERNAL_TOKEN:-}
       OPENCLI_BRIDGE_ENABLED: ${OPENCLI_BRIDGE_ENABLED:-false}
       OPENCLI_BRIDGE_BASE_URL: ${OPENCLI_BRIDGE_DOCKER_BASE_URL:-http://host.docker.internal:3100}
       OPENCLI_BRIDGE_TOKEN: ${OPENCLI_BRIDGE_TOKEN:-}

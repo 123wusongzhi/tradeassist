@@ -56,6 +56,7 @@ func (ProductPublishTask) TableName() string { return "product_publish_tasks" }
 // ProductPublication tracks remote listing linkage for a draft + shop pair.
 type ProductPublication struct {
 	model.Base
+	TenantID           int64          `gorm:"not null;default:0;index" json:"tenantId"`
 	ProductID          uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
 	ShopID             uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
 	Platform           string         `gorm:"size:64;index;not null" json:"platform"`

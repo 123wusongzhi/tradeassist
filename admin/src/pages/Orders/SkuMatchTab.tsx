@@ -1,4 +1,4 @@
-import { Button, Input, Modal, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
+import { Button, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, Alert, message } from 'antd';
 import { confirmSkuManualBind } from '@/constants/sensitiveActions';
 import { history } from '@umijs/max';
 import { useCallback, useEffect, useState } from 'react';
@@ -162,19 +162,20 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
               title: '操作',
               key: 'pick',
               width: 100,
-              render: (_, row) => (
-                <Button
-                  size="small"
-                  onClick={() => {
-                    setBindItemId(id);
-                    setPickedSku(row.productSkuId);
-                    setPickedCandMeta({ confidence: row.confidence, source: row.source });
-                    setBindOpen(true);
-                  }}
-                >
-                  以此为候选绑定
-                </Button>
-              ),
+              render: (_, row) =>
+                !readOnly ? (
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setBindItemId(id);
+                      setPickedSku(row.productSkuId);
+                      setPickedCandMeta({ confidence: row.confidence, source: row.source });
+                      setBindOpen(true);
+                    }}
+                  >
+                    以此为候选绑定
+                  </Button>
+                ) : null,
             },
           ]}
         />
@@ -197,6 +198,7 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
   };
 
   const openBind = (orderItemId: string) => {
+    if (readOnly) return;
     setBindItemId(orderItemId);
     setPickedSku(undefined);
     setPickedCandMeta(null);
@@ -415,7 +417,9 @@ export default function OrderSkuMatchTab({ orderId, onRefreshOrder, readOnly = f
             <Button onClick={() => setBindOpen(false)}>关闭</Button>
             <Button
               type="primary"
+              disabled={readOnly}
               onClick={() => {
+                if (readOnly) return;
                 confirmSkuManualBind(async () => {
                   if (!bindItemId || !pickedSku) {
                     message.warning('请选择 SKU');

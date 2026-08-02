@@ -66,8 +66,8 @@ type skuAlertBaseQuery struct {
 	OnlyPublished bool
 }
 
-func (s *Service) buildAlertsBaseTX(ctx context.Context, q AlertsListQuery) *gorm.DB {
-	return s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+func (s *Service) buildAlertsBaseTX(ctx context.Context, tenantID int64, q AlertsListQuery) *gorm.DB {
+	return s.buildSKUAlertBaseTX(ctx, tenantID, skuAlertBaseQuery{
 		Keyword:       q.Keyword,
 		ProductID:     q.ProductID,
 		ProductSkuID:  q.ProductSkuID,
@@ -79,10 +79,10 @@ func (s *Service) buildAlertsBaseTX(ctx context.Context, q AlertsListQuery) *gor
 	})
 }
 
-func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) *gorm.DB {
+func (s *Service) buildSKUAlertBaseTX(ctx context.Context, tenantID int64, q skuAlertBaseQuery) *gorm.DB {
 	tx := s.DB.WithContext(ctx).Table("product_skus AS sk").
 		Select(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title AS product_title`).
-		Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL")
+		Joins("INNER JOIN products p ON p.id = sk.product_id AND p.deleted_at IS NULL AND p.tenant_id = ?", tenantID)
 	if pid := q.ProductID; pid != nil && *pid != uuid.Nil {
 		tx = tx.Where("sk.product_id = ?", *pid)
 	}
@@ -99,19 +99,19 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 	pl := strings.TrimSpace(strings.ToLower(q.Platform))
 	if pl != "" {
 		tx = tx.Joins(`INNER JOIN product_publication_skus pps_pf ON pps_pf.product_sku_id = sk.id`).
-			Joins(`INNER JOIN product_publications pp_pf ON pp_pf.id = pps_pf.publication_id AND pp_pf.deleted_at IS NULL`).
+			Joins(`INNER JOIN product_publications pp_pf ON pp_pf.id = pps_pf.publication_id AND pp_pf.deleted_at IS NULL AND pp_pf.tenant_id = ?`, tenantID).
 			Where("LOWER(pp_pf.platform) = ?", pl)
 	}
 	if shop := q.ShopID; shop != nil && *shop != uuid.Nil {
 		tx = tx.Joins(`INNER JOIN product_publication_skus pps_shop ON pps_shop.product_sku_id = sk.id`).
-			Joins(`INNER JOIN product_publications pp_shop ON pp_shop.id = pps_shop.publication_id AND pp_shop.deleted_at IS NULL AND pp_shop.shop_id = ?`, *shop)
+			Joins(`INNER JOIN product_publications pp_shop ON pp_shop.id = pps_shop.publication_id AND pp_shop.deleted_at IS NULL AND pp_shop.tenant_id = ? AND pp_shop.shop_id = ?`, tenantID, *shop)
 	}
 	if q.OnlyPublished {
 		tx = tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus ppsx
-			INNER JOIN product_publications ppx ON ppx.id = ppsx.publication_id AND ppx.deleted_at IS NULL
+			INNER JOIN product_publications ppx ON ppx.id = ppsx.publication_id AND ppx.deleted_at IS NULL AND ppx.tenant_id = ?
 			WHERE ppsx.product_sku_id = sk.id
-		)`)
+		)`, tenantID)
 	}
 	switch strings.TrimSpace(q.StockStatus) {
 	case product.StockStatusOutOfStock:
@@ -129,12 +129,12 @@ func (s *Service) buildSKUAlertBaseTX(ctx context.Context, q skuAlertBaseQuery) 
 }
 
 // applyAlertsSQLAlertTypesOR restricts to SKUs matching any of the given alert dimensions (OR).
-func (s *Service) applyAlertsSQLAlertTypesOR(tx *gorm.DB, alertTypes []string, th int) *gorm.DB {
+func (s *Service) applyAlertsSQLAlertTypesOR(tx *gorm.DB, tenantID int64, alertTypes []string, th int) *gorm.DB {
 	if len(alertTypes) == 0 {
 		return tx
 	}
 	parts := make([]string, 0, len(alertTypes))
-	args := make([]any, 0, 4)
+	args := make([]any, 0, 8)
 	for _, raw := range alertTypes {
 		at := strings.TrimSpace(strings.ToLower(raw))
 		if at == "" {
@@ -152,28 +152,31 @@ func (s *Service) applyAlertsSQLAlertTypesOR(tx *gorm.DB, alertTypes []string, t
 		case AlertTypePlatformStockUnknown:
 			parts = append(parts, `EXISTS (
 			SELECT 1 FROM product_publication_skus ppsu
-			INNER JOIN product_publications ppu ON ppu.id = ppsu.publication_id AND ppu.deleted_at IS NULL
+			INNER JOIN product_publications ppu ON ppu.id = ppsu.publication_id AND ppu.deleted_at IS NULL AND ppu.tenant_id = ?
 			WHERE ppsu.product_sku_id = sk.id AND ppsu.stock IS NULL
 		)`)
+			args = append(args, tenantID)
 		case AlertTypePlatformStockMismatch:
 			parts = append(parts, fmt.Sprintf(`EXISTS (
 			SELECT 1 FROM product_publication_skus ppsm
-			INNER JOIN product_publications ppm ON ppm.id = ppsm.publication_id AND ppm.deleted_at IS NULL
+			INNER JOIN product_publications ppm ON ppm.id = ppsm.publication_id AND ppm.deleted_at IS NULL AND ppm.tenant_id = ?
 			WHERE ppsm.product_sku_id = sk.id AND ppsm.stock IS NOT NULL
 				AND ABS(COALESCE(sk.stock,0) - ppsm.stock) > %d
 		)`, th))
+			args = append(args, tenantID)
 		case AlertTypeInventorySyncFailed:
 			parts = append(parts, `EXISTS (
 			SELECT 1 FROM product_publication_skus ppsf
 			INNER JOIN inventory_sync_tasks tf ON tf.publication_sku_id = ppsf.id
+			INNER JOIN product_publications ppf ON ppf.id = ppsf.publication_id AND ppf.deleted_at IS NULL AND ppf.tenant_id = ?
 			WHERE ppsf.product_sku_id = sk.id
-				AND tf.status = ?
+				AND tf.tenant_id = ? AND tf.status = ?
 				AND NOT EXISTS (
 					SELECT 1 FROM inventory_sync_tasks tf2
-					WHERE tf2.publication_sku_id = ppsf.id AND tf2.created_at > tf.created_at
+					WHERE tf2.publication_sku_id = ppsf.id AND tf2.tenant_id = ? AND tf2.created_at > tf.created_at
 				)
 		)`)
-			args = append(args, StatusFailed)
+			args = append(args, tenantID, tenantID, StatusFailed, tenantID)
 		default:
 			continue
 		}
@@ -184,7 +187,7 @@ func (s *Service) applyAlertsSQLAlertTypesOR(tx *gorm.DB, alertTypes []string, t
 	return tx.Where("("+strings.Join(parts, " OR ")+")", args...)
 }
 
-func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int) *gorm.DB {
+func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, tenantID int64, alertType string, th int) *gorm.DB {
 	at := strings.TrimSpace(strings.ToLower(alertType))
 	switch at {
 	case AlertTypeOutOfStock:
@@ -198,33 +201,34 @@ func (s *Service) applyAlertsSQLAlertType(tx *gorm.DB, alertType string, th int)
 	case AlertTypePlatformStockUnknown:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus ppsu
-			INNER JOIN product_publications ppu ON ppu.id = ppsu.publication_id AND ppu.deleted_at IS NULL
+			INNER JOIN product_publications ppu ON ppu.id = ppsu.publication_id AND ppu.deleted_at IS NULL AND ppu.tenant_id = ?
 			WHERE ppsu.product_sku_id = sk.id AND ppsu.stock IS NULL
-		)`)
+		)`, tenantID)
 	case AlertTypePlatformStockMismatch:
 		return tx.Where(fmt.Sprintf(`EXISTS (
 			SELECT 1 FROM product_publication_skus ppsm
-			INNER JOIN product_publications ppm ON ppm.id = ppsm.publication_id AND ppm.deleted_at IS NULL
+			INNER JOIN product_publications ppm ON ppm.id = ppsm.publication_id AND ppm.deleted_at IS NULL AND ppm.tenant_id = ?
 			WHERE ppsm.product_sku_id = sk.id AND ppsm.stock IS NOT NULL
 				AND ABS(COALESCE(sk.stock,0) - ppsm.stock) > %d
-		)`, th))
+		)`, th), tenantID)
 	case AlertTypeInventorySyncFailed:
 		return tx.Where(`EXISTS (
 			SELECT 1 FROM product_publication_skus ppsf
 			INNER JOIN inventory_sync_tasks tf ON tf.publication_sku_id = ppsf.id
+			INNER JOIN product_publications ppf ON ppf.id = ppsf.publication_id AND ppf.deleted_at IS NULL AND ppf.tenant_id = ?
 			WHERE ppsf.product_sku_id = sk.id
-				AND tf.status = ?
+				AND tf.tenant_id = ? AND tf.status = ?
 				AND NOT EXISTS (
 					SELECT 1 FROM inventory_sync_tasks tf2
-					WHERE tf2.publication_sku_id = ppsf.id AND tf2.created_at > tf.created_at
+					WHERE tf2.publication_sku_id = ppsf.id AND tf2.tenant_id = ? AND tf2.created_at > tf.created_at
 				)
-		)`, StatusFailed)
+		)`, tenantID, tenantID, StatusFailed, tenantID)
 	default:
 		return tx
 	}
 }
 
-func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, pol inventoryAlertPolicy, mismatchTh int) *gorm.DB {
+func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, tenantID int64, pol inventoryAlertPolicy, mismatchTh int) *gorm.DB {
 	local := "(FALSE)"
 	if pol.EnableInventoryAlerts {
 		local = "COALESCE(sk.stock, 0) <= sk.warning_stock"
@@ -238,7 +242,7 @@ func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, pol inventoryAlertPolicy
   (` + local + `)
   OR EXISTS (
     SELECT 1 FROM product_publication_skus pps0
-    INNER JOIN product_publications pp0 ON pp0.id = pps0.publication_id AND pp0.deleted_at IS NULL
+    INNER JOIN product_publications pp0 ON pp0.id = pps0.publication_id AND pp0.deleted_at IS NULL AND pp0.tenant_id = ?
     WHERE pps0.product_sku_id = sk.id
     AND (
       pps0.stock IS NULL
@@ -246,17 +250,17 @@ func (s *Service) applyNonNormalAlertScope(tx *gorm.DB, pol inventoryAlertPolicy
       OR EXISTS (
         SELECT 1 FROM inventory_sync_tasks t0
         WHERE t0.publication_sku_id = pps0.id
-          AND t0.status = ?
+          AND t0.tenant_id = ? AND t0.status = ?
           AND NOT EXISTS (
             SELECT 1 FROM inventory_sync_tasks t1
-            WHERE t1.publication_sku_id = pps0.id
+            WHERE t1.publication_sku_id = pps0.id AND t1.tenant_id = ?
               AND t1.created_at > t0.created_at
           )
       )
     )
   )
 )`
-	return tx.Where(q, StatusFailed)
+	return tx.Where(q, tenantID, tenantID, StatusFailed, tenantID)
 }
 
 func (s *Service) loadLatestTasksByPubSku(ctx context.Context, pubIDs []uuid.UUID) map[uuid.UUID]latestTaskScan {
@@ -330,6 +334,16 @@ func appendUnique(slice []string, v string) []string {
 
 // ListInventoryAlerts pages SKU rows with stock / platform / sync alert context.
 func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*AlertsListResult, error) {
+	return s.listInventoryAlerts(ctx, q.TenantID, q)
+}
+
+// ListInventoryAlertsTenant is the HTTP-safe entry point. The trusted tenant is
+// supplied by adminperm rather than inferred from the requested product or shop.
+func (s *Service) ListInventoryAlertsTenant(ctx context.Context, tenantID int64, q AlertsListQuery) (*AlertsListResult, error) {
+	return s.listInventoryAlerts(ctx, tenantID, q)
+}
+
+func (s *Service) listInventoryAlerts(ctx context.Context, tenantID int64, q AlertsListQuery) (*AlertsListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -349,11 +363,11 @@ func (s *Service) ListInventoryAlerts(ctx context.Context, q AlertsListQuery) (*
 		th = 0
 	}
 
-	base := s.buildAlertsBaseTX(ctx, q)
+	base := s.buildAlertsBaseTX(ctx, tenantID, q)
 	if strings.TrimSpace(q.AlertType) != "" {
-		base = s.applyAlertsSQLAlertType(base, q.AlertType, th)
+		base = s.applyAlertsSQLAlertType(base, tenantID, q.AlertType, th)
 	} else if !q.IncludeNormal {
-		base = s.applyNonNormalAlertScope(base, pol, th)
+		base = s.applyNonNormalAlertScope(base, tenantID, pol, th)
 	}
 	base = base.Group("sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title")
 

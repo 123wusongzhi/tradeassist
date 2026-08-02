@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/trademind-ai/trademind/backend/internal/modules/admin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/files"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	imgprov "github.com/trademind-ai/trademind/backend/internal/providers/image"
 )
 
@@ -45,13 +46,24 @@ func (s *Service) persistProviderResult(ctx context.Context, task *ImageTask, re
 	objKey := BuildAIImageObjectKey(task.ProductID, task.TaskType)
 	origName := fmt.Sprintf("%s-%s.webp", task.TaskType, task.ID.String())
 
-	fr, saveErr := s.Files.SaveProcessed(ctx, files.SaveProcessedOpts{
+	opts := files.SaveProcessedOpts{
+		TenantID:     s.persistTenantID(ctx, task),
 		OriginalName: origName,
 		ObjectKey:    objKey,
 		Data:         data,
 		ContentType:  ct,
 		CreatedBy:    task.CreatedBy,
-	})
+	}
+	if task.SourceImageID != nil && s.isCleanSourceFile(ctx, opts.TenantID, *task.SourceImageID) {
+		opts.SourceFileID = *task.SourceImageID
+	}
+	var fr *files.FileRecord
+	var saveErr error
+	if opts.SourceFileID != uuid.Nil {
+		fr, saveErr = s.Files.SaveProcessed(ctx, opts)
+	} else {
+		fr, saveErr = s.Files.SaveUntrustedProcessed(ctx, opts)
+	}
 	if saveErr != nil {
 		return "", nil, "", saveErr
 	}
@@ -59,34 +71,69 @@ func (s *Service) persistProviderResult(ctx context.Context, task *ImageTask, re
 	return strings.TrimSpace(fr.PublicURL), &idCopy, strings.TrimSpace(fr.ObjectKey), nil
 }
 
+func (s *Service) persistTenantID(ctx context.Context, task *ImageTask) int64 {
+	if s == nil || s.DB == nil || task == nil {
+		return 0
+	}
+	var resourceTenant int64
+	if task.ProductID != nil && *task.ProductID != uuid.Nil {
+		var p product.Product
+		if err := s.DB.WithContext(ctx).Select("tenant_id").First(&p, "id = ?", *task.ProductID).Error; err == nil {
+			resourceTenant = p.TenantID
+		}
+	}
+	if resourceTenant <= 0 && task.SourceImageID != nil && *task.SourceImageID != uuid.Nil {
+		var source files.FileRecord
+		if err := s.DB.WithContext(ctx).Select("tenant_id").First(&source, "id = ?", *task.SourceImageID).Error; err == nil {
+			resourceTenant = source.TenantID
+		}
+	}
+	var actorTenant int64
+	if task.CreatedBy != nil && *task.CreatedBy != uuid.Nil {
+		var actor admin.AdminUser
+		if err := s.DB.WithContext(ctx).Select("tenant_id").First(&actor, "id = ?", *task.CreatedBy).Error; err == nil {
+			actorTenant = actor.TenantID
+		}
+	}
+	if task.TenantID > 0 {
+		if resourceTenant > 0 && resourceTenant != task.TenantID {
+			return 0
+		}
+		if actorTenant > 0 && actorTenant != task.TenantID {
+			return 0
+		}
+		return task.TenantID
+	}
+	if resourceTenant > 0 && actorTenant > 0 && resourceTenant != actorTenant {
+		return 0
+	}
+	if resourceTenant > 0 {
+		return resourceTenant
+	}
+	return actorTenant
+}
+
+func (s *Service) isCleanSourceFile(ctx context.Context, tenantID int64, id uuid.UUID) bool {
+	if s == nil || s.DB == nil || tenantID <= 0 || id == uuid.Nil {
+		return false
+	}
+	var n int64
+	return s.DB.WithContext(ctx).Model(&files.FileRecord{}).Where("id = ? AND tenant_id = ? AND security_status = ?", id, tenantID, files.SecurityClean).Count(&n).Error == nil && n == 1
+}
+
 func downloadResultBytes(ctx context.Context, rawURL string) ([]byte, string, error) {
 	u := strings.TrimSpace(rawURL)
 	if u == "" {
 		return nil, "", fmt.Errorf("empty url")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, "", err
-	}
-	cli := &http.Client{Timeout: 90 * time.Second}
-	resp, err := cli.Do(req)
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = 30 << 20
+	opts.ResponseTimeout = 90 * time.Second
+	result, err := safedownload.Download(ctx, u, opts)
 	if err != nil {
 		return nil, "", fmt.Errorf("download result: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		slurp, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, "", fmt.Errorf("download result HTTP %d %s", resp.StatusCode, strings.TrimSpace(string(slurp)))
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 30<<20))
-	if err != nil {
-		return nil, "", err
-	}
-	ct := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if ct == "" {
-		ct = http.DetectContentType(data)
-	}
-	return data, ct, nil
+	return result.Data, result.ContentType, nil
 }
 
 func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, finalURL, storageKey string, fileID *uuid.UUID, scoreJSON []byte, selectedBest bool) error {
@@ -97,6 +144,7 @@ func (s *Service) upsertPrimaryTaskItem(ctx context.Context, task *ImageTask, fi
 	err := s.DB.WithContext(ctx).Where("task_id = ?", task.ID).Order("created_at ASC").First(&existing).Error
 	if err != nil {
 		item := &ImageTaskItem{
+			TenantID:         task.TenantID,
 			TaskID:           task.ID,
 			ProductID:        task.ProductID,
 			SourceImageID:    task.SourceImageID,
@@ -190,7 +238,12 @@ func extractPromptFields(p CreatePayload) (prompt, neg, inputMode string) {
 }
 
 func (s *Service) createTaskItemPending(ctx context.Context, taskID uuid.UUID, productID *uuid.UUID, srcID *uuid.UUID, srcURL string) (*uuid.UUID, error) {
+	var task ImageTask
+	if err := s.DB.WithContext(ctx).Select("tenant_id").First(&task, "id = ?", taskID).Error; err != nil {
+		return nil, err
+	}
 	item := &ImageTaskItem{
+		TenantID:       task.TenantID,
 		TaskID:         taskID,
 		ProductID:      productID,
 		SourceImageID:  srcID,

@@ -1,5 +1,6 @@
 export const ROLES = {
   ADMIN: 'admin',
+  TENANT_ADMIN: 'tenant_admin',
   OPERATOR: 'operator',
   READONLY: 'readonly',
   REVIEWER: 'reviewer',
@@ -31,6 +32,7 @@ export const PERMISSIONS = {
   OPERATIONLOG_VIEW: 'operationlog.view',
   STORE_VIEW: 'store.view',
   STORE_OPERATE: 'store.operate',
+  COLLECT_PROFILE_MANAGE: 'collect_profile.manage',
   OBSERVABILITY_READ: 'observability.read',
   BACKUP_READ: 'backup.read',
   BACKUP_CREATE: 'backup.create',
@@ -50,8 +52,39 @@ export const PERMISSIONS = {
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
+function isKnownRole(role?: string | null): role is AdminRole {
+  const normalized = (role || '').trim().toLowerCase();
+  return Object.values(ROLES).includes(normalized as AdminRole);
+}
+
 const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
   admin: Object.values(PERMISSIONS),
+  // Tenant administrators may operate business data that belongs to their
+  // tenant, but never acquire instance-wide settings, security, audit, or DR
+  // capabilities merely because a profile payload contains an extra grant.
+  tenant_admin: [
+    PERMISSIONS.PRODUCT_VIEW,
+    PERMISSIONS.PRODUCT_WRITE,
+    PERMISSIONS.AI_TEXT_APPLY,
+    PERMISSIONS.AI_IMAGE_APPLY,
+    PERMISSIONS.PUBLISH_CREATE_DRAFT,
+    PERMISSIONS.ORDER_VIEW,
+    PERMISSIONS.ORDER_OPERATE,
+    PERMISSIONS.SKU_BIND,
+    PERMISSIONS.INVENTORY_VIEW,
+    PERMISSIONS.INVENTORY_OPERATE,
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_OPERATE,
+    PERMISSIONS.TASK_RETRY,
+    PERMISSIONS.OPERATION_TASK_AUDIT_READ,
+    PERMISSIONS.OPERATION_TASK_EDIT,
+    PERMISSIONS.OPERATION_TASK_EXECUTE,
+    PERMISSIONS.OPERATION_TASK_REVIEW,
+    PERMISSIONS.OPERATION_TASK_RETRY,
+    PERMISSIONS.STORE_VIEW,
+    PERMISSIONS.STORE_OPERATE,
+    PERMISSIONS.COLLECT_PROFILE_MANAGE,
+  ],
   operator: [
     PERMISSIONS.PRODUCT_VIEW,
     PERMISSIONS.PRODUCT_WRITE,
@@ -100,16 +133,26 @@ const ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
 };
 
 export function normalizeRole(role?: string | null): AdminRole {
-  const r = (role || '').trim().toLowerCase();
-  if (r === ROLES.OPERATOR || r === ROLES.READONLY || r === ROLES.REVIEWER) return r;
-  return ROLES.ADMIN;
+  return isKnownRole(role) ? role.trim().toLowerCase() as AdminRole : ROLES.READONLY;
 }
 
 export function permissionsForRole(role?: string | null, fromProfile?: string[]): PermissionKey[] {
+  // The profile payload is only an override for an explicitly recognized role.
+  // Otherwise an unexpected role plus a stale/tampered permission list could
+  // re-enable write controls despite normalizeRole failing closed.
+  if (!isKnownRole(role)) {
+    return ROLE_PERMISSIONS[ROLES.READONLY];
+  }
   if (fromProfile && fromProfile.length > 0) {
+    if (role.trim().toLowerCase() === ROLES.TENANT_ADMIN) {
+      const allowed = ROLE_PERMISSIONS[ROLES.TENANT_ADMIN];
+      return fromProfile.filter((permission): permission is PermissionKey =>
+        allowed.includes(permission as PermissionKey),
+      );
+    }
     return fromProfile as PermissionKey[];
   }
-  return ROLE_PERMISSIONS[normalizeRole(role)] || ROLE_PERMISSIONS.admin;
+  return ROLE_PERMISSIONS[role.trim().toLowerCase()];
 }
 
 export function hasPermission(

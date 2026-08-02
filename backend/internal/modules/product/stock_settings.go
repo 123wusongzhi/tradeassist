@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 )
 
 func stockInt(p *int) int {
@@ -22,6 +23,12 @@ func (s *Service) UpdateSKUStockSettings(c *gin.Context, productID, skuID uuid.U
 		return nil, fmt.Errorf("product: no db")
 	}
 	if err := ValidateSKUStockThresholds(body.WarningStock, body.SafetyStock); err != nil {
+		return nil, err
+	}
+	if _, err := s.findTenantProduct(c, productID); err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return nil, err
 	}
 	var row ProductSKU

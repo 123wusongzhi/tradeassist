@@ -37,15 +37,19 @@ function unwrap<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
+function apiRequest<T>(path: string, options: Parameters<typeof request>[1]) {
+  return request<T>(path, options);
+}
+
 /** 通用 GET（后续各模块拆分到独立 service 文件） */
 export async function getJSON<T>(path: string): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, { method: 'GET' });
+  const res = await apiRequest<ApiResponse<T>>(path, { method: 'GET' });
   return unwrap(res);
 }
 
 /** 通用 PUT */
 export async function putJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, {
+  const res = await apiRequest<ApiResponse<T>>(path, {
     method: 'PUT',
     data: body,
     ...withOptions(options),
@@ -55,7 +59,7 @@ export async function putJSON<T, B extends object>(path: string, body: B, option
 
 /** 通用 PATCH */
 export async function patchJSON<T, B extends object>(path: string, body: B, options?: RequestOptions): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, {
+  const res = await apiRequest<ApiResponse<T>>(path, {
     method: 'PATCH',
     data: body,
     ...withOptions(options),
@@ -65,7 +69,7 @@ export async function patchJSON<T, B extends object>(path: string, body: B, opti
 
 /** 通用 POST */
 export async function postJSON<T>(path: string, body?: object, options?: RequestOptions): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, {
+  const res = await apiRequest<ApiResponse<T>>(path, {
     method: 'POST',
     data: body,
     ...withOptions(options),
@@ -75,7 +79,7 @@ export async function postJSON<T>(path: string, body?: object, options?: Request
 
 /** GET with query params */
 export async function getWithParams<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, {
+  const res = await apiRequest<ApiResponse<T>>(path, {
     method: 'GET',
     params,
   });
@@ -84,13 +88,13 @@ export async function getWithParams<T>(path: string, params?: Record<string, str
 
 /** DELETE */
 export async function deleteJSON<T>(path: string): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, { method: 'DELETE' });
+  const res = await apiRequest<ApiResponse<T>>(path, { method: 'DELETE' });
   return unwrap(res);
 }
 
 /** multipart/form-data（如上传）；由 request 识别 FormData，勿手动设 Content-Type */
 export async function postFormData<T>(path: string, data: FormData): Promise<T> {
-  const res = await request<ApiResponse<T>>(path, {
+  const res = await apiRequest<ApiResponse<T>>(path, {
     method: 'POST',
     data,
   });

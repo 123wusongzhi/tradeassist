@@ -21,7 +21,7 @@ const ctxPrincipalKey = "adminperm.principal"
 // LoadPrincipal resolves role, permissions and store grants for the current admin.
 func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 	if c == nil {
-		return &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}, nil
+		return &Principal{Role: RoleReadonly, Disabled: true}, nil
 	}
 	if cached, ok := c.Get(ctxPrincipalKey); ok {
 		if p, ok := cached.(*Principal); ok && p != nil {
@@ -29,14 +29,15 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 	}
 	if db == nil {
-		p := &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
+		p := &Principal{Role: RoleReadonly, Disabled: true}
 		c.Set(ctxPrincipalKey, p)
 		return p, nil
 	}
 	idStr, ok := c.Get(ctxkey.AdminID)
 	if !ok {
-		// No auth context (unit tests / internal calls): preserve pre-P4 admin scope behavior.
-		p := &Principal{Role: RoleAdmin, Permissions: PermissionsForRole(RoleAdmin)}
+		// Authenticated HTTP routes must always carry an admin id. Missing context
+		// is a middleware/configuration failure, never implicit administrator scope.
+		p := &Principal{Role: RoleReadonly, Disabled: true}
 		c.Set(ctxPrincipalKey, p)
 		return p, nil
 	}
@@ -57,14 +58,15 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		}
 		return nil, err
 	}
-	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, "")
+	role := roleForTenant(row.Role, row.TenantID)
+	cacheKey := permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, role, "")
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
 	}
-	role := normalizeRole(row.Role)
 	p := &Principal{
 		UserID:      uid,
+		TenantID:    row.TenantID,
 		Role:        role,
 		Permissions: PermissionsForRole(role),
 	}
@@ -75,7 +77,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 		putCachedPrincipal(cacheKey, p)
 		return p, nil
 	}
-	if !p.IsAdmin() {
+	if !p.IsAdmin() && !p.IsTenantAdmin() {
 		var grants []admin.UserStorePermission
 		_ = db.WithContext(c.Request.Context()).
 			Where("user_id = ?", uid).
@@ -90,7 +92,7 @@ func LoadPrincipal(c *gin.Context, db *gorm.DB) (*Principal, error) {
 			})
 		}
 	}
-	cacheKey = permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, row.Role, storeGrantsFingerprint(p.StoreGrants))
+	cacheKey = permissionCacheKey(row.TenantID, uid, row.TokenVersion, row.Status, role, storeGrantsFingerprint(p.StoreGrants))
 	if cached, ok := getCachedPrincipal(cacheKey); ok {
 		c.Set(ctxPrincipalKey, cached)
 		return cached, nil
@@ -128,11 +130,11 @@ func storeGrantsFingerprint(grants []StoreGrant) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// RoleFromContext loads admin_users.role for the authenticated admin (defaults to admin when missing).
+// RoleFromContext loads admin_users.role for the authenticated admin.
 func RoleFromContext(c *gin.Context, db *gorm.DB) string {
 	p, _ := LoadPrincipal(c, db)
 	if p == nil {
-		return RoleAdmin
+		return RoleReadonly
 	}
 	return p.Role
 }
@@ -150,11 +152,14 @@ func ApplyStoreScope(c *gin.Context, db *gorm.DB, tx *gorm.DB, column string) (*
 	if p.IsAdmin() {
 		return tx, nil
 	}
-	ids := p.AllowedStoreIDs()
 	col := strings.TrimSpace(column)
 	if col == "" {
 		col = "shop_id"
 	}
+	if p.IsTenantAdmin() {
+		return tx.Where(col+" IN (SELECT id FROM shops WHERE tenant_id = ?)", p.TenantID), nil
+	}
+	ids := p.AllowedStoreIDs()
 	if len(ids) == 0 {
 		return tx.Where("1 = 0"), nil
 	}
@@ -168,7 +173,11 @@ func RequireStoreView(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanViewStore(storeID) {
+	if p.IsTenantAdmin() {
+		if tenantStoreVisible(c, db, p.TenantID, storeID) {
+			return true
+		}
+	} else if p.CanViewStore(storeID) {
 		return true
 	}
 	response.Fail(c, 404, response.CodeNotFound, "资源不存在")
@@ -184,6 +193,12 @@ func EnsureStoreVisible(c *gin.Context, db *gorm.DB, shopID *uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	if p.IsTenantAdmin() {
+		if tenantStoreVisible(c, db, p.TenantID, *shopID) {
+			return nil
+		}
+		return gorm.ErrRecordNotFound
+	}
 	if p.CanViewStore(*shopID) {
 		return nil
 	}
@@ -197,7 +212,11 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 		response.HandleError(c, err)
 		return false
 	}
-	if p.CanOperateStore(storeID) {
+	if p.IsTenantAdmin() {
+		if tenantStoreVisible(c, db, p.TenantID, storeID) {
+			return true
+		}
+	} else if p.CanOperateStore(storeID) {
 		return true
 	}
 	if storeID != uuid.Nil && !p.CanViewStore(storeID) {
@@ -206,4 +225,28 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 	}
 	DenyStorePermission(c)
 	return false
+}
+
+func tenantStoreVisible(c *gin.Context, db *gorm.DB, tenantID int64, storeID uuid.UUID) bool {
+	if db == nil || tenantID <= 0 || storeID == uuid.Nil {
+		return false
+	}
+	var count int64
+	if err := db.WithContext(c.Request.Context()).Table("shops").Where("id = ? AND tenant_id = ?", storeID, tenantID).Count(&count).Error; err != nil {
+		return false
+	}
+	return count == 1
+}
+
+// TenantStoreIDs resolves all stores belonging to a tenant for cursor scopes
+// and callers that cannot express the scope as a SQL subquery.
+func TenantStoreIDs(c *gin.Context, db *gorm.DB, tenantID int64) ([]uuid.UUID, error) {
+	if db == nil || tenantID <= 0 {
+		return []uuid.UUID{}, nil
+	}
+	var ids []uuid.UUID
+	if err := db.WithContext(c.Request.Context()).Table("shops").Where("tenant_id = ?", tenantID).Order("id ASC").Pluck("id", &ids).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
 }

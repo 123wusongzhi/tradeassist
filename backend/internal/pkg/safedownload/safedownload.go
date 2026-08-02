@@ -12,6 +12,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -29,6 +30,7 @@ const (
 	ErrResponseTooLarge   = "SAFE_DOWNLOAD_RESPONSE_TOO_LARGE"
 	ErrInvalidContentType = "SAFE_DOWNLOAD_INVALID_CONTENT_TYPE"
 	ErrImageDecodeFailed  = "SAFE_DOWNLOAD_IMAGE_DECODE_FAILED"
+	ErrImageDimensions    = "SAFE_DOWNLOAD_IMAGE_DIMENSIONS_EXCEEDED"
 	ErrDownloadFailed     = "SAFE_DOWNLOAD_FAILED"
 )
 
@@ -39,6 +41,9 @@ type Options struct {
 	ConnectTimeout  time.Duration
 	ResponseTimeout time.Duration
 	RequireImage    bool
+	MaxImagePixels  int64
+	MaxImageWidth   int
+	MaxImageHeight  int
 	UserAgent       string
 }
 
@@ -50,6 +55,9 @@ func DefaultOptions() Options {
 		ConnectTimeout:  10 * time.Second,
 		ResponseTimeout: 30 * time.Second,
 		RequireImage:    true,
+		MaxImagePixels:  50_000_000,
+		MaxImageWidth:   8192,
+		MaxImageHeight:  8192,
 		UserAgent:       "TradeMind-SafeDownload/1.0",
 	}
 }
@@ -75,6 +83,15 @@ func Download(ctx context.Context, rawURL string, opts Options) (*Result, error)
 	if opts.ResponseTimeout <= 0 {
 		opts.ResponseTimeout = 30 * time.Second
 	}
+	if opts.MaxImagePixels <= 0 {
+		opts.MaxImagePixels = 50_000_000
+	}
+	if opts.MaxImageWidth <= 0 {
+		opts.MaxImageWidth = 8192
+	}
+	if opts.MaxImageHeight <= 0 {
+		opts.MaxImageHeight = 8192
+	}
 	if strings.TrimSpace(opts.UserAgent) == "" {
 		opts.UserAgent = "TradeMind-SafeDownload/1.0"
 	}
@@ -98,7 +115,7 @@ func Download(ctx context.Context, rawURL string, opts Options) (*Result, error)
 			continue
 		}
 		if opts.RequireImage {
-			if err := validateImageBytes(data, ct); err != nil {
+			if err := validateImageBytes(data, ct, opts); err != nil {
 				return nil, err
 			}
 		}
@@ -154,17 +171,12 @@ func safeHTTPClient(opts Options) *http.Client {
 			return http.ErrUseLastResponse
 		},
 		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
+			// Never delegate target resolution to an environment proxy: doing so
+			// would let the proxy resolve a validated hostname to a private address.
+			Proxy: nil,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-				host, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					host = addr
-				}
-				if err := assertIPNotPrivate(net.ParseIP(host)); err != nil {
-					return nil, err
-				}
 				d := &net.Dialer{Timeout: opts.ConnectTimeout, KeepAlive: 30 * time.Second}
-				return d.DialContext(ctx, network, net.JoinHostPort(host, port))
+				return dialPublicContext(ctx, network, addr, net.DefaultResolver, d.DialContext)
 			},
 			TLSHandshakeTimeout: opts.ConnectTimeout,
 			MaxIdleConns:        4,
@@ -219,19 +231,39 @@ func isPrivateIP(ip net.IP) bool {
 	if ip == nil {
 		return true
 	}
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+	addr, ok := netip.AddrFromSlice(ip)
+	if !ok {
 		return true
 	}
-	// Block CGNAT / shared address space and metadata
-	if ip4 := ip.To4(); ip4 != nil {
-		if ip4[0] == 0 {
-			return true
-		}
-		if ip4[0] == 169 && ip4[1] == 254 {
+	addr = addr.Unmap()
+	if !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.IsLoopback() || addr.IsLinkLocalUnicast() || addr.IsMulticast() || addr.IsUnspecified() {
+		return true
+	}
+	for _, prefix := range blockedNetworkPrefixes {
+		if prefix.Contains(addr) {
 			return true
 		}
 	}
 	return false
+}
+
+var blockedNetworkPrefixes = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.0.2.0/24"),
+	netip.MustParsePrefix("192.88.99.0/24"),
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("198.51.100.0/24"),
+	netip.MustParsePrefix("203.0.113.0/24"),
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2001:2::/48"),
+	netip.MustParsePrefix("2001:10::/28"),
+	netip.MustParsePrefix("2001:20::/28"),
+	netip.MustParsePrefix("2001:db8::/32"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("3fff::/20"),
 }
 
 func assertIPNotPrivate(ip net.IP) error {
@@ -261,6 +293,56 @@ func assertHostResolvedNotPrivate(ctx context.Context, host string) error {
 	return nil
 }
 
+type ipResolver interface {
+	LookupIPAddr(context.Context, string) ([]net.IPAddr, error)
+}
+
+type contextDialer func(context.Context, string, string) (net.Conn, error)
+
+// dialPublicContext resolves once, validates every answer, then dials an exact
+// validated IP. This closes the DNS-rebinding gap between validation and the
+// socket connection while preserving the original request host for Host/SNI.
+func dialPublicContext(ctx context.Context, network, addr string, resolver ipResolver, dial contextDialer) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil || strings.TrimSpace(port) == "" {
+		return nil, fmt.Errorf("%s: invalid dial address", ErrDownloadFailed)
+	}
+	host = strings.Trim(strings.TrimSpace(host), "[]")
+	if host == "" {
+		return nil, fmt.Errorf("%s: empty dial host", ErrDownloadFailed)
+	}
+	if resolver == nil || dial == nil {
+		return nil, fmt.Errorf("%s: resolver unavailable", ErrDownloadFailed)
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if err := assertIPNotPrivate(ip); err != nil {
+			return nil, err
+		}
+		return dial(ctx, network, net.JoinHostPort(ip.String(), port))
+	}
+	addresses, err := resolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("%s: dns lookup failed: %w", ErrDownloadFailed, err)
+	}
+	if len(addresses) == 0 {
+		return nil, fmt.Errorf("%s: no dns records", ErrDownloadFailed)
+	}
+	for _, candidate := range addresses {
+		if err := assertIPNotPrivate(candidate.IP); err != nil {
+			return nil, err
+		}
+	}
+	var dialErr error
+	for _, candidate := range addresses {
+		conn, err := dial(ctx, network, net.JoinHostPort(candidate.IP.String(), port))
+		if err == nil {
+			return conn, nil
+		}
+		dialErr = errors.Join(dialErr, err)
+	}
+	return nil, fmt.Errorf("%s: connect failed: %w", ErrDownloadFailed, dialErr)
+}
+
 func resolveRedirect(base, loc string) (string, error) {
 	loc = strings.TrimSpace(loc)
 	if loc == "" {
@@ -280,7 +362,7 @@ func resolveRedirect(base, loc string) (string, error) {
 	return bu.ResolveReference(lu).String(), nil
 }
 
-func validateImageBytes(data []byte, contentType string) error {
+func validateImageBytes(data []byte, contentType string, opts Options) error {
 	if len(data) == 0 {
 		return fmt.Errorf("%s: empty body", ErrImageDecodeFailed)
 	}
@@ -290,15 +372,42 @@ func validateImageBytes(data []byte, contentType string) error {
 	}
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
-		if _, werr := webp.DecodeConfig(bytes.NewReader(data)); werr == nil {
-			return nil
+		webpCfg, werr := webp.DecodeConfig(bytes.NewReader(data))
+		if werr == nil {
+			cfg = webpCfg
+		} else {
+			return fmt.Errorf("%s: %w", ErrImageDecodeFailed, err)
 		}
-		return fmt.Errorf("%s: %w", ErrImageDecodeFailed, err)
 	}
 	if cfg.Width <= 0 || cfg.Height <= 0 {
 		return fmt.Errorf("%s: invalid dimensions", ErrImageDecodeFailed)
 	}
+	if cfg.Width > opts.MaxImageWidth || cfg.Height > opts.MaxImageHeight || int64(cfg.Width)*int64(cfg.Height) > opts.MaxImagePixels {
+		return fmt.Errorf("%s: image is %dx%d", ErrImageDimensions, cfg.Width, cfg.Height)
+	}
 	return nil
+}
+
+// ValidateImageBytes applies the same byte, MIME, decode and dimension policy
+// used by Download to bytes loaded from trusted storage or data URLs.
+func ValidateImageBytes(data []byte, contentType string, opts Options) error {
+	defaults := DefaultOptions()
+	if opts.MaxBodyBytes <= 0 {
+		opts.MaxBodyBytes = defaults.MaxBodyBytes
+	}
+	if opts.MaxImagePixels <= 0 {
+		opts.MaxImagePixels = defaults.MaxImagePixels
+	}
+	if opts.MaxImageWidth <= 0 {
+		opts.MaxImageWidth = defaults.MaxImageWidth
+	}
+	if opts.MaxImageHeight <= 0 {
+		opts.MaxImageHeight = defaults.MaxImageHeight
+	}
+	if int64(len(data)) > opts.MaxBodyBytes {
+		return fmt.Errorf("%s: body exceeds %d bytes", ErrResponseTooLarge, opts.MaxBodyBytes)
+	}
+	return validateImageBytes(data, contentType, opts)
 }
 
 // IsPrivateIP reports whether ip is in a blocked range (exported for tests).
@@ -320,7 +429,7 @@ func ErrCode(err error) string {
 	for _, code := range []string{
 		ErrSchemeNotAllowed, ErrCredentialsInURL, ErrPrivateHost, ErrPrivateIP,
 		ErrMetadataEndpoint, ErrTooManyRedirects, ErrResponseTooLarge,
-		ErrInvalidContentType, ErrImageDecodeFailed, ErrDownloadFailed,
+		ErrInvalidContentType, ErrImageDecodeFailed, ErrImageDimensions, ErrDownloadFailed,
 	} {
 		if strings.Contains(msg, code) {
 			return code

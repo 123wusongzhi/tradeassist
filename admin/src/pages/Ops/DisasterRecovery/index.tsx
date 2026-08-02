@@ -1,10 +1,12 @@
 import { TmPageContainer } from '@/components/ui';
+import PermissionGuard from '@/components/PermissionGuard';
+import { PERMISSIONS } from '@/utils/permission';
 import { createDRDrill, fetchDRStatus, type DRStatus } from '@/services/opsP6';
 import { DeploymentUnitOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Descriptions, Form, Input, Modal, Space, Switch, Tag, message } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 
-export default function DisasterRecoveryPage() {
+function DisasterRecoveryPageContent() {
   const [status, setStatus] = useState<DRStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -95,5 +97,13 @@ export default function DisasterRecoveryPage() {
         </Form>
       </Modal>
     </TmPageContainer>
+  );
+}
+
+export default function DisasterRecoveryPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <DisasterRecoveryPageContent />
+    </PermissionGuard>
   );
 }

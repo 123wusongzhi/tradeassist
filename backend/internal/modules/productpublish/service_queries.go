@@ -15,14 +15,15 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/worker"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
 )
 
-func (s *Service) shopNameLookup(ctx context.Context, id uuid.UUID) string {
+func (s *Service) shopNameLookup(ctx context.Context, tenantID int64, id uuid.UUID) string {
 	var row struct {
 		ShopName string `gorm:"column:shop_name"`
 	}
 	_ = s.DB.WithContext(ctx).Table(`shops`).
-		Select(`shop_name`).Where(`id = ?`, id).
+		Select(`shop_name`).Where(`id = ? AND tenant_id = ?`, id, tenantID).
 		Take(&row).Error
 	return strings.TrimSpace(row.ShopName)
 }
@@ -32,7 +33,7 @@ func (s *Service) taskToDTO(ctx context.Context, t *ProductPublishTask) TaskDTO 
 		return TaskDTO{}
 	}
 	var p product.Product
-	_ = s.DB.WithContext(ctx).First(&p, "id = ?", t.ProductID).Error
+	_ = s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", t.ProductID, t.TenantID).First(&p).Error
 	pt := strings.TrimSpace(p.Title)
 	if pt == "" {
 		pt = strings.TrimSpace(p.AITitle)
@@ -42,7 +43,7 @@ func (s *Service) taskToDTO(ctx context.Context, t *ProductPublishTask) TaskDTO 
 		ProductID:         t.ProductID,
 		ShopID:            t.ShopID,
 		TargetStoreID:     t.TargetStoreID,
-		ShopName:          s.shopNameLookup(ctx, t.ShopID),
+		ShopName:          s.shopNameLookup(ctx, t.TenantID, t.ShopID),
 		ProductTitle:      pt,
 		Platform:          t.Platform,
 		TargetPlatform:    t.Platform,
@@ -196,11 +197,17 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if err := repository.FindByID(c.Request.Context(), s.DB, &task, tid, taskID); err != nil {
 		return nil, err
 	}
+	if !adminperm.RequireStoreOperate(c, s.DB, task.ShopID) {
+		return nil, fmt.Errorf("store operate permission required")
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, task.ProductID); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(task.Status) != TaskFailed {
 		return nil, fmt.Errorf("only failed tasks can be retried")
 	}
 	reset := time.Now().UTC()
-	if err := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Where("id = ?", taskID).
+	claim := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tid, TaskFailed).
 		Updates(map[string]any{
 			"status":          TaskPending,
 			"publish_status":  StatusReady,
@@ -213,11 +220,15 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			"locked_by":       nil,
 			"locked_until":    nil,
 			"updated_at":      reset,
-		}).Error; err != nil {
-		return nil, err
+		})
+	if claim.Error != nil {
+		return nil, claim.Error
+	}
+	if claim.RowsAffected != 1 {
+		return nil, fmt.Errorf("task retry already claimed")
 	}
 	if rid, ok := snapshotPublicationFromTask(&task); ok {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&ProductPublication{}).Where("id = ?", rid).
+		_ = s.DB.WithContext(c.Request.Context()).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, tid).
 			Updates(map[string]any{
 				"status":          StatusPublishing,
 				"publish_status":  StatusPublishing,
@@ -237,9 +248,16 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		})
 	}
 
-	bg := context.Background()
 	runInline := func() error {
-		return s.ProcessQueuedTask(bg, taskID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
+		actorID := uuid.Nil
+		if adminID != nil {
+			actorID = *adminID
+		}
+		workerCtx := tasktenant.BuildWorkerContext(tasktenant.TaskScope{
+			TenantID: tid,
+			ShopID:   task.ShopID,
+		}, actorID, "product_publish_retry_inline")
+		return s.ProcessQueuedTask(workerCtx, taskID, worker.GenerateInlineWorkerID(worker.TypeProductPublish))
 	}
 
 	if s.QueueEnabled && s.Redis != nil && s.Redis.Client != nil {
@@ -282,13 +300,13 @@ func (s *Service) skuMappingSummaryLines(ctx context.Context, publicationID uuid
 }
 
 // ListPublicationsByProduct returns persisted publication rows for a draft product.
-func (s *Service) ListPublicationsByProduct(ctx context.Context, productID uuid.UUID) ([]PublicationDTO, error) {
+func (s *Service) ListPublicationsByProduct(ctx context.Context, tenantID int64, productID uuid.UUID) ([]PublicationDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("productpublish: no db")
 	}
 	var rows []ProductPublication
 	if err := s.DB.WithContext(ctx).
-		Where("product_id = ?", productID).
+		Where("product_id = ? AND tenant_id = ?", productID, tenantID).
 		Order("updated_at DESC").
 		Find(&rows).Error; err != nil {
 		return nil, err
@@ -301,7 +319,7 @@ func (s *Service) ListPublicationsByProduct(ctx context.Context, productID uuid.
 			ID:                 rows[i].ID,
 			ProductID:          rows[i].ProductID,
 			ShopID:             rows[i].ShopID,
-			ShopName:           s.shopNameLookup(ctx, rows[i].ShopID),
+			ShopName:           s.shopNameLookup(ctx, rows[i].TenantID, rows[i].ShopID),
 			Platform:           rows[i].Platform,
 			PublishTaskID:      pid,
 			ExternalProductID:  rows[i].ExternalProductID,

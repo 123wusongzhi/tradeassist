@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-// PinduoduoProfileKey is the dedicated collector persistent profile (not 1688/custom).
+// PinduoduoProfileKey is the legacy tenant-0 collector profile. Non-zero tenants
+// must use providerProfileKey so their browser cookies never share this directory.
 const PinduoduoProfileKey = "pinduoduo"
 
 func isPifaPinduoduoURL(raw string) bool {
@@ -24,11 +25,11 @@ func shouldUsePinduoduoDedicatedProfile(sourceURL string, useBrowserProfile bool
 	return useBrowserProfile || isPifaPinduoduoURL(sourceURL)
 }
 
-func (s *Service) buildPinduoduoRequestOptions(ctx context.Context, sourceURL string, useBrowserProfile bool) []byte {
+func (s *Service) buildPinduoduoRequestOptions(ctx context.Context, tenantID int64, sourceURL string, useBrowserProfile bool) []byte {
 	opts := map[string]any{}
 	if shouldUsePinduoduoDedicatedProfile(sourceURL, useBrowserProfile) {
 		opts["useBrowserProfile"] = true
-		opts["profileKey"] = PinduoduoProfileKey
+		opts["profileKey"] = providerProfileKey(tenantID, PinduoduoProfileKey)
 	}
 	if s != nil && s.Settings != nil {
 		m, err := s.Settings.PlainByGroup(ctx, 0, "collector")

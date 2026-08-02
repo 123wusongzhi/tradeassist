@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 )
@@ -33,8 +34,19 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
 	}
-	g.GET("/products/:id/readiness", h.GetReadiness)
-	g.POST("/products/readiness/batch", h.BatchReadiness)
+	read := g.Group("")
+	read.Use(func(c *gin.Context) {
+		if h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, 500, response.CodeInternalError, "product readiness unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+			c.Abort()
+		}
+	})
+	read.GET("/products/:id/readiness", h.GetReadiness)
+	read.POST("/products/readiness/batch", h.BatchReadiness)
 }
 
 func (h *Handler) GetReadiness(c *gin.Context) {
@@ -61,7 +73,13 @@ func (h *Handler) GetReadiness(c *gin.Context) {
 			return
 		}
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	res, err := h.Svc.CheckProductReadiness(c.Request.Context(), CheckProductReadinessRequest{
+		TenantID:  tenantID,
 		ProductID: pid,
 		Platform:  plat,
 		ShopID:    shopPtr,
@@ -130,10 +148,16 @@ func (h *Handler) BatchReadiness(c *gin.Context) {
 		}
 		ids = append(ids, u)
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	list := make([]*CheckProductReadinessResult, 0, len(ids))
 	var sumE, sumW int
 	for _, pid := range ids {
 		res, err := h.Svc.CheckProductReadiness(c.Request.Context(), CheckProductReadinessRequest{
+			TenantID:  tenantID,
 			ProductID: pid,
 			Platform:  plat,
 			ShopID:    &sid,

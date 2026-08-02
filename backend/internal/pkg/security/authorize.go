@@ -81,6 +81,13 @@ func (a *GinAuthorizer) RequireShopAccess(ctx context.Context, shopID uuid.UUID)
 	if shopID == uuid.Nil {
 		return nil
 	}
+	if a.perm.IsTenantAdmin() {
+		var count int64
+		if a.DB != nil && a.DB.WithContext(ctx).Table("shops").Where("id = ? AND tenant_id = ?", shopID, a.perm.TenantID).Count(&count).Error == nil && count == 1 {
+			return nil
+		}
+		return ErrShopAccessDenied
+	}
 	if a.perm.CanViewStore(shopID) {
 		return nil
 	}

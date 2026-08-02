@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,6 +12,17 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/config"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/authutil"
 )
+
+var jwtRotationState = struct {
+	sync.Mutex
+	started map[string]time.Time
+}{started: make(map[string]time.Time)}
+
+func resetJWTRotationStateForTest() {
+	jwtRotationState.Lock()
+	defer jwtRotationState.Unlock()
+	jwtRotationState.started = make(map[string]time.Time)
+}
 
 // AccessClaims is the JWT payload for short-lived access tokens.
 type AccessClaims struct {
@@ -52,20 +65,51 @@ func BuildKeySet(cfg *config.Config) (*KeySet, error) {
 
 	prevID := strings.TrimSpace(cfg.Auth.JWTPreviousKeyID)
 	prevSecret := strings.TrimSpace(cfg.Auth.JWTPreviousSecret)
-	if prevID != "" && prevSecret != "" {
+	// A previous key is only usable during an explicitly positive grace period.
+	// Keeping it out of the key set otherwise makes a disabled/misconfigured
+	// rotation fail closed instead of accepting old tokens indefinitely.
+	if prevID != "" && prevSecret != "" && cfg.Auth.JWTRotationGraceMinutes > 0 {
 		ks.PreviousID = prevID
 		ks.PreviousSecret = []byte(prevSecret)
-		if cfg.Auth.JWTRotationGraceMinutes > 0 {
-			ks.GraceUntil = time.Now().UTC().Add(time.Duration(cfg.Auth.JWTRotationGraceMinutes) * time.Minute)
+		// The grace clock belongs to the configured keyring transition, not to
+		// an individual request. Rebuilding a KeySet must never extend it.
+		started, err := jwtRotationStartedAt(cfg, activeID, activeSecret, prevID, prevSecret)
+		if err != nil {
+			return nil, err
 		}
+		ks.GraceUntil = started.Add(time.Duration(cfg.Auth.JWTRotationGraceMinutes) * time.Minute)
 	}
 	return ks, nil
+}
+
+func jwtRotationStartedAt(cfg *config.Config, activeID, activeSecret, previousID, previousSecret string) (time.Time, error) {
+	if raw := strings.TrimSpace(cfg.Auth.JWTRotationStartedAt); raw != "" {
+		started, err := time.Parse(time.RFC3339, raw)
+		if err != nil || !strings.HasSuffix(raw, "Z") || started.After(time.Now().UTC()) {
+			return time.Time{}, fmt.Errorf("jwt: invalid rotation start")
+		}
+		return started.UTC(), nil
+	}
+	// Development/test fallback only. Production validation requires explicit time.
+	fingerprint := sha256.Sum256([]byte(activeID + "\x00" + activeSecret + "\x00" + previousID + "\x00" + previousSecret))
+	key := string(fingerprint[:])
+	jwtRotationState.Lock()
+	defer jwtRotationState.Unlock()
+	started := jwtRotationState.started[key]
+	if started.IsZero() {
+		started = time.Now().UTC()
+		jwtRotationState.started[key] = started
+	}
+	return started, nil
 }
 
 // MintAccessToken issues a signed access JWT with kid and session binding.
 func MintAccessToken(cfg *config.Config, ks *KeySet, input MintAccessInput) (string, time.Time, error) {
 	if cfg == nil || ks == nil {
 		return "", time.Time{}, fmt.Errorf("jwt: misconfigured")
+	}
+	if cfg.UsesSecureSession() && input.SessionID == uuid.Nil {
+		return "", time.Time{}, fmt.Errorf("jwt: secure access token requires session binding")
 	}
 	ttl := cfg.AccessTokenTTL()
 	exp := time.Now().UTC().Add(ttl)
@@ -127,10 +171,10 @@ func ParseAccessToken(cfg *config.Config, ks *KeySet, tokenStr string) (*AccessC
 		case ks.ActiveID:
 			return ks.ActiveSecret, nil
 		case ks.PreviousID:
-			if len(ks.PreviousSecret) == 0 {
+			if len(ks.PreviousSecret) == 0 || ks.GraceUntil.IsZero() {
 				return nil, fmt.Errorf("jwt: unknown kid %q", kid)
 			}
-			if !ks.GraceUntil.IsZero() && time.Now().UTC().After(ks.GraceUntil) {
+			if !time.Now().UTC().Before(ks.GraceUntil) {
 				return nil, fmt.Errorf("jwt: expired previous key %q", kid)
 			}
 			return ks.PreviousSecret, nil
@@ -145,7 +189,7 @@ func ParseAccessToken(cfg *config.Config, ks *KeySet, tokenStr string) (*AccessC
 	if !ok || !t.Valid {
 		return nil, jwt.ErrTokenInvalidClaims
 	}
-	if c.TokenType != "" && c.TokenType != "access" {
+	if c.TokenType != "access" && (cfg.UsesSecureSession() || c.TokenType != "") {
 		return nil, fmt.Errorf("jwt: wrong token type")
 	}
 	if strings.TrimSpace(c.Subject) == "" {
@@ -156,6 +200,12 @@ func ParseAccessToken(cfg *config.Config, ks *KeySet, tokenStr string) (*AccessC
 
 // LegacyMintToken issues JWT without session binding (legacy_local_storage mode).
 func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string) (string, time.Time, error) {
+	return legacyMintTokenForTenant(cfg, adminID, username, 0)
+}
+
+// legacyMintTokenForTenant preserves tenant scope while supporting the
+// transitional local-storage session mode.
+func legacyMintTokenForTenant(cfg *config.Config, adminID uuid.UUID, username string, tenantID int64) (string, time.Time, error) {
 	ks, err := BuildKeySet(cfg)
 	if err != nil {
 		return "", time.Time{}, err
@@ -163,7 +213,7 @@ func LegacyMintToken(cfg *config.Config, adminID uuid.UUID, username string) (st
 	return MintAccessToken(cfg, ks, MintAccessInput{
 		UserID:       adminID,
 		Username:     username,
-		TenantID:     0,
+		TenantID:     tenantID,
 		SessionID:    uuid.Nil,
 		TokenVersion: 1,
 	})

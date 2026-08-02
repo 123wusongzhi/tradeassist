@@ -1,6 +1,7 @@
 package aiproductimage
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -56,5 +57,42 @@ func TestResolveGenerationTaskTypeWhiteBackground(t *testing.T) {
 	}
 	if got := resolveGenerationTaskType("dashscope_image", OpQualityCheck); got != "score_image" {
 		t.Fatalf("quality check unchanged, got %q", got)
+	}
+}
+
+func TestClaimItemForGenerationDoesNotReviveCancelledItem(t *testing.T) {
+	db := openImageApplyTestDB(t)
+	item := AIProductImageItem{
+		BatchID:       uuid.New(),
+		ProductID:     uuid.New(),
+		OperationType: OpQualityCheck,
+		Status:        ItemPending,
+	}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// A worker can read the pending item just before a cancel request wins.
+	var observed AIProductImageItem
+	if err := db.First(&observed, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != ItemPending {
+		t.Fatalf("worker observed %q, want pending", observed.Status)
+	}
+	res := db.Model(&AIProductImageItem{}).Where("id = ? AND status = ?", item.ID, ItemPending).Update("status", ItemCancelled)
+	if res.Error != nil || res.RowsAffected != 1 {
+		t.Fatalf("cancel pending item: rows=%d err=%v", res.RowsAffected, res.Error)
+	}
+
+	if (&Service{DB: db}).claimItemForGeneration(context.Background(), item.ID) {
+		t.Fatal("worker claim must lose after cancellation")
+	}
+	var got AIProductImageItem
+	if err := db.First(&got, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != ItemCancelled {
+		t.Fatalf("status = %q, want cancelled", got.Status)
 	}
 }

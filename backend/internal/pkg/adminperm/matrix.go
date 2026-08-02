@@ -4,24 +4,25 @@ import "strings"
 
 // Permission keys for role matrix and profile export.
 const (
-	PermProductView        = "product.view"
-	PermProductWrite       = "product.write"
-	PermAITextApply        = "ai_text.apply"
-	PermAIImageApply       = "ai_image.apply"
-	PermPublishCreateDraft = "publish.create_draft"
-	PermOrderView          = "order.view"
-	PermOrderOperate       = "order.operate"
-	PermSKUBind            = "sku.bind"
-	PermInventoryView      = "inventory.view"
-	PermInventoryOperate   = "inventory.operate"
-	PermCustomerView       = "customer.view"
-	PermCustomerOperate    = "customer.operate"
-	PermTaskRetry          = "task.retry"
-	PermSettingsManage     = "settings.manage"
-	PermUserManage         = "user.manage"
-	PermOperationLogView   = "operationlog.view"
-	PermStoreView          = "store.view"
-	PermStoreOperate       = "store.operate"
+	PermProductView          = "product.view"
+	PermProductWrite         = "product.write"
+	PermAITextApply          = "ai_text.apply"
+	PermAIImageApply         = "ai_image.apply"
+	PermPublishCreateDraft   = "publish.create_draft"
+	PermOrderView            = "order.view"
+	PermOrderOperate         = "order.operate"
+	PermSKUBind              = "sku.bind"
+	PermInventoryView        = "inventory.view"
+	PermInventoryOperate     = "inventory.operate"
+	PermCustomerView         = "customer.view"
+	PermCustomerOperate      = "customer.operate"
+	PermTaskRetry            = "task.retry"
+	PermSettingsManage       = "settings.manage"
+	PermUserManage           = "user.manage"
+	PermOperationLogView     = "operationlog.view"
+	PermStoreView            = "store.view"
+	PermStoreOperate         = "store.operate"
+	PermCollectProfileManage = "collect_profile.manage"
 	// P4 security permissions
 	PermSecuritySessionManage = "security.session.manage"
 	PermSecurityKeyRotate     = "security.key.rotate"
@@ -94,6 +95,7 @@ var allPermissions = []string{
 	PermOperationLogView,
 	PermStoreView,
 	PermStoreOperate,
+	PermCollectProfileManage,
 	PermSecuritySessionManage,
 	PermSecurityKeyRotate,
 	PermAuditRead,
@@ -143,6 +145,20 @@ var allPermissions = []string{
 }
 
 var adminPermissions = append([]string(nil), allPermissions...)
+
+// tenantAdminPermissions grants full tenant business operation, but excludes
+// system-wide configuration, identity, audit, security and operations powers.
+var tenantAdminPermissions = []string{
+	PermProductView, PermProductWrite, PermAITextApply, PermAIImageApply, PermPublishCreateDraft,
+	PermOrderView, PermOrderOperate, PermSKUBind,
+	PermInventoryView, PermInventoryOperate,
+	PermCustomerView, PermCustomerOperate, PermTaskRetry,
+	PermStoreView, PermStoreOperate,
+	PermCollectProfileManage,
+	PermOperationTaskEdit, PermOperationTaskReview, PermOperationTaskExecute, PermOperationTaskRetry, PermOperationTaskAuditRead,
+	PermInventorySyncRead, PermInventorySyncRun, PermInventorySyncRerun,
+	PermInventorySnapshotRead, PermSKUBindingRead, PermSKUBindingManage, PermSKUBindingResolveManual,
+}
 
 var reviewerPermissions = []string{
 	PermOperationLogView,
@@ -221,15 +237,19 @@ var readonlyPermissions = []string{
 
 // PermissionsForRole returns granted permission keys for a role.
 func PermissionsForRole(role string) []string {
-	switch normalizeRole(role) {
+	switch strictRole(role) {
 	case RoleReadonly:
 		return copyPermissions(readonlyPermissions)
 	case RoleOperator:
 		return copyPermissions(operatorPermissions)
 	case RoleReviewer:
 		return copyPermissions(reviewerPermissions)
-	default:
+	case RoleAdmin:
 		return copyPermissions(adminPermissions)
+	case RoleTenantAdmin:
+		return copyPermissions(tenantAdminPermissions)
+	default:
+		return []string{}
 	}
 }
 
@@ -237,6 +257,8 @@ func StrictPermissionsForRole(role string) []string {
 	switch strictRole(role) {
 	case RoleAdmin:
 		return copyPermissions(adminPermissions)
+	case RoleTenantAdmin:
+		return copyPermissions(tenantAdminPermissions)
 	case RoleOperator:
 		return copyPermissions(operatorPermissions)
 	case RoleReadonly:

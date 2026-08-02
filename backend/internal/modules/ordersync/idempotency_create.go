@@ -28,12 +28,14 @@ type syncJobAcquire struct {
 	Key      string
 }
 
-func (s *Service) acquireSyncJob(ctx context.Context, platform string, shopID uuid.UUID, snap syncInputSnapshot, inputJSON []byte, forceNew bool, owner string) (*syncJobAcquire, *idempotency.AcquireResult, error) {
+func (s *Service) acquireSyncJob(ctx context.Context, tenantID int64, platform string, shopID uuid.UUID, snap syncInputSnapshot, inputJSON []byte, forceNew bool, owner string) (*syncJobAcquire, *idempotency.AcquireResult, error) {
 	if s == nil || s.Idempotency == nil {
 		return nil, nil, nil
 	}
 	window := syncWindowKey(snap)
-	key := idempotency.OrderSyncJob(platform, shopID.String(), snap.Mode, window)
+	// A shop belongs to one tenant, but include the trusted tenant in the
+	// idempotency key so legacy/imported identifiers cannot collide across tenants.
+	key := idempotency.OrderSyncJob(platform, fmt.Sprintf("%d:%s", tenantID, shopID), snap.Mode, window)
 	if forceNew {
 		key = key + ":force:" + uuid.New().String()
 	}

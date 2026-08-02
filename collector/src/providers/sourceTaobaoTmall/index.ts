@@ -2,6 +2,7 @@ import type { Page } from 'playwright';
 import type { BrowserManager } from '../../browser/manager.js';
 import { getDefaultNavigationTimeoutMs } from '../../config/env.js';
 import { PAGE_EVALUATE_POLYFILL } from '../../browser/evaluate-in-page.js';
+import { installPublicNetworkGuard } from '../../security/public-url.js';
 import type { CollectInput, CollectorProvider } from '../collector-provider.js';
 import type { CollectFeature } from '../../types/provider-meta.js';
 import type { NormalizedProduct } from '../../types/product.js';
@@ -102,7 +103,8 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
 
     const profileKey = String(input.options?.profileKey ?? '').trim();
     const useDedicatedProfile =
-      input.options?.useBrowserProfile === true && profileKey === TAOBAO_TMALL_PROFILE_KEY;
+      input.options?.useBrowserProfile === true &&
+      (profileKey === TAOBAO_TMALL_PROFILE_KEY || /^tenant_[1-9][0-9]*_taobao_tmall$/.test(profileKey));
     const gotoTimeout = resolveGotoTimeoutMs(input.options);
     const runAccessCheck = accessCheckEnabled(input.options);
     const scrollEnabled = scrollWaitEnabled(input.options);
@@ -165,7 +167,7 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
     };
 
     if (useDedicatedProfile) {
-      return browser.withTaobaoTmallPage(run);
+      return browser.withTaobaoTmallPage(profileKey, run);
     }
 
     const browserInstance = await browser.ensureBrowser();
@@ -176,6 +178,7 @@ class TaobaoTmallCollectorProvider implements CollectorProvider {
       locale: 'zh-CN',
       viewport: { width: 1280, height: 900 },
     });
+    await installPublicNetworkGuard(context);
     await context.addInitScript(PAGE_EVALUATE_POLYFILL);
     const page = await context.newPage();
     page.setDefaultNavigationTimeout(gotoTimeout);

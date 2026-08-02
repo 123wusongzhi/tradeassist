@@ -25,7 +25,7 @@ func (h *Handler) GetOrderSKUMatches(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
-	if _, err := h.Svc.Get(c, oid); err != nil {
+	if _, err := h.Svc.findOrderForOperate(c, oid); err != nil {
 		response.HandleError(c, err)
 		return
 	}
@@ -54,6 +54,10 @@ func (h *Handler) PostMatchOrderSKUs(c *gin.Context) {
 	oid, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	if _, err := h.Svc.Get(c, oid); err != nil {
+		response.HandleError(c, err)
 		return
 	}
 	var body matchSkusBody
@@ -182,6 +186,10 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 		response.Fail(c, 404, response.CodeNotFound, "order item not found")
 		return
 	}
+	if _, err := h.Svc.findOrderForOperate(c, line.OrderID); err != nil {
+		response.HandleError(c, err)
+		return
+	}
 	if h.Inv != nil {
 		pol, err := h.Inv.InventoryPolicy(c.Request.Context())
 		if err != nil {
@@ -199,7 +207,12 @@ func (h *Handler) PostBindOrderItemSKU(c *gin.Context) {
 		}
 	}
 
-	out, err := h.Svc.BindOrderItemSKU(c.Request.Context(), BindOrderItemSKUInput{
+	requestCtx, err := orderRequestContext(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.BindOrderItemSKU(requestCtx, BindOrderItemSKUInput{
 		OrderItemID:         itemID,
 		ProductSKUID:        skuID,
 		CandidateConfidence: body.CandidateConfidence,

@@ -124,7 +124,15 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		return nil
 	}
 	fin := now
-	_ = s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
+	recovery := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, StatusRunning, now, task.LockVersion)
+	if task.LockedBy != nil {
+		recovery = recovery.Where("locked_by = ?", *task.LockedBy)
+	}
+	if task.ExecutionID != nil {
+		recovery = recovery.Where("execution_id = ?", *task.ExecutionID)
+	}
+	result := recovery.
 		Updates(map[string]any{
 			"status":        StatusFailed,
 			"error_message": "worker lease expired",
@@ -134,7 +142,13 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 			"execution_id":  nil,
 			"heartbeat_at":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: task.CreatedBy,
@@ -160,14 +174,16 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 	if task.Status != StatusRunning {
 		return nil
 	}
-	if task.LockedBy != nil && task.LockedUntil != nil {
+	if task.LockedBy != nil || task.LockedUntil != nil || task.ExecutionID != nil || task.HeartbeatAt != nil {
 		return nil
 	}
 	if !task.UpdatedAt.Before(legacyCutoff) {
 		return nil
 	}
 	fin := time.Now().UTC()
-	_ = s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).Where("id = ?", taskID).
+	recovery := s.DB.WithContext(ctx).Model(&CustomerMessageSyncTask{}).
+		Where("id = ? AND tenant_id = ? AND status = ? AND locked_by IS NULL AND locked_until IS NULL AND execution_id IS NULL AND heartbeat_at IS NULL AND updated_at < ? AND lock_version = ?", taskID, task.TenantID, StatusRunning, legacyCutoff, task.LockVersion)
+	result := recovery.
 		Updates(map[string]any{
 			"status":        StatusFailed,
 			"error_message": "legacy running task recovered (no lease)",
@@ -177,7 +193,13 @@ func (s *Service) RecoverLegacyRunning(ctx context.Context, taskID uuid.UUID, le
 			"execution_id":  nil,
 			"heartbeat_at":  nil,
 			"updated_at":    fin,
-		}).Error
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil
+	}
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
 			AdminUserID: task.CreatedBy,

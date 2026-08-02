@@ -2,6 +2,8 @@ package security
 
 import (
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -44,7 +46,7 @@ func CSRFProtection(cfg *config.Config) gin.HandlerFunc {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		referer := strings.TrimSpace(c.GetHeader("Referer"))
 		allowed := []string{strings.TrimSpace(cfg.AdminPublicURL), strings.TrimSpace(cfg.APIPublicURL)}
-		if originAllowed(origin, allowed) || originAllowed(referer, allowed) {
+		if originAllowed(origin, allowed) || refererAllowed(referer, allowed) {
 			c.Next()
 			return
 		}
@@ -61,18 +63,73 @@ func CSRFProtection(cfg *config.Config) gin.HandlerFunc {
 }
 
 func originAllowed(raw string, allowed []string) bool {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
+	origin, ok := parseHTTPOrigin(raw, false)
+	if !ok {
 		return false
 	}
+	return isAllowedOrigin(origin, allowed)
+}
+
+func refererAllowed(raw string, allowed []string) bool {
+	origin, ok := parseHTTPOrigin(raw, true)
+	if !ok {
+		return false
+	}
+	return isAllowedOrigin(origin, allowed)
+}
+
+type httpOrigin struct {
+	scheme string
+	host   string
+	port   int
+}
+
+func isAllowedOrigin(origin httpOrigin, allowed []string) bool {
 	for _, a := range allowed {
-		a = strings.TrimRight(strings.TrimSpace(a), "/")
-		if a == "" {
+		candidate, ok := parseHTTPOrigin(a, true)
+		if !ok {
 			continue
 		}
-		if strings.HasPrefix(raw, a) {
+		if origin == candidate {
 			return true
 		}
 	}
 	return false
+}
+
+// parseHTTPOrigin canonicalizes an HTTP(S) URL to its origin. Origin headers
+// must contain an origin only; Referer and configured public URLs may include a
+// path, which is intentionally discarded before comparison.
+func parseHTTPOrigin(raw string, allowPath bool) (httpOrigin, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return httpOrigin{}, false
+	}
+	u, err := url.ParseRequestURI(raw)
+	if err != nil || u == nil || u.User != nil || u.Host == "" || u.Opaque != "" {
+		return httpOrigin{}, false
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return httpOrigin{}, false
+	}
+	if !allowPath && (u.Path != "" || u.RawQuery != "" || u.Fragment != "") {
+		return httpOrigin{}, false
+	}
+	host := strings.TrimSuffix(strings.ToLower(u.Hostname()), ".")
+	if host == "" {
+		return httpOrigin{}, false
+	}
+	port := 80
+	if scheme == "https" {
+		port = 443
+	}
+	if rawPort := u.Port(); rawPort != "" {
+		parsedPort, err := strconv.Atoi(rawPort)
+		if err != nil || parsedPort < 1 || parsedPort > 65535 {
+			return httpOrigin{}, false
+		}
+		port = parsedPort
+	}
+	return httpOrigin{scheme: scheme, host: host, port: port}, true
 }

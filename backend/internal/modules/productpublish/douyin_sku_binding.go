@@ -15,6 +15,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 )
@@ -72,11 +73,11 @@ type DouyinSKUBindingSummary struct {
 }
 
 // GetDouyinSKUBindings returns current binding rows for one publication.
-func (s *Service) GetDouyinSKUBindings(ctx context.Context, publicationID uuid.UUID) (*DouyinSKUBindingSummary, error) {
+func (s *Service) GetDouyinSKUBindings(ctx context.Context, tenantID int64, publicationID uuid.UUID) (*DouyinSKUBindingSummary, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product publish unavailable")
 	}
-	pub, err := s.loadDouyinPublication(ctx, publicationID)
+	pub, err := s.loadDouyinPublication(ctx, tenantID, publicationID)
 	if err != nil {
 		return nil, err
 	}
@@ -96,14 +97,18 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 		return nil, fmt.Errorf("product publish unavailable")
 	}
 	ctx := c.Request.Context()
-	pub, err := s.loadDouyinPublication(ctx, publicationID)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	pub, err := s.loadDouyinPublication(ctx, tenantID, publicationID)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(pub.ExternalProductID) == "" {
 		return nil, fmt.Errorf("%s: platform product id missing", platformdouyin.CodeDouyinProductNotBound)
 	}
-	shopRow, err := s.ensureDouyinShopAuthorized(ctx, pub.ShopID)
+	shopRow, err := s.ensureDouyinShopAuthorized(ctx, tenantID, pub.ShopID)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +133,7 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 		})
 	}
 
-	client, _, err := s.Shops.DouyinClientForShopContext(ctx, pub.ShopID, adminID)
+	client, _, err := s.Shops.DouyinClientForShopContext(ctx, tenantID, pub.ShopID, adminID)
 	if err != nil {
 		code := inferDouyinPublishErrorCode(err)
 		s.writeDouyinDetailSyncFailed(ctx, adminID, publicationID, code, err.Error())
@@ -217,12 +222,12 @@ func (s *Service) SyncDouyinSKUBindings(c *gin.Context, publicationID uuid.UUID,
 			}
 		}
 		row.LastSyncedAt = &now
-		_ = s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ?", local.PublicationSKUID).Updates(updates).Error
+		_ = s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ? AND publication_id = ?", local.PublicationSKUID, pub.ID).Updates(updates).Error
 		resultRows = append(resultRows, row)
 		counts[match.Status]++
 	}
 
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", publicationID).
+	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", publicationID, tenantID).
 		Updates(map[string]any{
 			"sku_binding_synced_at": &now,
 			"last_synced_at":        &now,
@@ -275,9 +280,11 @@ func (s *Service) writeDouyinDetailSyncFailed(ctx context.Context, adminID *uuid
 	})
 }
 
-func (s *Service) loadDouyinPublication(ctx context.Context, publicationID uuid.UUID) (*ProductPublication, error) {
+func (s *Service) loadDouyinPublication(ctx context.Context, tenantID int64, publicationID uuid.UUID) (*ProductPublication, error) {
 	var pub ProductPublication
-	if err := s.DB.WithContext(ctx).First(&pub, "id = ?", publicationID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).
+		Where("id = ? AND tenant_id = ? AND EXISTS (SELECT 1 FROM products p WHERE p.id = product_publications.product_id AND p.tenant_id = ? AND p.deleted_at IS NULL)", publicationID, tenantID, tenantID).
+		First(&pub).Error; err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(strings.ToLower(pub.Platform)) != "douyin_shop" {
@@ -286,8 +293,8 @@ func (s *Service) loadDouyinPublication(ctx context.Context, publicationID uuid.
 	return &pub, nil
 }
 
-func (s *Service) ensureDouyinShopAuthorized(ctx context.Context, shopID uuid.UUID) (*shop.Shop, error) {
-	shopRow, _, err := s.Shops.PlainAuthForProviderCtx(ctx, shopID)
+func (s *Service) ensureDouyinShopAuthorized(ctx context.Context, tenantID int64, shopID uuid.UUID) (*shop.Shop, error) {
+	shopRow, _, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, shopID)
 	if err != nil || shopRow == nil {
 		return nil, fmt.Errorf("shop not found")
 	}

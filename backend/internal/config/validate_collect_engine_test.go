@@ -53,3 +53,19 @@ func TestValidateCollectEnginesRejectsInvalidURLs(t *testing.T) {
 		t.Fatalf("expected invalid Bridge URL error, got %v", err)
 	}
 }
+
+func TestValidateCollectEnginesRequiresTokenForRemoteCollector(t *testing.T) {
+	cfg := &Config{
+		CollectorBaseURL:                "http://collector:3001",
+		CollectDefaultEngineTaobaoTmall: "playwright",
+	}
+	if err := cfg.validateCollectEngines(); err == nil ||
+		!strings.Contains(err.Error(), "COLLECTOR_INTERNAL_TOKEN") {
+		t.Fatalf("expected remote collector token error, got %v", err)
+	}
+
+	cfg.CollectorToken = "collector-test-token"
+	if err := cfg.validateCollectEngines(); err != nil {
+		t.Fatalf("expected authenticated remote collector config: %v", err)
+	}
+}

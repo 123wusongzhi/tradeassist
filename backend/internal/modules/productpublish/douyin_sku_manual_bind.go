@@ -13,6 +13,7 @@ import (
 	douyinmetrics "github.com/trademind-ai/trademind/backend/internal/metrics/douyin"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -33,12 +34,16 @@ func (s *Service) ManualBindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID
 		return nil, fmt.Errorf("%s: product publish unavailable", platformdouyin.CodeDouyinSKUManualBindFailed)
 	}
 	ctx := c.Request.Context()
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
 	platformSkuID := strings.TrimSpace(body.PlatformSkuID)
 	if platformSkuID == "" {
 		return nil, fmt.Errorf("%s: platform sku id required", platformdouyin.CodeDouyinPlatformSKUIDMissing)
 	}
 
-	psku, pub, err := s.loadDouyinPublicationSKU(ctx, publicationSkuID)
+	psku, pub, err := s.loadDouyinPublicationSKU(ctx, tenantID, publicationSkuID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +76,7 @@ func (s *Service) ManualBindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID
 		"last_synced_at":  &now,
 		"updated_at":      now,
 	}
-	if err := s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ?", publicationSkuID).Updates(updates).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ? AND publication_id = ?", publicationSkuID, pub.ID).Updates(updates).Error; err != nil {
 		return nil, fmt.Errorf("%s: %s", platformdouyin.CodeDouyinSKUManualBindFailed, err.Error())
 	}
 
@@ -108,7 +113,11 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 		return nil, fmt.Errorf("%s: product publish unavailable", platformdouyin.CodeDouyinSKUManualUnbindFailed)
 	}
 	ctx := c.Request.Context()
-	psku, pub, err := s.loadDouyinPublicationSKU(ctx, publicationSkuID)
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		return nil, err
+	}
+	psku, pub, err := s.loadDouyinPublicationSKU(ctx, tenantID, publicationSkuID)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +132,7 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 		"last_synced_at":  &now,
 		"updated_at":      now,
 	}
-	if err := s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ?", publicationSkuID).Updates(updates).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Model(&ProductPublicationSKU{}).Where("id = ? AND publication_id = ?", publicationSkuID, pub.ID).Updates(updates).Error; err != nil {
 		return nil, fmt.Errorf("%s: %s", platformdouyin.CodeDouyinSKUManualUnbindFailed, err.Error())
 	}
 
@@ -153,12 +162,12 @@ func (s *Service) UnbindDouyinSKU(c *gin.Context, publicationSkuID uuid.UUID, bo
 	return row, nil
 }
 
-func (s *Service) loadDouyinPublicationSKU(ctx context.Context, publicationSkuID uuid.UUID) (*ProductPublicationSKU, *ProductPublication, error) {
+func (s *Service) loadDouyinPublicationSKU(ctx context.Context, tenantID int64, publicationSkuID uuid.UUID) (*ProductPublicationSKU, *ProductPublication, error) {
 	var psku ProductPublicationSKU
 	if err := s.DB.WithContext(ctx).First(&psku, "id = ?", publicationSkuID).Error; err != nil {
 		return nil, nil, err
 	}
-	pub, err := s.loadDouyinPublication(ctx, psku.PublicationID)
+	pub, err := s.loadDouyinPublication(ctx, tenantID, psku.PublicationID)
 	if err != nil {
 		return nil, nil, err
 	}

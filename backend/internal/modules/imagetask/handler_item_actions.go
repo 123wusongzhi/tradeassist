@@ -44,6 +44,18 @@ func (h *Handler) SaveItemToProduct(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskItemTenant(c.Request.Context(), itemID, nil, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
+	if err := h.Svc.requireProductTenant(c.Request.Context(), pid, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
 	mode := strings.TrimSpace(body.ApplyMode)
 	if mode == "" {
 		mode = "ai_generated"
@@ -92,6 +104,18 @@ func (h *Handler) SetItemAsMain(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid productId")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireTaskItemTenant(c.Request.Context(), itemID, nil, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
+	if err := h.Svc.requireProductTenant(c.Request.Context(), pid, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
 	row, err := h.Svc.SetItemAsMain(c.Request.Context(), itemID, pid, adminUUID(c))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -124,7 +148,12 @@ func (h *Handler) ScoreImage(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid body")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
 	req := ScoreImageRequest{
+		TenantID:       tenantID,
 		SourceImageURL: strings.TrimSpace(body.SourceImageURL),
 		ImageType:      strings.TrimSpace(body.ImageType),
 	}
@@ -135,6 +164,10 @@ func (h *Handler) ScoreImage(c *gin.Context) {
 			return
 		}
 		req.ProductID = &pid
+		if err := h.Svc.requireProductTenant(c.Request.Context(), pid, tenantID); err != nil {
+			handleTenantResourceError(c, err)
+			return
+		}
 	}
 	if raw := strings.TrimSpace(body.SourceImageID); raw != "" {
 		sid, err := uuid.Parse(raw)
@@ -143,6 +176,10 @@ func (h *Handler) ScoreImage(c *gin.Context) {
 			return
 		}
 		req.SourceImageID = &sid
+		if err := h.Svc.requireProductImageTenant(c.Request.Context(), sid, tenantID); err != nil {
+			handleTenantResourceError(c, err)
+			return
+		}
 	}
 	score, err := h.Svc.ScoreImageHTTP(c.Request.Context(), req)
 	if err != nil {
@@ -167,18 +204,21 @@ func (h *Handler) SelectBestMainForProduct(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
 		return
 	}
+	tenantID, ok := handlerTenantID(c)
+	if !ok {
+		return
+	}
+	if err := h.Svc.requireProductTenant(c.Request.Context(), pid, tenantID); err != nil {
+		handleTenantResourceError(c, err)
+		return
+	}
 	var body selectBestMainBody
 	_ = c.ShouldBindJSON(&body)
 	mode := strings.TrimSpace(body.Mode)
 	if mode == "" {
 		mode = "recommend"
 	}
-	var n int64
-	if err := h.Svc.DB.WithContext(c.Request.Context()).Table("products").Where("id = ?", pid).Count(&n).Error; err != nil || n == 0 {
-		response.Fail(c, 404, response.CodeNotFound, "product not found")
-		return
-	}
-	row, err := h.Svc.CreateSelectBestMainTask(c.Request.Context(), pid, mode, adminUUID(c))
+	row, err := h.Svc.CreateSelectBestMainTask(c.Request.Context(), tenantID, pid, mode, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return

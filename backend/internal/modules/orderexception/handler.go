@@ -95,7 +95,13 @@ func (h *Handler) List(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid end time (RFC3339)")
 		return
 	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
 	req := ListOrderExceptionsRequest{
+		TenantID:      tenantID,
 		ExceptionType: strings.TrimSpace(c.Query("exceptionType")),
 		Severity:      strings.TrimSpace(c.Query("severity")),
 		Platform:      strings.TrimSpace(c.Query("platform")),
@@ -125,7 +131,12 @@ func (h *Handler) Detail(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	d, err := h.Svc.GetOrderExceptionDetail(c.Request.Context(), st, sid)
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	d, err := h.Svc.GetOrderExceptionDetailForTenant(c.Request.Context(), tenantID, st, sid)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.Fail(c, 404, response.CodeNotFound, "not found")
@@ -151,7 +162,12 @@ func (h *Handler) Handle(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	if err := h.Svc.UpsertMarkForTenant(c.Request.Context(), tenantID, body.ExceptionType, st, sid, MarkHandled, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -182,7 +198,12 @@ func (h *Handler) Ignore(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.UpsertMark(c.Request.Context(), body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	if err := h.Svc.UpsertMarkForTenant(c.Request.Context(), tenantID, body.ExceptionType, st, sid, MarkIgnored, body.Remark, adminUUID(c)); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -207,7 +228,12 @@ func (h *Handler) Unmark(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	if err := h.Svc.DeleteMarks(c.Request.Context(), st, sid); err != nil {
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	if err := h.Svc.DeleteMarksForTenant(c.Request.Context(), tenantID, st, sid); err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
 	}
@@ -240,7 +266,12 @@ func (h *Handler) BindSKU(c *gin.Context) {
 	}
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	out, err := h.Cmds.BindSKU(c.Request.Context(), st, sid, body, adminUUID(c))
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	out, err := h.Cmds.BindSKU(c.Request.Context(), tenantID, st, sid, body, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -279,7 +310,12 @@ func (h *Handler) RetryDeduct(c *gin.Context) {
 	_ = c.ShouldBindJSON(&body)
 	st := strings.TrimSpace(c.Param("sourceType"))
 	sid := strings.TrimSpace(c.Param("sourceId"))
-	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), st, sid, body.SyncPlatforms, adminUUID(c))
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	sum, err := h.Cmds.RetryDeduct(c.Request.Context(), tenantID, st, sid, body.SyncPlatforms, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return
@@ -314,7 +350,12 @@ func (h *Handler) RetryInventorySync(c *gin.Context) {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid sourceId")
 		return
 	}
-	task, err := h.Cmds.RetryInventorySync(c, tid, adminUUID(c))
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.Fail(c, http.StatusForbidden, response.CodeForbidden, "tenant context missing")
+		return
+	}
+	task, err := h.Cmds.RetryInventorySync(c, tenantID, tid, adminUUID(c))
 	if err != nil {
 		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, err.Error())
 		return

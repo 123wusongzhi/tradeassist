@@ -1,4 +1,6 @@
 import { TmPageContainer } from '@/components/ui';
+import PermissionGuard from '@/components/PermissionGuard';
+import { PERMISSIONS } from '@/utils/permission';
 import {
   ackAlert,
   fetchObservabilityAlerts,
@@ -41,7 +43,7 @@ function otlpStatusMeta(status?: string) {
   }
 }
 
-export default function ObservabilityCenterPage() {
+function ObservabilityCenterPageContent() {
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null);
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -172,5 +174,13 @@ export default function ObservabilityCenterPage() {
         </Space>
       </Spin>
     </TmPageContainer>
+  );
+}
+
+export default function ObservabilityCenterPage() {
+  return (
+    <PermissionGuard require={PERMISSIONS.SETTINGS_MANAGE} requireGlobalAdmin showForbiddenPage>
+      <ObservabilityCenterPageContent />
+    </PermissionGuard>
   );
 }

@@ -14,8 +14,12 @@ import (
 )
 
 func (s *Service) GetBatchByID(ctx context.Context, id uuid.UUID) (*AIProductImageBatch, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var b AIProductImageBatch
-	if err := s.DB.WithContext(ctx).First(&b, "id = ?", id).Error; err != nil {
+	if err := s.DB.WithContext(ctx).First(&b, "id = ? AND tenant_id = ?", id, tenantID).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -105,6 +109,10 @@ func (s *Service) buildItemDTO(_ context.Context, item *AIProductImageItem, p *p
 }
 
 func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchListItem, int64, error) {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
 	if page < 1 {
 		page = 1
 	}
@@ -115,7 +123,7 @@ func (s *Service) ListBatches(ctx context.Context, page, pageSize int) ([]BatchL
 		pageSize = 100
 	}
 	var total int64
-	tx := s.DB.WithContext(ctx).Model(&AIProductImageBatch{})
+	tx := s.DB.WithContext(ctx).Model(&AIProductImageBatch{}).Where("tenant_id = ?", tenantID)
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -151,7 +159,8 @@ func (s *Service) GetBatchDetail(ctx context.Context, id uuid.UUID, statusFilter
 	products := map[uuid.UUID]*product.Product{}
 	if len(pids) > 0 {
 		var rows []product.Product
-		_ = s.DB.WithContext(ctx).Where("id IN ?", pids).Find(&rows).Error
+		tenantID, _ := tenantIDFromContext(ctx)
+		_ = s.DB.WithContext(ctx).Where("id IN ? AND tenant_id = ?", pids, tenantID).Find(&rows).Error
 		for i := range rows {
 			products[rows[i].ID] = &rows[i]
 		}
@@ -253,7 +262,7 @@ func (s *Service) RetryFailed(c *gin.Context, batchID uuid.UUID, adminID *uuid.U
 			itemCopy := item
 			s.runOneItem(cp, &itemCopy, opts, adminID)
 		}
-		s.finalizeBatch(context.Background(), batchID)
+		s.finalizeBatch(context.WithoutCancel(ctx), batchID)
 	}()
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -280,6 +289,9 @@ func boolFromAny(v any) bool {
 }
 
 func (s *Service) CancelPending(ctx context.Context, batchID uuid.UUID) (int, error) {
+	if _, err := s.GetBatchByID(ctx, batchID); err != nil {
+		return 0, err
+	}
 	res := s.DB.WithContext(ctx).Model(&AIProductImageItem{}).
 		Where("batch_id = ? AND status = ?", batchID, ItemPending).
 		Update("status", ItemCancelled)
@@ -291,8 +303,12 @@ func (s *Service) CancelPending(ctx context.Context, batchID uuid.UUID) (int, er
 }
 
 func (s *Service) RejectItem(ctx context.Context, itemID uuid.UUID) error {
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return err
+	}
 	var item AIProductImageItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_image_batches b ON b.id = ai_product_image_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_image_items.id = ?", itemID).First(&item).Error; err != nil {
 		return err
 	}
 	if item.Status != ItemPendingReview && item.Status != ItemSuccess {
@@ -303,8 +319,12 @@ func (s *Service) RejectItem(ctx context.Context, itemID uuid.UUID) error {
 
 func (s *Service) RegenerateItem(c *gin.Context, itemID uuid.UUID, adminID *uuid.UUID) (*ItemDetailDTO, error) {
 	ctx := c.Request.Context()
+	tenantID, err := tenantIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
 	var item AIProductImageItem
-	if err := s.DB.WithContext(ctx).First(&item, "id = ?", itemID).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Joins("JOIN ai_product_image_batches b ON b.id = ai_product_image_items.batch_id AND b.tenant_id = ?", tenantID).Where("ai_product_image_items.id = ?", itemID).First(&item).Error; err != nil {
 		return nil, err
 	}
 	b, err := s.GetBatchByID(ctx, item.BatchID)

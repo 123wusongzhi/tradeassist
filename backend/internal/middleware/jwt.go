@@ -56,13 +56,38 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 			c.Abort()
 			return
 		}
+		secureSession := cfg.UsesSecureSession()
+		if secureSession && (db == nil || sessions == nil) {
+			response.Fail(c, 500, response.CodeInternalError, "auth misconfigured")
+			c.Abort()
+			return
+		}
+		if secureSession && strings.TrimSpace(claims.TokenType) != "access" {
+			response.Fail(c, 401, response.CodeUnauthorized, auth.ErrAuthenticationRequired)
+			c.Abort()
+			return
+		}
 		sessID := uuid.Nil
 		if s := strings.TrimSpace(claims.SessionID); s != "" {
-			sessID, _ = uuid.Parse(s)
+			parsed, parseErr := uuid.Parse(s)
+			if parseErr != nil {
+				response.Fail(c, 401, response.CodeUnauthorized, auth.ErrAuthenticationRequired)
+				c.Abort()
+				return
+			}
+			sessID = parsed
 		}
+		if secureSession && sessID == uuid.Nil {
+			response.Fail(c, 401, response.CodeUnauthorized, auth.ErrAuthenticationRequired)
+			c.Abort()
+			return
+		}
+		systemAdminSession := false
 		if sessions != nil && sessID != uuid.Nil {
-			if err := sessions.ValidateSessionAccess(c.Request.Context(), sessID, uid, claims.TokenVersion); err != nil {
-				response.Fail(c, 401, response.CodeUnauthorized, err.Error())
+			var validationErr error
+			systemAdminSession, validationErr = sessions.ValidateSessionAccess(c.Request.Context(), sessID, uid, claims.TenantID, claims.TokenVersion)
+			if validationErr != nil {
+				response.Fail(c, 401, response.CodeUnauthorized, validationErr.Error())
 				c.Abort()
 				return
 			}
@@ -73,7 +98,7 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		authSource := security.AuthSourceAccessToken
 		if cfg != nil {
 			resolved, src, err := cfg.ResolveRequestTenantID(claims.TenantID)
-			if err != nil && IsProductionLike(cfg, claims.TenantID) {
+			if err != nil && IsProductionLike(cfg, claims.TenantID) && !systemAdminSession {
 				response.Fail(c, 403, response.CodeForbidden, err.Error())
 				c.Abort()
 				return
@@ -92,6 +117,10 @@ func BearerAuthWithDB(cfg *config.Config, db *gorm.DB, sessions *auth.SessionSer
 		tc := security.BuildTenantContext(c, tenantID, uid, sessID, "", nil, nil)
 		tc.AuthSource = authSource
 		security.SetGin(c, tc)
+		// Gin's key/value store is not propagated to callers that accept the
+		// standard request context (services, workers and authorization helpers).
+		// Attach the same auth-derived scope before continuing the request.
+		c.Request = c.Request.WithContext(security.WithTenantContext(c.Request.Context(), tc))
 		c.Next()
 	}
 }

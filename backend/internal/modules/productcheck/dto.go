@@ -4,6 +4,7 @@ import "github.com/google/uuid"
 
 // CheckProductReadinessRequest carries inputs for a single readiness evaluation.
 type CheckProductReadinessRequest struct {
+	TenantID       int64
 	ProductID      uuid.UUID
 	Platform       string
 	ShopID         *uuid.UUID

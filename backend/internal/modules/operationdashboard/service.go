@@ -108,7 +108,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	_ = pubRec.Session(&gorm.Session{}).Count(&sum.PublishedPublicationCount).Error
 
 	// AI tasks (product text; exclude customer_reply_generate noise for this MVP board)
-	aiFailTx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+	aiFailTx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aitask.AITask{}), "tenant_id").
 		Where("status = ?", aitask.StatusFailed).
 		Where("task_type IN ?", []string{"title_optimize", "product_description_generate"})
 	if q.Start != nil {
@@ -119,9 +119,9 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	}
 	_ = aiFailTx.Count(&sum.AiTaskFailedCount).Error
 
-	_ = s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).
+	_ = q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").
 		Where("status = ?", aioperationbatch.StatusRunning).Count(&sum.AiBatchRunningCount).Error
-	_ = s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).
+	_ = q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").
 		Where("status = ?", aioperationbatch.StatusFailed).Count(&sum.AiBatchFailedCount).Error
 
 	// Customer
@@ -187,21 +187,22 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 			Start:           q.Start,
 			End:             q.End,
 			AllowedShopIDs:  q.Scope.AllowedShopIDs,
+			TenantID:        q.Scope.TenantID,
 		}
 		if su, err := s.TaskCenter.Summary(ctx, p); err == nil {
 			sum.FailedTaskTotal = su.TotalFailed
 			sum.FailedTasks = su.TotalFailed
 		}
 	}
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	_ = q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Where("severity = ?", failureclassifier.SeverityCritical).
 		Count(&sum.CriticalAlertCount).Error
-	_ = s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}).
+	_ = q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").
 		Where("status = ?", taskcenter.TaskAlertStatusOpen).
 		Count(&sum.OpenAlertCount).Error
 
-	if s.OrderExceptions != nil {
+	if s.OrderExceptions != nil && q.Scope.IsAdmin {
 		ex, err := s.OrderExceptions.DashboardSummary(ctx, strings.TrimSpace(q.Platform), strings.TrimSpace(q.ShopID), q.Start, q.End)
 		if err == nil {
 			sum.OrderExceptionTotal = ex.TotalOpen
@@ -217,7 +218,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	sum.Publishable = publishableCount
 
 	// Image tasks (local DB only)
-	imgPendingTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).
+	imgPendingTx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "tenant_id").
 		Where("status IN ?", []string{imagetask.StatusPending, imagetask.StatusRunning, imagetask.StatusRetrying})
 	if q.Start != nil {
 		imgPendingTx = imgPendingTx.Where("created_at >= ?", *q.Start)
@@ -227,7 +228,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	}
 	_ = imgPendingTx.Count(&sum.ImageTaskPending).Error
 
-	imgFailedTx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+	imgFailedTx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "tenant_id").Where("status = ?", imagetask.StatusFailed)
 	if q.Start != nil {
 		imgFailedTx = imgFailedTx.Where("updated_at >= ?", *q.Start)
 	}
@@ -277,7 +278,7 @@ func (s *Service) GetProductOperationDashboard(ctx context.Context, q Query, sc 
 	collectFailTx := s.collectTaskScope(ctx, q).Where("status = ?", collect.StatusFailed)
 	_ = collectFailTx.Count(&sum.CollectFailedCount).Error
 
-	if s.ConfigStatus != nil {
+	if s.ConfigStatus != nil && q.Scope.IsAdmin {
 		if cs, err := s.ConfigStatus.DashboardSummary(ctx); err == nil && cs != nil {
 			sum.ConfigRiskCount = int64(cs.RiskCount)
 		}
@@ -321,6 +322,7 @@ func startOfDayUTC(t time.Time) time.Time {
 }
 
 func (s *Service) applyProductJoinScope(tx *gorm.DB, q Query, alias string) *gorm.DB {
+	tx = q.Scope.applyTenant(tx, alias+".tenant_id")
 	if v := strings.TrimSpace(q.Source); v != "" {
 		tx = tx.Where(alias+".source = ?", v)
 	}
@@ -334,7 +336,7 @@ func (s *Service) applyProductJoinScope(tx *gorm.DB, q Query, alias string) *gor
 }
 
 func (s *Service) collectTaskScope(ctx context.Context, q Query) *gorm.DB {
-	tx := s.DB.WithContext(ctx).Model(&collect.CollectTask{})
+	tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&collect.CollectTask{}), "tenant_id")
 	if v := strings.TrimSpace(q.Source); v != "" {
 		tx = tx.Where("source = ?", v)
 	}
@@ -361,6 +363,7 @@ func (s *Service) invCount(ctx context.Context, base inventory.AlertsListQuery, 
 }
 
 func (s *Service) applyProductScope(tx *gorm.DB, q Query) *gorm.DB {
+	tx = q.Scope.applyTenant(tx, "products.tenant_id")
 	if v := strings.TrimSpace(q.Source); v != "" {
 		tx = tx.Where("products.source = ?", v)
 	}
@@ -440,7 +443,7 @@ func (s *Service) suggestionPendingScope(ctx context.Context, q Query) *gorm.DB 
 	if q.End != nil {
 		tx = tx.Where("customer_reply_suggestions.updated_at <= ?", *q.End)
 	}
-	return tx
+	return q.Scope.applyShopColumn(tx, "c.shop_id")
 }
 
 func (s *Service) readinessBlockedTx(ctx context.Context, q Query) *gorm.DB {
@@ -572,7 +575,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// AI text failures
 	{
-		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aitask.AITask{}), "tenant_id").
 			Where("status = ?", aitask.StatusFailed).
 			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"})
 		if q.Start != nil {
@@ -591,7 +594,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// AI image failures
 	{
-		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Where("status = ?", imagetask.StatusFailed)
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "tenant_id").Where("status = ?", imagetask.StatusFailed)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -619,7 +622,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 
 	// Inventory sync failures
 	{
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed)
+		invTx := q.Scope.applyShopColumn(s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}), "shop_id").Where("status = ?", inventory.StatusFailed)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}
@@ -643,7 +646,7 @@ func (s *Service) buildExceptions(ctx context.Context, q Query, sum *Summary, sh
 	// Order exceptions
 	{
 		var last *time.Time
-		if s.OrderExceptions != nil {
+		if s.OrderExceptions != nil && q.Scope.IsAdmin {
 			res, err := s.OrderExceptions.ListOrderExceptions(ctx, orderexception.ListOrderExceptionsRequest{
 				Platform: strings.TrimSpace(q.Platform),
 				ShopID:   strings.TrimSpace(q.ShopID),
@@ -690,7 +693,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 
 	// Collected products
 	{
-		qb := s.DB.WithContext(ctx).Table("collect_tasks AS t").
+		qb := q.Scope.applyTenant(s.DB.WithContext(ctx).Table("collect_tasks AS t"), "t.tenant_id").
 			Select("t.id, t.result_product_id AS result_product_id, t.updated_at, t.source, p.title AS prod_title, t.status").
 			Joins("INNER JOIN products p ON p.id = t.result_product_id").
 			Where("t.status = ? AND t.result_product_id IS NOT NULL", collect.StatusSuccess)
@@ -731,7 +734,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// AI text tasks
 	{
 		var rows []aitask.AITask
-		tx := s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aitask.AITask{}), "tenant_id").
 			Where("task_type IN ?", []string{"title_optimize", "product_description_generate"}).
 			Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
@@ -768,7 +771,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// AI batches
 	{
 		var rows []aioperationbatch.AIOperationBatch
-		tx := s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}).Where("deleted_at IS NULL").Order("updated_at DESC").Limit(recentLimit)
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&aioperationbatch.AIOperationBatch{}), "tenant_id").Where("deleted_at IS NULL").Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -791,7 +794,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Image tasks
 	{
 		var rows []imagetask.ImageTask
-		tx := s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}).Order("updated_at DESC").Limit(recentLimit)
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&imagetask.ImageTask{}), "tenant_id").Order("updated_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("updated_at >= ?", *q.Start)
 		}
@@ -896,7 +899,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 			})
 		}
 		var invF []inventory.InventorySyncTask
-		invTx := s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}).Where("status = ?", inventory.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
+		invTx := q.Scope.applyShopColumn(s.DB.WithContext(ctx).Model(&inventory.InventorySyncTask{}), "shop_id").Where("status = ?", inventory.StatusFailed).Order("updated_at DESC").Limit(recentLimit)
 		if pl := strings.TrimSpace(q.Platform); pl != "" {
 			invTx = invTx.Where("LOWER(platform) = ?", strings.ToLower(pl))
 		}
@@ -943,7 +946,7 @@ func (s *Service) buildRecent(ctx context.Context, q Query, shopPtr *uuid.UUID) 
 	// Open alerts
 	{
 		var rows []taskcenter.TaskAlert
-		tx := s.DB.WithContext(ctx).Where("status = ?", taskcenter.TaskAlertStatusOpen).
+		tx := q.Scope.applyTenant(s.DB.WithContext(ctx).Model(&taskcenter.TaskAlert{}), "tenant_id").Where("status = ?", taskcenter.TaskAlertStatusOpen).
 			Order("last_seen_at DESC").Limit(recentLimit)
 		if q.Start != nil {
 			tx = tx.Where("last_seen_at >= ?", *q.Start)

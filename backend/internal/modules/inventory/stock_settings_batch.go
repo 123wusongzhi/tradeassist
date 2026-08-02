@@ -6,9 +6,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"gorm.io/gorm"
 )
 
@@ -122,17 +124,17 @@ func (s *Service) stockSettingsBatchMax(ctx context.Context) int {
 	return max
 }
 
-func (s *Service) applyStockSettingsAlertFilters(tx *gorm.DB, pol inventoryAlertPolicy, th int, alertTypes []string, includeNormal bool) *gorm.DB {
+func (s *Service) applyStockSettingsAlertFilters(tx *gorm.DB, tenantID int64, pol inventoryAlertPolicy, th int, alertTypes []string, includeNormal bool) *gorm.DB {
 	if len(alertTypes) > 0 {
-		return s.applyAlertsSQLAlertTypesOR(tx, alertTypes, th)
+		return s.applyAlertsSQLAlertTypesOR(tx, tenantID, alertTypes, th)
 	}
 	if !includeNormal {
-		return s.applyNonNormalAlertScope(tx, pol, th)
+		return s.applyNonNormalAlertScope(tx, tenantID, pol, th)
 	}
 	return tx
 }
 
-func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettingsFilter) (*gorm.DB, inventoryAlertPolicy, int, error) {
+func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, tenantID int64, f stockSettingsFilter) (*gorm.DB, inventoryAlertPolicy, int, error) {
 	var zero inventoryAlertPolicy
 	if s == nil || s.DB == nil {
 		return nil, zero, 0, fmt.Errorf("inventory: no db")
@@ -145,7 +147,7 @@ func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettin
 	if th < 0 {
 		th = 0
 	}
-	base := s.buildSKUAlertBaseTX(ctx, skuAlertBaseQuery{
+	base := s.buildSKUAlertBaseTX(ctx, tenantID, skuAlertBaseQuery{
 		Keyword:       f.Keyword,
 		ProductID:     f.ProductID,
 		ProductSkuIDs: f.ProductSkuIDs,
@@ -154,18 +156,26 @@ func (s *Service) buildStockSettingsGroupedTX(ctx context.Context, f stockSettin
 		StockStatus:   f.StockStatus,
 		OnlyPublished: f.OnlyPublished,
 	})
-	base = s.applyStockSettingsAlertFilters(base, pol, th, f.AlertTypes, f.IncludeNormal)
+	base = s.applyStockSettingsAlertFilters(base, tenantID, pol, th, f.AlertTypes, f.IncludeNormal)
 	base = base.Group(`sk.id, sk.product_id, sk.sku_code, sk.sku_name, sk.stock, sk.warning_stock, sk.safety_stock, sk.updated_at, p.title`)
 	return base, pol, th, nil
 }
 
 // PreviewStockSettingsBatch returns matched SKU count and a page of sample rows.
-func (s *Service) PreviewStockSettingsBatch(ctx context.Context, body StockSettingsBatchPreviewBody) (*StockSettingsBatchPreviewResult, error) {
+func (s *Service) PreviewStockSettingsBatch(c *gin.Context, tenantID int64, body StockSettingsBatchPreviewBody) (*StockSettingsBatchPreviewResult, error) {
+	ctx := c.Request.Context()
+	if tenantID < 0 {
+		return nil, fmt.Errorf("tenant context required")
+	}
 	f, err := parseStockSettingsFilter(body)
 	if err != nil {
 		return nil, err
 	}
-	base, _, _, err := s.buildStockSettingsGroupedTX(ctx, f)
+	base, _, _, err := s.buildStockSettingsGroupedTX(ctx, tenantID, f)
+	if err != nil {
+		return nil, err
+	}
+	base, err = adminperm.ApplyProductScopeAlias(c, s.DB, base, "p")
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +255,11 @@ func formatStockSettingsOpSummary(matched, updated int64, w, s int, f stockSetti
 }
 
 // BatchUpdateStockSettings updates warning_stock / safety_stock / stock_status only for matched SKUs.
-func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettingsBatchUpdateBody, admin *uuid.UUID) (*StockSettingsBatchUpdateResult, error) {
+func (s *Service) BatchUpdateStockSettings(c *gin.Context, tenantID int64, body StockSettingsBatchUpdateBody, admin *uuid.UUID) (*StockSettingsBatchUpdateResult, error) {
+	ctx := c.Request.Context()
+	if tenantID < 0 {
+		return nil, fmt.Errorf("tenant context required")
+	}
 	if err := product.ValidateSKUStockThresholds(body.WarningStock, body.SafetyStock); err != nil {
 		return nil, err
 	}
@@ -259,7 +273,13 @@ func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettin
 	if stockSettingsNeedsConfirmAll(f) && !body.ConfirmAll {
 		return nil, fmt.Errorf("缺少筛选条件且包含全部 SKU：将 confirmAll=true 后方可执行")
 	}
-	base, _, _, err := s.buildStockSettingsGroupedTX(ctx, f)
+	base, _, _, err := s.buildStockSettingsGroupedTX(ctx, tenantID, f)
+	if err != nil {
+		return nil, err
+	}
+	// First resolve candidate products under the write scope, then repeat the
+	// scope in the UPDATE predicate to close the selection/update race.
+	base, err = adminperm.ApplyProductScopeAlias(c, s.DB, base, "p")
 	if err != nil {
 		return nil, err
 	}
@@ -275,15 +295,25 @@ func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettin
 		return nil, fmt.Errorf("匹配 SKU 数（%d）超过单次上限（%d），请确认后设置 confirmLarge=true 后重试", matched, maxN)
 	}
 	var idScans []struct {
-		ID uuid.UUID `gorm:"column:id"`
+		ID        uuid.UUID `gorm:"column:id"`
+		ProductID uuid.UUID `gorm:"column:product_id"`
 	}
-	q := base.Session(&gorm.Session{}).Select("sk.id")
+	q := base.Session(&gorm.Session{}).Select("sk.id, sk.product_id")
 	if err := q.Scan(&idScans).Error; err != nil {
 		return nil, err
 	}
 	ids := make([]uuid.UUID, 0, len(idScans))
+	productIDs := make([]uuid.UUID, 0, len(idScans))
+	seenProducts := make(map[uuid.UUID]struct{}, len(idScans))
 	for _, r := range idScans {
 		ids = append(ids, r.ID)
+		if _, ok := seenProducts[r.ProductID]; !ok {
+			if err := adminperm.EnsureProductOperate(c, s.DB, r.ProductID); err != nil {
+				return nil, err
+			}
+			seenProducts[r.ProductID] = struct{}{}
+			productIDs = append(productIDs, r.ProductID)
+		}
 	}
 	if int64(len(ids)) != matched {
 		return nil, fmt.Errorf("internal: matched count / id list mismatch")
@@ -298,8 +328,9 @@ func (s *Service) BatchUpdateStockSettings(ctx context.Context, body StockSettin
     WHEN COALESCE(sk.stock,0) > 0 AND (? = 0 OR COALESCE(sk.stock,0) > ?) AND COALESCE(sk.stock,0) <= ? THEN '%s'
     ELSE '%s'
   END,
-  updated_at = NOW()
-WHERE sk.id IN ?`,
+  updated_at = CURRENT_TIMESTAMP
+WHERE sk.id IN ? AND sk.product_id IN ?
+  AND EXISTS (SELECT 1 FROM products p WHERE p.id = sk.product_id AND p.tenant_id = ? AND p.deleted_at IS NULL)`,
 		product.StockStatusOutOfStock,
 		product.StockStatusBelowSafetyStock,
 		product.StockStatusLowStock,
@@ -309,7 +340,7 @@ WHERE sk.id IN ?`,
 		body.WarningStock, body.SafetyStock,
 		body.SafetyStock, body.SafetyStock,
 		body.SafetyStock, body.SafetyStock, body.WarningStock,
-		ids,
+		ids, productIDs, tenantID,
 	}
 	var updatedCnt int64
 	txErr := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -318,6 +349,9 @@ WHERE sk.id IN ?`,
 			return r.Error
 		}
 		updatedCnt = r.RowsAffected
+		if updatedCnt != matched {
+			return fmt.Errorf("matched SKU set changed before update")
+		}
 		return nil
 	})
 	if txErr != nil {

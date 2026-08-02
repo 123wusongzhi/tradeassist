@@ -100,7 +100,7 @@ func (s *Service) GetDTO(ctx context.Context, tenantID int64, id uuid.UUID, skuU
 }
 
 // ListPublicationSkus lists listing SKU rows mapped to one product draft.
-func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, productSkuFilter *uuid.UUID) ([]PublicationSkuListingRow, error) {
+func (s *Service) ListPublicationSkus(ctx context.Context, tenantID int64, productID uuid.UUID, productSkuFilter *uuid.UUID) ([]PublicationSkuListingRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -124,8 +124,8 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 		Select(`ps.id, ps.publication_id, ps.product_sku_id, ps.external_sku_id, ps.sku_code, ps.stock,
 			ps.bind_status, ps.bind_confidence, ps.bind_message, ps.last_synced_at,
 			pp.shop_id AS shop_uid, sh.shop_name, pp.platform AS plat, pp.external_product_id AS ext_pid`).
-		Joins(`JOIN product_publications pp ON pp.id = ps.publication_id AND pp.product_id = ? AND pp.deleted_at IS NULL`, productID).
-		Joins(`JOIN shops sh ON sh.id = pp.shop_id`)
+		Joins(`JOIN product_publications pp ON pp.id = ps.publication_id AND pp.product_id = ? AND pp.tenant_id = ? AND pp.deleted_at IS NULL`, productID, tenantID).
+		Joins(`JOIN shops sh ON sh.id = pp.shop_id AND sh.tenant_id = ?`, tenantID)
 	if productSkuFilter != nil && *productSkuFilter != uuid.Nil {
 		tx = tx.Where("ps.product_sku_id = ?", *productSkuFilter)
 	}
@@ -163,7 +163,7 @@ func (s *Service) ListPublicationSkus(ctx context.Context, productID uuid.UUID, 
 }
 
 // ListSKUChangeLogs pages ledger rows for one SKU snapshot line.
-func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
+func (s *Service) ListSKUChangeLogs(ctx context.Context, tenantID int64, productID uuid.UUID, skuID uuid.UUID, page, ps int) (*PaginatedLogs, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -174,7 +174,7 @@ func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, sk
 		ps = 20
 	}
 	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{}).
-		Where("product_id = ? AND product_sku_id = ?", productID, skuID)
+		Where("tenant_id = ? AND product_id = ? AND product_sku_id = ?", tenantID, productID, skuID)
 	var total int64
 	if err := tx.Count(&total).Error; err != nil {
 		return nil, err
@@ -204,7 +204,7 @@ func (s *Service) ListSKUChangeLogs(ctx context.Context, productID uuid.UUID, sk
 }
 
 // ListGlobalLogs audits inventory_change_logs across SKUs.
-func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*PaginatedLogs, error) {
+func (s *Service) ListGlobalLogs(ctx context.Context, tenantID int64, q GlobalLogsQuery) (*PaginatedLogs, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("inventory: no db")
 	}
@@ -216,7 +216,7 @@ func (s *Service) ListGlobalLogs(ctx context.Context, q GlobalLogsQuery) (*Pagin
 	if ps < 1 || ps > 100 {
 		ps = 20
 	}
-	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{})
+	tx := s.DB.WithContext(ctx).Model(&InventoryChangeLog{}).Where("tenant_id = ?", tenantID)
 	if q.ProductID != nil && *q.ProductID != uuid.Nil {
 		tx = tx.Where("product_id = ?", *q.ProductID)
 	}
@@ -363,17 +363,22 @@ func (s *Service) retryInventorySyncTaskScoped(ctx context.Context, tenantID int
 		return nil, fmt.Errorf("only failed tasks can be retried")
 	}
 	reset := time.Now().UTC()
-	if err := repository.UpdateByID(ctx, s.DB, &InventorySyncTask{}, tenantID, taskID, map[string]any{
-		"status":        StatusPending,
-		"error_message": "",
-		"started_at":    nil,
-		"finished_at":   nil,
-		"output":        datatypes.JSON(nil),
-		"locked_by":     nil,
-		"locked_until":  nil,
-		"updated_at":    reset,
-	}); err != nil {
-		return nil, err
+	claim := s.DB.WithContext(ctx).Model(&InventorySyncTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tenantID, StatusFailed).
+		Updates(map[string]any{
+			"status":        StatusPending,
+			"error_message": "",
+			"started_at":    nil,
+			"finished_at":   nil,
+			"output":        datatypes.JSON(nil),
+			"locked_by":     nil,
+			"locked_until":  nil,
+			"updated_at":    reset,
+		})
+	if claim.Error != nil {
+		return nil, claim.Error
+	}
+	if claim.RowsAffected != 1 {
+		return nil, fmt.Errorf("task retry already claimed")
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{
@@ -385,7 +390,7 @@ func (s *Service) retryInventorySyncTaskScoped(ctx context.Context, tenantID int
 			Message:     fmt.Sprintf("taskId=%s shopId=%s platform=%s", taskID.String(), task.ShopID.String(), task.Platform),
 		})
 	}
-	if err := s.enqueueOrRunInventoryTask(ctx, taskID); err != nil {
+	if err := s.enqueueOrRunInventoryTask(ctx, tenantID, taskID, task.ShopID, admin); err != nil {
 		return nil, err
 	}
 	var skuUuid uuid.UUID

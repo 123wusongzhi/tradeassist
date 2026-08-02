@@ -1,6 +1,7 @@
 package aiproducttext
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -121,5 +122,42 @@ func TestTruncateMsg(t *testing.T) {
 	s := truncateMsg(fmt.Sprintf("%4000s", "x"), 10)
 	if len(s) > 15 {
 		t.Fatalf("expected truncated message, got len %d", len(s))
+	}
+}
+
+func TestClaimItemForGenerationDoesNotReviveCancelledItem(t *testing.T) {
+	db := openTextApplyTestDB(t)
+	item := AIProductTextItem{
+		BatchID:       uuid.New(),
+		ProductID:     uuid.New(),
+		OperationType: OpTitle,
+		Status:        ItemPending,
+	}
+	if err := db.Create(&item).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	// A worker can read the pending item just before a cancel request wins.
+	var observed AIProductTextItem
+	if err := db.First(&observed, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if observed.Status != ItemPending {
+		t.Fatalf("worker observed %q, want pending", observed.Status)
+	}
+	res := db.Model(&AIProductTextItem{}).Where("id = ? AND status = ?", item.ID, ItemPending).Update("status", ItemCancelled)
+	if res.Error != nil || res.RowsAffected != 1 {
+		t.Fatalf("cancel pending item: rows=%d err=%v", res.RowsAffected, res.Error)
+	}
+
+	if (&Service{DB: db}).claimItemForGeneration(context.Background(), item.ID) {
+		t.Fatal("worker claim must lose after cancellation")
+	}
+	var got AIProductTextItem
+	if err := db.First(&got, "id = ?", item.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != ItemCancelled {
+		t.Fatalf("status = %q, want cancelled", got.Status)
 	}
 }
