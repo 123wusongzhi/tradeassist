@@ -3,6 +3,7 @@ package shop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -290,6 +291,36 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 	}
 	if len(dtoList) != 2 || dictionaryDTO == nil || dictionaryDTO.DictionaryID != "123" {
 		t.Fatalf("unexpected dto list: %+v", dtoList)
+	}
+}
+
+func TestOzonCategoryAttributeSyncReturnsActionableCredentialError(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	svc := newOzonCategoryTestService(t, db, enc)
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":7,"message":"Api-key is deactivated"}`))
+	}))
+	t.Cleanup(api.Close)
+	setOzonTestBaseURL(t, svc, api.URL)
+	shopID := seedOzonAuthorizedShop(t, db, enc, api.URL)
+	catID := seedOzonLeafCategory(t, db)
+
+	_, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID.String(), shopID)
+	var categoryErr *OzonCategoryError
+	if !errors.As(err, &categoryErr) {
+		t.Fatalf("expected OzonCategoryError, got %v", err)
+	}
+	if categoryErr.Code != OzonCategoryAttrSyncFailed {
+		t.Fatalf("error code = %q", categoryErr.Code)
+	}
+	if categoryErr.Message != ozonCredentialInvalidMessage {
+		t.Fatalf("user message = %q", categoryErr.Message)
+	}
+	if strings.Contains(categoryErr.Message, "code=7") {
+		t.Fatalf("user message leaked upstream detail: %q", categoryErr.Message)
 	}
 }
 

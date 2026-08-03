@@ -143,6 +143,10 @@ function OzonPublishPageContent() {
   const [config, setConfig] = useState<OzonProductConfig>();
   const [configDirty, setConfigDirty] = useState(false);
   const [attributes, setAttributes] = useState<OzonCategoryAttribute[]>([]);
+  const [attributeTemplateCategoryId, setAttributeTemplateCategoryId] =
+    useState<string>();
+  const [attributeTemplateError, setAttributeTemplateError] =
+    useState<string>();
   const [loadingAttributes, setLoadingAttributes] = useState(false);
   const [searchingAttribute, setSearchingAttribute] = useState<string>();
   const [categoryOptions, setCategoryOptions] = useState<
@@ -164,6 +168,7 @@ function OzonPublishPageContent() {
   const [groups, setGroups] = useState<OzonCategoryGroup[]>([]);
   const [groupProductIds, setGroupProductIds] = useState<string[]>([]);
   const [form] = Form.useForm<OzonProductConfigForm>();
+  const selectedCategoryId = Form.useWatch('categoryId', form);
 
   const selectedShop = shops.find((item) => item.id === shopId);
   const selectedProduct = products.find((item) => item.id === productId);
@@ -176,11 +181,20 @@ function OzonPublishPageContent() {
   const configMatchesSelection = Boolean(
     config && config.productId === productId && config.shopId === shopId,
   );
+  const attributeTemplateReady = Boolean(
+    attributeTemplateCategoryId && attributes.length > 0,
+  );
+  const selectedAttributeTemplateReady = Boolean(
+    attributeTemplateReady &&
+    selectedCategoryId === attributeTemplateCategoryId,
+  );
   const configReady = Boolean(
     productId &&
     shopId &&
     config?.categoryId &&
     configMatchesSelection &&
+    attributeTemplateReady &&
+    config.categoryId === attributeTemplateCategoryId &&
     !configDirty,
   );
 
@@ -256,6 +270,7 @@ function OzonPublishPageContent() {
     async (id: string) => {
       const sequence = configLoadSeq.current + 1;
       configLoadSeq.current = sequence;
+      setAttributeTemplateError(undefined);
       try {
         const next = await getOzonProductConfig(id);
         if (configLoadSeq.current !== sequence) return;
@@ -273,14 +288,29 @@ function OzonPublishPageContent() {
             next.platformAttributes,
           );
           setAttributes(displayAttrs);
+          if (displayAttrs.length > 0) {
+            setAttributeTemplateCategoryId(next.categoryId);
+          } else {
+            setAttributeTemplateCategoryId(undefined);
+            setAttributeTemplateError(
+              '当前 Ozon 类目没有可用的属性模板，请重新选择类目并同步；若持续失败，请检查店铺凭证。',
+            );
+          }
           form.setFieldValue(
             'platformAttributes',
             toOzonAttributeFormValues(displayAttrs, next.platformAttributes),
           );
-        } else setAttributes([]);
+        } else {
+          setAttributes([]);
+          setAttributeTemplateCategoryId(undefined);
+        }
       } catch (error) {
-        if (configLoadSeq.current === sequence)
-          message.error((error as Error).message || '加载商品级 Ozon 配置失败');
+        if (configLoadSeq.current === sequence) {
+          const detail = (error as Error).message || '加载商品级 Ozon 配置失败';
+          setAttributeTemplateCategoryId(undefined);
+          setAttributeTemplateError(detail);
+          message.error(detail);
+        }
       }
     },
     [form],
@@ -290,6 +320,8 @@ function OzonPublishPageContent() {
     setConfig(undefined);
     setConfigDirty(false);
     setAttributes([]);
+    setAttributeTemplateCategoryId(undefined);
+    setAttributeTemplateError(undefined);
     form.resetFields();
     invalidatePreflight();
     if (productId) void loadConfig(productId);
@@ -328,14 +360,27 @@ function OzonPublishPageContent() {
           | { categoryPath?: string }
           | undefined
       )?.categoryPath;
+      const previousCategoryId = attributeTemplateCategoryId;
+      const previousCategoryPath = form.getFieldValue('categoryPath');
+      const previousPlatformAttributes =
+        form.getFieldValue('platformAttributes');
+      const previousAttributes = attributes;
+      const previousDirty = configDirty;
       const sequence = attributeSyncSeq.current + 1;
       attributeSyncSeq.current = sequence;
       setLoadingAttributes(true);
+      setAttributeTemplateError(undefined);
       try {
         await syncOzonCategoryAttributes(categoryId, shopId);
         const result = await queryOzonCategoryAttributes(categoryId);
         if (attributeSyncSeq.current !== sequence) return;
-        setAttributes(result.list ?? []);
+        const nextAttributes = result.list ?? [];
+        if (nextAttributes.length === 0)
+          throw new Error(
+            'Ozon 返回的类目属性模板为空，请重新同步类目或检查店铺凭证。',
+          );
+        setAttributes(nextAttributes);
+        setAttributeTemplateCategoryId(categoryId);
         form.setFieldsValue({
           categoryId,
           categoryPath,
@@ -344,10 +389,26 @@ function OzonPublishPageContent() {
         setConfigDirty(true);
         invalidatePreflight();
       } catch (error) {
-        message.error(
+        if (attributeSyncSeq.current !== sequence) return;
+        const detail =
           (error as Error).message ||
-            '同步或加载 Ozon 属性模板失败；商品配置尚未保存。',
+          '同步或加载 Ozon 属性模板失败；商品配置尚未保存。';
+        form.setFieldsValue({
+          categoryId: previousCategoryId,
+          categoryPath: previousCategoryId ? previousCategoryPath : undefined,
+          platformAttributes: previousCategoryId
+            ? previousPlatformAttributes
+            : {},
+        });
+        setAttributes(previousCategoryId ? previousAttributes : []);
+        setAttributeTemplateCategoryId(previousCategoryId);
+        setConfigDirty(previousDirty);
+        setAttributeTemplateError(
+          `${detail}；新类目未应用，${
+            previousCategoryId ? '已恢复上一个可用类目。' : '已清除本次选择。'
+          }`,
         );
+        message.error(detail);
       } finally {
         if (attributeSyncSeq.current === sequence) setLoadingAttributes(false);
       }
@@ -355,7 +416,10 @@ function OzonPublishPageContent() {
     [
       canOperateShop,
       canProductWrite,
+      attributeTemplateCategoryId,
+      attributes,
       categoryOptions,
+      configDirty,
       form,
       invalidatePreflight,
       shopId,
@@ -435,6 +499,10 @@ function OzonPublishPageContent() {
   const saveConfig = async () => {
     if (!productId || !canProductWrite || !canOperateShop) {
       message.warning('当前账号不能修改该商品的 Ozon 配置。');
+      return;
+    }
+    if (!selectedAttributeTemplateReady) {
+      message.warning('请先成功同步所选 Ozon 叶类目的属性模板。');
       return;
     }
     try {
@@ -987,6 +1055,22 @@ function OzonPublishPageContent() {
               title="商品级 Ozon 配置"
               description="商品配置优先于全局刊登预设。保存只写入 TradeMind，不会创建 Ozon 商品。"
             >
+              {attributeTemplateError ? (
+                <Alert
+                  className="ozon-publish-page__template-error"
+                  type="error"
+                  showIcon
+                  message="Ozon 类目属性模板同步失败"
+                  description={attributeTemplateError}
+                  action={
+                    canManageSettings ? (
+                      <Link to="/settings/platforms?platform=ozon">
+                        更新 Ozon 凭证
+                      </Link>
+                    ) : undefined
+                  }
+                />
+              ) : null}
               <Form
                 form={form}
                 layout="vertical"
@@ -1073,6 +1157,7 @@ function OzonPublishPageContent() {
                   disabled={
                     !productId ||
                     loadingAttributes ||
+                    !selectedAttributeTemplateReady ||
                     !canProductWrite ||
                     !canOperateShop
                   }

@@ -37,8 +37,31 @@ function unwrap<T>(res: ApiResponse<T>): T {
   return res.data;
 }
 
-function apiRequest<T>(path: string, options: Parameters<typeof request>[1]) {
-  return request<T>(path, options);
+function errorEnvelope(error: unknown): ApiResponse<unknown> | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const failure = error as {
+    data?: unknown;
+    response?: { data?: unknown };
+  };
+  const candidate = failure.response?.data ?? failure.data;
+  if (!candidate || typeof candidate !== 'object') return undefined;
+  const envelope = candidate as Partial<ApiResponse<unknown>>;
+  if (typeof envelope.code !== 'number' || typeof envelope.message !== 'string')
+    return undefined;
+  return envelope as ApiResponse<unknown>;
+}
+
+async function apiRequest<T>(
+  path: string,
+  options: Parameters<typeof request>[1],
+): Promise<T> {
+  try {
+    return await request<T>(path, options);
+  } catch (error) {
+    const envelope = errorEnvelope(error);
+    if (envelope) throw new ApiRequestError(envelope);
+    throw error;
+  }
 }
 
 /** 通用 GET（后续各模块拆分到独立 service 文件） */

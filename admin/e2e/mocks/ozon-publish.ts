@@ -64,19 +64,20 @@ export const e2eOzonConfig = {
 };
 
 export function ozonPublishResponse(path: string) {
-  if (path === '/api/v1/platform/ozon/categories/stats')
+  const decodedPath = decodeURIComponent(path);
+  if (decodedPath === '/api/v1/platform/ozon/categories/stats')
     return ok(e2eOzonStats);
-  if (path === '/api/v1/platform/ozon/categories/sync-runs')
+  if (decodedPath === '/api/v1/platform/ozon/categories/sync-runs')
     return ok({ list: [e2eOzonStats.lastRun] });
-  if (path === '/api/v1/platform/ozon/categories/changes')
+  if (decodedPath === '/api/v1/platform/ozon/categories/changes')
     return ok({ list: e2eOzonChanges });
-  if (path === '/api/v1/platform/ozon/category-mappings')
+  if (decodedPath === '/api/v1/platform/ozon/category-mappings')
     return ok({
       list: [{ id: 'e2e-ozon-map', ...e2eOzonConfig, status: 'confirmed' }],
     });
-  if (path === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`)
+  if (decodedPath === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`)
     return ok(e2eOzonConfig);
-  if (path === '/api/v1/platform/ozon/categories')
+  if (decodedPath === '/api/v1/platform/ozon/categories')
     return ok({
       list: [
         {
@@ -90,7 +91,7 @@ export function ozonPublishResponse(path: string) {
       ],
     });
   if (
-    path ===
+    decodedPath ===
     `/api/v1/platform/ozon/categories/${E2E_OZON_CATEGORY_ID}/attributes/86/values`
   )
     return ok({
@@ -100,7 +101,7 @@ export function ozonPublishResponse(path: string) {
       ],
     });
   if (
-    path ===
+    decodedPath ===
     `/api/v1/platform/ozon/categories/${E2E_OZON_CATEGORY_ID}/attributes`
   )
     return ok({

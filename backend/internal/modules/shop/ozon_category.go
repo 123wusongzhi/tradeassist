@@ -36,6 +36,8 @@ const (
 	OzonCategorySyncFailedState = "failed"
 )
 
+const ozonCredentialInvalidMessage = "Ozon 店铺授权已失效或 API Key 已停用，请前往平台设置更新凭证后重试"
+
 type OzonCategoryError struct {
 	Code    string
 	Message string
@@ -60,7 +62,11 @@ func (e *OzonCategoryError) Unwrap() error {
 }
 
 func ozonCategoryErr(code string, err error) *OzonCategoryError {
-	return &OzonCategoryError{Code: code, Message: code, Err: err}
+	message := code
+	if errors.Is(err, platformp.ErrPlatformProductPublishPermissionDenied) {
+		message = ozonCredentialInvalidMessage
+	}
+	return &OzonCategoryError{Code: code, Message: message, Err: err}
 }
 
 // OzonCategoryNodeDTO is one cached Ozon category row (level 1 or leaf).

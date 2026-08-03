@@ -150,6 +150,81 @@ test.describe('@ozon-publish Ozon 类目与刊登流程', () => {
     ).toBeDisabled();
   });
 
+  test('shows a deactivated Ozon credential and restores the last usable category', async ({
+    admin,
+    page,
+  }) => {
+    const unavailableCategoryId = '101:201';
+    await page.route('**/api/v1/platform/ozon/categories?**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 0,
+          message: 'ok',
+          data: {
+            list: [
+              {
+                id: 'e2e-unavailable-category',
+                categoryId: unavailableCategoryId,
+                name: '失效凭证测试类目',
+                descriptionCategoryId: '101',
+                typeId: '201',
+                isLeaf: true,
+                status: 'active',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      }),
+    );
+    admin.writeGuard.allow({
+      operation: 'category-attribute-sync-invalid-credential',
+      method: 'POST',
+      path: /\/api\/v1\/platform\/ozon\/categories\/101(?:%3A|:)201\/attributes\/sync$/i,
+      response: {
+        code: 40001,
+        message:
+          'Ozon 店铺授权已失效或 API Key 已停用，请前往平台设置更新凭证后重试',
+        data: { errorCode: 'OZON_CATEGORY_ATTR_SYNC_FAILED' },
+        traceId: 'e2e-ozon-invalid-credential',
+      },
+    });
+
+    await openStage(page, 'config');
+    const category = page.getByRole('combobox', { name: 'Ozon 叶类目' });
+    await category.fill('失效凭证测试类目');
+    await category.click();
+    const unavailableOption = page
+      .locator('.ant-select-item-option-content')
+      .filter({ hasText: '失效凭证测试类目（101）' });
+    await expect(unavailableOption).toBeVisible();
+    await unavailableOption.click();
+
+    await admin.writeGuard.expectRequestCount(
+      'category-attribute-sync-invalid-credential',
+      1,
+    );
+    await expect(
+      page.getByText('Ozon 类目属性模板同步失败', { exact: true }),
+    ).toBeVisible();
+    const templateError = page
+      .locator('.ant-alert-error')
+      .filter({ hasText: 'Ozon 类目属性模板同步失败' });
+    await expect(templateError).toContainText('API Key 已停用');
+    await expect(templateError).toContainText('已恢复上一个可用类目');
+    await expect(
+      page.locator(
+        `.ant-select-selection-item[title="${E2E_OZON_CATEGORY_ID}"]`,
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '保存商品级 Ozon 配置' }),
+    ).toBeEnabled();
+    expect(admin.writeGuard.allCalls()).toHaveLength(1);
+  });
+
   test('blocks submit when the live schema has changed and performs no write', async ({
     page,
   }) => {

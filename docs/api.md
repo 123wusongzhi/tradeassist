@@ -377,7 +377,7 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/platform/ozon/categories/stats` | 返回 Ozon 类目缓存数量、叶子类目数量与最近同步时间（24h TTL 提示）。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attributes` | 读取某个 Ozon 叶子类目的属性模板缓存（`platform_category_attributes`）；`dictionaryId` 非空表示字典属性，`options` 为预取字典值；`cacheStale` 提示超过 24h。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attributes/:attrId/values` | 按 `shopId`、至少两个字符的 `keyword` 远程搜索单个字典属性值；要求店铺操作权限。返回 `{ list: [{ id, value }] }`，仅用于补全有界缓存，不写入类目/商品，也不调用 Ozon 商品导入或库存接口。 |
-| `POST` | `/api/v1/platform/ozon/categories/:id/attributes/sync` | 刷新叶子类目属性模板缓存（body 可选 `shopId`）；字典属性预取字典值（`/v1/description-category/attribute/values` 分页）。 |
+| `POST` | `/api/v1/platform/ozon/categories/:id/attributes/sync` | 刷新叶子类目属性模板缓存（body 可选 `shopId`）；字典属性预取字典值（`/v1/description-category/attribute/values` 分页）。授权失效或 API Key 停用时返回统一错误 envelope，保留 `data.errorCode=OZON_CATEGORY_ATTR_SYNC_FAILED`，`message` 给出更新店铺凭证的安全提示，不返回上游响应或凭证明文。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 读取该类目的「Ozon 属性 ↔ 本地字段」映射配置（`platform_category_attribute_mappings`）。 |
 | `PUT` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 整体替换该类目的属性映射，body `{ "items": [{ "attributeId", "attributeName", "localField", "enabled" }] }`；上品时按映射自动填充 attributes（字典属性匹配 `dictionary_value_id`）。 |
 | `GET` | `/api/v1/platform/ozon/category-mappings` | 读取当前租户的本地来源类目 → Ozon 叶子类目映射；可按 `shopId` 筛选。映射是租户拥有的数据，店铺级映射优先于租户默认映射。 |

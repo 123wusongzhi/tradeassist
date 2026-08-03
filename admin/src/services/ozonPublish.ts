@@ -1,5 +1,3 @@
-import { request } from '@umijs/max';
-import type { ApiResponse } from '@/services/request';
 import { getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
 import type { ProductPublishTaskDTO } from '@/services/productPublish';
 
@@ -288,17 +286,13 @@ export async function publishOzonProduct(
   shopId: string,
   idempotencyKey: string,
 ): Promise<ProductPublishTaskDTO> {
-  const response = await request<ApiResponse<ProductPublishTaskDTO>>(
+  return postJSON<ProductPublishTaskDTO>(
     `/api/v1/products/${enc(productId)}/publish`,
+    { shopId, options: { platform: 'ozon' } },
     {
-      method: 'POST',
-      data: { shopId, options: { platform: 'ozon' } },
       headers: { 'Idempotency-Key': idempotencyKey },
     },
   );
-  if (response.code !== 0)
-    throw new Error(response.message || '创建 Ozon 提交任务失败');
-  return response.data as ProductPublishTaskDTO;
 }
 
 export function searchOzonLeafCategories(keyword?: string) {
