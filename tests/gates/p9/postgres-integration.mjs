@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
-import { parseSafeTestDatabaseUrl } from '../../../scripts/p9-postgres-contract.mjs';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  parseSafeTestDatabaseUrl,
+  p9PostgresGoTestArgs,
+} from '../../../scripts/p9-postgres-contract.mjs';
+import { runP9PostgresCI } from '../../../scripts/p9-postgres-ci.mjs';
 import { validateP9PostgresIntegrationClosure } from '../../../scripts/p9-postgres-integration-gate.mjs';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 function batchEvidence(batchId, overrides = {}) {
   const base = {
@@ -137,5 +146,60 @@ assertFails('runtimeSummaryHashVerified', { runtimeIntegrity: { summaryHashVerif
 assertFails('runtimeRawArtifactHashesVerified', { runtimeIntegrity: { rawArtifactHashesVerified: false } });
 assertFails('runtimeSourceManifestVerified', { runtimeIntegrity: { sourceManifestVerified: false } });
 assertFails('racePassed', { runtime: { racePassed: false } });
+assertFails('packageScriptsPresent', { packageScriptsPresent: false });
+
+const safeCIEnvironment = { APP_ENV: 'test', TEST_DATABASE_URL: testDatabaseUrl };
+const ciCalls = [];
+const silentLogger = { log() {}, error() {} };
+assert.equal(runP9PostgresCI({
+  env: safeCIEnvironment,
+  logger: silentLogger,
+  spawn: (executable, args, options) => {
+    ciCalls.push({ executable, args, options });
+    return { status: 0, signal: null };
+  },
+}), 0);
+assert.equal(ciCalls.length, 2);
+assert.deepEqual(ciCalls.map(({ executable }) => executable), ['go', 'go']);
+assert.deepEqual(ciCalls[0].args, p9PostgresGoTestArgs());
+assert.deepEqual(ciCalls[1].args, p9PostgresGoTestArgs({ race: true }));
+assert.equal(ciCalls[0].args.includes('-json'), false);
+assert.equal(ciCalls[0].options.cwd, path.join(repoRoot, 'backend'));
+assert.equal(ciCalls[0].options.env, safeCIEnvironment);
+assert.equal(ciCalls[0].options.stdio, 'inherit');
+
+let unsafeSpawnCount = 0;
+assert.equal(runP9PostgresCI({
+  env: { APP_ENV: 'test', TEST_DATABASE_URL: 'postgresql://127.0.0.1:5432/trademind' },
+  logger: silentLogger,
+  spawn: () => {
+    unsafeSpawnCount += 1;
+    return { status: 0, signal: null };
+  },
+}), 1);
+assert.equal(unsafeSpawnCount, 0);
+
+let failedCommandCount = 0;
+assert.equal(runP9PostgresCI({
+  env: safeCIEnvironment,
+  logger: silentLogger,
+  spawn: () => {
+    failedCommandCount += 1;
+    return { status: 2, signal: null };
+  },
+}), 2);
+assert.equal(failedCommandCount, 1);
+
+const packageJSON = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+const projectTestsWorkflow = fs.readFileSync(path.join(repoRoot, '.github/workflows/project-tests.yml'), 'utf8');
+const baselineRuntime = fs.readFileSync(path.join(repoRoot, 'scripts/p9-postgres-runtime.mjs'), 'utf8');
+assert.equal(packageJSON.scripts?.['test:p9-postgres-integration'], 'node scripts/p9-postgres-runtime.mjs');
+assert.equal(packageJSON.scripts?.['test:p9-postgres-ci'], 'node scripts/p9-postgres-ci.mjs');
+assert.match(packageJSON.scripts?.['p9:postgres-integration-closure'], /pnpm test:p9-postgres-integration/);
+assert.match(projectTestsWorkflow, /^\s*run:\s*pnpm test:p9-postgres-ci\s*$/m);
+assert.doesNotMatch(projectTestsWorkflow, /^\s*run:\s*pnpm test:p9-postgres-integration\s*$/m);
+assert.doesNotMatch(projectTestsWorkflow, /^\s*- name:\s*Upload sanitized P9 PostgreSQL runtime evidence\s*$/m);
+assert.match(baselineRuntime, /if \(startBranch !== 'dev'\) preflightIssues\.push\('currentBranch'\)/);
+assert.match(baselineRuntime, /if \(headDetached\) preflightIssues\.push\('headDetached'\)/);
 
 console.log(JSON.stringify({ status: 'passed', fixtureCount: fixtures.length, fixtures: fixtures.map(([id, description]) => ({ id, description })) }, null, 2));

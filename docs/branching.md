@@ -92,6 +92,7 @@ pnpm build:collector
 ```
 
 - 涉及 Docker、环境变量、Provider、接口或部署流程时，需要同步更新文档。
+- CI 中的普通回归测试不得调用要求特定本地分支或干净工作树的基线证据脚本。P9 PostgreSQL CI 使用 `pnpm test:p9-postgres-ci`；仅本地 `dev` 闭环使用 `pnpm p9:postgres-integration-closure`。
 - 不允许提交 `.env`、真实密钥、Token、Cookie、平台凭证或生产数据。
 
 ## 发版流程

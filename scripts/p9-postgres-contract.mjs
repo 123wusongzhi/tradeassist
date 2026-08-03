@@ -7,6 +7,17 @@ export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 export const runtimeSummaryPath = 'artifacts/p9-postgres-runtime.json';
 export const runtimeRawPath = 'artifacts/p9-postgres-runtime.jsonl';
 export const runtimeRaceRawPath = 'artifacts/p9-postgres-race.jsonl';
+export const p9PostgresTestPackages = Object.freeze([
+  './internal/modules/inventorysyncp9',
+  './internal/testing/integration',
+]);
+
+export function p9PostgresGoTestArgs({ json = false, race = false } = {}) {
+  const args = ['test'];
+  if (json) args.push('-json');
+  if (race) args.push('-race');
+  return [...args, '-tags', 'p9postgres', '-count=1', ...p9PostgresTestPackages];
+}
 
 const testMarkers = new Set(['test', 'tests', 'e2e', 'ci']);
 const productionMarkers = new Set(['prod', 'production', 'staging', 'stage', 'main', 'master']);
@@ -92,6 +103,7 @@ export function p9SourceFiles() {
     'backend/internal/testing/integration/p9_postgres_integration_test.go',
     'backend/internal/database/migrate.go',
     'scripts/p9-postgres-contract.mjs',
+    'scripts/p9-postgres-ci.mjs',
     'scripts/p9-postgres-runtime.mjs',
     'scripts/p9-postgres-test-db-ensure.mjs',
     'scripts/p9-postgres-integration-gate.mjs',
