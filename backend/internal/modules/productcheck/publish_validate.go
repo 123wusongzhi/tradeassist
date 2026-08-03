@@ -147,7 +147,14 @@ func supplementalPublishRequiredKeys(platform string) []string {
 		return []string{"package_weight", "package_length", "package_width", "package_height"}
 	case "amazon":
 		return []string{"condition_type", "fulfillment_channel"}
+	case "ozon":
+		return []string{"default_weight", "default_width", "default_height", "default_depth"}
 	default:
 		return nil
 	}
+}
+
+func positiveOzonPackageValue(raw string) bool {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	return err == nil && v > 0
 }

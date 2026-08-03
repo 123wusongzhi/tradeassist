@@ -16,6 +16,7 @@ const (
 	TypeOrderSync               = "order_sync"
 	TypeCustomerMessageSync     = "customer_message_sync"
 	TypeProductPublish          = "product_publish"
+	TypeOzonCategorySync        = "ozon_category_sync"
 	TypeInventorySync           = "inventory_sync"
 	TypeTaskAlertScan           = "task_alert_scan"
 	TypeWebhook                 = "webhook"

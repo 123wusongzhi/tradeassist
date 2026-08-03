@@ -5,13 +5,15 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 )
 
 type publishSnapshot struct {
-	PublicationID uuid.UUID         `json:"publicationId"`
-	MergedPublish map[string]string `json:"mergedPublish"`
-	Options       map[string]any    `json:"options"`
+	PublicationID uuid.UUID                       `json:"publicationId"`
+	MergedPublish map[string]string               `json:"mergedPublish"`
+	Options       map[string]any                  `json:"options"`
+	Draft         *platformp.PlatformProductDraft `json:"draft,omitempty"`
 }
 
 func parsePublishSnapshot(raw datatypes.JSON) (publishSnapshot, error) {

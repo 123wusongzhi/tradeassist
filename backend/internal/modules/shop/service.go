@@ -40,6 +40,10 @@ type Service struct {
 	OpLog     *operationlog.Service
 	Redis     *rdb.Client
 	Settings  *settings.Service
+
+	// TrustedProviderRuntimeOverrides is process-owned test/integration wiring.
+	// Never populate it from tenant input or persisted shop auth_config.
+	TrustedProviderRuntimeOverrides map[string]map[string]string
 }
 
 // --- platform providers (public metadata) ---
@@ -481,7 +485,7 @@ func (s *Service) buildAuthPublic(row *ShopAuthToken) *AuthPublicDTO {
 	if len(row.Scopes) > 0 {
 		out.Scopes = json.RawMessage(row.Scopes)
 	}
-	if len(row.AuthConfig) > 0 {
+	if len(row.AuthConfig) > 0 && !strings.EqualFold(strings.TrimSpace(row.Platform), ozonPlatform) {
 		out.AuthConfig = json.RawMessage(row.AuthConfig)
 	}
 	return out
@@ -620,6 +624,9 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	if err != nil {
 		return nil, err
 	}
+	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), ozonPlatform) && len(body.AuthConfig) > 0 {
+		return nil, fmt.Errorf("ozon authConfig is not supported; use appKey and accessToken")
+	}
 	prov := platformp.Get(shopRow.Platform)
 	if prov == nil {
 		return nil, fmt.Errorf("unknown platform")
@@ -676,6 +683,11 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 
 	tok.AuthType = authTypeIn
 	tok.Platform = shopRow.Platform
+	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), ozonPlatform) {
+		// Ozon has no tenant-configurable runtime endpoint or extra credential
+		// fields. Clear legacy values so they cannot retain plaintext secrets.
+		tok.AuthConfig = nil
+	}
 
 	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), "tiktok") && strings.TrimSpace(body.RedirectURI) != "" {
 		var mc map[string]any
@@ -721,7 +733,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 		b, _ := json.Marshal(body.Scopes)
 		tok.Scopes = datatypes.JSON(b)
 	}
-	if body.AuthConfig != nil {
+	if body.AuthConfig != nil && !strings.EqualFold(strings.TrimSpace(shopRow.Platform), ozonPlatform) {
 		b, _ := json.Marshal(body.AuthConfig)
 		tok.AuthConfig = datatypes.JSON(b)
 	}
@@ -852,7 +864,10 @@ func (s *Service) decryptedAuthForShop(ctx context.Context, shopRow *Shop) (*Sho
 		return string(b)
 	}
 	req := platformp.TestConnectionRequest{AuthType: tok.AuthType, AppKey: tok.AppKey, AppSecret: dec(tok.AppSecretEnc), AccessToken: dec(tok.AccessTokenEnc), RefreshToken: dec(tok.RefreshTokenEnc), SellerID: tok.SellerID, MerchantID: tok.MerchantID, MarketplaceID: tok.MarketplaceID, AccessTokenExpiresAt: tok.ExpiresAt, RefreshTokenExpiresAt: tok.RefreshExpiresAt}
-	if len(tok.AuthConfig) > 0 {
+	// Ozon credentials are exclusively AppKey / AccessToken and its Seller API
+	// host is fixed. Never forward legacy tenant-owned auth_config values: an
+	// api_base_url override could otherwise exfiltrate credentials or enable SSRF.
+	if len(tok.AuthConfig) > 0 && !strings.EqualFold(strings.TrimSpace(shopRow.Platform), ozonPlatform) {
 		var m map[string]any
 		_ = json.Unmarshal(tok.AuthConfig, &m)
 		if m != nil {
@@ -860,6 +875,14 @@ func (s *Service) decryptedAuthForShop(ctx context.Context, shopRow *Shop) (*Sho
 			for k, v := range m {
 				req.Extra[k] = fmt.Sprint(v)
 			}
+		}
+	}
+	if overrides := s.TrustedProviderRuntimeOverrides[strings.ToLower(strings.TrimSpace(shopRow.Platform))]; len(overrides) > 0 {
+		if req.Extra == nil {
+			req.Extra = map[string]string{}
+		}
+		for key, value := range overrides {
+			req.Extra[key] = value
 		}
 	}
 	return shopRow, &tok, req, nil

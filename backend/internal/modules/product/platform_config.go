@@ -1,9 +1,12 @@
 package product
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -27,6 +30,9 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if err := s.DB.WithContext(c.Request.Context()).
 		Where("product_id = ? AND platform = ?", productID, plat).
 		First(&row).Error; err != nil {
+		if err == gorm.ErrRecordNotFound && plat == "ozon" {
+			return &PlatformPublishConfigDTO{ProductID: productID, Platform: plat, PlatformAttributes: json.RawMessage(`{}`)}, nil
+		}
 		return nil, err
 	}
 	return platformConfigDTO(row), nil
@@ -40,10 +46,11 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if plat == "" {
 		return nil, fmt.Errorf("platform required")
 	}
-	if plat != "douyin_shop" {
-		return nil, fmt.Errorf("platform config is currently supported for douyin_shop only")
+	if plat != "douyin_shop" && plat != "ozon" {
+		return nil, fmt.Errorf("platform config is currently supported for douyin_shop or ozon only")
 	}
-	if _, err := s.findTenantProduct(c, productID); err != nil {
+	productRow, err := s.findTenantProduct(c, productID)
+	if err != nil {
 		return nil, err
 	}
 	var shopID *uuid.UUID
@@ -53,27 +60,48 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			return nil, fmt.Errorf("invalid shopId")
 		}
 		shopID = &u
-		if err := s.requireDouyinShopOperate(c, u); err != nil {
+		if err := s.requirePlatformShopOperate(c, u, plat); err != nil {
 			return nil, err
 		}
 	}
+	if plat == "ozon" && shopID == nil {
+		return nil, fmt.Errorf("Ozon 配置必须选择已授权店铺")
+	}
 	cid := strings.TrimSpace(body.CategoryID)
+	var selectedCategory *shop.PlatformCategory
 	if cid != "" {
 		var cat shop.PlatformCategory
-		if err := s.DB.WithContext(c.Request.Context()).Where("platform = ? AND category_id = ?", "douyin_shop", cid).First(&cat).Error; err != nil {
+		if err := s.DB.WithContext(c.Request.Context()).Where("platform = ? AND category_id = ?", plat, cid).First(&cat).Error; err != nil {
 			return nil, err
 		}
 		if !cat.IsLeaf {
-			return nil, &shop.DouyinCategoryError{Code: shop.DouyinCategoryNotLeaf, Message: "请选择抖店叶子类目。"}
+			return nil, fmt.Errorf("请选择平台叶子类目")
 		}
+		if plat == "ozon" && cat.Status != "active" {
+			return nil, fmt.Errorf("请选择有效的 Ozon 叶子类目")
+		}
+		selectedCategory = &cat
+	}
+	if plat == "ozon" && selectedCategory == nil {
+		return nil, fmt.Errorf("Ozon 配置必须选择有效叶子类目")
 	}
 	attrs := datatypes.JSON([]byte("{}"))
 	if len(body.PlatformAttributes) > 0 && string(body.PlatformAttributes) != "null" {
-		var tmp any
-		if err := json.Unmarshal(body.PlatformAttributes, &tmp); err != nil {
+		var tmp map[string]any
+		if err := json.Unmarshal(body.PlatformAttributes, &tmp); err != nil || tmp == nil {
 			return nil, fmt.Errorf("platformAttributes must be valid JSON")
 		}
 		attrs = datatypes.JSON(body.PlatformAttributes)
+	}
+	if plat == "ozon" {
+		if err := s.validateOzonPlatformAttributes(c.Request.Context(), cid, attrs); err != nil {
+			return nil, err
+		}
+	}
+	sourceKey := normalizeSourceCategory(firstNonEmptyProduct(body.SourceCategoryKey, body.SourceCategoryName))
+	sourceName := strings.TrimSpace(body.SourceCategoryName)
+	if plat == "ozon" && sourceKey == "" && productRow != nil {
+		sourceKey, sourceName = SourceCategoryFromRaw(json.RawMessage(productRow.RawData))
 	}
 	row := ProductPlatformPublishConfig{
 		ProductID:          productID,
@@ -82,11 +110,23 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		CategoryID:         cid,
 		CategoryPath:       strings.TrimSpace(body.CategoryPath),
 		PlatformAttributes: attrs,
+		SourceCategoryKey:  sourceKey,
+		SourceCategoryName: sourceName,
+	}
+	if plat == "ozon" {
+		row.CategoryPath = shop.CanonicalOzonCategoryPath(c.Request.Context(), s.DB, *selectedCategory)
+		hash, err := s.ozonSchemaHash(c.Request.Context(), cid)
+		if err != nil {
+			return nil, err
+		}
+		row.SchemaHash = hash
+		now := time.Now().UTC()
+		row.SchemaConfirmedAt = &now
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"shop_id", "category_id", "category_path", "platform_attributes", "updated_at",
+			"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at",
 		}),
 	}).Create(&row).Error; err != nil {
 		return nil, err
@@ -98,7 +138,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		if cid != "" {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
 				AdminUserID: adminID,
-				Action:      "douyin.category.select",
+				Action:      plat + ".category.select",
 				Resource:    "product",
 				ResourceID:  productID.String(),
 				Status:      "success",
@@ -107,7 +147,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		}
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: adminID,
-			Action:      "douyin.category.attr.update",
+			Action:      plat + ".category.attr.update",
 			Resource:    "product",
 			ResourceID:  productID.String(),
 			Status:      "success",
@@ -117,7 +157,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	return platformConfigDTO(row), nil
 }
 
-func (s *Service) requireDouyinShopOperate(c *gin.Context, shopID uuid.UUID) error {
+func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, platform string) error {
 	if shopID == uuid.Nil {
 		return fmt.Errorf("invalid shopId")
 	}
@@ -126,13 +166,168 @@ func (s *Service) requireDouyinShopOperate(c *gin.Context, shopID uuid.UUID) err
 		return err
 	}
 	var row shop.Shop
-	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ?", shopID, tenantID).First(&row).Error; err != nil {
+	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ? AND platform = ? AND status = ? AND auth_status = ?", shopID, tenantID, platform, shop.StatusActive, shop.AuthAuthorized).First(&row).Error; err != nil {
 		return err
 	}
 	if !adminperm.RequireStoreOperate(c, s.DB, shopID) {
 		return fmt.Errorf("store operation is not permitted")
 	}
 	return nil
+}
+
+func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON) error {
+	var schema []shop.PlatformCategoryAttribute
+	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ?", "ozon", categoryID).Find(&schema).Error; err != nil {
+		return err
+	}
+	if len(schema) == 0 {
+		return fmt.Errorf("Ozon 类目属性模板尚未同步")
+	}
+	values := map[string]any{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &values); err != nil {
+			return fmt.Errorf("platformAttributes must be valid JSON")
+		}
+	}
+	byID := make(map[string]shop.PlatformCategoryAttribute, len(schema))
+	for _, attr := range schema {
+		byID[attr.AttrID] = attr
+	}
+	for attrID, value := range values {
+		attr, ok := byID[attrID]
+		if !ok {
+			return fmt.Errorf("Ozon 属性模板中不存在属性 %s", attrID)
+		}
+		nested, ok := value.(map[string]any)
+		if !ok {
+			return fmt.Errorf("Ozon 属性 %s 必须使用 {value,dictionaryValueId} 结构", attr.Name)
+		}
+		text := ""
+		if rawValue, exists := nested["value"]; exists && rawValue != nil {
+			text = strings.TrimSpace(fmt.Sprint(rawValue))
+		}
+		if attr.Required && text == "" {
+			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+		}
+		if dictionaryIDFromProductAttribute(attr) != "" {
+			dictID := productAttributeDictionaryValueID(nested)
+			if text != "" && dictID == "" {
+				return fmt.Errorf("Ozon 词典属性缺少 dictionaryValueId：%s", attr.Name)
+			}
+			if dictID != "" && !cachedOzonDictionaryValueMatches(attr.Options, dictID, text) {
+				return fmt.Errorf("Ozon 词典值与属性不匹配：%s", attr.Name)
+			}
+		} else if rawID, exists := nested["dictionaryValueId"]; exists && rawID != nil && strings.TrimSpace(fmt.Sprint(rawID)) != "" {
+			return fmt.Errorf("Ozon 非词典属性不能包含 dictionaryValueId：%s", attr.Name)
+		}
+	}
+	for _, attr := range schema {
+		if !attr.Required {
+			continue
+		}
+		value, ok := values[attr.AttrID]
+		if !ok {
+			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+		}
+		nested, ok := value.(map[string]any)
+		if !ok || nested["value"] == nil || strings.TrimSpace(fmt.Sprint(nested["value"])) == "" {
+			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+		}
+	}
+	return nil
+}
+
+func productAttributeDictionaryValueID(value map[string]any) string {
+	raw, ok := value["dictionaryValueId"]
+	if !ok || raw == nil {
+		return ""
+	}
+	switch typed := raw.(type) {
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+		if err == nil && parsed > 0 {
+			return strconv.FormatInt(parsed, 10)
+		}
+	case float64:
+		if typed > 0 {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+	}
+	return ""
+}
+
+func dictionaryIDFromProductAttribute(attr shop.PlatformCategoryAttribute) string {
+	var raw map[string]any
+	if json.Unmarshal(attr.Raw, &raw) != nil {
+		return ""
+	}
+	value, ok := raw["dictionary_id"]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		parsed, err := strconv.ParseInt(trimmed, 10, 64)
+		if err != nil || parsed <= 0 {
+			return ""
+		}
+		return strconv.FormatInt(parsed, 10)
+	case float64:
+		if typed <= 0 {
+			return ""
+		}
+		return strconv.FormatInt(int64(typed), 10)
+	default:
+		return ""
+	}
+}
+
+func cachedOzonDictionaryValueMatches(raw datatypes.JSON, id, value string) bool {
+	if len(raw) == 0 {
+		// Some very large dictionaries are intentionally not prefetched; the
+		// provider performs the authoritative live check before import.
+		return true
+	}
+	var options []struct {
+		ID    string `json:"id"`
+		Value string `json:"value"`
+	}
+	if json.Unmarshal(raw, &options) != nil {
+		return false
+	}
+	for _, option := range options {
+		if option.ID == id {
+			return strings.TrimSpace(option.Value) == strings.TrimSpace(value)
+		}
+	}
+	// The UI cache is deliberately bounded. Absence is inconclusive and is
+	// checked authoritatively by live preflight and again by the publish worker.
+	return true
+}
+
+func firstNonEmptyProduct(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func (s *Service) requireDouyinShopOperate(c *gin.Context, shopID uuid.UUID) error {
+	return s.requirePlatformShopOperate(c, shopID, "douyin_shop")
+}
+
+func (s *Service) ozonSchemaHash(ctx context.Context, categoryID string) (string, error) {
+	if strings.TrimSpace(categoryID) == "" {
+		return "", nil
+	}
+	var attrs []shop.PlatformCategoryAttribute
+	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ?", "ozon", categoryID).Order("attr_id ASC").Find(&attrs).Error; err != nil {
+		return "", err
+	}
+	return shop.OzonCategorySchemaHash(attrs), nil
 }
 
 func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigDTO {
@@ -145,6 +340,10 @@ func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigD
 		PlatformAttributes: json.RawMessage(row.PlatformAttributes),
 		Mapping:            DouyinDraftMappingFromConfig(row),
 		LastMappedAt:       row.LastMappedAt,
+		SourceCategoryKey:  row.SourceCategoryKey,
+		SourceCategoryName: row.SourceCategoryName,
+		SchemaHash:         row.SchemaHash,
+		SchemaConfirmedAt:  row.SchemaConfirmedAt,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}

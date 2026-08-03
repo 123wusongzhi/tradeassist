@@ -890,6 +890,9 @@ func (s *Service) RetryFailedBatchTasks(c *gin.Context, batchID uuid.UUID, admin
 		return s.batchCreateResponseFromExisting(ctx, &batch)
 	}
 	for i := range failedTasks {
+		if strings.EqualFold(strings.TrimSpace(failedTasks[i].Platform), "ozon") {
+			return nil, fmt.Errorf("Ozon 失败任务不能自动批量重试；请先人工核对或恢复外部刊登结果")
+		}
 		if !adminperm.RequireStoreOperate(c, s.DB, failedTasks[i].ShopID) {
 			return nil, fmt.Errorf("store operate permission required")
 		}

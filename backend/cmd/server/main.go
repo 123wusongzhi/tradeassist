@@ -35,6 +35,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/productpublish"
 	"github.com/trademind-ai/trademind/backend/internal/modules/securitymod"
 	"github.com/trademind-ai/trademind/backend/internal/modules/settings"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskcenter"
 	"github.com/trademind-ai/trademind/backend/internal/modules/taskreaper"
 	"github.com/trademind-ai/trademind/backend/internal/modules/webhook"
@@ -315,7 +316,7 @@ func main() {
 	)
 
 	opLogSvc := &operationlog.Service{DB: db}
-	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc := api.Register(engine, &api.Deps{
+	collectSvc, imageTaskSvc, orderSyncSvc, customerSyncSvc, productPublishSvc, inventorySyncSvc, tcSvc, douyinRuntimeSvc, webhookSvc, fileSvc, secSvc, shopSvc := api.Register(engine, &api.Deps{
 		Config:          cfg,
 		DB:              db,
 		Redis:           redisClient,
@@ -351,6 +352,10 @@ func main() {
 
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	var workerWG sync.WaitGroup
+	if redisClient != nil && shopSvc != nil {
+		shop.StartOzonCategorySyncWorker(workerCtx, &workerWG, log, shopSvc, 1, workerReg)
+		log.Info("ozon_category_sync_worker_started", "concurrency", 1, "queue", shop.OzonCategorySyncQueueName)
+	}
 
 	if sqlDB, err := db.DB(); err == nil {
 		observability.StartDBStatsCollector(workerCtx, &workerWG, log, sqlDB, obs.Catalog, "primary", 15*time.Second)

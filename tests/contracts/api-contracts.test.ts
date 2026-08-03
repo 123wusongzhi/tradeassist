@@ -29,11 +29,23 @@ describe('TradeMind API contract registry', () => {
         'POST /api/v1/products/:id/publish',
         'GET /api/v1/platform/ozon/categories',
         'POST /api/v1/platform/ozon/categories/sync',
+        'GET /api/v1/platform/ozon/categories/sync-runs',
+        'GET /api/v1/platform/ozon/categories/sync-runs/:id',
+        'GET /api/v1/platform/ozon/categories/changes',
         'GET /api/v1/platform/ozon/categories/stats',
         'GET /api/v1/platform/ozon/categories/:id/attributes',
+        'GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values',
         'POST /api/v1/platform/ozon/categories/:id/attributes/sync',
         'GET /api/v1/platform/ozon/categories/:id/attribute-mappings',
         'PUT /api/v1/platform/ozon/categories/:id/attribute-mappings',
+        'GET /api/v1/platform/ozon/category-mappings',
+        'POST /api/v1/platform/ozon/category-mappings/recommend',
+        'PUT /api/v1/platform/ozon/category-mappings',
+        'GET /api/v1/products/:id/platform-configs/ozon',
+        'PUT /api/v1/products/:id/platform-configs/ozon',
+        'POST /api/v1/products/:id/readiness/validate',
+        'POST /api/v1/product-publish/ozon/category-groups/check',
+        'POST /api/v1/product-publish/ozon/category-groups/confirm',
       ]),
     );
   });
@@ -46,6 +58,11 @@ describe('TradeMind API contract registry', () => {
     const collectBatch = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/collect/batches');
     const ozonMappings = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/platform/ozon/categories/:id/attribute-mappings');
     const ozonCategories = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/platform/ozon/categories');
+    const ozonDictionaryValues = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values');
+    const ozonConfig = contracts.endpoints.find((item) => routeKey(item) === 'PUT /api/v1/products/:id/platform-configs/ozon');
+    const ozonReadiness = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/products/:id/readiness/validate');
+    const ozonGroupConfirm = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/product-publish/ozon/category-groups/confirm');
+    const ozonChanges = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/platform/ozon/categories/changes');
 
     expect(createDraft?.requestBody).toEqual(['shopId', 'publishMode', 'force']);
     expect(publish?.requestBody).toEqual(['shopId', 'options', 'force']);
@@ -53,11 +70,17 @@ describe('TradeMind API contract registry', () => {
     expect(collectTask?.requestBody).toContain('engine');
     expect(collectBatch?.requestBody).toEqual(['source', 'urls', 'engine']);
     expect(ozonMappings?.requestBody).toEqual(['items']);
-    expect(ozonCategories?.query).toEqual(['keyword', 'onlyLeaf', 'limit']);
+    expect(ozonCategories?.query).toEqual(['keyword', 'onlyLeaf', 'activeOnly', 'limit']);
+    expect(ozonDictionaryValues?.query).toEqual(['shopId', 'keyword']);
+    expect(publish?.conditionalRequiredHeaders).toEqual({ ozon: ['Idempotency-Key'] });
+    expect(ozonConfig?.requestBody).toEqual(['shopId', 'categoryId', 'categoryPath', 'platformAttributes', 'sourceCategoryKey', 'sourceCategoryName']);
+    expect(ozonReadiness?.requestBody).toEqual(['platform', 'shopId']);
+    expect(ozonGroupConfirm?.requestBody).toEqual(['shopId', 'groups', 'saveMappings']);
+    expect(ozonChanges?.responseFields).toEqual(['list[].categoryName', 'list[].occurredAt', 'list[].detail']);
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(19);
+    expect(contracts.endpoints).toHaveLength(31);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

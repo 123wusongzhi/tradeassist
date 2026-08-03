@@ -74,14 +74,20 @@ export default function OzonCategoryPanel() {
     setSyncing(true);
     try {
       const next = await syncOzonCategories();
-      setStats(next);
-      message.success(`已同步 Ozon 类目树（叶子类目 ${next.leafCount ?? 0} 个）`);
+      if (next.stats) setStats(next.stats);
+      const runId = next.runId || next.run?.id;
+      if (next.run?.status === 'pending' || next.run?.status === 'running') {
+        message.success(`Ozon 类目同步任务已创建/处理中${runId ? `（记录 ${runId}）` : ''}`);
+      } else {
+        message.success(`Ozon 类目同步已返回结果（叶子类目 ${next.stats?.leafCount ?? 0} 个）`);
+      }
+      void loadStats();
     } catch (e) {
       message.error((e as Error)?.message || '同步类目失败，请先完成 Ozon 店铺授权');
     } finally {
       setSyncing(false);
     }
-  }, []);
+  }, [loadStats]);
 
   const searchCategories = useCallback(async () => {
     try {
@@ -168,6 +174,7 @@ export default function OzonCategoryPanel() {
       description="属性定义不硬编码：首次同步后缓存 24h，再为每个叶子类目配置「Ozon 属性 ↔ 本地字段」映射；字典类属性上品时自动匹配 dictionary_value_id。"
       headerExtra={
         <Space wrap>
+          <Button href="/product/ozon-publish">进入类目与刊登流程</Button>
           <Button icon={<SyncOutlined />} onClick={() => void syncCategoryCache()} loading={syncing}>
             同步类目树
           </Button>

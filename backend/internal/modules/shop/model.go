@@ -103,4 +103,57 @@ type PlatformCategoryAttributeMapping struct {
 	SortOrder     int    `gorm:"not null;default:0" json:"sortOrder"`
 }
 
-func (PlatformCategoryAttributeMapping) TableName() string { return "platform_category_attribute_mappings" }
+func (PlatformCategoryAttributeMapping) TableName() string {
+	return "platform_category_attribute_mappings"
+}
+
+// OzonCategorySyncRun records an auditable, tenant-scoped refresh of the shared
+// Ozon catalogue. The catalogue itself remains global; the initiating shop and
+// resulting diff are never shared between tenants.
+type OzonCategorySyncRun struct {
+	model.Base
+	TenantID     int64          `gorm:"not null;index" json:"tenantId"`
+	ShopID       uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
+	Status       string         `gorm:"size:32;index;not null" json:"status"`
+	StartedAt    *time.Time     `json:"startedAt,omitempty"`
+	FinishedAt   *time.Time     `json:"finishedAt,omitempty"`
+	Summary      datatypes.JSON `gorm:"type:jsonb" json:"summary,omitempty"`
+	ErrorCode    string         `gorm:"size:96;index" json:"errorCode,omitempty"`
+	ErrorMessage string         `gorm:"type:text" json:"errorMessage,omitempty"`
+}
+
+func (OzonCategorySyncRun) TableName() string { return "ozon_category_sync_runs" }
+
+// OzonCategoryChange stores a bounded before/after representation for one
+// catalogue change observed by a sync run.
+type OzonCategoryChange struct {
+	model.Base
+	TenantID   int64          `gorm:"not null;index" json:"tenantId"`
+	ShopID     uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
+	SyncRunID  uuid.UUID      `gorm:"type:char(36);index;not null" json:"syncRunId"`
+	CategoryID string         `gorm:"size:128;index;not null" json:"categoryId"`
+	ChangeType string         `gorm:"size:32;index;not null" json:"changeType"`
+	Before     datatypes.JSON `gorm:"type:jsonb" json:"before,omitempty"`
+	After      datatypes.JSON `gorm:"type:jsonb" json:"after,omitempty"`
+}
+
+func (OzonCategoryChange) TableName() string { return "ozon_category_changes" }
+
+// OzonCategoryMapping is a tenant-owned mapping from a stable source category
+// key to one active Ozon leaf category. A nil ShopID denotes a tenant default.
+type OzonCategoryMapping struct {
+	model.Base
+	TenantID           int64      `gorm:"not null;index" json:"tenantId"`
+	ShopID             *uuid.UUID `gorm:"type:char(36);index" json:"shopId,omitempty"`
+	ScopeKey           string     `gorm:"size:64;not null;default:tenant" json:"-"`
+	SourceCategoryKey  string     `gorm:"size:256;not null" json:"sourceCategoryKey"`
+	SourceCategoryName string     `gorm:"size:512" json:"sourceCategoryName,omitempty"`
+	CategoryID         string     `gorm:"size:128;index;not null" json:"categoryId"`
+	CategoryPath       string     `gorm:"size:1024" json:"categoryPath,omitempty"`
+	Status             string     `gorm:"size:32;index;not null" json:"status"`
+	SchemaHash         string     `gorm:"size:128" json:"schemaHash,omitempty"`
+	ConfirmedAt        *time.Time `json:"confirmedAt,omitempty"`
+	ConfirmedBy        *uuid.UUID `gorm:"type:char(36);index" json:"confirmedBy,omitempty"`
+}
+
+func (OzonCategoryMapping) TableName() string { return "ozon_category_mappings" }

@@ -56,10 +56,14 @@ func (ProductPublishTask) TableName() string { return "product_publish_tasks" }
 // ProductPublication tracks remote listing linkage for a draft + shop pair.
 type ProductPublication struct {
 	model.Base
-	TenantID           int64          `gorm:"not null;default:0;index" json:"tenantId"`
-	ProductID          uuid.UUID      `gorm:"type:char(36);index;not null" json:"productId"`
-	ShopID             uuid.UUID      `gorm:"type:char(36);index;not null" json:"shopId"`
-	Platform           string         `gorm:"size:64;index;not null" json:"platform"`
+	TenantID  int64     `gorm:"not null;default:0;index" json:"tenantId"`
+	ProductID uuid.UUID `gorm:"type:char(36);index;not null" json:"productId"`
+	ShopID    uuid.UUID `gorm:"type:char(36);index;not null" json:"shopId"`
+	Platform  string    `gorm:"size:64;index;not null" json:"platform"`
+	// LocalDraftKey is populated only for local-draft publications. Its unique
+	// index makes sequential and concurrent draft creation idempotent without
+	// imposing a uniqueness rule on remote platform listings.
+	LocalDraftKey      *string        `gorm:"size:256;uniqueIndex:idx_product_publication_local_draft" json:"-"`
 	PublishTaskID      *uuid.UUID     `gorm:"type:char(36);index" json:"publishTaskId,omitempty"`
 	ExternalProductID  string         `gorm:"size:512;index" json:"externalProductId,omitempty"`
 	ExternalSPUID      string         `gorm:"size:512" json:"externalSpuId,omitempty"`

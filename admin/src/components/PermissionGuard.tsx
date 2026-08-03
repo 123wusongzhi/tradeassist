@@ -31,6 +31,9 @@ export default function PermissionGuard({
     }
     return <>{fallback ?? null}</>;
   }
+  if (!perm) {
+    return <>{children}</>;
+  }
   if (readonly && requireWrite) {
     if (showForbiddenPage) {
       return <Result status="403" title="只读账号" subTitle="只读账号不可执行写操作" />;

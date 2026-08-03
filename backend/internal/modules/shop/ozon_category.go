@@ -28,6 +28,12 @@ const (
 	ozonPlatform                = "ozon"
 	ozonMaxCategoryRows         = 20000
 	ozonMaxDictionaryAttrFetch  = 30
+	OzonCategorySyncQueueName   = "ozon:category:sync"
+	OzonCategorySyncPending     = "pending"
+	OzonCategorySyncRunning     = "running"
+	OzonCategorySyncSucceeded   = "succeeded"
+	OzonCategorySyncPartial     = "partial"
+	OzonCategorySyncFailedState = "failed"
 )
 
 type OzonCategoryError struct {
@@ -68,6 +74,7 @@ type OzonCategoryNodeDTO struct {
 	Name                  string     `json:"name"`
 	Level                 int        `json:"level"`
 	IsLeaf                bool       `json:"isLeaf"`
+	Status                string     `json:"status"`
 	SyncedAt              *time.Time `json:"syncedAt,omitempty"`
 }
 
@@ -78,9 +85,32 @@ type OzonCategoryListResult struct {
 }
 
 type OzonCategoryStats struct {
-	Count        int64      `json:"count"`
-	LeafCount    int64      `json:"leafCount"`
-	LastSyncedAt *time.Time `json:"lastSyncedAt,omitempty"`
+	Count         int64                `json:"count"`
+	LeafCount     int64                `json:"leafCount"`
+	ActiveCount   int64                `json:"activeCount"`
+	InactiveCount int64                `json:"inactiveCount"`
+	LastSyncedAt  *time.Time           `json:"lastSyncedAt,omitempty"`
+	LastRun       *OzonCategorySyncRun `json:"lastRun,omitempty"`
+}
+
+type OzonCategoryChangesQuery struct {
+	Limit      int
+	ChangeType string
+}
+
+// OzonCategoryChangeDTO is the stable API representation for the change
+// center. It intentionally does not expose the persistence model directly.
+type OzonCategoryChangeDTO struct {
+	ID           uuid.UUID       `json:"id"`
+	SyncRunID    uuid.UUID       `json:"syncRunId"`
+	ShopID       uuid.UUID       `json:"shopId"`
+	CategoryID   string          `json:"categoryId"`
+	CategoryName string          `json:"categoryName,omitempty"`
+	ChangeType   string          `json:"changeType"`
+	OccurredAt   time.Time       `json:"occurredAt"`
+	Detail       string          `json:"detail"`
+	Before       json.RawMessage `json:"before,omitempty"`
+	After        json.RawMessage `json:"after,omitempty"`
 }
 
 type OzonAttributeDTO struct {
@@ -104,39 +134,65 @@ type OzonAttributeMappingDTO struct {
 	SortOrder     int    `json:"sortOrder"`
 }
 
+// OzonCategorySchemaHash intentionally excludes database IDs and timestamps.
+// It changes only when Ozon's listing template semantics change.
+func OzonCategorySchemaHash(attrs []PlatformCategoryAttribute) string {
+	rows := make([]platformozon.CategoryAttr, 0, len(attrs))
+	for _, a := range attrs {
+		meta := ozonAttributeSchemaMeta(a.Raw)
+		rows = append(rows, platformozon.CategoryAttr{
+			ID: a.AttrID, Name: a.Name, ValueType: a.ValueType, DictionaryID: meta.DictionaryID, Required: a.Required,
+			IsCollection: meta.IsCollection, AttributeComplexID: meta.AttributeComplexID, MaxValueCount: meta.MaxValueCount,
+			ComplexIsCollection: meta.ComplexIsCollection, CategoryDependent: meta.CategoryDependent,
+		})
+	}
+	return platformozon.CategorySchemaHash(rows)
+}
+
 type PutOzonAttributeMappingsBody struct {
 	Items []OzonAttributeMappingDTO `json:"items"`
 }
 
 // resolveOzonShop returns an authorized Ozon shop's plain auth. When shopID is
 // zero it resolves the first authorized Ozon shop (settings-page convenience).
-func (s *Service) resolveOzonShop(ctx context.Context, tenantID int64, shopID uuid.UUID) (platformp.TestConnectionRequest, error) {
+func (s *Service) resolveOzonShopAndAuth(ctx context.Context, tenantID int64, shopID uuid.UUID) (uuid.UUID, platformp.TestConnectionRequest, error) {
 	if shopID == uuid.Nil {
 		var row Shop
 		if err := s.DB.WithContext(ctx).
-			Where("tenant_id = ? AND platform = ? AND auth_status = ?", tenantID, ozonPlatform, AuthAuthorized).
+			Where("tenant_id = ? AND platform = ? AND status = ? AND auth_status = ?", tenantID, ozonPlatform, StatusActive, AuthAuthorized).
 			Order("updated_at DESC").First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("no authorized ozon shop found, please authorize one first"))
+				return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("no authorized ozon shop found, please authorize one first"))
 			}
-			return platformp.TestConnectionRequest{}, err
+			return uuid.Nil, platformp.TestConnectionRequest{}, err
 		}
 		shopID = row.ID
 	}
 	shopRow, plainAuth, err := s.PlainAuthForProviderCtx(ctx, tenantID, shopID)
 	if err != nil {
-		return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop not found: %w", err))
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop not found: %w", err))
 	}
 	if shopRow == nil {
-		return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop not found"))
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop not found"))
 	}
 	if strings.TrimSpace(shopRow.Platform) != ozonPlatform {
-		return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("shop %s is not an ozon shop", shopID.String()))
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("shop %s is not an ozon shop", shopID.String()))
 	}
 	if strings.TrimSpace(shopRow.AuthStatus) != AuthAuthorized {
-		return platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop is not authorized"))
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop is not authorized"))
 	}
-	return plainAuth, nil
+	if strings.TrimSpace(shopRow.Status) != StatusActive {
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, fmt.Errorf("ozon shop is not active"))
+	}
+	if _, err := platformozon.NewClient(plainAuth); err != nil {
+		return uuid.Nil, platformp.TestConnectionRequest{}, ozonCategoryErr(OzonShopRequired, err)
+	}
+	return shopID, plainAuth, nil
+}
+
+func (s *Service) resolveOzonShop(ctx context.Context, tenantID int64, shopID uuid.UUID) (platformp.TestConnectionRequest, error) {
+	_, auth, err := s.resolveOzonShopAndAuth(ctx, tenantID, shopID)
+	return auth, err
 }
 
 // SyncOzonCategories downloads the category tree and upserts the cache.
@@ -145,10 +201,35 @@ func (s *Service) SyncOzonCategories(ctx context.Context, tenantID int64, shopID
 		return nil, fmt.Errorf("shop service unavailable")
 	}
 	ctx = security.WithTenantContext(ctx, &security.TenantContext{TenantID: tenantID})
-	auth, err := s.resolveOzonShop(ctx, tenantID, shopID)
+	resolvedShopID, auth, err := s.resolveOzonShopAndAuth(ctx, tenantID, shopID)
 	if err != nil {
 		return nil, err
 	}
+	shopID = resolvedShopID
+	now := time.Now().UTC()
+	run := OzonCategorySyncRun{TenantID: tenantID, ShopID: shopID, Status: OzonCategorySyncRunning, StartedAt: &now}
+	trackRun := s.DB.Migrator().HasTable(&OzonCategorySyncRun{}) && s.DB.Migrator().HasTable(&OzonCategoryChange{})
+	if trackRun {
+		if err := s.DB.WithContext(ctx).Create(&run).Error; err != nil {
+			return nil, err
+		}
+	}
+	var runPtr *OzonCategorySyncRun
+	if trackRun {
+		runPtr = &run
+	}
+	stats, syncErr := s.syncOzonCategoriesRun(ctx, auth, runPtr)
+	if syncErr != nil {
+		if trackRun {
+			finished := time.Now().UTC()
+			_ = s.DB.WithContext(ctx).Model(&OzonCategorySyncRun{}).Where("id = ? AND tenant_id = ?", run.ID, tenantID).Updates(map[string]any{"status": OzonCategorySyncFailedState, "finished_at": &finished, "error_code": OzonCategorySyncFailed, "error_message": syncErr.Error()}).Error
+		}
+		return nil, syncErr
+	}
+	return stats, nil
+}
+
+func (s *Service) syncOzonCategoriesRun(ctx context.Context, auth platformp.TestConnectionRequest, run *OzonCategorySyncRun) (*OzonCategoryStats, error) {
 	client, err := platformozon.NewClient(auth)
 	if err != nil {
 		return nil, ozonCategoryErr(OzonCategorySyncFailed, err)
@@ -161,7 +242,9 @@ func (s *Service) SyncOzonCategories(ctx context.Context, tenantID int64, shopID
 		return nil, ozonCategoryErr(OzonCategoryEmpty, fmt.Errorf("ozon category tree is empty"))
 	}
 	now := time.Now().UTC()
+	truncated := len(nodes) >= ozonMaxCategoryRows
 	rows := make([]PlatformCategory, 0, len(nodes))
+	seen := make(map[string]PlatformCategory, len(nodes))
 	for _, n := range nodes {
 		row := PlatformCategory{
 			Platform:   ozonPlatform,
@@ -184,19 +267,97 @@ func (s *Service) SyncOzonCategories(ctx context.Context, tenantID int64, shopID
 				row.Raw = datatypes.JSON(b)
 			}
 		}
+		if n.Disabled {
+			row.Status = "inactive"
+		}
 		rows = append(rows, row)
+		seen[row.CategoryID] = row
 		if len(rows) >= ozonMaxCategoryRows {
 			break
 		}
 	}
-	upsert := clause.OnConflict{
-		Columns: []clause.Column{{Name: "platform"}, {Name: "category_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"parent_id", "name", "level", "is_leaf", "status", "raw", "synced_at", "updated_at",
-		}),
-	}
-	if err := s.DB.WithContext(ctx).Clauses(upsert).CreateInBatches(rows, 500).Error; err != nil {
+	changeCounts := map[string]int{"added": 0, "changed": 0, "deactivated": 0, "reactivated": 0}
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var oldRows []PlatformCategory
+		if err := tx.Where("platform = ?", ozonPlatform).Find(&oldRows).Error; err != nil {
+			return err
+		}
+		oldByID := make(map[string]PlatformCategory, len(oldRows))
+		for _, old := range oldRows {
+			oldByID[old.CategoryID] = old
+		}
+		changes := make([]OzonCategoryChange, 0)
+		for _, row := range rows {
+			old, exists := oldByID[row.CategoryID]
+			change := ""
+			if !exists {
+				change = "added"
+			} else if old.Status == "inactive" && row.Status == "active" {
+				change = "reactivated"
+			} else if old.Status == "active" && row.Status == "inactive" {
+				change = "deactivated"
+			} else if old.Name != row.Name || old.ParentID != row.ParentID || old.Level != row.Level || old.IsLeaf != row.IsLeaf || old.Status != row.Status {
+				change = "changed"
+			}
+			if change != "" {
+				before, _ := json.Marshal(old)
+				after, _ := json.Marshal(row)
+				if run != nil {
+					changes = append(changes, OzonCategoryChange{TenantID: run.TenantID, ShopID: run.ShopID, SyncRunID: run.ID, CategoryID: row.CategoryID, ChangeType: change, Before: datatypes.JSON(before), After: datatypes.JSON(after)})
+				}
+				changeCounts[change]++
+			}
+		}
+		// A complete response allows us to deactivate previously cached rows that
+		// disappeared from Ozon. Never delete them: product configs need the history.
+		for _, old := range oldRows {
+			if _, ok := seen[old.CategoryID]; !truncated && !ok && old.Status != "inactive" {
+				before, _ := json.Marshal(old)
+				after, _ := json.Marshal(map[string]any{"status": "inactive"})
+				if run != nil {
+					changes = append(changes, OzonCategoryChange{TenantID: run.TenantID, ShopID: run.ShopID, SyncRunID: run.ID, CategoryID: old.CategoryID, ChangeType: "deactivated", Before: datatypes.JSON(before), After: datatypes.JSON(after)})
+				}
+				changeCounts["deactivated"]++
+				if err := tx.Model(&PlatformCategory{}).Where("id = ?", old.ID).Updates(map[string]any{"status": "inactive", "updated_at": now}).Error; err != nil {
+					return err
+				}
+			}
+		}
+		upsert := clause.OnConflict{Columns: []clause.Column{{Name: "platform"}, {Name: "category_id"}}, DoUpdates: clause.AssignmentColumns([]string{"parent_id", "name", "level", "is_leaf", "status", "raw", "synced_at", "updated_at"})}
+		if err := tx.Clauses(upsert).CreateInBatches(rows, 500).Error; err != nil {
+			return err
+		}
+		if run != nil && len(changes) > 0 {
+			if err := tx.CreateInBatches(changes, 500).Error; err != nil {
+				return err
+			}
+		}
+		if run != nil {
+			summary, _ := json.Marshal(map[string]any{
+				"total":       len(rows),
+				"added":       changeCounts["added"],
+				"changed":     changeCounts["changed"],
+				"deactivated": changeCounts["deactivated"],
+				"reactivated": changeCounts["reactivated"],
+				"truncated":   truncated,
+			})
+			finished := time.Now().UTC()
+			status := OzonCategorySyncSucceeded
+			if truncated {
+				status = OzonCategorySyncPartial
+			}
+			return tx.Model(&OzonCategorySyncRun{}).Where("id = ? AND tenant_id = ?", run.ID, run.TenantID).Updates(map[string]any{"status": status, "finished_at": &finished, "summary": datatypes.JSON(summary), "error_code": "", "error_message": ""}).Error
+		}
+		return nil
+	}); err != nil {
 		return nil, ozonCategoryErr(OzonCategorySyncFailed, err)
+	}
+	if run != nil {
+		stats, err := s.OzonCategoryStats(ctx, run.TenantID)
+		if err != nil {
+			return nil, err
+		}
+		return stats, nil
 	}
 	stats, err := s.OzonCategoryStats(ctx)
 	if err != nil {
@@ -205,15 +366,90 @@ func (s *Service) SyncOzonCategories(ctx context.Context, tenantID int64, shopID
 	return stats, nil
 }
 
+func (s *Service) ListOzonCategorySyncRuns(ctx context.Context, tenantID int64, limit int) ([]OzonCategorySyncRun, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	var out []OzonCategorySyncRun
+	err := s.DB.WithContext(ctx).Where("tenant_id = ?", tenantID).Order("created_at DESC").Limit(limit).Find(&out).Error
+	return out, err
+}
+
+func (s *Service) GetOzonCategorySyncRun(ctx context.Context, tenantID int64, id uuid.UUID) (*OzonCategorySyncRun, error) {
+	var out OzonCategorySyncRun
+	if err := s.DB.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&out).Error; err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (s *Service) ListOzonCategoryChanges(ctx context.Context, tenantID int64, q OzonCategoryChangesQuery) ([]OzonCategoryChangeDTO, error) {
+	if q.Limit < 1 || q.Limit > 500 {
+		q.Limit = 100
+	}
+	db := s.DB.WithContext(ctx).Where("tenant_id = ?", tenantID)
+	if strings.TrimSpace(q.ChangeType) != "" {
+		db = db.Where("change_type = ?", strings.TrimSpace(q.ChangeType))
+	}
+	var rows []OzonCategoryChange
+	if err := db.Order("created_at DESC").Limit(q.Limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]OzonCategoryChangeDTO, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, ozonCategoryChangeDTO(row))
+	}
+	return out, nil
+}
+
+func ozonCategoryChangeDTO(row OzonCategoryChange) OzonCategoryChangeDTO {
+	before := json.RawMessage(row.Before)
+	after := json.RawMessage(row.After)
+	name := ozonCategoryNameFromChange(after)
+	if name == "" {
+		name = ozonCategoryNameFromChange(before)
+	}
+	detail := map[string]string{
+		"added":       "发现新增类目",
+		"changed":     "类目名称或层级已变化",
+		"deactivated": "类目已停用",
+		"reactivated": "类目已恢复启用",
+	}[strings.TrimSpace(row.ChangeType)]
+	if detail == "" {
+		detail = "类目发生变化"
+	}
+	if name != "" {
+		detail += "：" + name
+	}
+	return OzonCategoryChangeDTO{ID: row.ID, SyncRunID: row.SyncRunID, ShopID: row.ShopID, CategoryID: row.CategoryID, CategoryName: name, ChangeType: row.ChangeType, OccurredAt: row.CreatedAt, Detail: detail, Before: before, After: after}
+}
+
+func ozonCategoryNameFromChange(raw json.RawMessage) string {
+	if len(raw) == 0 || !json.Valid(raw) {
+		return ""
+	}
+	var value map[string]any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	for _, key := range []string{"name", "category_name", "type_name"} {
+		if text, ok := value[key].(string); ok && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	return ""
+}
+
 func ozonLeafCategoryID(descID, typeID string) string {
 	return descID + ":" + typeID
 }
 
 // OzonCategoryListQuery filters cached Ozon categories.
 type OzonCategoryListQuery struct {
-	Keyword  string
-	OnlyLeaf bool
-	Limit    int
+	Keyword    string
+	OnlyLeaf   bool
+	ActiveOnly bool
+	Limit      int
 }
 
 func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuery) (*OzonCategoryListResult, error) {
@@ -227,6 +463,9 @@ func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuer
 	}
 	if q.OnlyLeaf {
 		qb = qb.Where("is_leaf = ?", true)
+	}
+	if q.ActiveOnly {
+		qb = qb.Where("status = ?", "active")
 	}
 	var rows []PlatformCategory
 	limit := q.Limit
@@ -245,6 +484,7 @@ func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuer
 			Name:       r.Name,
 			Level:      r.Level,
 			IsLeaf:     r.IsLeaf,
+			Status:     r.Status,
 			SyncedAt:   r.SyncedAt,
 		}
 		if r.IsLeaf {
@@ -256,8 +496,12 @@ func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuer
 	}
 	var cnt int64
 	var leafCnt int64
-	_ = s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ?", ozonPlatform).Count(&cnt).Error
-	_ = s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND is_leaf = ?", ozonPlatform, true).Count(&leafCnt).Error
+	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ?", ozonPlatform).Count(&cnt).Error; err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND is_leaf = ?", ozonPlatform, true).Count(&leafCnt).Error; err != nil {
+		return nil, err
+	}
 	return &OzonCategoryListResult{List: list, Total: int(cnt), LeafCount: int(leafCnt)}, nil
 }
 
@@ -269,12 +513,49 @@ func splitOzonLeafCategoryID(id string) (descID, typeID string) {
 	return id, ""
 }
 
-func (s *Service) OzonCategoryStats(ctx context.Context) (*OzonCategoryStats, error) {
+// CanonicalOzonCategoryPath derives a display path exclusively from the cached
+// Ozon hierarchy; client-supplied paths are never trusted for saved configs.
+func CanonicalOzonCategoryPath(ctx context.Context, db *gorm.DB, category PlatformCategory) string {
+	if db == nil {
+		return strings.TrimSpace(category.Name)
+	}
+	names := make([]string, 0, 4)
+	current := category
+	seen := map[string]bool{}
+	for depth := 0; depth < 10; depth++ {
+		if name := strings.TrimSpace(current.Name); name != "" {
+			names = append(names, name)
+		}
+		parentID := strings.TrimSpace(current.ParentID)
+		if parentID == "" || seen[parentID] {
+			break
+		}
+		seen[parentID] = true
+		var parent PlatformCategory
+		if err := db.WithContext(ctx).Where("platform = ? AND category_id = ?", ozonPlatform, parentID).First(&parent).Error; err != nil {
+			break
+		}
+		current = parent
+	}
+	for left, right := 0, len(names)-1; left < right; left, right = left+1, right-1 {
+		names[left], names[right] = names[right], names[left]
+	}
+	return strings.Join(names, " / ")
+}
+
+func (s *Service) OzonCategoryStats(ctx context.Context, tenantIDs ...int64) (*OzonCategoryStats, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
 	var cnt, leafCnt int64
 	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ?", ozonPlatform).Count(&cnt).Error; err != nil {
+		return nil, err
+	}
+	var activeCnt, inactiveCnt int64
+	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND status = ?", ozonPlatform, "active").Count(&activeCnt).Error; err != nil {
+		return nil, err
+	}
+	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND status = ?", ozonPlatform, "inactive").Count(&inactiveCnt).Error; err != nil {
 		return nil, err
 	}
 	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND is_leaf = ?", ozonPlatform, true).Count(&leafCnt).Error; err != nil {
@@ -291,19 +572,38 @@ func (s *Service) OzonCategoryStats(ctx context.Context) (*OzonCategoryStats, er
 	if !lastSynced.IsZero() && lastSynced.Year() > 1970 {
 		p = &lastSynced
 	}
-	return &OzonCategoryStats{Count: cnt, LeafCount: leafCnt, LastSyncedAt: p}, nil
+	stats := &OzonCategoryStats{Count: cnt, LeafCount: leafCnt, ActiveCount: activeCnt, InactiveCount: inactiveCnt, LastSyncedAt: p}
+	if len(tenantIDs) > 0 && tenantIDs[0] >= 0 && s.DB.Migrator().HasTable(&OzonCategorySyncRun{}) {
+		var last OzonCategorySyncRun
+		if s.DB.WithContext(ctx).Where("tenant_id = ?", tenantIDs[0]).Order("created_at DESC").First(&last).Error == nil {
+			stats.LastRun = &last
+		}
+	}
+	return stats, nil
 }
 
 // SyncOzonCategoryAttributes fetches the attribute template for one leaf
 // category and refreshes the 24h cache (dictionary values are prefetched for
 // dictionary attributes to speed up mapping).
-func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, tenantID int64, categoryID, shopID uuid.UUID) (*OzonCategoryStats, error) {
+func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, tenantID int64, categoryID string, shopID uuid.UUID) (*OzonCategoryStats, error) {
+	return s.syncOzonCategoryAttributes(ctx, tenantID, categoryID, shopID, true)
+}
+
+// RefreshOzonCategoryAttributeTemplate refreshes only template semantics. It
+// preserves cached option lists and is used by live preflight, which validates
+// each configured dictionary value through Ozon's search API instead of
+// downloading every possible value.
+func (s *Service) RefreshOzonCategoryAttributeTemplate(ctx context.Context, tenantID int64, categoryID string, shopID uuid.UUID) (*OzonCategoryStats, error) {
+	return s.syncOzonCategoryAttributes(ctx, tenantID, categoryID, shopID, false)
+}
+
+func (s *Service) syncOzonCategoryAttributes(ctx context.Context, tenantID int64, categoryID string, shopID uuid.UUID, includeDictionaryValues bool) (*OzonCategoryStats, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
 	ctx = security.WithTenantContext(ctx, &security.TenantContext{TenantID: tenantID})
-	var cat PlatformCategory
-	if err := s.DB.WithContext(ctx).Where("id = ? AND platform = ?", categoryID, ozonPlatform).First(&cat).Error; err != nil {
+	cat, err := s.resolveOzonCategoryIdentifier(ctx, categoryID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("ozon category not found"))
 		}
@@ -330,6 +630,10 @@ func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, tenantID int64
 	}
 	now := time.Now().UTC()
 	rows := make([]PlatformCategoryAttribute, 0, len(attrs))
+	// Count attempts, not successful responses: otherwise a sequence of empty
+	// or failing dictionary endpoints could make this sync issue unbounded HTTP
+	// requests. Each attempt is itself bounded by the Ozon client's timeout and
+	// retry limit.
 	dictFetchCount := 0
 	for _, a := range attrs {
 		row := PlatformCategoryAttribute{
@@ -341,42 +645,61 @@ func (s *Service) SyncOzonCategoryAttributes(ctx context.Context, tenantID int64
 			ValueType:  a.ValueType,
 			SyncedAt:   &now,
 		}
-		if a.DictionaryID != "" {
-			raw := map[string]any{"dictionary_id": a.DictionaryID}
-			if b, jerr := json.Marshal(raw); jerr == nil {
-				row.Raw = datatypes.JSON(b)
-			}
+		raw := map[string]any{
+			"dictionary_id":         a.DictionaryID,
+			"is_collection":         a.IsCollection,
+			"attribute_complex_id":  a.AttributeComplexID,
+			"max_value_count":       a.MaxValueCount,
+			"complex_is_collection": a.ComplexIsCollection,
+			"category_dependent":    a.CategoryDependent,
 		}
-		if a.DictionaryID != "" && dictFetchCount < ozonMaxDictionaryAttrFetch {
-			if vals, verr := client.FetchDictionaryValues(ctx, descID, typeID, a.ID); verr == nil && len(vals) > 0 {
+		if b, jerr := json.Marshal(raw); jerr == nil {
+			row.Raw = datatypes.JSON(b)
+		}
+		if includeDictionaryValues && isOzonDictionaryID(a.DictionaryID) && dictFetchCount < ozonMaxDictionaryAttrFetch {
+			dictFetchCount++
+			if vals, verr := client.FetchDictionaryValuesLimited(ctx, descID, typeID, a.ID, 200); verr == nil && len(vals) > 0 {
 				if b, jerr := json.Marshal(vals); jerr == nil {
 					row.Options = datatypes.JSON(b)
 				}
-				dictFetchCount++
 			}
 		}
 		rows = append(rows, row)
 	}
-	attrUpsert := clause.OnConflict{
-		Columns: []clause.Column{{Name: "platform"}, {Name: "category_id"}, {Name: "attr_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"name", "required", "value_type", "options", "raw", "synced_at", "updated_at",
-		}),
+	updateColumns := []string{"name", "required", "value_type", "raw", "synced_at", "updated_at"}
+	if includeDictionaryValues {
+		updateColumns = append(updateColumns, "options")
 	}
-	if len(rows) > 0 {
-		if err := s.DB.WithContext(ctx).Clauses(attrUpsert).CreateInBatches(rows, 200).Error; err != nil {
-			return nil, ozonCategoryErr(OzonCategoryAttrSyncFailed, err)
+	attrUpsert := clause.OnConflict{
+		Columns:   []clause.Column{{Name: "platform"}, {Name: "category_id"}, {Name: "attr_id"}},
+		DoUpdates: clause.AssignmentColumns(updateColumns),
+	}
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if len(rows) == 0 {
+			return tx.Unscoped().Where("platform = ? AND category_id = ?", ozonPlatform, cat.CategoryID).
+				Delete(&PlatformCategoryAttribute{}).Error
 		}
+		attrIDs := make([]string, 0, len(rows))
+		for _, row := range rows {
+			attrIDs = append(attrIDs, row.AttrID)
+		}
+		if err := tx.Unscoped().Where("platform = ? AND category_id = ? AND attr_id NOT IN ?", ozonPlatform, cat.CategoryID, attrIDs).
+			Delete(&PlatformCategoryAttribute{}).Error; err != nil {
+			return err
+		}
+		return tx.Clauses(attrUpsert).CreateInBatches(rows, 200).Error
+	}); err != nil {
+		return nil, ozonCategoryErr(OzonCategoryAttrSyncFailed, err)
 	}
 	return &OzonCategoryStats{Count: int64(len(rows))}, nil
 }
 
-func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID uuid.UUID) ([]OzonAttributeDTO, error) {
+func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID string) ([]OzonAttributeDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	var cat PlatformCategory
-	if err := s.DB.WithContext(ctx).Where("id = ? AND platform = ?", categoryID, ozonPlatform).First(&cat).Error; err != nil {
+	cat, err := s.resolveOzonCategoryIdentifier(ctx, categoryID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("ozon category not found"))
 		}
@@ -413,29 +736,108 @@ func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID uui
 	return out, nil
 }
 
-func dictionaryIDFromRaw(raw datatypes.JSON) string {
-	if len(raw) == 0 {
-		return ""
-	}
-	var m map[string]any
-	if err := json.Unmarshal(raw, &m); err != nil {
-		return ""
-	}
-	if v, ok := m["dictionary_id"].(string); ok {
-		return strings.TrimSpace(v)
-	}
-	if v, ok := m["dictionary_id"].(float64); ok {
-		return fmt.Sprintf("%.0f", v)
-	}
-	return ""
-}
-
-func (s *Service) GetOzonAttributeMappings(ctx context.Context, categoryID uuid.UUID) ([]OzonAttributeMappingDTO, error) {
+func (s *Service) SearchOzonDictionaryValues(ctx context.Context, tenantID int64, categoryID, attrID string, shopID uuid.UUID, keyword string) ([]platformozon.DictionaryValue, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	var cat PlatformCategory
-	if err := s.DB.WithContext(ctx).Where("id = ? AND platform = ?", categoryID, ozonPlatform).First(&cat).Error; err != nil {
+	cat, err := s.resolveOzonCategoryIdentifier(ctx, categoryID)
+	if err != nil {
+		return nil, err
+	}
+	if !cat.IsLeaf || cat.Status == "inactive" {
+		return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("ozon category must be an active leaf"))
+	}
+	descID, typeID := splitOzonLeafCategoryID(cat.CategoryID)
+	if descID == "" || typeID == "" {
+		return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("leaf category missing type_id"))
+	}
+	var attr PlatformCategoryAttribute
+	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ? AND attr_id = ?", ozonPlatform, cat.CategoryID, strings.TrimSpace(attrID)).First(&attr).Error; err != nil {
+		return nil, err
+	}
+	if dictionaryIDFromRaw(attr.Raw) == "" {
+		return nil, fmt.Errorf("ozon attribute is not a dictionary")
+	}
+	auth, err := s.resolveOzonShop(ctx, tenantID, shopID)
+	if err != nil {
+		return nil, err
+	}
+	client, err := platformozon.NewClient(auth)
+	if err != nil {
+		return nil, err
+	}
+	return client.SearchDictionaryValues(ctx, descID, typeID, attr.AttrID, keyword)
+}
+
+func dictionaryIDFromRaw(raw datatypes.JSON) string {
+	return ozonAttributeSchemaMeta(raw).DictionaryID
+}
+
+func isOzonDictionaryID(raw string) bool {
+	value := strings.TrimSpace(raw)
+	return value != "" && value != "0"
+}
+
+type ozonAttributeSchemaMetadata struct {
+	DictionaryID        string
+	IsCollection        bool
+	AttributeComplexID  int64
+	MaxValueCount       int64
+	ComplexIsCollection bool
+	CategoryDependent   bool
+}
+
+func ozonAttributeSchemaMeta(raw datatypes.JSON) ozonAttributeSchemaMetadata {
+	if len(raw) == 0 {
+		return ozonAttributeSchemaMetadata{}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ozonAttributeSchemaMetadata{}
+	}
+	out := ozonAttributeSchemaMetadata{
+		IsCollection:        ozonBool(m["is_collection"]),
+		AttributeComplexID:  ozonInt64(m["attribute_complex_id"]),
+		MaxValueCount:       ozonInt64(m["max_value_count"]),
+		ComplexIsCollection: ozonBool(m["complex_is_collection"]),
+		CategoryDependent:   ozonBool(m["category_dependent"]),
+	}
+	if v, ok := m["dictionary_id"].(string); ok {
+		out.DictionaryID = strings.TrimSpace(v)
+	}
+	if v, ok := m["dictionary_id"].(float64); ok {
+		out.DictionaryID = fmt.Sprintf("%.0f", v)
+	}
+	if !isOzonDictionaryID(out.DictionaryID) {
+		out.DictionaryID = ""
+	}
+	return out
+}
+
+func ozonBool(value any) bool {
+	v, _ := value.(bool)
+	return v
+}
+
+func ozonInt64(value any) int64 {
+	switch v := value.(type) {
+	case float64:
+		return int64(v)
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	default:
+		return 0
+	}
+}
+
+func (s *Service) GetOzonAttributeMappings(ctx context.Context, categoryID string) ([]OzonAttributeMappingDTO, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("shop service unavailable")
+	}
+	cat, err := s.resolveOzonCategoryIdentifier(ctx, categoryID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("ozon category not found"))
 		}
@@ -460,12 +862,12 @@ func (s *Service) GetOzonAttributeMappings(ctx context.Context, categoryID uuid.
 	return out, nil
 }
 
-func (s *Service) PutOzonAttributeMappings(ctx context.Context, categoryID uuid.UUID, body PutOzonAttributeMappingsBody) ([]OzonAttributeMappingDTO, error) {
+func (s *Service) PutOzonAttributeMappings(ctx context.Context, categoryID string, body PutOzonAttributeMappingsBody) ([]OzonAttributeMappingDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	var cat PlatformCategory
-	if err := s.DB.WithContext(ctx).Where("id = ? AND platform = ?", categoryID, ozonPlatform).First(&cat).Error; err != nil {
+	cat, err := s.resolveOzonCategoryIdentifier(ctx, categoryID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ozonCategoryErr(OzonCategoryNotLeaf, fmt.Errorf("ozon category not found"))
 		}
@@ -504,4 +906,22 @@ func (s *Service) PutOzonAttributeMappings(ctx context.Context, categoryID uuid.
 		return nil, ozonCategoryErr(OzonAttributeMappingInvalid, err)
 	}
 	return s.GetOzonAttributeMappings(ctx, categoryID)
+}
+
+func (s *Service) resolveOzonCategoryIdentifier(ctx context.Context, identifier string) (*PlatformCategory, error) {
+	value := strings.TrimSpace(identifier)
+	if value == "" || len(value) > 128 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	query := s.DB.WithContext(ctx).Where("platform = ?", ozonPlatform)
+	if id, err := uuid.Parse(value); err == nil && id != uuid.Nil {
+		query = query.Where("id = ?", id)
+	} else {
+		query = query.Where("category_id = ?", value)
+	}
+	var category PlatformCategory
+	if err := query.First(&category).Error; err != nil {
+		return nil, err
+	}
+	return &category, nil
 }

@@ -25,6 +25,7 @@ func TestPublishProductHappyPath(t *testing.T) {
 	var importCalls, stockCalls int
 
 	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
 	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
 		importCalls++
 		_ = json.NewDecoder(r.Body).Decode(&gotImportBody)
@@ -59,6 +60,10 @@ func TestPublishProductHappyPath(t *testing.T) {
 		PublishConfig: map[string]any{
 			"description_category_id": "200001240",
 			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
 			"warehouse_id":            "22142605386000",
 			"currency_code":           "RUB",
 			"vat":                     "0.1",
@@ -130,6 +135,7 @@ func TestPublishProductHappyPath(t *testing.T) {
 
 func TestPublishProductImportFailure(t *testing.T) {
 	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
 	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"result":{"task_id":1}}`))
 	})
@@ -153,6 +159,10 @@ func TestPublishProductImportFailure(t *testing.T) {
 		PublishConfig: map[string]any{
 			"description_category_id": "200001240",
 			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
 			"currency_code":           "RUB",
 			"vat":                     "0",
 			"auto_fill_attributes":    "false",
@@ -175,6 +185,7 @@ func TestPublishProductImportFailure(t *testing.T) {
 func TestPublishProductResolvesContractCurrency(t *testing.T) {
 	var sellerCalls int
 	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
 	mux.HandleFunc(pathSellerInfo, func(w http.ResponseWriter, r *http.Request) {
 		sellerCalls++
 		_, _ = w.Write([]byte(`{"company":{"name":"X","country":"CHN","currency":"CNY"}}`))
@@ -210,6 +221,10 @@ func TestPublishProductResolvesContractCurrency(t *testing.T) {
 		PublishConfig: map[string]any{
 			"description_category_id": "200001240",
 			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
 			"auto_fill_attributes":    "false",
 		},
 		Product: platformp.PlatformProductDraft{
@@ -229,6 +244,7 @@ func TestPublishProductResolvesContractCurrency(t *testing.T) {
 
 func TestPublishProductSkippedIsFailure(t *testing.T) {
 	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
 	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"result":{"task_id":9}}`))
 	})
@@ -250,6 +266,10 @@ func TestPublishProductSkippedIsFailure(t *testing.T) {
 		PublishConfig: map[string]any{
 			"description_category_id": "200001240",
 			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
 			"currency_code":           "RUB",
 			"vat":                     "0",
 			"auto_fill_attributes":    "false",
@@ -294,6 +314,18 @@ func TestPublishProductValidation(t *testing.T) {
 	}
 }
 
+func TestValidateOzonPublishMergedRequiresPositivePackageDimensions(t *testing.T) {
+	valid := ozonPublishMerged{DescriptionCategoryID: 1, TypeID: 2, WeightG: 1, WidthMM: 1, HeightMM: 1, DepthMM: 1}
+	if err := validateOzonPublishMerged(valid); err != nil {
+		t.Fatalf("valid dimensions rejected: %v", err)
+	}
+	valid.HeightMM = 0
+	err := validateOzonPublishMerged(valid)
+	if err == nil || !strings.Contains(err.Error(), "default_height") {
+		t.Fatalf("zero height error = %v", err)
+	}
+}
+
 func TestFormatOzonPrice(t *testing.T) {
 	tests := []struct {
 		in   float64
@@ -310,4 +342,10 @@ func TestFormatOzonPrice(t *testing.T) {
 			t.Fatalf("formatOzonPrice(%v) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
+}
+
+func handleEmptyCategoryAttributes(mux *http.ServeMux) {
+	mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[]}`))
+	})
 }

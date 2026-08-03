@@ -2,6 +2,7 @@ package shop
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
@@ -508,10 +510,14 @@ func (h *Handler) ListOzonCategories(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	out, err := h.Svc.ListOzonCategories(c.Request.Context(), OzonCategoryListQuery{
-		Keyword:  c.Query("keyword"),
-		OnlyLeaf: queryBoolShop(c, "onlyLeaf"),
-		Limit:    atoiQ(c, "limit", 500),
+		Keyword:    c.Query("keyword"),
+		OnlyLeaf:   queryBoolShop(c, "onlyLeaf"),
+		ActiveOnly: queryBoolShop(c, "activeOnly"),
+		Limit:      atoiQ(c, "limit", 500),
 	})
 	if err != nil {
 		failOzon(c, err)
@@ -530,7 +536,10 @@ func (h *Handler) SyncOzonCategories(c *gin.Context) {
 		ShopID string `json:"shopId"`
 	}
 	if c.Request.ContentLength > 0 {
-		_ = c.ShouldBindJSON(&body)
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
 	}
 	raw := strings.TrimSpace(body.ShopID)
 	if raw == "" {
@@ -543,14 +552,19 @@ func (h *Handler) SyncOzonCategories(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
 			return
 		}
+		if !h.requireShopOperate(c, u) {
+			return
+		}
 		sid = u
+	} else if !h.requireConfigManage(c) {
+		return
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
 		response.HandleError(c, err)
 		return
 	}
-	out, err := h.Svc.SyncOzonCategories(c.Request.Context(), tenantID, sid)
+	out, err := h.Svc.StartOzonCategorySync(c.Request.Context(), tenantID, sid)
 	if err != nil {
 		failOzon(c, err)
 		return
@@ -564,7 +578,15 @@ func (h *Handler) OzonCategoryStats(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
-	out, err := h.Svc.OzonCategoryStats(c.Request.Context())
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	tenantID, terr := adminperm.TenantIDFromGin(c)
+	if terr != nil {
+		response.HandleError(c, terr)
+		return
+	}
+	out, err := h.Svc.OzonCategoryStats(c.Request.Context(), tenantID)
 	if err != nil {
 		failOzon(c, err)
 		return
@@ -572,13 +594,202 @@ func (h *Handler) OzonCategoryStats(c *gin.Context) {
 	response.OK(c, out)
 }
 
-func ozonCategoryIDParam(c *gin.Context) (uuid.UUID, bool) {
-	u, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
-	if err != nil || u == uuid.Nil {
-		response.Fail(c, 400, response.CodeBadRequest, "invalid category id")
-		return uuid.Nil, false
+func (h *Handler) ListOzonCategorySyncRuns(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
 	}
-	return u, true
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.ListOzonCategorySyncRuns(c.Request.Context(), tenantID, atoiQ(c, "limit", 20))
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+func (h *Handler) GetOzonCategorySyncRun(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid sync run id")
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.GetOzonCategorySyncRun(c.Request.Context(), tenantID, id)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ListOzonCategoryChanges(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.ListOzonCategoryChanges(c.Request.Context(), tenantID, OzonCategoryChangesQuery{Limit: atoiQ(c, "limit", 100), ChangeType: c.Query("changeType")})
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+func (h *Handler) ListOzonCategoryMappings(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	var sid *uuid.UUID
+	if raw := strings.TrimSpace(c.Query("shopId")); raw != "" {
+		id, e := uuid.Parse(raw)
+		if e != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		if !h.requireShopOperate(c, id) {
+			return
+		}
+		sid = &id
+	}
+	out, err := h.Svc.ListOzonCategoryMappings(c.Request.Context(), tenantID, sid)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+func (h *Handler) RecommendOzonCategoryMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	var body RecommendOzonCategoryMappingBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if raw := strings.TrimSpace(body.ShopID); raw != "" {
+		id, e := uuid.Parse(raw)
+		if e != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		if !h.requireShopOperate(c, id) {
+			return
+		}
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.RecommendOzonCategoryMapping(c.Request.Context(), tenantID, body)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"candidate": out, "confirmed": false})
+}
+
+func (h *Handler) PutOzonCategoryMapping(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !h.requireConfigManage(c) {
+		return
+	}
+	var body PutOzonCategoryMappingBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if raw := strings.TrimSpace(body.ShopID); raw != "" {
+		id, e := uuid.Parse(raw)
+		if e != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+			return
+		}
+		if !h.requireShopOperate(c, id) {
+			return
+		}
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.PutOzonCategoryMapping(c.Request.Context(), tenantID, body, adminUUID(c))
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	if h.Svc.OpLog != nil {
+		var shopID *uuid.UUID
+		if parsed, parseErr := uuid.Parse(strings.TrimSpace(body.ShopID)); parseErr == nil && parsed != uuid.Nil {
+			shopID = &parsed
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "ozon.category_mapping.update",
+			Resource:   "ozon_category_mapping",
+			ResourceID: out.ID.String(),
+			ShopID:     shopID,
+			Platform:   ozonPlatform,
+			Permission: adminperm.PermConfigManage,
+			Status:     "success",
+			Message:    "source category mapping saved",
+		})
+	}
+	response.OK(c, out)
+}
+
+func ozonCategoryIDParam(c *gin.Context) (string, bool) {
+	value := strings.TrimSpace(c.Param("id"))
+	if value == "" || len(value) > 128 {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid category id")
+		return "", false
+	}
+	return value, true
 }
 
 // ListOzonCategoryAttributes GET /api/v1/platform/ozon/categories/:id/attributes
@@ -587,11 +798,55 @@ func (h *Handler) ListOzonCategoryAttributes(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	id, ok := ozonCategoryIDParam(c)
 	if !ok {
 		return
 	}
 	out, err := h.Svc.ListOzonCategoryAttributes(c.Request.Context(), id)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": out})
+}
+
+// SearchOzonDictionaryValues GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values
+func (h *Handler) SearchOzonDictionaryValues(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	categoryID, ok := ozonCategoryIDParam(c)
+	if !ok {
+		return
+	}
+	attrID := strings.TrimSpace(c.Param("attrId"))
+	if attrID == "" || len(attrID) > 64 {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid attribute id")
+		return
+	}
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if len([]rune(keyword)) < 2 {
+		response.Fail(c, 400, response.CodeBadRequest, "keyword requires at least two characters")
+		return
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(c.Query("shopId")))
+	if err != nil || shopID == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !h.requireShopOperate(c, shopID) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.SearchOzonDictionaryValues(c.Request.Context(), tenantID, categoryID, attrID, shopID, keyword)
 	if err != nil {
 		failOzon(c, err)
 		return
@@ -613,7 +868,10 @@ func (h *Handler) SyncOzonCategoryAttributes(c *gin.Context) {
 		ShopID string `json:"shopId"`
 	}
 	if c.Request.ContentLength > 0 {
-		_ = c.ShouldBindJSON(&body)
+		if err := c.ShouldBindJSON(&body); err != nil {
+			response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+			return
+		}
 	}
 	raw := strings.TrimSpace(body.ShopID)
 	if raw == "" {
@@ -626,7 +884,12 @@ func (h *Handler) SyncOzonCategoryAttributes(c *gin.Context) {
 			response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
 			return
 		}
+		if !h.requireShopOperate(c, u) {
+			return
+		}
 		sid = u
+	} else if !h.requireConfigManage(c) {
+		return
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -647,6 +910,9 @@ func (h *Handler) GetOzonAttributeMappings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
 	id, ok := ozonCategoryIDParam(c)
 	if !ok {
 		return
@@ -665,9 +931,9 @@ func (h *Handler) PutOzonAttributeMappings(c *gin.Context) {
 		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
 		return
 	}
-	// Attribute mappings are instance-wide publishing configuration. Restrict
-	// their mutation to the global configuration administrator.
-	if !h.requireConfigManage(c) {
+	// Attribute mappings are instance-wide publishing configuration. They are
+	// shared by every tenant, so tenant-local config permission is insufficient.
+	if !h.requireGlobalConfigManage(c) {
 		return
 	}
 	id, ok := ozonCategoryIDParam(c)
@@ -683,6 +949,17 @@ func (h *Handler) PutOzonAttributeMappings(c *gin.Context) {
 	if err != nil {
 		failOzon(c, err)
 		return
+	}
+	if h.Svc.OpLog != nil {
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "ozon.attribute_mapping.update",
+			Resource:   "platform_category",
+			ResourceID: id,
+			Platform:   ozonPlatform,
+			Permission: adminperm.PermConfigManage,
+			Status:     "success",
+			Message:    fmt.Sprintf("attribute mappings replaced: %d", len(out)),
+		})
 	}
 	response.OK(c, gin.H{"list": out})
 }

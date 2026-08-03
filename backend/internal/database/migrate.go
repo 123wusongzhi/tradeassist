@@ -103,6 +103,21 @@ func migrateLegacyProductTextColumns(db *gorm.DB) error {
 	return db.AutoMigrate(&product.Product{})
 }
 
+func migrateOzonCategoryMappingScope(db *gorm.DB) error {
+	if db == nil || !db.Migrator().HasTable(&shop.OzonCategoryMapping{}) {
+		return nil
+	}
+	if err := db.Exec(`UPDATE ozon_category_mappings
+		SET scope_key = CASE WHEN shop_id IS NULL THEN 'tenant' ELSE CAST(shop_id AS TEXT) END`).Error; err != nil {
+		return fmt.Errorf("backfill ozon category mapping scope: %w", err)
+	}
+	if err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_ozon_mapping_scope_source
+		ON ozon_category_mappings (tenant_id, scope_key, source_category_key)`).Error; err != nil {
+		return fmt.Errorf("create ozon category mapping scope index: %w", err)
+	}
+	return nil
+}
+
 // AutoMigrate applies schema for core foundation tables.
 func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
@@ -150,6 +165,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&shop.PlatformCategory{},
 		&shop.PlatformCategoryAttribute{},
 		&shop.PlatformCategoryAttributeMapping{},
+		&shop.OzonCategorySyncRun{},
+		&shop.OzonCategoryChange{},
+		&shop.OzonCategoryMapping{},
 		&worker.Instance{},
 		&collect.CollectBatch{},
 		&collect.CollectTask{},
@@ -190,6 +208,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.RateLimitPolicy{},
 		&performance.QuotaPolicy{},
 	); err != nil {
+		return err
+	}
+	if err := migrateOzonCategoryMappingScope(db); err != nil {
 		return err
 	}
 	if err := migrateAdminLoginIdentityIndexes(db); err != nil {

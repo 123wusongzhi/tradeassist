@@ -19,7 +19,21 @@ import (
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
+
+const maxPublishIdempotencyKeyLength = 200
+
+func validatePublishIdempotencyKey(platform, raw string) (string, error) {
+	key := strings.TrimSpace(raw)
+	if platform == "ozon" && key == "" {
+		return "", fmt.Errorf("Ozon 真实提交必须提供 Idempotency-Key 请求头")
+	}
+	if len(key) > maxPublishIdempotencyKeyLength {
+		return "", fmt.Errorf("Idempotency-Key 请求头不能超过 %d 个字符", maxPublishIdempotencyKeyLength)
+	}
+	return key, nil
+}
 
 // CreatePublishTask validates settings + draft, persists task + publishing row snapshot, enqueue or runs inline.
 func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body PublishRequestBody, adminID *uuid.UUID) (*TaskDTO, error) {
@@ -73,6 +87,36 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	}
 
 	platKey := strings.TrimSpace(strings.ToLower(row.Platform))
+	rawIdempotencyKey, err := validatePublishIdempotencyKey(platKey, c.GetHeader("Idempotency-Key"))
+	if err != nil {
+		return nil, err
+	}
+	if platKey == "ozon" && s.Idempotency == nil {
+		return nil, fmt.Errorf("Ozon 幂等控制不可用，不能创建提交任务")
+	}
+	if platKey == "ozon" {
+		var cfg product.ProductPlatformPublishConfig
+		if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", prod.ID, "ozon").First(&cfg).Error; err != nil {
+			return nil, fmt.Errorf("ozon product configuration is required")
+		}
+		if cfg.ShopID == nil || *cfg.ShopID != sid {
+			return nil, fmt.Errorf("ozon product configuration must select this authorized shop")
+		}
+		if strings.TrimSpace(cfg.CategoryID) == "" || strings.TrimSpace(cfg.SchemaHash) == "" {
+			return nil, fmt.Errorf("ozon product category configuration is incomplete")
+		}
+		if body.Options == nil {
+			body.Options = map[string]any{}
+		}
+		parts := strings.SplitN(cfg.CategoryID, ":", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid Ozon composite category id")
+		}
+		body.Options["description_category_id"] = parts[0]
+		body.Options["type_id"] = parts[1]
+		body.Options["platform_attributes"] = json.RawMessage(cfg.PlatformAttributes)
+		body.Options["ozon_schema_hash"] = cfg.SchemaHash
+	}
 
 	prov := platformp.Get(platKey)
 	if prov == nil {
@@ -96,14 +140,20 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	var readinessSnap *productcheck.CheckProductReadinessResult
 	var readinessResult *productcheck.CheckProductReadinessResult
 	if s.Readiness != nil {
-		rres, err := s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
-			TenantID:       tenantID,
-			ProductID:      productID,
-			Platform:       platKey,
-			ShopID:         &sid,
-			Mode:           "publish",
-			PublishOptions: body.Options,
-		})
+		var rres *productcheck.CheckProductReadinessResult
+		var err error
+		if platKey == "ozon" {
+			rres, err = s.Readiness.ValidateOzonReadiness(ctx, tenantID, productID, sid)
+		} else {
+			rres, err = s.Readiness.CheckProductReadiness(ctx, productcheck.CheckProductReadinessRequest{
+				TenantID:       tenantID,
+				ProductID:      productID,
+				Platform:       platKey,
+				ShopID:         &sid,
+				Mode:           "publish",
+				PublishOptions: body.Options,
+			})
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -130,6 +180,31 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if err := validateMergedPublishAgainstSchema(pubSch, merged); err != nil {
 		return nil, err
 	}
+	// Only claim idempotency after every non-mutating validation has passed. A
+	// malformed request therefore never leaves an in-progress key behind.
+	var idemJob *publishBatchAcquire
+	completedIdempotency := false
+	if rawIdempotencyKey != "" {
+		reqRaw, _ := json.Marshal(map[string]any{"productId": productID.String(), "body": body})
+		job, replay, acquireErr := s.acquirePublishIdempotency(ctx, tenantIdempotencyKey(tenantID, rawIdempotencyKey), reqRaw, requestIdempotencyOwner(c, "product-publish-create"))
+		if acquireErr != nil {
+			return nil, acquireErr
+		}
+		if replay != nil && replay.Replay && strings.TrimSpace(replay.ResourceID) != "" {
+			if existingID, parseErr := uuid.Parse(replay.ResourceID); parseErr == nil {
+				if out, getErr := s.GetDTO(ctx, tenantID, existingID); getErr == nil {
+					return &out, nil
+				}
+			}
+			return nil, fmt.Errorf("idempotency replay task unavailable")
+		}
+		idemJob = job
+	}
+	defer func() {
+		if idemJob != nil && !completedIdempotency {
+			s.failPublishIdempotency(ctx, idemJob, "PUBLISH_TASK_CREATE_FAILED", true)
+		}
+	}()
 	imgSnap, skuSnap, minPrice := taskImagesAndSKUsSnapshot(draft)
 	checkSnap, _ := json.Marshal(readinessResult)
 	payloadSnap, _ := json.Marshal(platformPayloadSnapshot(draft, merged))
@@ -141,49 +216,86 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		}
 	}
 
-	var pubRow ProductPublication
-	q := s.DB.WithContext(ctx).Where("product_id = ? AND shop_id = ? AND platform = ? AND publish_status = ?",
-		prod.ID, sid, platKey, StatusPublishing).
-		Order("updated_at DESC")
-	if err := q.First(&pubRow).Error; err != nil {
-		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, err
+	title := strings.TrimSpace(prod.Title)
+	if title == "" {
+		title = strings.TrimSpace(prod.AITitle)
+	}
+	currency := strings.TrimSpace(prod.Currency)
+	if currency == "" {
+		currency = "USD"
+	}
+
+	var task ProductPublishTask
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Serialize task creation per product. This closes the gap where callers
+		// could use different idempotency keys before either task became visible.
+		var lockedProduct product.Product
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id").
+			Where("id = ? AND tenant_id = ?", prod.ID, tenantID).First(&lockedProduct).Error; err != nil {
+			return err
 		}
-		title := strings.TrimSpace(prod.Title)
-		if title == "" {
-			title = strings.TrimSpace(prod.AITitle)
+
+		var activeTask ProductPublishTask
+		if err := tx.
+			Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND task_type = ? AND status IN ?", tenantID, productID, sid, platKey, TaskTypeProductPublish, []string{TaskPending, TaskRunning}).
+			Order("created_at DESC").First(&activeTask).Error; err == nil {
+			return fmt.Errorf("a product publish task is already pending or running")
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
 		}
-		curr := strings.TrimSpace(prod.Currency)
-		if curr == "" {
-			curr = "USD"
+		if platKey == "ozon" {
+			var uncertainTask ProductPublishTask
+			if err := tx.
+				Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND task_type = ? AND status = ?", tenantID, productID, sid, platKey, TaskTypeProductPublish, TaskFailed).
+				Order("updated_at DESC").First(&uncertainTask).Error; err == nil {
+				return fmt.Errorf("存在 Ozon 失败任务，需先人工核对或恢复外部刊登结果，不能创建新任务")
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			var existingTask ProductPublishTask
+			if err := tx.
+				Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND task_type = ? AND platform_product_id <> ''", tenantID, productID, sid, platKey, TaskTypeProductPublish).
+				Order("updated_at DESC").First(&existingTask).Error; err == nil {
+				return fmt.Errorf("Ozon 商品已存在或结果待恢复，不能重复创建；请使用后续更新或恢复流程")
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			var existingPublication ProductPublication
+			if err := tx.
+				Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND external_product_id <> ''", tenantID, productID, sid, platKey).
+				Order("updated_at DESC").First(&existingPublication).Error; err == nil {
+				return fmt.Errorf("Ozon 商品已存在，不能重复创建；请使用后续更新流程")
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
 		}
-		pubRow = ProductPublication{
-			TenantID:      tenantID,
-			ProductID:     prod.ID,
-			ShopID:        sid,
-			Platform:      platKey,
-			Status:        StatusPublishing,
-			PublishStatus: StatusPublishing,
-			Title:         title,
-			Currency:      curr,
-			CreatedBy:     adminID,
-		}
-		if err := s.DB.WithContext(ctx).Create(&pubRow).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		title := strings.TrimSpace(prod.Title)
-		if title == "" {
-			title = strings.TrimSpace(prod.AITitle)
-		}
-		curr := strings.TrimSpace(prod.Currency)
-		if curr == "" {
-			curr = "USD"
-		}
-		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", pubRow.ID).
+
+		var pubRow ProductPublication
+		q := tx.Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND publish_status = ?",
+			tenantID, prod.ID, sid, platKey, StatusPublishing).
+			Order("updated_at DESC")
+		if err := q.First(&pubRow).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			pubRow = ProductPublication{
+				TenantID:      tenantID,
+				ProductID:     prod.ID,
+				ShopID:        sid,
+				Platform:      platKey,
+				Status:        StatusPublishing,
+				PublishStatus: StatusPublishing,
+				Title:         title,
+				Currency:      currency,
+				CreatedBy:     adminID,
+			}
+			if err := tx.Create(&pubRow).Error; err != nil {
+				return err
+			}
+		} else if err := tx.Model(&ProductPublication{}).Where("id = ?", pubRow.ID).
 			Updates(map[string]any{
 				"title":               title,
-				"currency":            curr,
+				"currency":            currency,
 				"publish_task_id":     nil,
 				"external_product_id": "",
 				"external_spu_id":     "",
@@ -192,46 +304,49 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 				"published_at":        nil,
 				"status":              StatusPublishing,
 				"publish_status":      StatusPublishing,
-			}).Error
-	}
-	inp := publishSnapshot{
-		PublicationID: pubRow.ID,
-		MergedPublish: merged,
-		Options:       optsSnap,
-	}
-	rawIn, err := json.Marshal(inp)
-	if err != nil {
-		return nil, err
-	}
+			}).Error; err != nil {
+			return err
+		}
 
-	task := ProductPublishTask{
-		TenantID:        tenantID,
-		ProductID:       prod.ID,
-		ShopID:          sid,
-		TargetStoreID:   sid,
-		Platform:        platKey,
-		TaskType:        TaskTypeProductPublish,
-		Status:          TaskPending,
-		PublishStatus:   StatusReady,
-		Mode:            ModeManual,
-		PublishMode:     ModeManual,
-		Title:           draft.Title,
-		Description:     draft.Description,
-		Images:          datatypes.JSON(imgSnap),
-		SKUs:            datatypes.JSON(skuSnap),
-		Price:           minPrice,
-		Currency:        draft.Currency,
-		CheckResult:     datatypes.JSON(checkSnap),
-		PlatformPayload: datatypes.JSON(payloadSnap),
-		Input:           rawIn,
-		CreatedBy:       adminID,
-	}
-	if err := s.DB.WithContext(ctx).Create(&task).Error; err != nil {
-		return nil, err
-	}
-	if err := s.DB.WithContext(ctx).Model(&ProductPublication{}).
-		Where("id = ? AND tenant_id = ?", pubRow.ID, tenantID).
-		Updates(map[string]any{"publish_task_id": task.ID, "updated_at": task.CreatedAt}).Error; err != nil {
+		inp := publishSnapshot{
+			PublicationID: pubRow.ID,
+			MergedPublish: merged,
+			Options:       optsSnap,
+			Draft:         &draft,
+		}
+		rawIn, err := json.Marshal(inp)
+		if err != nil {
+			return err
+		}
+		task = ProductPublishTask{
+			TenantID:        tenantID,
+			ProductID:       prod.ID,
+			ShopID:          sid,
+			TargetStoreID:   sid,
+			Platform:        platKey,
+			TaskType:        TaskTypeProductPublish,
+			Status:          TaskPending,
+			PublishStatus:   StatusReady,
+			Mode:            ModeManual,
+			PublishMode:     ModeManual,
+			Title:           draft.Title,
+			Description:     draft.Description,
+			Images:          datatypes.JSON(imgSnap),
+			SKUs:            datatypes.JSON(skuSnap),
+			Price:           minPrice,
+			Currency:        draft.Currency,
+			CheckResult:     datatypes.JSON(checkSnap),
+			PlatformPayload: datatypes.JSON(payloadSnap),
+			Input:           rawIn,
+			CreatedBy:       adminID,
+		}
+		if err := tx.Create(&task).Error; err != nil {
+			return err
+		}
+		return tx.Model(&ProductPublication{}).
+			Where("id = ? AND tenant_id = ?", pubRow.ID, tenantID).
+			Updates(map[string]any{"publish_task_id": task.ID, "updated_at": task.CreatedAt}).Error
+	}); err != nil {
 		return nil, err
 	}
 
@@ -270,6 +385,10 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 			return nil, err
 		}
 	}
+	if err := s.completeProductPublishTaskIdempotency(ctx, idemJob, task.ID); err != nil {
+		return nil, err
+	}
+	completedIdempotency = true
 
 	out, err := s.GetDTO(ctx, task.TenantID, task.ID)
 	if err != nil {

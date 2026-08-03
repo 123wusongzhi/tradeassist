@@ -2,6 +2,7 @@ package ozon
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -76,5 +77,31 @@ func TestClassifyPermissionDeniedIsPlatformError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), platformp.ErrPlatformProductPublishPermissionDenied.Error()) {
 		t.Fatalf("expected permission denied wrap, got %v", err)
+	}
+}
+
+func TestPostJSONRetryRebuildsRequestBody(t *testing.T) {
+	requests := 0
+	client := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		body, _ := io.ReadAll(r.Body)
+		if string(body) != `{"value":"kept-on-retry"}` {
+			t.Fatalf("request %d body = %q", requests, body)
+		}
+		if requests == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"message":"retry"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	var out struct {
+		OK bool `json:"ok"`
+	}
+	if err := client.postJSON(context.Background(), "/v1/test", map[string]any{"value": "kept-on-retry"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	if requests != 2 || !out.OK {
+		t.Fatalf("requests=%d out=%+v", requests, out)
 	}
 }

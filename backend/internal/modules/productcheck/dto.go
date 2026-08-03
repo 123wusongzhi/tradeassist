@@ -1,6 +1,10 @@
 package productcheck
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // CheckProductReadinessRequest carries inputs for a single readiness evaluation.
 type CheckProductReadinessRequest struct {
@@ -21,19 +25,22 @@ type BatchReadinessRequest struct {
 
 // CheckProductReadinessResult aggregates readiness outcome for one product.
 type CheckProductReadinessResult struct {
-	ProductID    uuid.UUID   `json:"productId"`
-	Platform     string      `json:"platform,omitempty"`
-	ShopID       *uuid.UUID  `json:"shopId,omitempty"`
-	Mode         string      `json:"mode,omitempty"`
-	Status       string      `json:"status"`
-	StatusLabel  string      `json:"statusLabel,omitempty"`
-	Result       string      `json:"result"`
-	ResultLabel  string      `json:"resultLabel,omitempty"`
-	Score        int         `json:"score"`
-	CanPublish   bool        `json:"canPublish"`
-	ErrorCount   int         `json:"errorCount"`
-	WarningCount int         `json:"warningCount"`
-	Checks       []CheckItem `json:"checks"`
+	ProductID     uuid.UUID   `json:"productId"`
+	Platform      string      `json:"platform,omitempty"`
+	ShopID        *uuid.UUID  `json:"shopId,omitempty"`
+	Mode          string      `json:"mode,omitempty"`
+	Status        string      `json:"status"`
+	StatusLabel   string      `json:"statusLabel,omitempty"`
+	Result        string      `json:"result"`
+	ResultLabel   string      `json:"resultLabel,omitempty"`
+	Score         int         `json:"score"`
+	CanPublish    bool        `json:"canPublish"`
+	ErrorCount    int         `json:"errorCount"`
+	WarningCount  int         `json:"warningCount"`
+	Checks        []CheckItem `json:"checks"`
+	CheckedAt     *time.Time  `json:"checkedAt,omitempty"`
+	SchemaHash    string      `json:"schemaHash,omitempty"`
+	SchemaChanged bool        `json:"schemaChanged,omitempty"`
 }
 
 // CheckItem is one non-pass finding (warnings and errors only).

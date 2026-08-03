@@ -39,14 +39,27 @@
       "path": "/api/v1/products/:id/publish",
       "auth": true,
       "requestBody": ["shopId", "options", "force"],
+      "conditionalRequiredHeaders": { "ozon": ["Idempotency-Key"] },
       "responseData": "ProductPublishTaskDTO"
     },
-    { "method": "GET", "path": "/api/v1/platform/ozon/categories", "auth": true, "query": ["keyword", "onlyLeaf", "limit"], "responseData": "OzonCategoryListResult" },
-    { "method": "POST", "path": "/api/v1/platform/ozon/categories/sync", "auth": true, "requestBody": ["shopId"], "responseData": "OzonCategoryStats" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories", "auth": true, "query": ["keyword", "onlyLeaf", "activeOnly", "limit"], "responseData": "OzonCategoryListResult" },
+    { "method": "POST", "path": "/api/v1/platform/ozon/categories/sync", "auth": true, "requestBody": ["shopId"], "responseData": "OzonCategorySyncStart" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/sync-runs", "auth": true, "query": ["limit"], "responseData": "OzonCategorySyncRunList" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/sync-runs/:id", "auth": true, "responseData": "OzonCategorySyncRun" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/changes", "auth": true, "query": ["limit", "changeType"], "responseData": "OzonCategoryChangeList", "responseFields": ["list[].categoryName", "list[].occurredAt", "list[].detail"] },
     { "method": "GET", "path": "/api/v1/platform/ozon/categories/stats", "auth": true, "responseData": "OzonCategoryStats" },
     { "method": "GET", "path": "/api/v1/platform/ozon/categories/:id/attributes", "auth": true, "responseData": "OzonCategoryAttributeList" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/categories/:id/attributes/:attrId/values", "auth": true, "query": ["shopId", "keyword"], "responseData": "OzonDictionaryValueList" },
     { "method": "POST", "path": "/api/v1/platform/ozon/categories/:id/attributes/sync", "auth": true, "requestBody": ["shopId"], "responseData": "OzonCategoryStats" },
     { "method": "GET", "path": "/api/v1/platform/ozon/categories/:id/attribute-mappings", "auth": true, "responseData": "OzonAttributeMappingList" },
-    { "method": "PUT", "path": "/api/v1/platform/ozon/categories/:id/attribute-mappings", "auth": true, "requestBody": ["items"], "responseData": "OzonAttributeMappingList" }
+    { "method": "PUT", "path": "/api/v1/platform/ozon/categories/:id/attribute-mappings", "auth": true, "requestBody": ["items"], "responseData": "OzonAttributeMappingList" },
+    { "method": "GET", "path": "/api/v1/platform/ozon/category-mappings", "auth": true, "query": ["shopId"], "responseData": "OzonCategoryMappingList" },
+    { "method": "POST", "path": "/api/v1/platform/ozon/category-mappings/recommend", "auth": true, "requestBody": ["shopId", "sourceCategoryKey", "sourceCategoryName"], "responseData": "OzonCategoryMappingRecommendation" },
+    { "method": "PUT", "path": "/api/v1/platform/ozon/category-mappings", "auth": true, "requestBody": ["shopId", "sourceCategoryKey", "sourceCategoryName", "categoryId", "categoryPath", "status"], "responseData": "OzonCategoryMapping" },
+    { "method": "GET", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "responseData": "OzonProductPlatformConfig" },
+    { "method": "PUT", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "requestBody": ["shopId", "categoryId", "categoryPath", "platformAttributes", "sourceCategoryKey", "sourceCategoryName"], "responseData": "OzonProductPlatformConfig" },
+    { "method": "POST", "path": "/api/v1/products/:id/readiness/validate", "auth": true, "requestBody": ["platform", "shopId"], "responseData": "OzonPublishReadiness" },
+    { "method": "POST", "path": "/api/v1/product-publish/ozon/category-groups/check", "auth": true, "requestBody": ["productIds", "shopId"], "responseData": "OzonCategoryGroupsCheck" },
+    { "method": "POST", "path": "/api/v1/product-publish/ozon/category-groups/confirm", "auth": true, "requestBody": ["shopId", "groups", "saveMappings"], "responseData": "OzonCategoryGroupConfirmResult" }
   ]
 }

@@ -4,6 +4,7 @@ import {
   getOzonAttributeMappings,
   putOzonAttributeMappings,
   queryOzonCategories,
+  searchOzonDictionaryValues,
   syncOzonCategories,
   syncOzonCategoryAttributes,
 } from '../ozonCategories';
@@ -28,17 +29,28 @@ describe('ozon category services', () => {
   });
 
   it('syncs category tree with optional shop id', async () => {
-    requestMock.mockResolvedValueOnce(envelope({ count: 2, leafCount: 1 }));
-    await syncOzonCategories('shop-1');
+    requestMock.mockResolvedValueOnce(envelope({ stats: { count: 2, leafCount: 1 }, run: { id: 'run-1', status: 'pending' }, runId: 'run-1' }));
+    const started = await syncOzonCategories('shop-1');
+    expect(started.runId).toBe('run-1');
     expect(requestMock).toHaveBeenCalledWith('/api/v1/platform/ozon/categories/sync', {
       method: 'POST',
       data: { shopId: 'shop-1' },
     });
-    requestMock.mockResolvedValueOnce(envelope({ count: 2, leafCount: 1 }));
+    requestMock.mockResolvedValueOnce(envelope({ stats: { count: 2, leafCount: 1 } }));
     await syncOzonCategories();
     expect(requestMock).toHaveBeenLastCalledWith('/api/v1/platform/ozon/categories/sync', {
       method: 'POST',
       data: {},
+    });
+  });
+
+  it('searches dictionary values with category, attribute and shop scope', async () => {
+    requestMock.mockResolvedValueOnce(envelope({ list: [{ id: '42', value: 'Acme' }] }));
+    const result = await searchOzonDictionaryValues('100:200', '85', 'shop-1', 'Acme');
+    expect(result.list[0]).toEqual({ id: '42', value: 'Acme' });
+    expect(requestMock).toHaveBeenCalledWith('/api/v1/platform/ozon/categories/100%3A200/attributes/85/values', {
+      method: 'GET',
+      params: { shopId: 'shop-1', keyword: 'Acme' },
     });
   });
 

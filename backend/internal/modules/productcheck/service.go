@@ -714,7 +714,8 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 			})
 		}
 		for _, k := range supplementalPublishRequiredKeys(plat) {
-			if strings.TrimSpace(publishPickField(merged, k)) == "" {
+			value := strings.TrimSpace(publishPickField(merged, k))
+			if value == "" || (plat == "ozon" && !positiveOzonPackageValue(value)) {
 				out = append(out, CheckItem{
 					Group:      "platform",
 					Code:       "platform.publish_field_missing",
@@ -808,18 +809,31 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 		}
 	}
 	if plat != "mock" {
-		if strings.TrimSpace(plainAuth.AccessToken) == "" && strings.TrimSpace(plainAuth.RefreshToken) == "" {
+		credentialsMissing := strings.TrimSpace(plainAuth.AccessToken) == "" && strings.TrimSpace(plainAuth.RefreshToken) == ""
+		if plat == "ozon" {
+			credentialsMissing = strings.TrimSpace(plainAuth.AppKey) == "" || strings.TrimSpace(plainAuth.AccessToken) == ""
+		}
+		if credentialsMissing {
+			message := "店铺缺少有效授权凭证"
+			suggestion := "请重新授权店铺以写入 Access / Refresh Token。"
+			if plat == "ozon" {
+				message = "Ozon 店铺缺少 Client-Id 或 Api-Key"
+				suggestion = "请在店铺授权中重新保存 Ozon Client-Id 与 Api-Key。"
+			}
 			out = append(out, CheckItem{
 				Group:      "platform",
 				Code:       "platform.shop_token_missing",
 				Level:      levelError,
-				Message:    "店铺缺少有效授权凭证",
-				Suggestion: "请重新授权店铺以写入 Access / Refresh Token。",
+				Message:    message,
+				Suggestion: suggestion,
 			})
 		}
 	}
 	if plat == "douyin_shop" {
 		out = append(out, s.checkDouyinListingConfig(ctx, prod)...)
+	}
+	if plat == "ozon" {
+		out = append(out, s.checkOzonListingConfig(ctx, prod, shopID)...)
 	}
 	return out, nil
 }

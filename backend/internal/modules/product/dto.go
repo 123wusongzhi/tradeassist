@@ -39,6 +39,8 @@ type PlatformPublishConfigBody struct {
 	CategoryID         string          `json:"categoryId"`
 	CategoryPath       string          `json:"categoryPath"`
 	PlatformAttributes json.RawMessage `json:"platformAttributes"`
+	SourceCategoryKey  string          `json:"sourceCategoryKey"`
+	SourceCategoryName string          `json:"sourceCategoryName"`
 }
 
 type PlatformPublishConfigDTO struct {
@@ -50,6 +52,10 @@ type PlatformPublishConfigDTO struct {
 	PlatformAttributes json.RawMessage     `json:"platformAttributes,omitempty"`
 	Mapping            *DouyinDraftMapping `json:"mapping,omitempty"`
 	LastMappedAt       *time.Time          `json:"lastMappedAt,omitempty"`
+	SourceCategoryKey  string              `json:"sourceCategoryKey,omitempty"`
+	SourceCategoryName string              `json:"sourceCategoryName,omitempty"`
+	SchemaHash         string              `json:"schemaHash,omitempty"`
+	SchemaConfirmedAt  *time.Time          `json:"schemaConfirmedAt,omitempty"`
 	CreatedAt          time.Time           `json:"createdAt"`
 	UpdatedAt          time.Time           `json:"updatedAt"`
 }

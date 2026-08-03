@@ -20,12 +20,16 @@ const (
 )
 
 type ozonAttribute struct {
-	ID           int64  `json:"id"`
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	DictionaryID int64  `json:"dictionary_id"`
-	IsRequired   bool   `json:"is_required"`
-	IsCollection bool   `json:"is_collection"`
+	ID                  int64  `json:"id"`
+	Name                string `json:"name"`
+	Type                string `json:"type"`
+	DictionaryID        int64  `json:"dictionary_id"`
+	IsRequired          bool   `json:"is_required"`
+	IsCollection        bool   `json:"is_collection"`
+	AttributeComplexID  int64  `json:"attribute_complex_id"`
+	MaxValueCount       int64  `json:"max_value_count"`
+	ComplexIsCollection bool   `json:"complex_is_collection"`
+	CategoryDependent   bool   `json:"category_dependent"`
 }
 
 type ozonAttributeValue struct {
@@ -59,7 +63,7 @@ type dictionaryValue struct {
 	Value string `json:"value"`
 }
 
-func (c *ozonClient) searchAttributeValue(ctx context.Context, categoryID, typeID, attrID int64, value string) (*dictionaryValue, error) {
+func (c *ozonClient) searchAttributeValues(ctx context.Context, categoryID, typeID, attrID int64, value string) ([]dictionaryValue, error) {
 	v := strings.TrimSpace(value)
 	if len([]rune(v)) < 2 {
 		return nil, nil
@@ -77,18 +81,92 @@ func (c *ozonClient) searchAttributeValue(ctx context.Context, categoryID, typeI
 	if err := c.postJSON(ctx, pathAttributeSearch, body, &resp); err != nil {
 		return nil, err
 	}
-	target := normalizeText(v)
-	var best *dictionaryValue
-	for i := range resp.Result {
-		dv := resp.Result[i]
+	return resp.Result, nil
+}
+
+// searchAttributeValue deliberately accepts exact normalized text only. Ozon's
+// search endpoint can return fuzzy candidates; silently selecting its first row
+// can assign a valid dictionary ID to the wrong seller value.
+func (c *ozonClient) searchAttributeValue(ctx context.Context, categoryID, typeID, attrID int64, value string) (*dictionaryValue, error) {
+	rows, err := c.searchAttributeValues(ctx, categoryID, typeID, attrID, value)
+	if err != nil {
+		return nil, err
+	}
+	target := normalizeText(value)
+	for i := range rows {
+		dv := rows[i]
 		if normalizeText(dv.Value) == target {
 			return &dv, nil
 		}
-		if best == nil {
-			best = &dv
-		}
 	}
-	return best, nil
+	return nil, nil
+}
+
+func (c *ozonClient) validateDictionaryValue(
+	ctx context.Context,
+	categoryID, typeID, attrID, dictionaryValueID int64,
+	value string,
+) (*dictionaryValue, error) {
+	if dictionaryValueID <= 0 || strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	if len([]rune(strings.TrimSpace(value))) >= 2 {
+		rows, err := c.searchAttributeValues(ctx, categoryID, typeID, attrID, value)
+		if err != nil {
+			return nil, err
+		}
+		target := normalizeText(value)
+		for i := range rows {
+			if rows[i].ID == dictionaryValueID && normalizeText(rows[i].Value) == target {
+				return &rows[i], nil
+			}
+		}
+		return nil, nil
+	}
+
+	// Ozon requires at least two characters for the search endpoint. For short
+	// values, use the cursor endpoint and stop as soon as the requested ID is
+	// found or the monotonically increasing cursor has passed it.
+	lastID := int64(0)
+	for page := 0; page < 500; page++ {
+		var resp struct {
+			Result []dictionaryValue `json:"result"`
+		}
+		body := map[string]any{
+			"description_category_id": categoryID,
+			"type_id":                 typeID,
+			"attribute_id":            attrID,
+			"language":                "DEFAULT",
+			"limit":                   100,
+			"last_value_id":           lastID,
+		}
+		if err := c.postJSON(ctx, pathAttributeValues, body, &resp); err != nil {
+			return nil, err
+		}
+		if len(resp.Result) == 0 {
+			return nil, nil
+		}
+		nextID := lastID
+		for i := range resp.Result {
+			row := resp.Result[i]
+			if row.ID == dictionaryValueID && normalizeText(row.Value) == normalizeText(value) {
+				return &row, nil
+			}
+			if row.ID > nextID {
+				nextID = row.ID
+			}
+		}
+		if len(resp.Result) < 100 || nextID <= lastID || nextID > dictionaryValueID {
+			return nil, nil
+		}
+		lastID = nextID
+	}
+	return nil, fmt.Errorf("ozon dictionary validation exceeded pagination limit")
+}
+
+type explicitOzonAttribute struct {
+	Value             string
+	DictionaryValueID int64
 }
 
 // categoryAttributeMatch is one auto-filled Ozon attribute.
@@ -107,12 +185,30 @@ func (c *ozonClient) buildCategoryAttributes(
 	localAttrs map[string]string,
 	merged ozonPublishMerged,
 ) ([]ozonAttributeValue, []string, []ozonAttribute, error) {
+	return c.buildCategoryAttributesForPublish(ctx, categoryID, typeID, localAttrs, merged, nil, true)
+}
+
+func (c *ozonClient) buildCategoryAttributesForPublish(
+	ctx context.Context,
+	categoryID, typeID int64,
+	localAttrs map[string]string,
+	merged ozonPublishMerged,
+	explicit map[string]explicitOzonAttribute,
+	allowAutoFill bool,
+	preloaded ...[]ozonAttribute,
+) ([]ozonAttributeValue, []string, []ozonAttribute, error) {
 	if categoryID <= 0 || typeID <= 0 {
 		return nil, nil, nil, fmt.Errorf("ozon publish requires description_category_id and type_id")
 	}
-	attrs, err := c.getCategoryAttributes(ctx, categoryID, typeID)
-	if err != nil {
-		return nil, nil, nil, err
+	var attrs []ozonAttribute
+	if len(preloaded) > 0 {
+		attrs = append([]ozonAttribute(nil), preloaded[0]...)
+	} else {
+		var err error
+		attrs, err = c.getCategoryAttributes(ctx, categoryID, typeID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	if len(attrs) == 0 {
 		return nil, nil, nil, nil
@@ -130,19 +226,61 @@ func (c *ozonClient) buildCategoryAttributes(
 	missing := make([]string, 0, 4)
 	missingDefs := make([]ozonAttribute, 0, 4)
 	seen := map[int64]bool{}
+	usedExplicit := map[string]bool{}
 	added := 0
 
 	for _, a := range attrs {
 		if seen[a.ID] || a.ID <= 0 {
 			continue
 		}
-		if added >= maxMappedAttributes {
-			break
+		selected, explicitKey, hasExplicit := explicitAttributeFor(a, explicit)
+		if added >= maxMappedAttributes && !a.IsRequired && !hasExplicit {
+			continue
 		}
-		value, dictID, ok := resolveAttributeValue(ctx, c, categoryID, typeID, a, localAttrs, merged)
+		value := ""
+		dictID := int64(0)
+		ok := false
+		if hasExplicit {
+			usedExplicit[explicitKey] = true
+			value = strings.TrimSpace(selected.Value)
+			if value != "" {
+				if a.DictionaryID != 0 {
+					if selected.DictionaryValueID > 0 {
+						matched, matchErr := c.validateDictionaryValue(ctx, categoryID, typeID, a.ID, selected.DictionaryValueID, value)
+						if matchErr != nil {
+							return nil, nil, nil, matchErr
+						}
+						if matched == nil {
+							return nil, nil, nil, fmt.Errorf("ozon dictionary value does not belong to attribute %s", attributeDisplayName(a))
+						}
+						value, dictID, ok = matched.Value, matched.ID, true
+					} else {
+						matched, matchErr := c.searchAttributeValue(ctx, categoryID, typeID, a.ID, value)
+						if matchErr != nil {
+							return nil, nil, nil, matchErr
+						}
+						if matched == nil {
+							return nil, nil, nil, fmt.Errorf("ozon dictionary value is not an exact match for attribute %s", attributeDisplayName(a))
+						}
+						value, dictID, ok = matched.Value, matched.ID, true
+					}
+				} else {
+					if selected.DictionaryValueID > 0 {
+						return nil, nil, nil, fmt.Errorf("ozon non-dictionary attribute %s cannot use dictionaryValueId", attributeDisplayName(a))
+					}
+					ok = true
+				}
+			}
+		} else if allowAutoFill {
+			var resolveErr error
+			value, dictID, ok, resolveErr = resolveAttributeValue(ctx, c, categoryID, typeID, a, localAttrs, merged)
+			if resolveErr != nil {
+				return nil, nil, nil, resolveErr
+			}
+		}
 		if !ok {
 			if a.IsRequired {
-				missing = append(missing, a.Name)
+				missing = append(missing, attributeDisplayName(a))
 				missingDefs = append(missingDefs, a)
 			}
 			continue
@@ -154,12 +292,41 @@ func (c *ozonClient) buildCategoryAttributes(
 			vals[0].DictionaryValueID = dictID
 		}
 		out = append(out, ozonAttributeValue{
-			ComplexID: 0,
+			ComplexID: a.AttributeComplexID,
 			ID:        a.ID,
 			Values:    vals,
 		})
 	}
+	for key := range explicit {
+		if !usedExplicit[key] {
+			return nil, nil, nil, fmt.Errorf("ozon category template does not contain explicit attribute %s", key)
+		}
+	}
 	return out, missing, missingDefs, nil
+}
+
+func explicitAttributeFor(a ozonAttribute, explicit map[string]explicitOzonAttribute) (explicitOzonAttribute, string, bool) {
+	if len(explicit) == 0 {
+		return explicitOzonAttribute{}, "", false
+	}
+	id := strconv.FormatInt(a.ID, 10)
+	if value, ok := explicit[id]; ok {
+		return value, id, true
+	}
+	target := normalizeText(a.Name)
+	for key, value := range explicit {
+		if normalizeText(key) == target {
+			return value, key, true
+		}
+	}
+	return explicitOzonAttribute{}, "", false
+}
+
+func attributeDisplayName(a ozonAttribute) string {
+	if name := strings.TrimSpace(a.Name); name != "" {
+		return name
+	}
+	return strconv.FormatInt(a.ID, 10)
 }
 
 // applySuggestedAttributes maps LLM-suggested values for missing required
@@ -185,10 +352,10 @@ func (c *ozonClient) applySuggestedAttributes(
 				missing = append(missing, a.Name)
 				continue
 			}
-			out = append(out, ozonAttributeValue{ID: a.ID, Values: []ozonAttrValue{{DictionaryValueID: dv.ID, Value: dv.Value}}})
+			out = append(out, ozonAttributeValue{ComplexID: a.AttributeComplexID, ID: a.ID, Values: []ozonAttrValue{{DictionaryValueID: dv.ID, Value: dv.Value}}})
 			continue
 		}
-		out = append(out, ozonAttributeValue{ID: a.ID, Values: []ozonAttrValue{{Value: v}}})
+		out = append(out, ozonAttributeValue{ComplexID: a.AttributeComplexID, ID: a.ID, Values: []ozonAttrValue{{Value: v}}})
 	}
 	return out, missing
 }
@@ -200,35 +367,63 @@ func resolveAttributeValue(
 	a ozonAttribute,
 	localAttrs map[string]string,
 	merged ozonPublishMerged,
-) (value string, dictID int64, ok bool) {
+) (value string, dictID int64, ok bool, err error) {
+	if v := strings.TrimSpace(localAttrs[strconv.FormatInt(a.ID, 10)]); v != "" {
+		if a.DictionaryID != 0 {
+			dv, lookupErr := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v)
+			if lookupErr != nil {
+				return "", 0, false, lookupErr
+			}
+			if dv == nil {
+				return "", 0, false, nil
+			}
+			return dv.Value, dv.ID, true, nil
+		}
+		return v, 0, true, nil
+	}
 	// 1) local attribute by alias / normalized name.
 	if v := matchLocalAttribute(a, localAttrs); v != "" {
 		if a.DictionaryID != 0 {
-			if dv, err := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v); err == nil && dv != nil {
-				return dv.Value, dv.ID, true
+			dv, lookupErr := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v)
+			if lookupErr != nil {
+				return "", 0, false, lookupErr
 			}
+			if dv != nil {
+				return dv.Value, dv.ID, true, nil
+			}
+			return "", 0, false, nil
 		}
-		return v, 0, true
+		return v, 0, true, nil
 	}
 	// 2) publish-config defaults for common attributes.
 	if v := defaultForAttribute(a, merged); v != "" {
 		if a.DictionaryID != 0 {
-			if dv, err := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v); err == nil && dv != nil {
-				return dv.Value, dv.ID, true
+			dv, lookupErr := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v)
+			if lookupErr != nil {
+				return "", 0, false, lookupErr
 			}
+			if dv != nil {
+				return dv.Value, dv.ID, true, nil
+			}
+			return "", 0, false, nil
 		}
-		return v, 0, true
+		return v, 0, true, nil
 	}
 	// 3) user-configured extra defaults (attr_id -> value).
 	if v := merged.AttributeDefaults[strconv.FormatInt(a.ID, 10)]; v != "" {
 		if a.DictionaryID != 0 {
-			if dv, err := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v); err == nil && dv != nil {
-				return dv.Value, dv.ID, true
+			dv, lookupErr := client.searchAttributeValue(ctx, categoryID, typeID, a.ID, v)
+			if lookupErr != nil {
+				return "", 0, false, lookupErr
 			}
+			if dv != nil {
+				return dv.Value, dv.ID, true, nil
+			}
+			return "", 0, false, nil
 		}
-		return v, 0, true
+		return v, 0, true, nil
 	}
-	return "", 0, false
+	return "", 0, false, nil
 }
 
 func matchLocalAttribute(a ozonAttribute, local map[string]string) string {

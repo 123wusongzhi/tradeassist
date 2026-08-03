@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/encrypt"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -41,6 +43,8 @@ func newOzonCategoryFakeAPI(t *testing.T) *ozonCategoryFakeAPI {
 				return
 			}
 			_, _ = w.Write([]byte(`{"result":[]}`))
+		case "/v1/description-category/attribute/values/search":
+			_, _ = w.Write([]byte(`{"result":[{"id":1001,"value":"Белый"}]}`))
 		default:
 			t.Fatalf("unexpected ozon path %s", r.URL.Path)
 		}
@@ -105,6 +109,65 @@ func newOzonCategoryTestService(t *testing.T, db *gorm.DB, enc *encrypt.Service)
 	return &Service{DB: db, Encrypter: enc}
 }
 
+func setOzonTestBaseURL(t *testing.T, svc *Service, baseURL string) {
+	t.Helper()
+	svc.TrustedProviderRuntimeOverrides = map[string]map[string]string{
+		ozonPlatform: {"api_base_url": baseURL, "timeout_sec": "5"},
+	}
+}
+
+func TestOzonLegacyAuthConfigCannotOverrideRuntime(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	shopID := seedOzonAuthorizedShop(t, db, enc, "http://127.0.0.1:1")
+	svc := newOzonCategoryTestService(t, db, enc)
+
+	var shopRow Shop
+	if err := db.First(&shopRow, "id = ?", shopID).Error; err != nil {
+		t.Fatal(err)
+	}
+	_, token, auth, err := svc.decryptedAuthForShop(context.Background(), &shopRow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(auth.Extra) != 0 {
+		t.Fatalf("legacy Ozon authConfig must not reach provider runtime: %+v", auth.Extra)
+	}
+	if dto := svc.buildAuthPublic(token); len(dto.AuthConfig) != 0 {
+		t.Fatalf("legacy Ozon authConfig must not be returned: %s", dto.AuthConfig)
+	}
+
+	setOzonTestBaseURL(t, svc, "http://127.0.0.1:2")
+	_, _, trustedAuth, err := svc.decryptedAuthForShop(context.Background(), &shopRow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trustedAuth.Extra["api_base_url"] != "http://127.0.0.1:2" {
+		t.Fatalf("trusted process override missing: %+v", trustedAuth.Extra)
+	}
+}
+
+func TestUpdateAuthRejectsOzonAuthConfig(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	shopID := seedOzonAuthorizedShop(t, db, enc, "http://127.0.0.1:1")
+	svc := newOzonCategoryTestService(t, db, enc)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/shops/"+shopID.String()+"/auth", nil)
+	c.Set(ctxkey.TenantID, int64(0))
+
+	_, err := svc.UpdateAuth(c, shopID, UpdateAuthBody{AuthConfig: map[string]any{"api_base_url": "http://127.0.0.1:2"}}, nil)
+	if err == nil || !strings.Contains(err.Error(), "authConfig is not supported") {
+		t.Fatalf("expected Ozon authConfig rejection, got %v", err)
+	}
+}
+
+func TestNormalizeOzonSourceCategorySupportsUnicodeLetters(t *testing.T) {
+	if got := normalizeOzonSourceCategory("  Мебель / 桌子 🪑 42 "); got != "мебель桌子42" {
+		t.Fatalf("unexpected normalized category: %q", got)
+	}
+}
+
 func newOzonCategoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := newDouyinShopTestDB(t)
@@ -119,6 +182,7 @@ func TestOzonCategorySyncWritesCacheIdempotently(t *testing.T) {
 	enc, _ := encrypt.NewService("test-master-key")
 	svc := newOzonCategoryTestService(t, db, enc)
 	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
 	shopID := seedOzonAuthorizedShop(t, db, enc, api.URL)
 
 	stats, err := svc.SyncOzonCategories(context.Background(), 0, shopID)
@@ -165,6 +229,7 @@ func TestOzonCategorySyncResolvesFirstAuthorizedShop(t *testing.T) {
 	enc, _ := encrypt.NewService("test-master-key")
 	svc := newOzonCategoryTestService(t, db, enc)
 	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
 	seedOzonAuthorizedShop(t, db, enc, api.URL)
 	stats, err := svc.SyncOzonCategories(context.Background(), 0, uuid.Nil)
 	if err != nil {
@@ -180,10 +245,11 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 	enc, _ := encrypt.NewService("test-master-key")
 	svc := newOzonCategoryTestService(t, db, enc)
 	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
 	seedOzonAuthorizedShop(t, db, enc, api.URL)
 	catID := seedOzonLeafCategory(t, db)
 
-	stats, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID, uuid.Nil)
+	stats, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID.String(), uuid.Nil)
 	if err != nil {
 		t.Fatalf("SyncOzonCategoryAttributes() error = %v", err)
 	}
@@ -212,12 +278,41 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 	if !strings.Contains(string(dictAttr.Raw), "dictionary_id") || len(dictAttr.Options) == 0 {
 		t.Fatalf("dictionary attr missing raw/options: raw=%s options=%s", string(dictAttr.Raw), string(dictAttr.Options))
 	}
-	dtoList, err := svc.ListOzonCategoryAttributes(context.Background(), catID)
+	dtoList, err := svc.ListOzonCategoryAttributes(context.Background(), catID.String())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(dtoList) != 2 || dtoList[0].DictionaryID == "" {
+	var dictionaryDTO *OzonAttributeDTO
+	for i := range dtoList {
+		if dtoList[i].AttrID == "86" {
+			dictionaryDTO = &dtoList[i]
+		}
+	}
+	if len(dtoList) != 2 || dictionaryDTO == nil || dictionaryDTO.DictionaryID != "123" {
 		t.Fatalf("unexpected dto list: %+v", dtoList)
+	}
+}
+
+func TestSearchOzonDictionaryValuesUsesSelectedAttributeAndShop(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	svc := newOzonCategoryTestService(t, db, enc)
+	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
+	shopID := seedOzonAuthorizedShop(t, db, enc, api.URL)
+	catID := seedOzonLeafCategory(t, db)
+	if _, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID.String(), shopID); err != nil {
+		t.Fatal(err)
+	}
+	values, err := svc.SearchOzonDictionaryValues(context.Background(), 0, "100:200", "86", shopID, "Бел")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(values) != 1 || values[0].ID != "1001" || values[0].Value != "Белый" {
+		t.Fatalf("unexpected dictionary search values: %+v", values)
+	}
+	if _, err := svc.SearchOzonDictionaryValues(context.Background(), 0, "100:200", "85", shopID, "Бр"); err == nil {
+		t.Fatal("expected non-dictionary attribute search to fail")
 	}
 }
 
@@ -231,7 +326,7 @@ func TestOzonAttributeMappingsRoundTrip(t *testing.T) {
 		{AttributeID: "85", AttributeName: "Бренд", LocalField: "brand", Enabled: true},
 		{AttributeID: "86", AttributeName: "Цвет", LocalField: "color", Enabled: true},
 	}}
-	out, err := svc.PutOzonAttributeMappings(context.Background(), catID, body)
+	out, err := svc.PutOzonAttributeMappings(context.Background(), catID.String(), body)
 	if err != nil {
 		t.Fatalf("PutOzonAttributeMappings() error = %v", err)
 	}
@@ -241,10 +336,10 @@ func TestOzonAttributeMappingsRoundTrip(t *testing.T) {
 	body2 := PutOzonAttributeMappingsBody{Items: []OzonAttributeMappingDTO{
 		{AttributeID: "85", AttributeName: "Бренд", LocalField: "brand_name", Enabled: true},
 	}}
-	if _, err := svc.PutOzonAttributeMappings(context.Background(), catID, body2); err != nil {
+	if _, err := svc.PutOzonAttributeMappings(context.Background(), catID.String(), body2); err != nil {
 		t.Fatal(err)
 	}
-	got, err := svc.GetOzonAttributeMappings(context.Background(), catID)
+	got, err := svc.GetOzonAttributeMappings(context.Background(), catID.String())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -275,5 +370,34 @@ func TestOzonCategoryListFiltersAndStats(t *testing.T) {
 	}
 	if stats.Count != 2 || stats.LeafCount != 1 {
 		t.Fatalf("unexpected stats: %+v", stats)
+	}
+}
+
+func TestListOzonCategoryChangesReturnsChangeCenterDTO(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	if err := db.AutoMigrate(&OzonCategoryChange{}); err != nil {
+		t.Fatal(err)
+	}
+	svc := newOzonCategoryTestService(t, db, &encrypt.Service{})
+	before := datatypes.JSON([]byte(`{"name":"Old category"}`))
+	after := datatypes.JSON([]byte(`{"name":"New category"}`))
+	change := OzonCategoryChange{TenantID: 9, ShopID: uuid.New(), SyncRunID: uuid.New(), CategoryID: "100:200", ChangeType: "changed", Before: before, After: after}
+	if err := db.Create(&change).Error; err != nil {
+		t.Fatal(err)
+	}
+	rows, err := svc.ListOzonCategoryChanges(context.Background(), 9, OzonCategoryChangesQuery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %#v", rows)
+	}
+	got := rows[0]
+	if got.CategoryName != "New category" || got.OccurredAt.IsZero() || got.Detail != "类目名称或层级已变化：New category" || string(got.After) != string(after) {
+		t.Fatalf("change DTO = %#v", got)
+	}
+	reactivated := ozonCategoryChangeDTO(OzonCategoryChange{ChangeType: "reactivated", After: after})
+	if reactivated.Detail != "类目已恢复启用：New category" {
+		t.Fatalf("reactivated detail = %q", reactivated.Detail)
 	}
 }

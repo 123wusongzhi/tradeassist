@@ -2,7 +2,9 @@ package ozon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -72,28 +74,72 @@ func validateOzonPublishMerged(m ozonPublishMerged) error {
 	if m.TypeID <= 0 {
 		return fmt.Errorf("ozon publish requires type_id in publish settings")
 	}
+	for _, field := range []struct {
+		name  string
+		value int64
+	}{
+		{"default_weight", m.WeightG},
+		{"default_width", m.WidthMM},
+		{"default_height", m.HeightMM},
+		{"default_depth", m.DepthMM},
+	} {
+		if field.value <= 0 {
+			return fmt.Errorf("ozon publish requires %s greater than zero in publish settings", field.name)
+		}
+	}
 	return nil
 }
 
 type ozonImportItem struct {
-	Attributes            []ozonAttributeValue `json:"attributes,omitempty"`
-	DescriptionCategoryID int64                `json:"description_category_id"`
-	TypeID                int64                `json:"type_id"`
-	Name                  string               `json:"name"`
-	OfferID               string               `json:"offer_id"`
-	CurrencyCode          string               `json:"currency_code"`
-	Price                 string               `json:"price"`
-	VAT                   string               `json:"vat"`
-	Images                []string             `json:"images,omitempty"`
-	PrimaryImage          string               `json:"primary_image,omitempty"`
-	Weight                int64                `json:"weight,omitempty"`
-	Width                 int64                `json:"width,omitempty"`
-	Height                int64                `json:"height,omitempty"`
-	Depth                 int64                `json:"depth,omitempty"`
-	WeightUnit            string               `json:"weight_unit,omitempty"`
-	DimensionUnit         string               `json:"dimension_unit,omitempty"`
-	IsPreorder            bool                 `json:"is_preorder"`
-	AutoRenew             string               `json:"auto_renew,omitempty"`
+	Attributes            []ozonAttributeValue        `json:"attributes,omitempty"`
+	ComplexAttributes     []ozonComplexAttributeGroup `json:"complex_attributes,omitempty"`
+	DescriptionCategoryID int64                       `json:"description_category_id"`
+	TypeID                int64                       `json:"type_id"`
+	Name                  string                      `json:"name"`
+	OfferID               string                      `json:"offer_id"`
+	CurrencyCode          string                      `json:"currency_code"`
+	Price                 string                      `json:"price"`
+	VAT                   string                      `json:"vat"`
+	Images                []string                    `json:"images,omitempty"`
+	PrimaryImage          string                      `json:"primary_image,omitempty"`
+	Weight                int64                       `json:"weight"`
+	Width                 int64                       `json:"width"`
+	Height                int64                       `json:"height"`
+	Depth                 int64                       `json:"depth"`
+	WeightUnit            string                      `json:"weight_unit,omitempty"`
+	DimensionUnit         string                      `json:"dimension_unit,omitempty"`
+	IsPreorder            bool                        `json:"is_preorder"`
+	AutoRenew             string                      `json:"auto_renew,omitempty"`
+}
+
+// ozonComplexAttributeGroup represents one complex-attribute instance. The
+// current product UI supplies one value per attribute, so one group is emitted
+// for each non-zero complex ID; repeated complex instances are deliberately
+// not inferred here.
+type ozonComplexAttributeGroup struct {
+	Attributes []ozonAttributeValue `json:"attributes"`
+}
+
+func partitionOzonImportAttributes(values []ozonAttributeValue) ([]ozonAttributeValue, []ozonComplexAttributeGroup) {
+	ordinary := make([]ozonAttributeValue, 0, len(values))
+	byComplexID := make(map[int64][]ozonAttributeValue)
+	complexIDs := make([]int64, 0)
+	for _, value := range values {
+		if value.ComplexID <= 0 {
+			ordinary = append(ordinary, value)
+			continue
+		}
+		if _, exists := byComplexID[value.ComplexID]; !exists {
+			complexIDs = append(complexIDs, value.ComplexID)
+		}
+		byComplexID[value.ComplexID] = append(byComplexID[value.ComplexID], value)
+	}
+	sort.Slice(complexIDs, func(i, j int) bool { return complexIDs[i] < complexIDs[j] })
+	complex := make([]ozonComplexAttributeGroup, 0, len(complexIDs))
+	for _, complexID := range complexIDs {
+		complex = append(complex, ozonComplexAttributeGroup{Attributes: byComplexID[complexID]})
+	}
+	return ordinary, complex
 }
 
 func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishProductRequest) (*platformp.PublishProductResult, error) {
@@ -127,19 +173,42 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	defer cancel()
 	client := newClient(cfg)
 
+	explicitAttrs, err := parseExplicitOzonAttributes(req.Options)
+	if err != nil {
+		return nil, err
+	}
 	localAttrs := map[string]string{}
-	attrPayload := []ozonAttributeValue(nil)
-	missingAttrs := []string(nil)
-	missingDefs := []ozonAttribute(nil)
 	if merged.AutoFillAttributes {
 		localAttrs = localAttributeMap(d)
 		if desc := strings.TrimSpace(d.Description); desc != "" {
 			localAttrs[normalizeText("аннотация")] = desc
 		}
-		attrPayload, missingAttrs, missingDefs, err = client.buildCategoryAttributes(cctx, merged.DescriptionCategoryID, merged.TypeID, localAttrs, merged)
-		if err != nil {
-			return nil, mapOzonPublishError(err)
+	}
+	// Always refresh the live category template immediately before import. This
+	// keeps required-attribute and dictionary validation authoritative even when
+	// automatic filling is disabled and the UI cache is stale.
+	liveAttrs, err := client.getCategoryAttributes(cctx, merged.DescriptionCategoryID, merged.TypeID)
+	if err != nil {
+		return nil, mapOzonPublishError(err)
+	}
+	liveSchemaHash := CategorySchemaHash(categoryAttrsForHash(liveAttrs))
+	if rawExpectedHash, ok := req.Options["ozon_schema_hash"]; ok && rawExpectedHash != nil {
+		if expectedHash := strings.TrimSpace(fmt.Sprint(rawExpectedHash)); expectedHash != "" && expectedHash != liveSchemaHash {
+			return nil, fmt.Errorf("ozon category schema changed after task creation; rerun preflight")
 		}
+	}
+	attrPayload, missingAttrs, missingDefs, err := client.buildCategoryAttributesForPublish(
+		cctx,
+		merged.DescriptionCategoryID,
+		merged.TypeID,
+		localAttrs,
+		merged,
+		explicitAttrs,
+		merged.AutoFillAttributes,
+		liveAttrs,
+	)
+	if err != nil {
+		return nil, mapOzonPublishError(err)
 	}
 
 	aiFillUsed := false
@@ -157,6 +226,10 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			missingAttrs = stillMissing
 		}
 	}
+	if len(missingAttrs) > 0 {
+		return nil, fmt.Errorf("ozon publish missing required category attributes: %s", strings.Join(missingAttrs, ", "))
+	}
+	ordinaryAttrs, complexAttrs := partitionOzonImportAttributes(attrPayload)
 
 	currencyCode := strings.TrimSpace(merged.CurrencyCode)
 	if currencyCode == "" {
@@ -177,7 +250,8 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			name = title + " / " + strings.TrimSpace(sku.SKUName)
 		}
 		item := ozonImportItem{
-			Attributes:            attrPayload,
+			Attributes:            ordinaryAttrs,
+			ComplexAttributes:     complexAttrs,
 			DescriptionCategoryID: merged.DescriptionCategoryID,
 			TypeID:                merged.TypeID,
 			Name:                  truncateRunes(name, maxNameRunes),
@@ -204,7 +278,7 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			TaskID int64 `json:"task_id"`
 		} `json:"result"`
 	}
-	if err := client.postJSON(cctx, pathProductImport, map[string]any{"items": items}, &importResp); err != nil {
+	if err := client.postJSONNoRetry(cctx, pathProductImport, map[string]any{"items": items}, &importResp); err != nil {
 		return nil, mapOzonPublishError(err)
 	}
 	if importResp.Result.TaskID <= 0 {
@@ -262,6 +336,64 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 		SKUMappings:       mappings,
 		RawSummary:        platformp.TrimRawMap(summary, 24, 240),
 	}, nil
+}
+
+func parseExplicitOzonAttributes(options map[string]any) (map[string]explicitOzonAttribute, error) {
+	out := map[string]explicitOzonAttribute{}
+	if options == nil {
+		return out, nil
+	}
+	raw, ok := options["platform_attributes"]
+	if !ok || raw == nil {
+		return out, nil
+	}
+	var attrs map[string]any
+	switch v := raw.(type) {
+	case json.RawMessage:
+		if err := json.Unmarshal(v, &attrs); err != nil {
+			return nil, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
+		}
+	case []byte:
+		if err := json.Unmarshal(v, &attrs); err != nil {
+			return nil, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
+		}
+	case map[string]any:
+		attrs = v
+	default:
+		return nil, fmt.Errorf("ozon platform_attributes must be an object")
+	}
+	for rawKey, rawValue := range attrs {
+		key := strings.TrimSpace(rawKey)
+		if key == "" {
+			return nil, fmt.Errorf("ozon platform_attributes contains an empty attribute key")
+		}
+		nested, ok := rawValue.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("ozon attribute %s must use {value,dictionaryValueId}", key)
+		}
+		spec := explicitOzonAttribute{}
+		if value, exists := nested["value"]; exists && value != nil {
+			spec.Value = strings.TrimSpace(fmt.Sprint(value))
+		}
+		if value, exists := nested["dictionaryValueId"]; exists && value != nil {
+			switch typed := value.(type) {
+			case float64:
+				if typed > 0 {
+					spec.DictionaryValueID = int64(typed)
+				}
+			case string:
+				parsed, parseErr := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
+				if parseErr != nil || parsed <= 0 {
+					return nil, fmt.Errorf("ozon attribute %s has invalid dictionaryValueId", key)
+				}
+				spec.DictionaryValueID = parsed
+			default:
+				return nil, fmt.Errorf("ozon attribute %s has invalid dictionaryValueId", key)
+			}
+		}
+		out[key] = spec
+	}
+	return out, nil
 }
 
 type importedRow struct {
@@ -410,7 +542,7 @@ func applyStocks(ctx context.Context, client *ozonClient, warehouseID int64, d p
 			Errors  []stockError `json:"errors"`
 		} `json:"result"`
 	}
-	if err := client.postJSON(ctx, pathStocks, map[string]any{"stocks": rows}, &resp); err != nil {
+	if err := client.postJSONNoRetry(ctx, pathStocks, map[string]any{"stocks": rows}, &resp); err != nil {
 		return []string{fmt.Sprintf("stock sync failed: %v", err)}
 	}
 	var warns []string

@@ -188,7 +188,7 @@
 
 **批量规模限制（Phase A2.1）**：环境变量 `PUBLISH_BATCH_MAX_PRODUCTS`（默认 100）、`PUBLISH_BATCH_MAX_TARGETS`（默认 20）、`PUBLISH_BATCH_MAX_TASKS`（默认 300，即商品数 × 目标数）。超限时 HTTP 400，message：`本次选择的商品和刊登目标较多，请分批创建刊登草稿。`
 
-**幂等**：`create-drafts` 对相同 admin + 商品 + 目标 + 配置 hash 返回已有活跃批次；任务级 dedup 按 `product + platform + shop + config hash` 跳过已成功项。
+**幂等**：`create-drafts` 对相同 admin + 商品 + 目标 + 配置 hash 返回已有活跃批次；任务级 dedup 按 `product + platform + shop + config hash` 跳过已成功项。Ozon 真实提交必须带 `Idempotency-Key`（最长 200 字符）；同一当前租户、商品、店铺和相同请求内容重放原任务，不同内容复用同一 key 返回冲突，不能重复调用平台。其他平台暂保持既有兼容行为。
 
 **配置校验（Phase A2.2）**：`batch-targets/check` 与 `create-drafts` 校验 `commonConfig` / `overrides`（数值非负、策略枚举、商品 / 平台 / 店铺越权与匹配）。失败时 HTTP 400，`code=40004`（`PUBLISH_CONFIG_INVALID`），`data` 含 `title`、`message`、`technicalDetails.field`。
 
@@ -200,7 +200,7 @@
 
 详见 [`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md)。
 
-刊登任务 `POST /api/v1/products/:id/publish` 会保存 `product_publish_tasks`，任务字段包括 `productId`、`targetPlatform`、`targetStoreId`、`status`（队列态，兼容旧值）、`publishStatus`（业务态：`draft` / `checking` / `ready` / `publishing` / `success` / `failed` / `cancelled`）、`publishMode`、`title`、`description`、`images`、`skus`、`price`、`currency`、`checkResult`、`platformPayload`、`platformResult`、`errorCode`、`errorMessage`、`createdAt`、`updatedAt`。平台字段映射快照包含 `platformTitle`、`platformDescription`、`platformImages`、`platformSkus`、`platformPrice`、`platformStock`、`platformCategory`、`platformAttributes`。
+刊登任务 `POST /api/v1/products/:id/publish` 会保存 `product_publish_tasks`，任务字段包括 `productId`、`targetPlatform`、`targetStoreId`、`status`（队列态，兼容旧值）、`publishStatus`（业务态：`draft` / `checking` / `ready` / `publishing` / `success` / `failed` / `cancelled`）、`publishMode`、`title`、`description`、`images`、`skus`、`price`、`currency`、`checkResult`、`platformPayload`、`platformResult`、`errorCode`、`errorMessage`、`createdAt`、`updatedAt`。平台字段映射快照包含 `platformTitle`、`platformDescription`、`platformImages`、`platformSkus`、`platformPrice`、`platformStock`、`platformCategory`、`platformAttributes`。对于 Ozon，创建任务只表示“已创建提交任务，等待处理”；仅 Worker 得到 Ozon 的真实 `platformProductId` 后才可显示“商品已创建，等待平台审核”。Ozon `failed` 或结果未知的任务不得自动/批量重试，也不能通过新 `Idempotency-Key` 创建绕过任务；需先人工核对 Ozon 与任务中心记录。
 
 ## AI
 
@@ -369,15 +369,25 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `POST` | `/api/v1/platform/douyin/runtime-status/pause` | 暂停抖店任务；body `{ "reason": "..." }` 必填；记录 `douyin.platform.pause` 操作日志。 |
 | `POST` | `/api/v1/platform/douyin/runtime-status/resume` | 恢复抖店运行；body `{ "reason": "..." }` 必填。 |
 | `POST` | `/api/v1/platform/douyin/runtime-status/emergency-disable` | 紧急停用；阻止 Worker 调用抖店写接口；body `{ "reason": "..." }` 必填。 |
-| `GET` | `/api/v1/platform/ozon/categories` | 读取本地缓存的 Ozon 类目树；支持 `keyword`、`onlyLeaf`、`limit`。叶子类目 ID 为 `<description_category_id>:<type_id>` 复合键，响应含 `descriptionCategoryId` / `typeId`。 |
-| `POST` | `/api/v1/platform/ozon/categories/sync` | 使用已授权 Ozon 店铺凭证同步类目树（body 可选 `shopId`，缺省用最近授权店铺）；写入 `platform_categories`（`platform='ozon'`），幂等 upsert。 |
+| `GET` | `/api/v1/platform/ozon/categories` | 读取本地缓存的 Ozon 类目树；同步时按 Ozon 官方类目树的递归 `children` 结构解析。支持 `keyword`、`onlyLeaf`、`activeOnly`、`limit`。叶子类目 ID 为 `<description_category_id>:<type_id>` 复合键，响应含 `descriptionCategoryId` / `typeId`；失效类目在缓存中的 `status` 为 `inactive`，对应同步差异事件为 `deactivated`，保存商品配置时由服务端拒绝选用。 |
+| `POST` | `/api/v1/platform/ozon/categories/sync` | 使用已授权 Ozon 店铺凭证创建异步类目同步任务（body 可选 `shopId`，缺省用最近授权店铺）；响应为 `{ stats, run, runId }`，Redis 可用时 `run.status` 初始为 `pending`，不得文案宣称“同步已完成”。仅刷新共享的 `platform_categories` 缓存，**不修改任何商品**。同步运行和差异记录以发起租户隔离。 |
+| `GET` | `/api/v1/platform/ozon/categories/sync-runs` | 读取当前租户发起的同步运行；支持 `limit`，状态为 `pending` / `running` / `succeeded` / `partial` / `failed`。 |
+| `GET` | `/api/v1/platform/ozon/categories/sync-runs/:id` | 读取当前租户的一次同步运行详情及其 `summary`。 |
+| `GET` | `/api/v1/platform/ozon/categories/changes` | 读取当前租户的同步差异；`changeType` 为 `added` / `changed` / `deactivated` / `reactivated`，支持 `limit`、`changeType` 筛选。每项稳定返回 `categoryName`、`occurredAt`、`detail`，供 UI 直接呈现。 |
 | `GET` | `/api/v1/platform/ozon/categories/stats` | 返回 Ozon 类目缓存数量、叶子类目数量与最近同步时间（24h TTL 提示）。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attributes` | 读取某个 Ozon 叶子类目的属性模板缓存（`platform_category_attributes`）；`dictionaryId` 非空表示字典属性，`options` 为预取字典值；`cacheStale` 提示超过 24h。 |
+| `GET` | `/api/v1/platform/ozon/categories/:id/attributes/:attrId/values` | 按 `shopId`、至少两个字符的 `keyword` 远程搜索单个字典属性值；要求店铺操作权限。返回 `{ list: [{ id, value }] }`，仅用于补全有界缓存，不写入类目/商品，也不调用 Ozon 商品导入或库存接口。 |
 | `POST` | `/api/v1/platform/ozon/categories/:id/attributes/sync` | 刷新叶子类目属性模板缓存（body 可选 `shopId`）；字典属性预取字典值（`/v1/description-category/attribute/values` 分页）。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 读取该类目的「Ozon 属性 ↔ 本地字段」映射配置（`platform_category_attribute_mappings`）。 |
 | `PUT` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 整体替换该类目的属性映射，body `{ "items": [{ "attributeId", "attributeName", "localField", "enabled" }] }`；上品时按映射自动填充 attributes（字典属性匹配 `dictionary_value_id`）。 |
-| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；`douyin_shop` 返回 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`，以及已保存的 `mapping` / `lastMappedAt`。 |
-| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；`douyin_shop` 会校验类目必须为本地缓存中的叶子类目，并记录抖店类目/属性操作日志。 |
+| `GET` | `/api/v1/platform/ozon/category-mappings` | 读取当前租户的本地来源类目 → Ozon 叶子类目映射；可按 `shopId` 筛选。映射是租户拥有的数据，店铺级映射优先于租户默认映射。 |
+| `POST` | `/api/v1/platform/ozon/category-mappings/recommend` | 根据可选 `shopId`、`sourceCategoryKey` 和可选 `sourceCategoryName` 返回推荐候选；候选未确认、不会写入映射或商品。传入 `shopId` 时必须是当前租户已授权且启用的 Ozon 店铺。 |
+| `PUT` | `/api/v1/platform/ozon/category-mappings` | 保存人工确认的映射；body 含 `shopId?`、`sourceCategoryKey`、`sourceCategoryName?`、`categoryId`、`categoryPath?`、`status?`。只能指向活动 Ozon 叶子类目；`schemaHash` 由服务端根据当前属性模板生成，客户端不可指定。 |
+| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；Ozon 返回 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`、`sourceCategoryKey`、`sourceCategoryName`、`schemaHash`、`schemaConfirmedAt`。 |
+| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；Ozon body 为 `shopId`、`categoryId`、`categoryPath?`、`platformAttributes`、`sourceCategoryKey?`、`sourceCategoryName?`。类目必须是活动叶子类目，`platformAttributes` 是显式商品级动态属性；`schemaHash` / `schemaConfirmedAt` 由服务端生成。保存成功仅表示“配置已保存”，不创建任务、不调用 Ozon。 |
+| `POST` | `/api/v1/products/:id/readiness/validate` | 对指定 `platform=ozon`、`shopId` 做发布前实时精确校验；响应含 `checks[]`（每项 `level`）、`checkedAt`、`schemaHash`、`schemaChanged`。属性模板、类目状态、必填属性、schema 变化，以及重量、长、宽、高任一不大于 0，都会硬阻断 Ozon 提交。该预检只调用 Ozon 的只读属性模板接口，绝不调用商品导入或库存接口。 |
+| `POST` | `/api/v1/product-publish/ozon/category-groups/check` | 对 `productIds[]` 按本地来源类目分组，返回每组建议/已确认 Ozon 类目与 `ready` / `needs_work` / `skipped` 异常项；`shopId` 必填，且必须是当前租户已授权、启用并允许当前管理员操作的 Ozon 店铺。 |
+| `POST` | `/api/v1/product-publish/ozon/category-groups/confirm` | 确认一个或多个分组；body 为必填 `shopId`、`groups[]`（每项含 `sourceCategoryKey`、`sourceCategoryName?`、`productIds[]`、`categoryId`、`categoryPath?`）和 `saveMappings`。同一请求内商品不可跨组重复。仅保存商品级配置；`saveMappings=true` 还要求 `config.manage` 权限，不提交到 Ozon。 |
 | `POST` | `/api/v1/products/:id/platform-configs/douyin_shop/build-mapping` | 根据当前商品草稿、抖店店铺/类目/属性配置生成并保存抖店刊登草稿预览；不调用抖店创建商品或图片上传接口。 |
 | `GET` | `/api/v1/products/:id/platform-configs/douyin_shop/mapping` | 读取已保存的抖店刊登草稿映射。 |
 | `PUT` | `/api/v1/products/:id/platform-configs/douyin_shop/mapping` | 保存人工调整后的抖店刊登草稿映射。 |

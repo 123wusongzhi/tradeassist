@@ -251,6 +251,82 @@ func TestRetryFailedDoesNotRetrySuccess(t *testing.T) {
 	}
 }
 
+func TestRetryFailedRejectsOzonTaskUntilExternalResultIsReconciled(t *testing.T) {
+	db := newBatchIntegrationDB(t)
+	svc := newBatchTestService(db)
+	pid, sid := seedBatchProduct(t, db)
+	task := ProductPublishTask{
+		HardDeleteBase: model.HardDeleteBase{ID: uuid.New()}, ProductID: pid, ShopID: sid, TargetStoreID: sid,
+		Platform: "ozon", TaskType: TaskTypeProductPublish, Status: TaskFailed, Mode: ModeManual, PublishMode: ModeManual,
+	}
+	if err := db.Create(&task).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RetryFailed(testGinContext(), task.ID, nil); err == nil || !strings.Contains(err.Error(), "Ozon") {
+		t.Fatalf("expected Ozon retry block, got %v", err)
+	}
+}
+
+func TestCreateLocalDraftForTargetReusesPublicationAcrossRepeatedRequests(t *testing.T) {
+	db := newBatchIntegrationDB(t)
+	svc := newBatchTestService(db)
+	pid, sid := seedBatchProduct(t, db)
+	chk := PublishTargetCheckResult{ShopName: "Ozon test"}
+	first := svc.createLocalDraftForTarget(context.Background(), pid, "ozon", &sid, uuid.New(), nil, chk)
+	if first.Status != TaskSuccess || first.PublicationID == "" || first.TaskID == "" {
+		t.Fatalf("first draft = %#v", first)
+	}
+	second := svc.createLocalDraftForTarget(context.Background(), pid, "ozon", &sid, uuid.New(), nil, chk)
+	if second.Status != TaskSuccess || second.PublicationID != first.PublicationID || second.TaskID != first.TaskID {
+		t.Fatalf("second draft must reuse first, got %#v want %#v", second, first)
+	}
+	var publications, tasks int64
+	if err := db.Model(&ProductPublication{}).Where("product_id = ? AND shop_id = ? AND platform = ?", pid, sid, "ozon").Count(&publications).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&ProductPublishTask{}).Where("product_id = ? AND shop_id = ? AND platform = ?", pid, sid, "ozon").Count(&tasks).Error; err != nil {
+		t.Fatal(err)
+	}
+	if publications != 1 || tasks != 1 {
+		t.Fatalf("expected one local draft publication/task, publications=%d tasks=%d", publications, tasks)
+	}
+}
+
+func TestCreateLocalDraftForTargetConcurrentRequestsKeepOnePublication(t *testing.T) {
+	db := newBatchIntegrationDB(t)
+	svc := newBatchTestService(db)
+	pid, sid := seedBatchProduct(t, db)
+	results := make(chan PublishTargetTaskResult, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- svc.createLocalDraftForTarget(context.Background(), pid, "ozon", &sid, uuid.New(), nil, PublishTargetCheckResult{ShopName: "Ozon test"})
+		}()
+	}
+	wg.Wait()
+	close(results)
+	publicationID := ""
+	for result := range results {
+		if result.Status != TaskSuccess || result.PublicationID == "" || result.TaskID == "" {
+			t.Fatalf("concurrent draft result = %#v", result)
+		}
+		if publicationID == "" {
+			publicationID = result.PublicationID
+		} else if result.PublicationID != publicationID {
+			t.Fatalf("concurrent requests returned different publications: %s / %s", publicationID, result.PublicationID)
+		}
+	}
+	var publications int64
+	if err := db.Model(&ProductPublication{}).Where("product_id = ? AND shop_id = ? AND platform = ?", pid, sid, "ozon").Count(&publications).Error; err != nil {
+		t.Fatal(err)
+	}
+	if publications != 1 {
+		t.Fatalf("publications = %d, want 1", publications)
+	}
+}
+
 func TestRetryConcurrentSingleClaim(t *testing.T) {
 	db := newBatchIntegrationDB(t)
 	svc := newBatchTestService(db)

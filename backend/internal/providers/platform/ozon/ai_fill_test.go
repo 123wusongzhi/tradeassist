@@ -139,6 +139,10 @@ func TestPublishProductAIFillApplied(t *testing.T) {
 		PublishConfig: map[string]any{
 			"description_category_id": "200001240",
 			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
 			"currency_code":           "RUB",
 			"auto_fill_attributes":    "true",
 			"ai_auto_fill":            "true",

@@ -126,6 +126,10 @@ type ProductPlatformPublishConfig struct {
 	MappingWarnings    datatypes.JSON `gorm:"type:jsonb" json:"mappingWarnings,omitempty"`
 	MappingErrors      datatypes.JSON `gorm:"type:jsonb" json:"mappingErrors,omitempty"`
 	LastMappedAt       *time.Time     `gorm:"index" json:"lastMappedAt,omitempty"`
+	SourceCategoryKey  string         `gorm:"size:256;index" json:"sourceCategoryKey,omitempty"`
+	SourceCategoryName string         `gorm:"size:512" json:"sourceCategoryName,omitempty"`
+	SchemaHash         string         `gorm:"size:128;index" json:"schemaHash,omitempty"`
+	SchemaConfirmedAt  *time.Time     `json:"schemaConfirmedAt,omitempty"`
 }
 
 func (ProductPlatformPublishConfig) TableName() string { return "product_platform_publish_configs" }

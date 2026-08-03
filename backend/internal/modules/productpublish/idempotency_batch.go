@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/idempotency"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 )
 
 const (
@@ -23,6 +25,17 @@ type publishBatchAcquire struct {
 
 func tenantIdempotencyKey(tenantID int64, key string) string {
 	return fmt.Sprintf("tenant:%d:%s", tenantID, key)
+}
+
+func requestIdempotencyOwner(c *gin.Context, fallback string) string {
+	requestID := ""
+	if c != nil {
+		requestID = strings.TrimSpace(c.GetString(ctxkey.TraceID))
+	}
+	if requestID == "" {
+		requestID = uuid.NewString()
+	}
+	return idempotency.OwnerFromRequest(requestID, fallback)
 }
 
 func (s *Service) acquirePublishIdempotency(ctx context.Context, idemKey string, reqHash []byte, owner string) (*publishBatchAcquire, *idempotency.AcquireResult, error) {
@@ -55,14 +68,22 @@ func (s *Service) acquirePublishIdempotency(ctx context.Context, idemKey string,
 }
 
 func (s *Service) completePublishIdempotency(ctx context.Context, job *publishBatchAcquire, summary map[string]string, resourceID string) error {
+	return s.completePublishIdempotencyResult(ctx, job, summary, resourceID, "DOUYIN_DRAFT_CREATED", "platform_product_draft")
+}
+
+func (s *Service) completeProductPublishTaskIdempotency(ctx context.Context, job *publishBatchAcquire, taskID uuid.UUID) error {
+	return s.completePublishIdempotencyResult(ctx, job, map[string]string{"taskId": taskID.String()}, taskID.String(), "PUBLISH_TASK_CREATED", "product_publish_task")
+}
+
+func (s *Service) completePublishIdempotencyResult(ctx context.Context, job *publishBatchAcquire, summary map[string]string, resourceID, responseCode, resourceType string) error {
 	if s == nil || s.Idempotency == nil || job == nil {
 		return nil
 	}
 	body, _ := json.Marshal(summary)
 	return s.Idempotency.Complete(ctx, job.RecordID, job.Owner, idempotency.CompleteResult{
-		ResponseCode:    "DOUYIN_DRAFT_CREATED",
+		ResponseCode:    responseCode,
 		ResponseSummary: string(body),
-		ResourceType:    "platform_product_draft",
+		ResourceType:    resourceType,
 		ResourceID:      resourceID,
 	})
 }
@@ -84,9 +105,7 @@ func (s *Service) acquirePublishBatch(ctx context.Context, c *gin.Context, idemK
 		return nil, nil, err
 	}
 	idemKey = tenantIdempotencyKey(tenantID, idemKey)
-	if c != nil {
-		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
-	}
+	owner = requestIdempotencyOwner(c, owner)
 	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopePublish, idemKey, idempotency.HashRequest(reqHash), owner, idempotency.DefaultLease)
 	decision, rec, _ := idempotency.Classify(res, err)
 	switch decision {
@@ -163,9 +182,7 @@ func (s *Service) enqueuePublishTaskIdempotent(ctx context.Context, c *gin.Conte
 		return s.enqueue(ctx, taskID)
 	}
 	owner := "publish-enqueue"
-	if c != nil {
-		owner = idempotency.OwnerFromRequest(c.GetString("requestId"), owner)
-	}
+	owner = requestIdempotencyOwner(c, owner)
 	key := idempotency.PublishEnqueue(batchID.String(), taskType)
 	reqHash := idempotency.HashRequest([]byte(taskID.String()))
 	res, err := s.Idempotency.Acquire(ctx, idempotency.ScopePublish, key, reqHash, owner, idempotency.DefaultLease)

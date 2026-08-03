@@ -111,16 +111,20 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		return fail(err.Error())
 	}
 
-	var prod product.Product
-	if err := s.DB.WithContext(ctx).
-		Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).
-		Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).
-		Where("id = ? AND tenant_id = ?", taskRow.ProductID, taskRow.TenantID).First(&prod).Error; err != nil {
-		return fail(fmt.Sprintf("load product: %v", err))
-	}
-	draft, err := BuildPlatformDraftFromProduct(prod)
-	if err != nil {
-		return fail(err.Error())
+	var draft platformp.PlatformProductDraft
+	if snap.Draft != nil {
+		draft = *snap.Draft
+	} else {
+		// Compatibility for tasks written before immutable draft snapshots.
+		var prod product.Product
+		if err := s.DB.WithContext(ctx).Preload("Images", func(db *gorm.DB) *gorm.DB { return db.Order("sort_order ASC, created_at ASC") }).Preload("SKUs", func(db *gorm.DB) *gorm.DB { return db.Order("created_at ASC") }).Where("id = ? AND tenant_id = ?", taskRow.ProductID, taskRow.TenantID).First(&prod).Error; err != nil {
+			return fail(fmt.Sprintf("load product: %v", err))
+		}
+		var buildErr error
+		draft, buildErr = BuildPlatformDraftFromProduct(prod)
+		if buildErr != nil {
+			return fail(buildErr.Error())
+		}
 	}
 
 	_, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, taskRow.TenantID, taskRow.ShopID)
@@ -177,62 +181,40 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 	}, 20, 300)
 	rawOut, _ := json.Marshal(outSnap)
 
+	// Persist the external fact before exposing a successful task. If this
+	// transaction fails after Ozon accepted the listing, preserve the returned
+	// platform ID on a non-retryable failed task so a new request cannot blindly
+	// create a duplicate listing.
+	if err := s.persistGenericPublicationSuccess(ctx, taskRow, snap.PublicationID, res, fin); err != nil {
+		msg := fmt.Sprintf("persist platform publish result: %v", err)
+		if finishErr := s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
+			"status":              TaskFailed,
+			"publish_status":      StatusPubFailed,
+			"platform_product_id": strings.TrimSpace(res.ExternalProductID),
+			"retryable":           false,
+			"error_code":          "PUBLISH_RESULT_PERSIST_FAILED",
+			"error_message":       msg,
+			"finished_at":         &fin,
+			"output":              datatypes.JSON(rawOut),
+			"platform_result":     datatypes.JSON(rawOut),
+		}); finishErr != nil {
+			return finishErr
+		}
+		return fmt.Errorf("%s", msg)
+	}
+
 	if err := s.finishProductPublishTask(ctx, taskID, workerID, claim, map[string]any{
-		"status":          TaskSuccess,
-		"publish_status":  StatusSuccess,
-		"error_message":   "",
-		"error_code":      "",
-		"finished_at":     &fin,
-		"output":          datatypes.JSON(rawOut),
-		"platform_result": datatypes.JSON(rawOut),
+		"status":              TaskSuccess,
+		"publish_status":      StatusSuccess,
+		"platform_product_id": strings.TrimSpace(res.ExternalProductID),
+		"retryable":           false,
+		"error_message":       "",
+		"error_code":          "",
+		"finished_at":         &fin,
+		"output":              datatypes.JSON(rawOut),
+		"platform_result":     datatypes.JSON(rawOut),
 	}); err != nil {
 		return err
-	}
-
-	pubSnap := platformp.TrimRawMap(map[string]any{
-		"externalProductId": res.ExternalProductID,
-		"skuMapped":         len(res.SKUMappings),
-	}, 12, 200)
-	rd, _ := json.Marshal(pubSnap)
-	pubStatus := normalizePublicationStatus(res.Status)
-	var publishedAt *time.Time
-	if pubStatus == StatusPublishedRecord {
-		publishedAt = &fin
-	}
-
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", snap.PublicationID, taskRow.TenantID).
-		Updates(map[string]any{
-			"publish_status":      pubStatus,
-			"status":              pubStatus,
-			"external_product_id": strings.TrimSpace(res.ExternalProductID),
-			"external_spu_id":     strings.TrimSpace(res.ExternalSPUID),
-			"external_url":        strings.TrimSpace(res.ExternalURL),
-			"published_at":        publishedAt,
-			"last_synced_at":      &fin,
-			"raw_data":            datatypes.JSON(rd),
-			"updated_at":          fin,
-		}).Error
-
-	_ = s.DB.WithContext(ctx).Where("publication_id = ? AND EXISTS (SELECT 1 FROM product_publications p WHERE p.id = product_publication_skus.publication_id AND p.tenant_id = ?)", snap.PublicationID, taskRow.TenantID).Delete(&ProductPublicationSKU{}).Error
-	for _, m := range res.SKUMappings {
-		skuRow := ProductPublicationSKU{
-			PublicationID: snap.PublicationID,
-			ProductSKUID:  nilUUIDPtr(m.LocalSKUID),
-			ExternalSKUID: strings.TrimSpace(m.ExternalSKUID),
-			SKUCode:       strings.TrimSpace(m.SKUCode),
-			Price:         m.Price,
-			Stock:         m.Stock,
-		}
-		if skuRow.ExternalSKUID == "" {
-			continue
-		}
-		rdSrc := m.RawData
-		if len(rdSrc) == 0 {
-			rdSrc = platformp.TrimRawMap(map[string]any{"mapped": true}, 6, 80)
-		}
-		rdm, _ := json.Marshal(platformp.TrimRawMap(rdSrc, 12, 200))
-		skuRow.RawData = datatypes.JSON(rdm)
-		_ = s.DB.WithContext(ctx).Create(&skuRow).Error
 	}
 
 	if s.OpLog != nil {
@@ -247,6 +229,67 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 		})
 	}
 	return nil
+}
+
+func (s *Service) persistGenericPublicationSuccess(ctx context.Context, task *ProductPublishTask, publicationID uuid.UUID, res *platformp.PublishProductResult, finishedAt time.Time) error {
+	if s == nil || s.DB == nil || task == nil || res == nil {
+		return fmt.Errorf("productpublish: missing publish result persistence dependencies")
+	}
+	pubSnap := platformp.TrimRawMap(map[string]any{
+		"externalProductId": res.ExternalProductID,
+		"skuMapped":         len(res.SKUMappings),
+	}, 12, 200)
+	rd, err := json.Marshal(pubSnap)
+	if err != nil {
+		return fmt.Errorf("marshal publication result: %w", err)
+	}
+	pubStatus := normalizePublicationStatus(res.Status)
+	var publishedAt *time.Time
+	if pubStatus == StatusPublishedRecord {
+		publishedAt = &finishedAt
+	}
+	return s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", publicationID, task.TenantID).
+			Updates(map[string]any{
+				"publish_status":      pubStatus,
+				"status":              pubStatus,
+				"external_product_id": strings.TrimSpace(res.ExternalProductID),
+				"external_spu_id":     strings.TrimSpace(res.ExternalSPUID),
+				"external_url":        strings.TrimSpace(res.ExternalURL),
+				"published_at":        publishedAt,
+				"last_synced_at":      &finishedAt,
+				"raw_data":            datatypes.JSON(rd),
+				"updated_at":          finishedAt,
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return fmt.Errorf("publication %s not found in tenant %d", publicationID, task.TenantID)
+		}
+		if err := tx.Where("publication_id = ? AND EXISTS (SELECT 1 FROM product_publications p WHERE p.id = product_publication_skus.publication_id AND p.tenant_id = ?)", publicationID, task.TenantID).Delete(&ProductPublicationSKU{}).Error; err != nil {
+			return err
+		}
+		for _, m := range res.SKUMappings {
+			skuRow := ProductPublicationSKU{PublicationID: publicationID, ProductSKUID: nilUUIDPtr(m.LocalSKUID), ExternalSKUID: strings.TrimSpace(m.ExternalSKUID), SKUCode: strings.TrimSpace(m.SKUCode), Price: m.Price, Stock: m.Stock}
+			if skuRow.ExternalSKUID == "" {
+				continue
+			}
+			rawData := m.RawData
+			if len(rawData) == 0 {
+				rawData = platformp.TrimRawMap(map[string]any{"mapped": true}, 6, 80)
+			}
+			rawJSON, marshalErr := json.Marshal(platformp.TrimRawMap(rawData, 12, 200))
+			if marshalErr != nil {
+				return fmt.Errorf("marshal sku mapping: %w", marshalErr)
+			}
+			skuRow.RawData = datatypes.JSON(rawJSON)
+			if err := tx.Create(&skuRow).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func truncateMsg(msg string) string {

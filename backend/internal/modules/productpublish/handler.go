@@ -117,6 +117,8 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	read.GET("/product-publish/targets", h.ListGlobalPublishTargets)
 	write.POST("/product-publish/batch-targets/check", h.CheckBatchTargets)
 	write.POST("/product-publish/batch-targets/create-drafts", h.CreateBatchTargetDrafts)
+	write.POST("/product-publish/ozon/category-groups/check", h.CheckOzonCategoryGroups)
+	write.POST("/product-publish/ozon/category-groups/confirm", h.ConfirmOzonCategoryGroups)
 	read.GET("/product-publish/batches", h.ListPublishBatches)
 	read.GET("/product-publish/batches/:id", h.GetPublishBatch)
 	write.POST("/product-publish/batches/:id/retry-failed", h.RetryFailedBatch)
@@ -134,6 +136,91 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	write.POST("/product-publications/:id/douyin/sync-sku-bindings", h.SyncDouyinSKUBindings)
 	write.POST("/product-publication-skus/:id/douyin/bind-sku", h.BindDouyinSKU)
 	write.POST("/product-publication-skus/:id/douyin/unbind-sku", h.UnbindDouyinSKU)
+}
+
+func (h *Handler) CheckOzonCategoryGroups(c *gin.Context) {
+	var body OzonCategoryGroupsCheckRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if !requireBatchPublishProducts(c, h.Svc, body.ProductIDs, false) {
+		return
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(body.ShopID))
+	if err != nil || shopID == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !adminperm.RequireStoreOperate(c, h.Svc.DB, shopID) {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.CheckOzonCategoryGroups(c.Request.Context(), tid, body)
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"groups": out})
+}
+func (h *Handler) ConfirmOzonCategoryGroups(c *gin.Context) {
+	var body OzonCategoryGroupsConfirmRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	// Saving mappings mutates reusable shop configuration, not merely the
+	// current products' category choice. Keep it behind configuration-manage
+	// permission in addition to the route's publish-create permission.
+	if body.SaveMappings && !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermConfigManage) {
+		return
+	}
+	all := []string{}
+	for _, g := range body.Groups {
+		all = append(all, g.ProductIDs...)
+	}
+	if !requireBatchPublishProducts(c, h.Svc, all, true) {
+		return
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(body.ShopID))
+	if err != nil || shopID == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !adminperm.RequireStoreOperate(c, h.Svc.DB, shopID) {
+		return
+	}
+	tid, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	out, err := h.Svc.ConfirmOzonCategoryGroups(c.Request.Context(), tid, body, adminUUID(c))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	if h.Svc.OpLog != nil {
+		productCount := 0
+		for _, group := range body.Groups {
+			productCount += len(group.ProductIDs)
+		}
+		_ = h.Svc.OpLog.Write(c, operationlog.WriteOpts{
+			Action:     "ozon.category_groups.confirm",
+			Resource:   "shop",
+			ResourceID: shopID.String(),
+			ShopID:     &shopID,
+			Platform:   "ozon",
+			Permission: adminperm.PermPublishCreateDraft,
+			Status:     "success",
+			Message:    fmt.Sprintf("groups=%d products=%d saveMappings=%t", len(body.Groups), productCount, body.SaveMappings),
+		})
+	}
+	response.OK(c, gin.H{"groups": out})
 }
 
 func (h *Handler) Publish(c *gin.Context) {

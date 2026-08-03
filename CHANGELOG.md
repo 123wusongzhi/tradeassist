@@ -6,6 +6,14 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Ozon category publishing flow acceptance (2026-08-03)
+
+- Added an Admin workflow for category sync, tenant/shop-scoped category mappings, product-level category and dynamic attributes, live read-only preflight, local drafts, and explicitly confirmed Ozon submits.
+- Added asynchronous category-sync runs and four-state change history, bounded dictionary search, batch grouping by source category, server-derived schema hashes, and a final live schema-drift check in the publish worker.
+- Hardened real writes with mandatory Ozon `Idempotency-Key`, immutable task snapshots, product-row serialization, external-result-first transactions, and no automatic transport retry for product import or stock mutations.
+- Tightened Ozon credential and endpoint handling, RBAC/store scope, shared configuration audit boundaries, and API contracts; persisted tenant input can no longer override the Seller API base URL.
+- Development acceptance evidence and deferred real-write/production boundaries are recorded in `docs/OZON_CATEGORY_PUBLISH_FLOW_ACCEPTANCE.md`.
+
 ### Ozon store integration (2026-08-01)
 
 - Added Ozon Seller API platform provider (`ozon`, beta): shop-level `Client-ID` + `Api-Key` authorization without OAuth, AES-encrypted storage in `shop_auth_tokens`, and read-only connection test via `/v1/seller/info`.

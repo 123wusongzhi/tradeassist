@@ -156,6 +156,7 @@ func BuildMonitorResponse(ctx context.Context, db *gorm.DB, cfg *config.Config) 
 			TypeOrderSync:           {},
 			TypeCustomerMessageSync: {},
 			TypeProductPublish:      {},
+			TypeOzonCategorySync:    {},
 			TypeInventorySync:       {},
 			TypeTaskAlertScan:       {},
 			TypeWebhook:             {},

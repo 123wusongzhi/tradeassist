@@ -47,6 +47,71 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	})
 	read.GET("/products/:id/readiness", h.GetReadiness)
 	read.POST("/products/readiness/batch", h.BatchReadiness)
+	live := g.Group("")
+	live.Use(func(c *gin.Context) {
+		if h.Svc == nil || h.Svc.DB == nil {
+			response.Fail(c, 500, response.CodeInternalError, "product readiness unavailable")
+			c.Abort()
+			return
+		}
+		if !adminperm.RequireWrite(c, h.Svc.DB, adminperm.PermPublishCreateDraft) {
+			c.Abort()
+		}
+	})
+	live.POST("/products/:id/readiness/validate", h.ValidateOzonReadiness)
+}
+
+func (h *Handler) ValidateOzonReadiness(c *gin.Context) {
+	productID, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil || productID == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body struct {
+		Platform string `json:"platform"`
+		ShopID   string `json:"shopId"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	if strings.ToLower(strings.TrimSpace(body.Platform)) != "ozon" {
+		response.Fail(c, 400, response.CodeBadRequest, "platform must be ozon")
+		return
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(body.ShopID))
+	if err != nil || shopID == uuid.Nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if err := adminperm.EnsureProductOperate(c, h.Svc.DB, productID); err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if !adminperm.RequireStoreOperate(c, h.Svc.DB, shopID) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	result, err := h.Svc.ValidateOzonReadiness(c.Request.Context(), tenantID, productID, shopID)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	if h.OpLog != nil {
+		_ = h.OpLog.Write(c, operationlog.WriteOpts{
+			AdminUserID: adminUUID(c),
+			Action:      "product.readiness.ozon_live_validate",
+			Resource:    "product",
+			ResourceID:  productID.String(),
+			Status:      "success",
+			Message:     fmt.Sprintf("shopId=%s canPublish=%t schemaChanged=%t", shopID, result.CanPublish, result.SchemaChanged),
+		})
+	}
+	response.OK(c, LocalizeReadinessResult(result))
 }
 
 func (h *Handler) GetReadiness(c *gin.Context) {

@@ -183,6 +183,12 @@ export default [
         component: "./Product/Drafts",
       },
       {
+        path: "/product/ozon-publish",
+        name: "Ozon 类目与刊登",
+        component: "./Product/OzonPublish",
+        hideInMenu: true,
+      },
+      {
         path: "/product/publish-batch",
         name: "批量创建刊登草稿",
         component: "./Product/PublishBatch",

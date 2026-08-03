@@ -798,6 +798,8 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 		CreatedBy:     adminID,
 		LastSyncedAt:  &fin,
 	}
+	localDraftKey := fmt.Sprintf("%d:%s:%s:%s", prod.TenantID, productID, *sid, strings.ToLower(strings.TrimSpace(plat)))
+	pubRow.LocalDraftKey = &localDraftKey
 	snap := map[string]any{
 		"localDraftOnly": true,
 		"capability":     CapLocalDraftOnly,
@@ -809,13 +811,6 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 	}
 	snapRaw, _ := json.Marshal(snap)
 	pubRow.RawData = datatypes.JSON(snapRaw)
-	if err := s.DB.WithContext(ctx).Create(&pubRow).Error; err != nil {
-		res.Status = TaskFailed
-		res.StatusLabel = opslabels.StatusLabel(TaskFailed)
-		res.ErrorMessage = err.Error()
-		return res
-	}
-
 	outSnap, _ := json.Marshal(snap)
 	task := ProductPublishTask{
 		TenantID:      prod.TenantID,
@@ -836,14 +831,31 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 		FinishedAt:    &fin,
 		CreatedBy:     adminID,
 	}
-	if err := s.DB.WithContext(ctx).Create(&task).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&pubRow).Error; err != nil {
+			return err
+		}
+		if err := tx.Create(&task).Error; err != nil {
+			return err
+		}
+		return tx.Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", pubRow.ID, prod.TenantID).
+			Updates(map[string]any{"publish_task_id": task.ID}).Error
+	}); err != nil {
+		// A competing request may have committed the same local-draft key. Reuse
+		// that publication/task instead of creating another draft record.
+		var existing ProductPublication
+		if lookupErr := s.DB.WithContext(ctx).Where("local_draft_key = ?", localDraftKey).First(&existing).Error; lookupErr == nil && existing.PublishTaskID != nil {
+			res.TaskID = existing.PublishTaskID.String()
+			res.PublicationID = existing.ID.String()
+			res.Status = TaskSuccess
+			res.StatusLabel = opslabels.StatusLabel(TaskSuccess)
+			return res
+		}
 		res.Status = TaskFailed
 		res.StatusLabel = opslabels.StatusLabel(TaskFailed)
 		res.ErrorMessage = err.Error()
 		return res
 	}
-	_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ?", pubRow.ID).
-		Updates(map[string]any{"publish_task_id": task.ID}).Error
 
 	res.TaskID = task.ID.String()
 	res.PublicationID = pubRow.ID.String()

@@ -1,3 +1,5 @@
+import { PERMISSIONS } from '../../src/utils/permission';
+
 export const E2E_TOKEN = 'e2e-admin-token';
 
 export const e2eUser = {
@@ -7,7 +9,7 @@ export const e2eUser = {
   displayName: 'E2E 管理员',
   role: 'admin',
   status: 'active',
-  permissions: ['*'],
+  permissions: Object.values(PERMISSIONS),
   storePermissions: [],
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',

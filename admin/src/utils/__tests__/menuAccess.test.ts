@@ -42,3 +42,11 @@ describe('global operations route access', () => {
     expect(visibleMenus).toHaveLength(GLOBAL_OPERATIONS_PATHS.length);
   });
 });
+
+describe('Ozon publish route access', () => {
+  it('requires product view permission while allowing read-only inspection', () => {
+    expect(canAccessPath('/product/ozon-publish', ROLES.OPERATOR)).toBe(true);
+    expect(canAccessPath('/product/ozon-publish', ROLES.READONLY)).toBe(true);
+    expect(canAccessPath('/product/ozon-publish', ROLES.REVIEWER)).toBe(false);
+  });
+});

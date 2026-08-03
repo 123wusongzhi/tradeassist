@@ -4661,7 +4661,12 @@ export default function ProductDraftDetailPage() {
                         </div>
                       </div>
                     </SectionCard>
-                    <SectionCard title="多平台刊登中心" description="创建多平台刊登草稿，不等同于已经正式提交到平台。" className="product-draft-publish__multi-platform">
+                    <SectionCard
+                      title="多平台刊登中心"
+                      description="创建多平台刊登草稿，不等同于已经正式提交到平台。"
+                      headerExtra={<Link to={`/product/ozon-publish?productId=${encodeURIComponent(id)}`}>Ozon 类目与刊登流程</Link>}
+                      className="product-draft-publish__multi-platform"
+                    >
                       <div className="product-draft-publish__multi-platform-brief">
                         <div>
                           <Typography.Text strong>当前商品</Typography.Text>

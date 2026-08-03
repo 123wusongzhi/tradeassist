@@ -14,7 +14,7 @@ import (
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
 )
 
-const maxResponseBytes = 4 << 20
+const maxResponseBytes = 16 << 20
 const maxOzonAttempts = 3
 
 // ozonClient is a thin, credential-scoped HTTP client for the Seller API.
@@ -32,28 +32,41 @@ func newClient(cfg RuntimeConfig) *ozonClient {
 // It retries 429 / 5xx / transient transport errors with bounded exponential
 // backoff and honors Retry-After (never more than maxOzonAttempts total).
 func (c *ozonClient) postJSON(ctx context.Context, path string, body any, out any) error {
+	return c.postJSONWithAttempts(ctx, path, body, out, maxOzonAttempts)
+}
+
+// postJSONNoRetry is reserved for mutation endpoints whose remote acceptance
+// cannot be proven after a timeout or 5xx. Retrying such a request could create
+// a duplicate product; reconciliation happens at the task layer instead.
+func (c *ozonClient) postJSONNoRetry(ctx context.Context, path string, body any, out any) error {
+	return c.postJSONWithAttempts(ctx, path, body, out, 1)
+}
+
+func (c *ozonClient) postJSONWithAttempts(ctx context.Context, path string, body any, out any, maxAttempts int) error {
 	if c == nil || c.http == nil {
 		return fmt.Errorf("ozon client not configured")
+	}
+	if maxAttempts < 1 {
+		maxAttempts = 1
 	}
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return fmt.Errorf("ozon %s: marshal request: %w", path, err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+path, bytes.NewReader(raw))
-	if err != nil {
-		return fmt.Errorf("ozon %s: build request: %w", path, err)
-	}
-	req.Header.Set("Client-Id", c.cfg.ClientID)
-	req.Header.Set("Api-Key", c.cfg.APIKey)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
 	var lastErr error
-	for attempt := 1; attempt <= maxOzonAttempts; attempt++ {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+path, bytes.NewReader(raw))
+		if reqErr != nil {
+			return fmt.Errorf("ozon %s: build request: %w", path, reqErr)
+		}
+		req.Header.Set("Client-Id", c.cfg.ClientID)
+		req.Header.Set("Api-Key", c.cfg.APIKey)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
 		resp, doErr := c.http.Do(req)
 		if doErr != nil {
 			lastErr = maybeRetryableTransportErr(doErr)
-			if attempt >= maxOzonAttempts || !strings.Contains(lastErr.Error(), "retryable") {
+			if attempt >= maxAttempts || !strings.Contains(lastErr.Error(), "retryable") {
 				return fmt.Errorf("ozon %s: %w", path, lastErr)
 			}
 			if !sleepCtx(ctx, backoffDuration(attempt, 0)) {
@@ -67,7 +80,7 @@ func (c *ozonClient) postJSON(ctx context.Context, path string, body any, out an
 		resp.Body.Close()
 		if readErr != nil {
 			lastErr = fmt.Errorf("ozon %s: read response: %w", path, readErr)
-			if attempt >= maxOzonAttempts {
+			if attempt >= maxAttempts {
 				return lastErr
 			}
 			if !sleepCtx(ctx, backoffDuration(attempt, retryAfter)) {
@@ -87,7 +100,7 @@ func (c *ozonClient) postJSON(ctx context.Context, path string, body any, out an
 		}
 
 		lastErr = classifyOzonError(resp.StatusCode, data)
-		if attempt >= maxOzonAttempts || !strings.Contains(lastErr.Error(), "retryable") {
+		if attempt >= maxAttempts || !strings.Contains(lastErr.Error(), "retryable") {
 			return lastErr
 		}
 		if !sleepCtx(ctx, backoffDuration(attempt, retryAfter)) {

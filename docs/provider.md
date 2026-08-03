@@ -90,11 +90,19 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 Ozon (`ozon`) beta — 店铺级凭证接入（`Client-ID` + `Api-Key`，无需 OAuth），能力：商品刊登 + 店铺信息/连接测试。Provider 位于 `backend/internal/providers/platform/ozon`：
 
 - 授权：在店铺管理中填写 `appKey`（Client ID）与 `accessToken`（Api-Key），加密存储于 `shop_auth_tokens`；连接测试调用 `POST /v1/seller/info`（只读），返回店铺名、币种、国家。
-- 刊登：`PublishProduct` 调用 `POST /v3/product/import` 提交商品 → 轮询 `POST /v1/product/import/info`（`imported` 且 `product_id>0` 才算成功；`failed`/`skipped` 判失败；已导入商品带 error 级提示时记录为警告）→ 可选按仓库 `POST /v2/products/stocks` 写库存。多 SKU 时每个本地 SKU 生成一个 Ozon 商品（`offer_id` 取 SKU 编码），写入 `product_publication_skus.external_sku_id`。
+- 凭证与网络边界：Ozon Seller API 主机由 Provider 固定，租户保存的 `authConfig` 不可覆盖请求基址或注入明文凭证；历史 Ozon `authConfig` 不会回传或参与运行。仅进程内受信任测试覆盖可替换基址，禁止接收租户输入。
+- 刊登：`PublishProduct` 调用 `POST /v3/product/import` 提交商品 → 轮询 `POST /v1/product/import/info`（`imported` 且 `product_id>0` 才算成功；`failed`/`skipped` 判失败；已导入商品带 error 级提示时记录为警告）→ 可选按仓库 `POST /v2/products/stocks` 写库存。多 SKU 时每个本地 SKU 生成一个 Ozon 商品（`offer_id` 取 SKU 编码），写入 `product_publication_skus.external_sku_id`。商品导入和库存写入禁用 HTTP 传输层自动重试，避免超时或 5xx 后产生隐藏的重复写；只读查询仍保留有界重试。
 - 图片要求：Ozon 商品图片必须是 Ozon 服务器可访问的公开 `https://` 图片 URL（导入时直接引用，不经过 TradeMind 中转）。本地/对象存储的图片需先配置公开访问地址（`PublicURL`）后再刊登。
-- 字段迁移与自动填充：开启 `auto_fill_attributes` 后，按类目属性接口 `POST /v1/description-category/attribute` 拉取必填属性，用商品参数别名匹配 + `POST /v1/description-category/attribute/values/search` 匹配字典值，自动填充品牌/原产国/制造商/类型/材质/保质期/模型名/描述（属性 4191 Аннотация）等；规则匹配后仍有缺失必填属性时，`ai_auto_fill`（默认开启）调用项目已配置的 AI Provider 生成建议值并再次匹配字典（AI 未配置或失败自动降级跳过）；最终缺失项记录在任务摘要 `missingAttrs`，不阻塞商品创建但会提示补全。
+- 类目与属性：商品级 Ozon 类目优先于任何全局预设；`platform_publish_ozon` 中的类目仅是历史 fallback。同步缓存会记录 `added` / `changed` / `deactivated` / `reactivated` 差异；租户可将本地来源类目映射到已确认的 Ozon 叶子类目。商品必须显式保存其动态属性与 schema hash，推荐映射只是候选，绝不静默应用到商品。
+- 类目树与尺寸：类目同步按 Ozon 官方树的递归 `children` 结构解析，不依赖固定层级。真实提交前，重量以及深度、宽度、高度均必须为大于 0 的数值；任一缺失或不合法会由发布前校验阻断。
+- 复杂属性：平台模板中 `attribute_complex_id > 0` 的属性在导入 payload 中按 complex ID 稳定分组写入 `complex_attributes`；普通属性继续写入顶层 `attributes`，避免把 Ozon 复杂属性错误地当作普通属性提交。
+- 同步运行：启用 Redis 时类目同步为异步队列任务，先返回 `pending` / `running` 运行记录；Redis 不可用仅作为开发环境 inline fallback，仍保留同一运行记录生命周期。响应恰好达到 20,000 节点安全上限时运行标记为 `partial`，**不会**因缺失数据停用已有类目；超过上限时 Provider 直接报错且不写入部分树。只有确认完整的响应才能把已消失的缓存类目标记为停用。
+- 字典值：类目属性缓存只预取有界字典值，避免大字典无限写入缓存。运营者可按店铺与关键字远程搜索单一字典属性；该调用和发布前精确校验都只访问 Ozon 只读类目/属性接口，绝不调用 `/v3/product/import` 或库存写接口。
+- 发布前校验：提交前按店铺重新校验类目活动状态、属性模板、必填动态属性和 schema hash。缺失必填属性、类目停用或 schema 变化会硬阻断真实 Ozon 写入。自动填充可以生成候选属性，但正常商品级流程必须先显式保存配置；Worker 在导入前再次拉取实时模板并比较保存时的 schema hash，变化时不调用商品导入。
 - 合同币种：`currency_code` 留空时自动读取卖家合同币种（避免 `currency_differs_from_contract`）；`vat` 默认 `0`（跨境卖家通常 0%，按合同国家规定可改）。
-- 刊登预设：`platform_publish_ozon` 配置类目 `description_category_id`、类型 `type_id`、仓库 `warehouse_id`、币种、VAT、默认品牌/类型/原产国/制造商、重量尺寸与补充属性 JSON。
+- 刊登预设：`platform_publish_ozon` 保留仓库 `warehouse_id`、币种、VAT、默认品牌/类型/原产国/制造商、重量尺寸与补充属性 JSON 等店铺/实例默认值；不再作为单一固定商品类目来源。
+- 状态边界：创建“本地草稿”只在 TradeMind 写入本地记录，明确为“本地草稿已创建，未调用 Ozon”。真实提交必须经用户二次确认，先创建 TradeMind 提交任务；Worker 才可调用 Ozon。仅当 Ozon 返回真实 product ID 后才可声明“Ozon 商品已创建，等待平台审核”。
+- 重试与人工核对：Ozon 真实提交强制要求 `Idempotency-Key`；本地草稿服务端按同一商品/店铺/配置复用已有活动记录，避免重复草稿。Ozon 返回 `failed` 或结果未知时，系统不自动重试、不参与批量重试，也不能用新 `Idempotency-Key` 绕过；运营者必须先在 Ozon 与任务中心人工核对真实结果，再决定后续处理。
 - 边界：MVP 不做订单同步、库存同步、客服消息与 Webhook；商品导入是创建操作，可归档（`/v1/product/archive`）恢复，不在本版本提供删除/归档操作。
 
 当前重点平台：

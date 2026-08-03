@@ -9,6 +9,7 @@ export type WriteRecord = {
   url: string;
   path: string;
   query: Record<string, string>;
+  headers: Record<string, string>;
   postDataJSON: unknown;
   order: number;
 };
@@ -78,6 +79,7 @@ export class NetworkWriteGuard {
       url: request.url(),
       path: url.pathname,
       query: Object.fromEntries(url.searchParams.entries()),
+      headers: request.headers(),
       postDataJSON,
       order: ++this.order,
     };
