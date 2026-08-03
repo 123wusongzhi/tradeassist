@@ -144,6 +144,9 @@ Compose，也没有新增环境变量。
   Cookie-CSRF 来源检查：一次性配对交换，以及设备 Bearer 保护的任务创建、结果提交、
   失败上报；不按路径前缀放行。携带 Cookie、相似路径、Admin 创建配对码或撤销设备
   仍受原 CSRF 来源校验。
+- 扩展调用 TradeMind API 时统一使用 Fetch `credentials: 'omit'`。即使回环地址上存在其他
+  本地应用写入的 Cookie，也不会将其带入配对或设备请求；Backend 继续拒绝任何携带
+  Cookie 的扩展写请求。
 - Backend 的 Admin CORS 白名单不增加 `chrome-extension://*`。MV3 侧边栏按 manifest
   中的本机精确 host permission 或用户授予的远程 HTTPS origin 发起跨源请求；这不会
   扩大普通网页或 Admin Cookie 写接口的来源权限。
