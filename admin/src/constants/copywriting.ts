@@ -9,10 +9,10 @@ import { mapErrorCodeToUserMessage } from '@/constants/errorMessages';
 export const PAGE_COPY = {
   platformSettings: {
     title: '平台接入设置',
-    description: '配置需要连接的电商平台，完成应用信息填写后即可授权店铺。',
+    description: '配置平台级应用信息，或查看使用店铺级凭证的平台授权入口。',
     heroTitle: '如何开始？',
     heroDescription:
-      '先在平台开放中心创建应用，再将应用信息填写到这里。保存后，前往「店铺管理」完成店铺授权。',
+      '需要平台应用的平台，先在开放中心创建应用并在此填写；Ozon 使用店铺级凭证，无需全局应用配置。随后前往「店铺管理」完成授权。',
   },
   shops: {
     title: '店铺管理',

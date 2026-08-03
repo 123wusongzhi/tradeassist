@@ -7,6 +7,7 @@ import { publishResponse, skuBindingsResponse } from "../mocks/publish";
 import { inventoryResponse } from "../mocks/inventory";
 import { imageProviderCapabilities } from "../mocks/image-providers";
 import { ozonPublishResponse } from "../mocks/ozon-publish";
+import { settingsResponse } from "../mocks/settings";
 
 export async function seedAdminAuth(page: Page) {
   await page.addInitScript(
@@ -81,6 +82,7 @@ export async function routeAdminApi(page: Page) {
       readinessResponse(path) ??
       publishResponse(path) ??
       ozonPublishResponse(path) ??
+      settingsResponse(path) ??
       inventoryResponse(path) ??
       (path.includes("/product-publications/") &&
       path.endsWith("/douyin/sku-bindings")

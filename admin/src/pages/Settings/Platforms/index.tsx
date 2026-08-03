@@ -1,4 +1,13 @@
-import { ApiOutlined, LinkOutlined, ReloadOutlined, SafetyCertificateOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
+import {
+  ApiOutlined,
+  CloudUploadOutlined,
+  LinkOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SaveOutlined,
+  ShopOutlined,
+  SyncOutlined,
+} from '@ant-design/icons';
 import {
   Alert,
   Button,
@@ -44,7 +53,10 @@ import {
 } from '@/services/platformOpen';
 import { queryPlatformProviders, queryShops, type ShopListRow } from '@/services/shops';
 import { getDouyinCategoryStats, syncDouyinCategories } from '@/services/douyinCategories';
-import OzonCategoryPanel from '@/pages/Settings/Platforms/OzonCategoryPanel';
+import {
+  resolvePlatformSettingsTab,
+  shouldShowPlatformSettingsEntry,
+} from '@/utils/platformSettings';
 import {
   getDouyinProductionPreflightLatest,
   runDouyinProductionPreflight,
@@ -58,6 +70,16 @@ import {
 } from '@/services/douyinProduction';
 
 const { Paragraph, Text } = Typography;
+
+function replacePlatformQuery(platform: string) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('platform', platform);
+  window.history.replaceState(
+    window.history.state,
+    '',
+    `${url.pathname}${url.search}${url.hash}`,
+  );
+}
 
 function valuesToFormFields(fields: AppConfigFieldDTO[], values: Record<string, string>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -441,6 +463,80 @@ function DouyinPreflightPanel() {
   );
 }
 
+function OzonPlatformAccessPanel({ meta }: { meta: PlatformProviderMeta }) {
+  const status = PLATFORM_STATUS_META[meta.status] ?? {
+    label: meta.status || '未知',
+    color: 'default',
+  };
+
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Alert
+        showIcon
+        type="info"
+        message="Ozon 无需平台级应用配置"
+        description="Ozon 使用每个店铺自己的 Seller API 凭证（Client-ID + Api-Key），无需 OAuth，也无需全局开发者应用配置。此页不会保存、回显或迁移 Ozon 密钥。"
+      />
+
+      <SectionCard
+        title="Ozon 店铺级接入"
+        description="凭证、刊登默认值和商品级发布流程分别在现有入口维护，避免把店铺密钥混入平台级设置。"
+        headerExtra={
+          <Space wrap size={[6, 6]}>
+            <Tag color="cyan" style={{ margin: 0 }}>
+              店铺级授权
+            </Tag>
+            <Tag style={{ margin: 0 }}>无需应用配置</Tag>
+            <Tag color={status.color} style={{ margin: 0 }}>
+              {status.label}
+            </Tag>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>平台接入设置（当前页）：</Text>
+            说明 Ozon 的店铺级接入方式并提供入口，不提供全局应用表单，也不显示“已配置”状态。
+          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>店铺管理：</Text>
+            新建或筛选 Ozon 店铺，在“授权”中填写 Client-ID、Api-Key，并使用只读接口测试连接。
+          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>平台刊登预设：</Text>
+            维护重量、尺寸、增值税率、仓库和币种等刊登默认值，不保存店铺授权凭证。
+          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>
+            <Text strong>商品级 Ozon 流程：</Text>
+            为具体商品选择类目和动态属性，执行发布前检查，并在人工确认后创建真实提交任务。
+          </Paragraph>
+
+          <ActionBar>
+            <Link to="/shops/manage">
+              <Button type="primary" icon={<ShopOutlined />}>
+                前往店铺授权
+              </Button>
+            </Link>
+            <Link to="/settings/platform-publish">
+              <Button icon={<CloudUploadOutlined />}>前往 Ozon 刊登预设</Button>
+            </Link>
+            <Link to="/product/ozon-publish">
+              <Button>进入商品级 Ozon 流程</Button>
+            </Link>
+            <Typography.Link
+              href={externalDocUrlFor('ozon')}
+              target="_blank"
+              rel="noreferrer"
+            >
+              查看 Ozon Seller API 文档
+            </Typography.Link>
+          </ActionBar>
+        </Space>
+      </SectionCard>
+    </Space>
+  );
+}
+
 function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -619,20 +715,6 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
           />
         ) : null}
 
-        {meta.platform === 'ozon' ? (
-          <Alert
-            showIcon
-            type="info"
-            message="Ozon 使用前确认"
-            description={
-              <>
-                在「店铺管理」中填写 Client-ID 与 Api-Key 并测试连接；在「平台刊登配置 → Ozon」填写
-                description_category_id + type_id（2025 年 5 月起两者必填）。Ozon 无沙箱，真实刊登会创建商品并进入平台审核，发布前请确认图片为公网可访问 https URL。
-              </>
-            }
-          />
-        ) : null}
-
         {meta.platform === 'douyin_shop' ? (
           <Alert
             showIcon
@@ -648,7 +730,6 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
 
         {meta.platform === 'douyin_shop' ? <DouyinRuntimePanel /> : null}
         {meta.platform === 'douyin_shop' ? <DouyinPreflightPanel /> : null}
-        {meta.platform === 'ozon' ? <OzonCategoryPanel /> : null}
       </Space>
     </Spin>
   );
@@ -657,11 +738,14 @@ function PlatformPanel({ meta }: { meta: PlatformProviderMeta }) {
 export default function PlatformSettingsPage() {
   const [loadingProviders, setLoadingProviders] = useState(true);
   const [providers, setProviders] = useState<PlatformProviderMeta[]>([]);
-  const [tab, setTab] = useState<string>();
+  const [tab, setTab] = useState<string | undefined>(() => {
+    if (typeof window === 'undefined') return undefined;
+    return new URLSearchParams(window.location.search).get('platform')?.trim() || undefined;
+  });
 
-  const withSchema = useMemo(() => {
+  const settingsEntries = useMemo(() => {
     return [...providers]
-      .filter((p) => p.settingsGroupKey && p.settingsGroupKey.trim())
+      .filter(shouldShowPlatformSettingsEntry)
       .sort((a, b) => preferredPlatformTabOrder(a.platform) - preferredPlatformTabOrder(b.platform));
   }, [providers]);
 
@@ -694,13 +778,15 @@ export default function PlatformSettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (!tab && withSchema.length > 0) {
-      const douyin = withSchema.find((p) => p.platform === 'douyin_shop');
-      setTab((douyin ?? withSchema[0]).platform);
+    if (!settingsEntries.length) return;
+    const resolved = resolvePlatformSettingsTab(settingsEntries, tab);
+    if (resolved && resolved !== tab) {
+      if (tab) replacePlatformQuery(resolved);
+      setTab(resolved);
     }
-  }, [tab, withSchema]);
+  }, [settingsEntries, tab]);
 
-  const items = withSchema.map((p) => {
+  const items = settingsEntries.map((p) => {
     const st = PLATFORM_STATUS_META[p.status];
     return {
       key: p.platform,
@@ -714,7 +800,8 @@ export default function PlatformSettingsPage() {
           ) : null}
         </Space>
       ),
-      children: <PlatformPanel meta={p} />,
+      children:
+        p.platform === 'ozon' ? <OzonPlatformAccessPanel meta={p} /> : <PlatformPanel meta={p} />,
     };
   });
 
@@ -741,9 +828,16 @@ export default function PlatformSettingsPage() {
         <SectionCard title="选择平台">
           <Spin spinning={loadingProviders}>
             {items.length === 0 ? (
-              <Paragraph type="secondary">暂无可配置的平台，请刷新页面后重试。</Paragraph>
+              <Paragraph type="secondary">暂无可展示的平台接入信息，请刷新页面后重试。</Paragraph>
             ) : (
-              <Tabs activeKey={tab} onChange={setTab} items={items} />
+              <Tabs
+                activeKey={tab}
+                onChange={(nextTab) => {
+                  setTab(nextTab);
+                  replacePlatformQuery(nextTab);
+                }}
+                items={items}
+              />
             )}
           </Spin>
         </SectionCard>

@@ -97,6 +97,7 @@ export const PLATFORM_DEV_PORTALS: { name: string; url: string }[] = [
   { name: 'Shopee Open', url: 'https://open.shopee.com/' },
   { name: 'Lazada Open', url: 'https://open.lazada.com/' },
   { name: 'Amazon SP-API', url: 'https://developer-docs.amazon.com/sp-api/' },
+  { name: 'Ozon Seller API', url: 'https://docs.ozon.ru/api/seller/zh/' },
   { name: 'Shopify Partners', url: 'https://partners.shopify.com/' },
 ];
 

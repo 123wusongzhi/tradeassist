@@ -9,7 +9,7 @@ import {
 } from '@ant-design/icons';
 import { ProCard } from '@ant-design/pro-components';
 import { TmPageContainer } from '@/components/ui';
-import { Alert, Col, Row, Space, Spin, Statistic, Tag, Typography } from 'antd';
+import { Alert, Col, Row, Space, Spin, Statistic, Tag, Typography, message } from 'antd';
 import type { ComponentType, CSSProperties, ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PAGE_COPY } from '@/constants/copywriting';
@@ -23,6 +23,12 @@ import {
 import { PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import { preferredPlatformTabOrder } from '@/services/platformOpen';
 import { fetchIntegrationsOverview, type IntegrationOverviewData } from '@/services/settings';
+import { queryPlatformProviders, type PlatformProviderMeta } from '@/services/shops';
+import {
+  mergePlatformIntegrationSummaries,
+  platformSettingsHref,
+  type PlatformSettingsMode,
+} from '@/utils/platformSettings';
 
 const { Text, Paragraph, Title } = Typography;
 
@@ -85,16 +91,29 @@ function IntegrationHubCard({ title, desc, configured, to, Icon, extra }: HubCar
 }
 
 type PlatformCardProps = {
+  platform: string;
   name: string;
   appConfigured: boolean;
   status: string;
+  settingsMode: PlatformSettingsMode;
 };
 
-function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardProps) {
-  const cfg = integrationConfiguredTag(appConfigured);
+function PlatformIntegrationCard({
+  platform,
+  name,
+  appConfigured,
+  status,
+  settingsMode,
+}: PlatformCardProps) {
+  const cfg =
+    settingsMode === 'shop_credentials'
+      ? { color: 'cyan', text: '店铺级授权' }
+      : integrationConfiguredTag(appConfigured);
   const runtime = PLATFORM_PROVIDER_STATUS[status as keyof typeof PLATFORM_PROVIDER_STATUS];
   return (
     <div
+      role="group"
+      aria-label={`${name} 接入状态`}
       style={{
         height: '100%',
         padding: '16px 16px 14px',
@@ -106,6 +125,7 @@ function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardPr
       <Space wrap size={[8, 4]} style={{ marginBottom: 8 }}>
         <Text strong>{name}</Text>
         <Tag color={cfg.color}>{cfg.text}</Tag>
+        {settingsMode === 'shop_credentials' ? <Tag>无需应用配置</Tag> : null}
       </Space>
       <div style={{ marginBottom: 10 }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
@@ -113,8 +133,9 @@ function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardPr
         </Text>
         <Tag color={runtime?.color}>{runtime?.text ?? status}</Tag>
       </div>
-      <Link to="/settings/platforms" style={{ fontSize: 13 }}>
-        编辑应用参数 <RightOutlined style={{ fontSize: 11 }} />
+      <Link to={platformSettingsHref(platform)} style={{ fontSize: 13 }}>
+        {settingsMode === 'shop_credentials' ? '查看授权入口' : '编辑应用参数'}{' '}
+        <RightOutlined style={{ fontSize: 11 }} />
       </Link>
     </div>
   );
@@ -123,12 +144,24 @@ function PlatformIntegrationCard({ name, appConfigured, status }: PlatformCardPr
 export default function IntegrationsHubPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<IntegrationOverviewData | null>(null);
+  const [providerMeta, setProviderMeta] = useState<PlatformProviderMeta[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const row = await fetchIntegrationsOverview();
       setData(row);
+      try {
+        const providers = await queryPlatformProviders();
+        setProviderMeta(Array.isArray(providers.list) ? providers.list : []);
+      } catch {
+        setProviderMeta([]);
+        message.warning('平台接入信息加载不完整，请稍后刷新。');
+      }
+    } catch (error: unknown) {
+      setData(null);
+      setProviderMeta([]);
+      message.error((error as Error)?.message || '加载第三方集成总览失败');
     } finally {
       setLoading(false);
     }
@@ -139,11 +172,16 @@ export default function IntegrationsHubPage() {
   }, [load]);
 
   const sortedPlatforms = useMemo(() => {
-    if (!data?.platforms?.length) return [];
-    return [...data.platforms].sort(
+    if (!data) return [];
+    return mergePlatformIntegrationSummaries(data.platforms ?? [], providerMeta).sort(
       (a, b) => preferredPlatformTabOrder(a.platform) - preferredPlatformTabOrder(b.platform) || a.name.localeCompare(b.name),
     );
-  }, [data?.platforms]);
+  }, [data, providerMeta]);
+
+  const applicationPlatforms = useMemo(
+    () => sortedPlatforms.filter((platform) => platform.settingsMode === 'application'),
+    [sortedPlatforms],
+  );
 
   const summary = useMemo(() => {
     if (!data) return { configured: 0, total: 0 };
@@ -224,7 +262,11 @@ export default function IntegrationsHubPage() {
                   <Statistic title="核心集成就绪" value={`${summary.configured} / ${summary.total}`} />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
-                  <Statistic title="平台应用参数" value={sortedPlatforms.filter((p) => p.appConfigured).length} suffix={`/ ${sortedPlatforms.length}`} />
+                  <Statistic
+                    title="平台应用参数"
+                    value={applicationPlatforms.filter((platform) => platform.appConfigured).length}
+                    suffix={`/ ${applicationPlatforms.length}`}
+                  />
                 </Col>
                 <Col xs={24} sm={12} md={8}>
                   <Statistic
@@ -318,16 +360,18 @@ export default function IntegrationsHubPage() {
                   跨境平台
                 </Title>
                 <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                  此处为各平台开放平台应用参数（应用 Key / 密钥等）。店铺授权后的授权凭证保存在「店铺 →
-                  授权配置」，请勿写入此处。
+                  需要开发者应用的平台在「平台接入设置」维护应用 Key 与应用密钥；Ozon 使用店铺级 Seller API
+                  凭证，并会明确标记为“无需应用配置”。所有店铺授权凭证都只在「店铺管理 → 授权配置」维护。
                 </Paragraph>
                 <Row gutter={[16, 16]}>
                   {sortedPlatforms.map((p) => (
                     <Col xs={24} sm={12} md={8} lg={6} key={p.platform}>
                       <PlatformIntegrationCard
+                        platform={p.platform}
                         name={p.name}
                         appConfigured={p.appConfigured}
                         status={p.status}
+                        settingsMode={p.settingsMode}
                       />
                     </Col>
                   ))}

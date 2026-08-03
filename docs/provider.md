@@ -90,6 +90,7 @@ Douyin Shop Phase 8 adds order sync MVP via existing order sync orchestration (`
 Ozon (`ozon`) beta — 店铺级凭证接入（`Client-ID` + `Api-Key`，无需 OAuth），能力：商品刊登 + 店铺信息/连接测试。Provider 位于 `backend/internal/providers/platform/ozon`：
 
 - 授权：在店铺管理中填写 `appKey`（Client ID）与 `accessToken`（Api-Key），加密存储于 `shop_auth_tokens`；连接测试调用 `POST /v1/seller/info`（只读），返回店铺名、币种、国家。
+- Admin 入口：`/settings/platforms?platform=ozon` 只说明“店铺级授权、无需应用配置”并引导现有流程，不保存或回显 Ozon 密钥；`/shops/manage` 维护 Client-ID、Api-Key 与连接测试；`/settings/platform-publish` 维护重量、尺寸、VAT、仓库、币种等默认值；`/product/ozon-publish` 处理商品级类目、动态属性、发布前检查和真实提交。第三方集成总览中的 Ozon 状态必须显示为“店铺级授权 / 无需应用配置”，不得伪造“已配置”。
 - 凭证与网络边界：Ozon Seller API 主机由 Provider 固定，租户保存的 `authConfig` 不可覆盖请求基址或注入明文凭证；历史 Ozon `authConfig` 不会回传或参与运行。仅进程内受信任测试覆盖可替换基址，禁止接收租户输入。
 - 刊登：`PublishProduct` 调用 `POST /v3/product/import` 提交商品 → 轮询 `POST /v1/product/import/info`（`imported` 且 `product_id>0` 才算成功；`failed`/`skipped` 判失败；已导入商品带 error 级提示时记录为警告）→ 可选按仓库 `POST /v2/products/stocks` 写库存。多 SKU 时每个本地 SKU 生成一个 Ozon 商品（`offer_id` 取 SKU 编码），写入 `product_publication_skus.external_sku_id`。商品导入和库存写入禁用 HTTP 传输层自动重试，避免超时或 5xx 后产生隐藏的重复写；只读查询仍保留有界重试。
 - 图片要求：Ozon 商品图片必须是 Ozon 服务器可访问的公开 `https://` 图片 URL（导入时直接引用，不经过 TradeMind 中转）。本地/对象存储的图片需先配置公开访问地址（`PublicURL`）后再刊登。
