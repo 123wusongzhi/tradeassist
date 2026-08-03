@@ -64,8 +64,9 @@ Before exposing TradeMind to a public network, you should:
   expose its host port on loopback only, and keep `/health` free of sensitive data.
 - Do not add a wildcard `chrome-extension://` CORS origin. Browser-extension writes
   cross the Cookie-CSRF check only on the four documented, exact, cookie-free pairing
-  or device-token routes; Admin pairing and device-management writes keep the normal
-  Origin/Referer checks.
+  or device-token routes. The extension client must use Fetch `credentials: 'omit'` so
+  unrelated loopback cookies are never attached; Admin pairing and device-management
+  writes keep the normal Origin/Referer checks.
 - Treat tenant identity as authentication data. Never accept tenant scope from a
   URL, request body, queue message, or provider response; recover it from a verified
   session, one-time OAuth state, or a persisted task-to-shop relationship.

@@ -37,7 +37,7 @@ export class TradeMindAPI {
     if (this.deviceToken) {
       headers.set('Authorization', `Bearer ${this.deviceToken}`);
     }
-    const response = await fetch(`${this.baseURL}${path}`, { ...init, headers });
+    const response = await fetch(`${this.baseURL}${path}`, { ...init, headers, credentials: 'omit' });
     let envelope: Envelope<T>;
     try {
       envelope = (await response.json()) as Envelope<T>;
