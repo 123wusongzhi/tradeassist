@@ -61,6 +61,72 @@ export const e2eOzonConfig = {
   },
   schemaHash: 'e2e-schema-v1',
   schemaConfirmedAt: '2026-08-03T00:00:00Z',
+  ozonImages: {
+    version: 1,
+    configured: true,
+    maxImagesPerSku: 10,
+    sharedImages: [
+      {
+        id: 'e2e-ozon-shared-1',
+        url: 'https://example.test/ozon-shared-1.jpg',
+        imageType: 'main',
+        sortOrder: 1,
+      },
+      {
+        id: 'e2e-ozon-shared-2',
+        url: 'https://example.test/ozon-shared-2.jpg',
+        imageType: 'detail',
+        sortOrder: 2,
+      },
+    ],
+    skus: [
+      {
+        skuId: 'e2e-ozon-sku-red',
+        skuCode: 'OZON-RED-M',
+        skuName: '红色 / M',
+        attrs: { 颜色: '红色', 尺码: 'M' },
+        originalMainImageUrl: 'https://example.test/ozon-red.jpg',
+        additionalImageIds: ['e2e-ozon-shared-1'],
+        finalImages: [
+          {
+            url: 'https://example.test/ozon-red.jpg',
+            source: 'sku_original',
+            position: 1,
+            imageType: 'main',
+          },
+          {
+            imageId: 'e2e-ozon-shared-1',
+            url: 'https://example.test/ozon-shared-1.jpg',
+            source: 'product_shared',
+            position: 2,
+            imageType: 'detail',
+          },
+        ],
+        canPublish: true,
+        issues: [],
+      },
+      {
+        skuId: 'e2e-ozon-sku-blue',
+        skuCode: 'OZON-BLUE-L',
+        skuName: '蓝色 / L',
+        attrs: { 颜色: '蓝色', 尺码: 'L' },
+        originalMainImageUrl: 'https://example.test/ozon-blue.jpg',
+        additionalImageIds: [],
+        finalImages: [
+          {
+            url: 'https://example.test/ozon-blue.jpg',
+            source: 'sku_original',
+            position: 1,
+            imageType: 'main',
+          },
+        ],
+        canPublish: true,
+        issues: [],
+      },
+    ],
+    issues: [],
+    errorCount: 0,
+  },
 };
 
 export function ozonPublishResponse(path: string) {

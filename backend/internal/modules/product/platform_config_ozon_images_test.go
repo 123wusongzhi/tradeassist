@@ -1,0 +1,83 @@
+package product
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
+	"gorm.io/datatypes"
+)
+
+func TestOzonPlatformConfigPersistsAndReloadsSKUImageSelections(t *testing.T) {
+	svc, productRow := tenantProductFixture(t, 1)
+	require.NoError(t, svc.DB.AutoMigrate(
+		&ProductPlatformPublishConfig{},
+		&shop.Shop{},
+		&shop.PlatformCategory{},
+		&shop.PlatformCategoryAttribute{},
+	))
+	shopRow := shop.Shop{TenantID: 1, Platform: "ozon", ShopName: "Ozon test", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	require.NoError(t, svc.DB.Create(&shopRow).Error)
+	require.NoError(t, svc.DB.Create(&shop.PlatformCategory{Platform: "ozon", CategoryID: "100:200", Name: "桌子", IsLeaf: true, Status: "active"}).Error)
+	require.NoError(t, svc.DB.Create(&shop.PlatformCategoryAttribute{Platform: "ozon", CategoryID: "100:200", AttrID: "optional", Name: "可选属性", Required: false, Raw: datatypes.JSON([]byte(`{}`))}).Error)
+
+	originalSKU := ProductSKU{ProductID: productRow.ID, SKUCode: "RED", SKUName: "红色", ImageURL: "https://img.example/red.jpg"}
+	fallbackSKU := ProductSKU{ProductID: productRow.ID, SKUCode: "BLUE", SKUName: "蓝色"}
+	shared := ProductImage{ProductID: productRow.ID, ImageType: ImageTypeMain, PublicURL: "https://img.example/shared.jpg", SortOrder: 1}
+	detail := ProductImage{ProductID: productRow.ID, ImageType: ImageTypeDetail, PublicURL: "https://img.example/detail.jpg", SortOrder: 2}
+	require.NoError(t, svc.DB.Create(&originalSKU).Error)
+	require.NoError(t, svc.DB.Create(&fallbackSKU).Error)
+	require.NoError(t, svc.DB.Create(&shared).Error)
+	require.NoError(t, svc.DB.Create(&detail).Error)
+
+	c := tenantProductAdminContext(t, svc, 1)
+	saved, err := svc.PutPlatformPublishConfig(c, productRow.ID, "ozon", PlatformPublishConfigBody{
+		ShopID:             shopRow.ID.String(),
+		CategoryID:         "100:200",
+		PlatformAttributes: json.RawMessage(`{}`),
+		OzonImages: &OzonImageConfigInput{Version: OzonImageConfigVersion, SKUSelections: []OzonSKUImageSelection{
+			{SKUID: originalSKU.ID, AdditionalImageIDs: []uuid.UUID{detail.ID}},
+			{SKUID: fallbackSKU.ID, FallbackMainImageID: &shared.ID, AdditionalImageIDs: []uuid.UUID{detail.ID}},
+		}},
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, saved.OzonImages)
+	require.True(t, saved.OzonImages.Configured)
+	require.Zero(t, saved.OzonImages.ErrorCount)
+
+	var persisted ProductPlatformPublishConfig
+	require.NoError(t, svc.DB.Where("product_id = ? AND platform = ?", productRow.ID, "ozon").First(&persisted).Error)
+	require.Contains(t, string(persisted.MappedImages), fallbackSKU.ID.String())
+	require.Contains(t, string(persisted.MappedImages), shared.ID.String())
+
+	// An older client that only resaves category/attribute fields must not erase
+	// the newer SKU image selection.
+	_, err = svc.PutPlatformPublishConfig(c, productRow.ID, "ozon", PlatformPublishConfigBody{
+		ShopID:             shopRow.ID.String(),
+		CategoryID:         "100:200",
+		PlatformAttributes: json.RawMessage(`{}`),
+	}, nil)
+	require.NoError(t, err)
+
+	reloaded, err := svc.GetPlatformPublishConfig(c, productRow.ID, "ozon")
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.OzonImages)
+	require.True(t, reloaded.OzonImages.Configured)
+	require.Zero(t, reloaded.OzonImages.ErrorCount)
+	bySKU := map[uuid.UUID]OzonSKUImageDTO{}
+	for _, sku := range reloaded.OzonImages.SKUs {
+		bySKU[sku.SKUID] = sku
+	}
+	require.Equal(t, []string{originalSKU.ImageURL, detail.PublicURL}, resolvedOzonURLs(bySKU[originalSKU.ID].FinalImages))
+	require.Equal(t, []string{shared.PublicURL, detail.PublicURL}, resolvedOzonURLs(bySKU[fallbackSKU.ID].FinalImages))
+}
+
+func resolvedOzonURLs(images []OzonResolvedImageDTO) []string {
+	out := make([]string, 0, len(images))
+	for _, image := range images {
+		out = append(out, image.URL)
+	}
+	return out
+}

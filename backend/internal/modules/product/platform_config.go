@@ -23,7 +23,12 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		return nil, fmt.Errorf("product: no db")
 	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
-	if _, err := s.findTenantProduct(c, productID); err != nil {
+	preloads := []string{}
+	if plat == "ozon" {
+		preloads = []string{"Images", "SKUs"}
+	}
+	productRow, err := s.findTenantProduct(c, productID, preloads...)
+	if err != nil {
 		return nil, err
 	}
 	var row ProductPlatformPublishConfig
@@ -31,11 +36,17 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		Where("product_id = ? AND platform = ?", productID, plat).
 		First(&row).Error; err != nil {
 		if err == gorm.ErrRecordNotFound && plat == "ozon" {
-			return &PlatformPublishConfigDTO{ProductID: productID, Platform: plat, PlatformAttributes: json.RawMessage(`{}`)}, nil
+			images := ResolveOzonImageConfig(*productRow, nil)
+			return &PlatformPublishConfigDTO{ProductID: productID, Platform: plat, PlatformAttributes: json.RawMessage(`{}`), OzonImages: &images}, nil
 		}
 		return nil, err
 	}
-	return platformConfigDTO(row), nil
+	out := platformConfigDTO(row)
+	if plat == "ozon" {
+		images := ResolveOzonImageConfig(*productRow, row.MappedImages)
+		out.OzonImages = &images
+	}
+	return out, nil
 }
 
 func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, platform string, body PlatformPublishConfigBody, adminID *uuid.UUID) (*PlatformPublishConfigDTO, error) {
@@ -49,7 +60,11 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if plat != "douyin_shop" && plat != "ozon" {
 		return nil, fmt.Errorf("platform config is currently supported for douyin_shop or ozon only")
 	}
-	productRow, err := s.findTenantProduct(c, productID)
+	preloads := []string{}
+	if plat == "ozon" {
+		preloads = []string{"Images", "SKUs"}
+	}
+	productRow, err := s.findTenantProduct(c, productID, preloads...)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +128,9 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		SourceCategoryKey:  sourceKey,
 		SourceCategoryName: sourceName,
 	}
+	updates := []string{
+		"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at",
+	}
 	if plat == "ozon" {
 		row.CategoryPath = shop.CanonicalOzonCategoryPath(c.Request.Context(), s.DB, *selectedCategory)
 		hash, err := s.ozonSchemaHash(c.Request.Context(), cid)
@@ -122,18 +140,26 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		row.SchemaHash = hash
 		now := time.Now().UTC()
 		row.SchemaConfirmedAt = &now
+		if body.OzonImages != nil {
+			rawImages, err := MarshalOzonImageConfig(*productRow, *body.OzonImages)
+			if err != nil {
+				return nil, err
+			}
+			row.MappedImages = datatypes.JSON(rawImages)
+			updates = append(updates, "mapped_images")
+		}
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at",
-		}),
+		Columns:   []clause.Column{{Name: "product_id"}, {Name: "platform"}},
+		DoUpdates: clause.AssignmentColumns(updates),
 	}).Create(&row).Error; err != nil {
 		return nil, err
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Where("product_id = ? AND platform = ?", productID, plat).First(&row).Error; err != nil {
+	var savedRow ProductPlatformPublishConfig
+	if err := s.DB.WithContext(c.Request.Context()).Where("product_id = ? AND platform = ?", productID, plat).First(&savedRow).Error; err != nil {
 		return nil, err
 	}
+	row = savedRow
 	if s.OpLog != nil {
 		if cid != "" {
 			_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -153,8 +179,29 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			Status:      "success",
 			Message:     "platformAttributes updated",
 		})
+		if plat == "ozon" && body.OzonImages != nil {
+			fallbackCount := 0
+			for _, selection := range body.OzonImages.SKUSelections {
+				if selection.FallbackMainImageID != nil {
+					fallbackCount++
+				}
+			}
+			_ = s.OpLog.Write(c, operationlog.WriteOpts{
+				AdminUserID: adminID,
+				Action:      "ozon.images.update",
+				Resource:    "product",
+				ResourceID:  productID.String(),
+				Status:      "success",
+				Message:     fmt.Sprintf("skuSelections=%d fallbackMainImages=%d", len(body.OzonImages.SKUSelections), fallbackCount),
+			})
+		}
 	}
-	return platformConfigDTO(row), nil
+	out := platformConfigDTO(row)
+	if plat == "ozon" {
+		images := ResolveOzonImageConfig(*productRow, row.MappedImages)
+		out.OzonImages = &images
+	}
+	return out, nil
 }
 
 func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, platform string) error {
@@ -331,6 +378,10 @@ func (s *Service) ozonSchemaHash(ctx context.Context, categoryID string) (string
 }
 
 func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigDTO {
+	var mapping *DouyinDraftMapping
+	if strings.EqualFold(strings.TrimSpace(row.Platform), "douyin_shop") {
+		mapping = DouyinDraftMappingFromConfig(row)
+	}
 	return &PlatformPublishConfigDTO{
 		ProductID:          row.ProductID,
 		Platform:           row.Platform,
@@ -338,7 +389,7 @@ func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigD
 		CategoryID:         row.CategoryID,
 		CategoryPath:       row.CategoryPath,
 		PlatformAttributes: json.RawMessage(row.PlatformAttributes),
-		Mapping:            DouyinDraftMappingFromConfig(row),
+		Mapping:            mapping,
 		LastMappedAt:       row.LastMappedAt,
 		SourceCategoryKey:  row.SourceCategoryKey,
 		SourceCategoryName: row.SourceCategoryName,

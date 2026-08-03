@@ -105,6 +105,7 @@ func seedBatchProduct(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 		HardDeleteBase: model.HardDeleteBase{ID: uuid.New()},
 		ProductID:      pid,
 		SKUName:        "Default",
+		ImageURL:       "https://example.com/main.jpg",
 		Price:          &price,
 		Stock:          &stock,
 	}

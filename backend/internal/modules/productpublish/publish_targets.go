@@ -776,7 +776,7 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 		res.ErrorMessage = err.Error()
 		return res
 	}
-	draft, err := BuildPlatformDraftFromProduct(prod)
+	draft, err := s.buildPlatformDraftForProduct(ctx, prod, plat)
 	if err != nil {
 		res.Status = TaskFailed
 		res.StatusLabel = opslabels.StatusLabel(TaskFailed)
