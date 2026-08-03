@@ -128,6 +128,7 @@
     "test:p9-postgres-gate-fixtures": "node tests/gates/p9/postgres-integration.mjs",
     "p9:postgres-test-db:ensure": "node scripts/p9-postgres-test-db-ensure.mjs",
     "test:p9-postgres-integration": "node scripts/p9-postgres-runtime.mjs",
+    "test:p9-postgres-ci": "node scripts/p9-postgres-ci.mjs",
     "p9:postgres-integration-gate": "node scripts/p9-postgres-integration-gate.mjs",
     "p9:postgres-integration-closure": "pnpm test:p9-postgres-gate-fixtures && pnpm test:p9-postgres-integration && pnpm p9:postgres-integration-gate",
     "test:p7-v2-gates": "node tests/gates/p7-v2/index.mjs",

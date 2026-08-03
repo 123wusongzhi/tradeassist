@@ -44,6 +44,12 @@ dataRaces=0
 historicalGateFailureCount=0
 ```
 
+## Execution modes
+
+- Local baseline evidence uses `pnpm p9:postgres-integration-closure`. It remains restricted to a clean, non-detached `dev` checkout and writes the hash-bound runtime artifacts documented above.
+- Pull request, push, and scheduled CI use `pnpm test:p9-postgres-ci`. This runs the same PostgreSQL-tagged packages and their race suite against the CI service database, but does not assert a local branch name or generate baseline evidence artifacts.
+- Both modes remain fail-closed: `APP_ENV=test` and a safely named `TEST_DATABASE_URL` are required, and the Go harness verifies the actual PostgreSQL database before running integration behavior.
+
 ## Historical evidence
 
 Batch 1–5 documents retain their original `postgresIntegrationStatus=not_run` observations. Each now includes a separate **PostgreSQL Revalidation** section pointing to this closure evidence.

@@ -52,6 +52,7 @@
 
 - [ ] 我已确认没有提交 `.env`、密钥、Token、Cookie 或真实平台凭证。
 - [ ] 涉及 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
+- [ ] CI 测试编排变化已区分普通回归测试与仅限特定本地分支/干净工作树的基线证据脚本。
 - [ ] 我已阅读并遵守 `docs/ai-coding-rules.md`。
 - [ ] 使用 AI 工具协作时，我已参考 `docs/ai-workflow.md` 控制上下文并沉淀可复用经验。
 - [ ] 我已按 `docs/task-checklist.md` 完成收尾自查。

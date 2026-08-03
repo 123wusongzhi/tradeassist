@@ -69,6 +69,7 @@ chore: update issue templates
 - 已按 [docs/task-checklist.md](docs/task-checklist.md) 完成对应范围的收尾检查。
 - 涉及后端 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
 - 涉及前端或 Collector 时已执行相关构建或说明未执行原因。
+- 修改 CI 测试编排时，已区分普通回归测试与要求特定分支/干净工作树的基线证据生成；P9 PostgreSQL 普通 CI 应调用 `pnpm test:p9-postgres-ci`。
 - 涉及接口、部署、环境变量、配置文件或 Provider 机制时同步更新文档。
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭证。
 

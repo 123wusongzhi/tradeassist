@@ -48,6 +48,7 @@ const REQUIRED_FILES = [
   'backend/internal/testing/postgrestest/harness.go',
   'backend/internal/testing/safeenv/safeenv.go',
   'scripts/p9-postgres-contract.mjs',
+  'scripts/p9-postgres-ci.mjs',
   'scripts/p9-postgres-runtime.mjs',
   'scripts/p9-postgres-test-db-ensure.mjs',
   'scripts/p9-postgres-integration-gate.mjs',
@@ -147,7 +148,7 @@ export function validateP9PostgresIntegrationClosure(bundle = {}) {
   const requiredFilesPresent = bundle.requiredFilesPresent ?? REQUIRED_FILES.every((file) => fs.existsSync(path.join(repoRoot, file)));
   const scripts = bundle.packageScriptsPresent ?? (() => {
     const packageJSON = readJSON('package.json') || {};
-    return ['test:p9-postgres-gate-fixtures', 'test:p9-postgres-integration', 'p9:postgres-integration-gate'].every((name) => typeof packageJSON.scripts?.[name] === 'string');
+    return ['test:p9-postgres-gate-fixtures', 'test:p9-postgres-integration', 'test:p9-postgres-ci', 'p9:postgres-integration-gate'].every((name) => typeof packageJSON.scripts?.[name] === 'string');
   })();
   const checks = [
     ['requiredFilesPresent', requiredFilesPresent],

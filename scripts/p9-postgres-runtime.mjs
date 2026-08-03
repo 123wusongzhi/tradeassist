@@ -7,6 +7,7 @@ import {
   deriveRuntimeContracts,
   parseGoJSONL,
   parseSafeTestDatabaseUrl,
+  p9PostgresGoTestArgs,
   p9SourceManifest,
   repoRoot,
   runtimeRaceRawPath,
@@ -81,8 +82,8 @@ if (!database.valid) preflightIssues.push(database.reason || 'testDatabaseUrl');
 
 let postgresResult = null;
 let raceResult = null;
-const postgresArgs = ['test', '-json', '-tags', 'p9postgres', '-count=1', './internal/modules/inventorysyncp9', './internal/testing/integration'];
-const raceArgs = ['test', '-json', '-race', '-tags', 'p9postgres', '-count=1', './internal/modules/inventorysyncp9', './internal/testing/integration'];
+const postgresArgs = p9PostgresGoTestArgs({ json: true });
+const raceArgs = p9PostgresGoTestArgs({ json: true, race: true });
 if (preflightIssues.length === 0) {
   postgresResult = runGo(postgresArgs, runtimeRawPath);
   raceResult = runGo(raceArgs, runtimeRaceRawPath);
