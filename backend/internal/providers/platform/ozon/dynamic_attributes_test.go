@@ -194,7 +194,7 @@ func explicitAttributePublishRequest(baseURL string, attributes map[string]any) 
 			ProductID: uuid.New(),
 			Title:     "Test product",
 			Images:    []platformp.PlatformProductImage{{URL: "https://example.com/main.jpg", Type: "main"}},
-			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-1", Price: 10, Stock: 1}},
+			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-1", Price: 10, Stock: 1, ImageURL: "https://example.com/main.jpg"}},
 		},
 	}
 }

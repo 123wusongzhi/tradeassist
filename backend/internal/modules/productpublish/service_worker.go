@@ -121,7 +121,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 			return fail(fmt.Sprintf("load product: %v", err))
 		}
 		var buildErr error
-		draft, buildErr = BuildPlatformDraftFromProduct(prod)
+		draft, buildErr = s.buildPlatformDraftForProduct(ctx, prod, taskRow.Platform)
 		if buildErr != nil {
 			return fail(buildErr.Error())
 		}

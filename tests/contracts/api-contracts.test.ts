@@ -73,8 +73,26 @@ describe('TradeMind API contract registry', () => {
     expect(ozonCategories?.query).toEqual(['keyword', 'onlyLeaf', 'activeOnly', 'limit']);
     expect(ozonDictionaryValues?.query).toEqual(['shopId', 'keyword']);
     expect(publish?.conditionalRequiredHeaders).toEqual({ ozon: ['Idempotency-Key'] });
-    expect(ozonConfig?.requestBody).toEqual(['shopId', 'categoryId', 'categoryPath', 'platformAttributes', 'sourceCategoryKey', 'sourceCategoryName']);
-    expect(ozonConfig?.responseFields).toContain('id');
+    expect(ozonConfig?.requestBody).toEqual([
+      'shopId',
+      'categoryId',
+      'categoryPath',
+      'platformAttributes',
+      'sourceCategoryKey',
+      'sourceCategoryName',
+      'ozonImages',
+    ]);
+    expect(ozonConfig?.responseFields).toEqual(
+      expect.arrayContaining([
+        'id',
+        'ozonImages.version',
+        'ozonImages.configured',
+        'ozonImages.sharedImages',
+        'ozonImages.skus',
+        'ozonImages.skus[].finalImages',
+        'ozonImages.skus[].issues',
+      ]),
+    );
     expect(ozonConfig?.errorStatuses).toEqual([400, 403, 404]);
     expect(ozonReadiness?.requestBody).toEqual(['platform', 'shopId']);
     expect(ozonReadiness?.errorStatuses).toEqual([400, 403, 404, 502, 503]);

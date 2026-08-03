@@ -35,12 +35,13 @@ type UpdateBody struct {
 
 // PlatformPublishConfigBody binds PUT /products/:id/platform-configs/:platform.
 type PlatformPublishConfigBody struct {
-	ShopID             string          `json:"shopId"`
-	CategoryID         string          `json:"categoryId"`
-	CategoryPath       string          `json:"categoryPath"`
-	PlatformAttributes json.RawMessage `json:"platformAttributes"`
-	SourceCategoryKey  string          `json:"sourceCategoryKey"`
-	SourceCategoryName string          `json:"sourceCategoryName"`
+	ShopID             string                `json:"shopId"`
+	CategoryID         string                `json:"categoryId"`
+	CategoryPath       string                `json:"categoryPath"`
+	PlatformAttributes json.RawMessage       `json:"platformAttributes"`
+	SourceCategoryKey  string                `json:"sourceCategoryKey"`
+	SourceCategoryName string                `json:"sourceCategoryName"`
+	OzonImages         *OzonImageConfigInput `json:"ozonImages,omitempty"`
 }
 
 type PlatformPublishConfigDTO struct {
@@ -57,6 +58,7 @@ type PlatformPublishConfigDTO struct {
 	SourceCategoryName string              `json:"sourceCategoryName,omitempty"`
 	SchemaHash         string              `json:"schemaHash,omitempty"`
 	SchemaConfirmedAt  *time.Time          `json:"schemaConfirmedAt,omitempty"`
+	OzonImages         *OzonImageConfigDTO `json:"ozonImages,omitempty"`
 	CreatedAt          time.Time           `json:"createdAt"`
 	UpdatedAt          time.Time           `json:"updatedAt"`
 }

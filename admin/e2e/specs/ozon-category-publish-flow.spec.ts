@@ -270,6 +270,240 @@ test.describe('@ozon-publish Ozon 类目与刊登流程', () => {
     ).toBeDisabled();
   });
 
+  test('previews per-SKU image order, applies a bulk choice, and saves adjustable selections locally', async ({
+    admin,
+    page,
+  }) => {
+    admin.writeGuard.allow({
+      operation: 'save-ozon-sku-images',
+      method: 'PUT',
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
+      ),
+      response: { code: 0, message: 'ok', data: e2eOzonConfig },
+    });
+    await openStage(page, 'config');
+    await expect(page.getByText('红色 / M', { exact: true })).toBeVisible();
+    await expect(page.getByText('蓝色 / L', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('SKU 原始主图', { exact: true }).first(),
+    ).toBeVisible();
+
+    const bulk = page.locator('[aria-label="批量选择商品公共图片"]');
+    await bulk.getByRole('checkbox', { name: /图片 2/ }).check();
+    await page.getByRole('button', { name: '应用到所有 SKU' }).click();
+
+    const red = page.locator('section[aria-label="SKU 图片配置：红色 / M"]');
+    const blue = page.locator('section[aria-label="SKU 图片配置：蓝色 / L"]');
+    await expect(red.getByAltText('红色 / M 提交图片 1')).toHaveAttribute(
+      'src',
+      'https://example.test/ozon-red.jpg',
+    );
+    await expect(red.getByAltText('红色 / M 提交图片 2')).toHaveAttribute(
+      'src',
+      'https://example.test/ozon-shared-2.jpg',
+    );
+    await blue.getByRole('checkbox', { name: '图片 2' }).uncheck();
+    await blue.getByRole('checkbox', { name: '图片 1' }).check();
+    await expect(blue.getByAltText('蓝色 / L 提交图片 1')).toHaveAttribute(
+      'src',
+      'https://example.test/ozon-blue.jpg',
+    );
+    await expect(blue.getByAltText('蓝色 / L 提交图片 2')).toHaveAttribute(
+      'src',
+      'https://example.test/ozon-shared-1.jpg',
+    );
+
+    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
+    await admin.writeGuard.expectRequestCount('save-ozon-sku-images', 1);
+    expect(
+      admin.writeGuard.calls('save-ozon-sku-images')[0].postDataJSON.ozonImages,
+    ).toEqual({
+      version: 1,
+      skuSelections: [
+        {
+          skuId: 'e2e-ozon-sku-red',
+          additionalImageIds: ['e2e-ozon-shared-2'],
+        },
+        {
+          skuId: 'e2e-ozon-sku-blue',
+          additionalImageIds: ['e2e-ozon-shared-1'],
+        },
+      ],
+    });
+  });
+
+  test('names a SKU with no collected image and persists an explicit fallback main image', async ({
+    admin,
+    page,
+  }) => {
+    const missingConfig = {
+      ...e2eOzonConfig,
+      ozonImages: {
+        ...e2eOzonConfig.ozonImages,
+        skus: [
+          {
+            skuId: 'e2e-ozon-sku-missing',
+            skuCode: 'OZON-NO-IMAGE',
+            skuName: '无原图 / XL',
+            attrs: { 尺码: 'XL' },
+            additionalImageIds: [],
+            finalImages: [],
+            canPublish: false,
+            issues: [
+              {
+                code: 'OZON_SKU_MAIN_IMAGE_MISSING',
+                skuId: 'e2e-ozon-sku-missing',
+                message:
+                  'SKU「无原图 / XL」缺少原始主图，且未指定可追溯的替代主图',
+                suggestion: '请明确选择替代主图。',
+              },
+            ],
+          },
+        ],
+        errorCount: 1,
+      },
+    };
+    await page.route(
+      `**/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`,
+      (route) =>
+        route.request().method() === 'GET'
+          ? route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                code: 0,
+                message: 'ok',
+                data: missingConfig,
+              }),
+            })
+          : route.fallback(),
+    );
+    admin.writeGuard.allow({
+      operation: 'save-ozon-fallback-image',
+      method: 'PUT',
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
+      ),
+      response: { code: 0, message: 'ok', data: e2eOzonConfig },
+    });
+    await openStage(page, 'config');
+    await expect(
+      page.getByText(/SKU「无原图 \/ XL」缺少原始主图/),
+    ).toBeVisible();
+    const fallback = page.getByRole('combobox', {
+      name: '为 无原图 / XL 选择替代主图',
+    });
+    await fallback.click();
+    await page
+      .locator('.ant-select-item-option-content')
+      .filter({ hasText: '图片 1 · main' })
+      .click();
+    const card = page.locator(
+      'section[aria-label="SKU 图片配置：无原图 / XL"]',
+    );
+    await expect(card.getByText('人工替代主图', { exact: true })).toBeVisible();
+    await expect(card.getByText('图片可提交', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
+    await admin.writeGuard.expectRequestCount('save-ozon-fallback-image', 1);
+    expect(
+      admin.writeGuard.calls('save-ozon-fallback-image')[0].postDataJSON
+        .ozonImages.skuSelections,
+    ).toEqual([
+      {
+        skuId: 'e2e-ozon-sku-missing',
+        fallbackMainImageId: 'e2e-ozon-shared-1',
+        additionalImageIds: [],
+      },
+    ]);
+  });
+
+  test('can clear stale image selections after the SKU original image changes', async ({
+    admin,
+    page,
+  }) => {
+    const changedImageConfig = {
+      ...e2eOzonConfig,
+      ozonImages: {
+        ...e2eOzonConfig.ozonImages,
+        sharedImages: [],
+        skus: [
+          {
+            skuId: 'e2e-ozon-sku-red',
+            skuCode: 'OZON-RED-M',
+            skuName: '红色 / M',
+            originalMainImageUrl: 'https://example.test/ozon-red.jpg',
+            fallbackMainImageId: 'e2e-ozon-shared-1',
+            additionalImageIds: ['e2e-ozon-deleted-image'],
+            finalImages: [
+              {
+                url: 'https://example.test/ozon-red.jpg',
+                source: 'sku_original',
+                position: 1,
+                imageType: 'main',
+              },
+            ],
+            canPublish: false,
+            issues: [
+              {
+                code: 'OZON_SKU_FALLBACK_NOT_ALLOWED',
+                skuId: 'e2e-ozon-sku-red',
+                message: 'SKU 已有原始主图，不能同时保存替代主图',
+              },
+              {
+                code: 'OZON_SKU_SHARED_IMAGE_STALE',
+                skuId: 'e2e-ozon-sku-red',
+                message: 'SKU 选择的商品公共图片已不存在或不可用',
+              },
+            ],
+          },
+        ],
+        errorCount: 2,
+      },
+    };
+    await page.route(
+      `**/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`,
+      (route) =>
+        route.request().method() === 'GET'
+          ? route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                code: 0,
+                message: 'ok',
+                data: changedImageConfig,
+              }),
+            })
+          : route.fallback(),
+    );
+    admin.writeGuard.allow({
+      operation: 'clear-stale-ozon-images',
+      method: 'PUT',
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
+      ),
+      response: { code: 0, message: 'ok', data: e2eOzonConfig },
+    });
+
+    await openStage(page, 'config');
+    await page.getByRole('button', { name: '清除已保存的替代主图' }).click();
+    await page.getByRole('button', { name: '清空该 SKU 的追加图片' }).click();
+    await expect(page.getByText('图片可提交', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
+
+    await admin.writeGuard.expectRequestCount('clear-stale-ozon-images', 1);
+    expect(
+      admin.writeGuard.calls('clear-stale-ozon-images')[0].postDataJSON
+        .ozonImages.skuSelections,
+    ).toEqual([
+      {
+        skuId: 'e2e-ozon-sku-red',
+        additionalImageIds: [],
+      },
+    ]);
+  });
+
   test('shows a deactivated Ozon credential and restores the last usable category', async ({
     admin,
     page,

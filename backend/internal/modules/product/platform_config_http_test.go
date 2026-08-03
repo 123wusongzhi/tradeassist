@@ -28,6 +28,8 @@ func TestPutOzonPlatformConfigCreatesThenUpdatesStableRecord(t *testing.T) {
 	}
 	if err := db.AutoMigrate(
 		&Product{},
+		&ProductImage{},
+		&ProductSKU{},
 		&ProductPlatformPublishConfig{},
 		&shop.Shop{},
 		&shop.PlatformCategory{},

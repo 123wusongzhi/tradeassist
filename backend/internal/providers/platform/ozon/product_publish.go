@@ -163,11 +163,14 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	if len(d.SKUs) == 0 {
 		return nil, fmt.Errorf("product SKU is required for publish")
 	}
-	images := orderedImageURLs(d.Images)
-	if len(images) == 0 {
-		return nil, fmt.Errorf("product image required for publish")
+	skuImagePlans := make([]ozonSKUImagePlan, len(d.SKUs))
+	for i, sku := range d.SKUs {
+		plan, imageErr := resolveOzonSKUImagePlan(sku)
+		if imageErr != nil {
+			return nil, imageErr
+		}
+		skuImagePlans[i] = plan
 	}
-	primary := firstMainImageURL(d.Images)
 
 	cctx, cancel := context.WithTimeout(ctx, cfg.Timeout+2*time.Minute)
 	defer cancel()
@@ -245,6 +248,7 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 
 	items := make([]ozonImportItem, 0, len(d.SKUs))
 	for i, sku := range d.SKUs {
+		imagePlan := skuImagePlans[i]
 		name := title
 		if len(d.SKUs) > 1 && strings.TrimSpace(sku.SKUName) != "" {
 			name = title + " / " + strings.TrimSpace(sku.SKUName)
@@ -259,8 +263,8 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			CurrencyCode:          currencyCode,
 			Price:                 formatOzonPrice(sku.Price),
 			VAT:                   merged.VAT,
-			Images:                images,
-			PrimaryImage:          primary,
+			Images:                imagePlan.Images,
+			PrimaryImage:          imagePlan.Primary,
 			Weight:                merged.WeightG,
 			Width:                 merged.WidthMM,
 			Height:                merged.HeightMM,
@@ -638,6 +642,7 @@ func shortProductID(id string) string {
 
 func orderedImageURLs(imgs []platformp.PlatformProductImage) []string {
 	out := make([]string, 0, maxListingImages)
+	seen := make(map[string]struct{}, len(imgs))
 	for _, im := range imgs {
 		if len(out) >= maxListingImages {
 			break
@@ -646,23 +651,50 @@ func orderedImageURLs(imgs []platformp.PlatformProductImage) []string {
 		if u == "" {
 			continue
 		}
+		if _, exists := seen[u]; exists {
+			continue
+		}
+		seen[u] = struct{}{}
 		out = append(out, u)
 	}
 	return out
 }
 
-func firstMainImageURL(imgs []platformp.PlatformProductImage) string {
-	for _, im := range imgs {
-		if strings.TrimSpace(strings.ToLower(im.Type)) == "main" {
-			if u := strings.TrimSpace(im.URL); u != "" {
-				return u
-			}
+type ozonSKUImagePlan struct {
+	Images  []string
+	Primary string
+}
+
+func resolveOzonSKUImagePlan(sku platformp.PlatformProductSKU) (ozonSKUImagePlan, error) {
+	images := append([]platformp.PlatformProductImage(nil), sku.Images...)
+	if len(images) == 0 && strings.TrimSpace(sku.ImageURL) != "" {
+		images = []platformp.PlatformProductImage{{URL: strings.TrimSpace(sku.ImageURL), Type: "main"}}
+	}
+	urls := orderedImageURLs(images)
+	label := strings.TrimSpace(sku.SKUName)
+	if label == "" {
+		label = strings.TrimSpace(sku.SKUCode)
+	}
+	if label == "" {
+		label = sku.LocalSKUID.String()
+	}
+	if len(urls) == 0 {
+		return ozonSKUImagePlan{}, fmt.Errorf("Ozon SKU %q is missing its original main image and has no explicitly saved fallback", label)
+	}
+	firstType := ""
+	for _, image := range images {
+		if strings.TrimSpace(image.URL) != "" {
+			firstType = strings.ToLower(strings.TrimSpace(image.Type))
+			break
 		}
 	}
-	if len(imgs) > 0 {
-		return strings.TrimSpace(imgs[0].URL)
+	if firstType != "main" {
+		return ozonSKUImagePlan{}, fmt.Errorf("Ozon SKU %q does not have an explicit main image in the first position", label)
 	}
-	return ""
+	if original := strings.TrimSpace(sku.ImageURL); original != "" && urls[0] != original {
+		return ozonSKUImagePlan{}, fmt.Errorf("Ozon SKU %q original main image must be the first image", label)
+	}
+	return ozonSKUImagePlan{Images: urls, Primary: urls[0]}, nil
 }
 
 func formatOzonPrice(p float64) string {

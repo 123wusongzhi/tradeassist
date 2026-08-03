@@ -43,6 +43,7 @@ import {
 import { queryShops, type ShopListRow } from '@/services/shops';
 import {
   buildOzonPlatformAttributes,
+  buildOzonSKUImagePreview,
   checkOzonCategoryGroups,
   confirmOzonCategoryGroup,
   getOzonCategoryFlowStats,
@@ -56,6 +57,7 @@ import {
   saveOzonProductConfig,
   searchOzonLeafCategories,
   syncOzonCategoryFlow,
+  toOzonImageConfigInput,
   toOzonAttributeFormValues,
   validateOzonReadiness,
   type OzonCategoryChange,
@@ -63,13 +65,18 @@ import {
   type OzonCategoryMapping,
   type OzonCategorySyncRun,
   type OzonProductConfig,
+  type OzonSKUImageConfig,
   type OzonReadinessResult,
 } from '@/services/ozonPublish';
 import { PERMISSIONS } from '@/utils/permission';
+import OzonSKUImageConfigurator from './OzonSKUImageConfigurator';
 import './index.less';
 
 type Stage = 'sync' | 'mapping' | 'config' | 'preflight' | 'submit';
-type OzonProductConfigForm = Omit<OzonProductConfig, 'platformAttributes'> & {
+type OzonProductConfigForm = Omit<
+  OzonProductConfig,
+  'platformAttributes' | 'ozonImages'
+> & {
   platformAttributes?: Record<string, string>;
 };
 const stages: Array<{ key: Stage; title: string }> = [
@@ -153,6 +160,10 @@ function OzonPublishPageContent() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [config, setConfig] = useState<OzonProductConfig>();
+  const [skuImageConfigs, setSKUImageConfigs] = useState<
+    OzonSKUImageConfig[]
+  >([]);
+  const [bulkSharedImageIds, setBulkSharedImageIds] = useState<string[]>([]);
   const [configDirty, setConfigDirty] = useState(false);
   const [attributes, setAttributes] = useState<OzonCategoryAttribute[]>([]);
   const [attributeTemplateCategoryId, setAttributeTemplateCategoryId] =
@@ -200,6 +211,8 @@ function OzonPublishPageContent() {
     !readonly && !crossTenantGlobalView && can(PERMISSIONS.CONFIG_MANAGE);
   const canManageSettings = !readonly && can(PERMISSIONS.SETTINGS_MANAGE);
   const canRunPublishFlow = canProductWrite && canPublish && canOperateShop;
+  const imageControlsDisabled =
+    !productId || !canProductWrite || !canOperateShop;
   const configMatchesSelection = Boolean(
     config && config.productId === productId && config.shopId === shopId,
   );
@@ -219,6 +232,8 @@ function OzonPublishPageContent() {
     config.categoryId === attributeTemplateCategoryId &&
     !configDirty,
   );
+  const sharedImages = config?.ozonImages?.sharedImages ?? [];
+  const maxImagesPerSku = config?.ozonImages?.maxImagesPerSku ?? 10;
 
   const updateQuery = useCallback(
     (patch: Record<string, string | undefined>) => {
@@ -296,9 +311,22 @@ function OzonPublishPageContent() {
       try {
         const next = await getOzonProductConfig(id);
         if (configLoadSeq.current !== sequence) return;
-        const { platformAttributes: _platformAttributes, ...configFields } =
-          next;
+        const {
+          platformAttributes: _platformAttributes,
+          ozonImages,
+          ...configFields
+        } = next;
         setConfig(next);
+        setSKUImageConfigs(
+          (ozonImages?.skus ?? []).map((sku) =>
+            buildOzonSKUImagePreview(
+              sku,
+              ozonImages?.sharedImages ?? [],
+              ozonImages?.maxImagesPerSku ?? 10,
+            ),
+          ),
+        );
+        setBulkSharedImageIds([]);
         setConfigDirty(false);
         setShopId((current) => next.shopId || current);
         form.setFieldsValue({ ...configFields, platformAttributes: {} });
@@ -340,6 +368,8 @@ function OzonPublishPageContent() {
   useEffect(() => {
     configLoadSeq.current += 1;
     setConfig(undefined);
+    setSKUImageConfigs([]);
+    setBulkSharedImageIds([]);
     setConfigDirty(false);
     setAttributes([]);
     setAttributeTemplateCategoryId(undefined);
@@ -518,6 +548,57 @@ function OzonPublishPageContent() {
       setSyncing(false);
     }
   };
+  const updateSKUImageSelection = (
+    skuId: string,
+    patch: Partial<
+      Pick<
+        OzonSKUImageConfig,
+        'fallbackMainImageId' | 'additionalImageIds'
+      >
+    >,
+  ) => {
+    if (
+      patch.additionalImageIds &&
+      patch.additionalImageIds.length > maxImagesPerSku - 1
+    ) {
+      message.warning(
+        `每个 SKU 最多追加 ${maxImagesPerSku - 1} 张商品公共图片。`,
+      );
+      return;
+    }
+    setSKUImageConfigs((current) =>
+      current.map((sku) =>
+        sku.skuId === skuId
+          ? buildOzonSKUImagePreview(
+              { ...sku, ...patch },
+              sharedImages,
+              maxImagesPerSku,
+            )
+          : sku,
+      ),
+    );
+    setConfigDirty(true);
+    invalidatePreflight();
+  };
+  const applyBulkSharedImages = (imageIds: string[]) => {
+    if (imageIds.length > maxImagesPerSku - 1) {
+      message.warning(
+        `每个 SKU 最多追加 ${maxImagesPerSku - 1} 张商品公共图片。`,
+      );
+      return;
+    }
+    setSKUImageConfigs((current) =>
+      current.map((sku) =>
+        buildOzonSKUImagePreview(
+          { ...sku, additionalImageIds: imageIds },
+          sharedImages,
+          maxImagesPerSku,
+        ),
+      ),
+    );
+    setConfigDirty(true);
+    invalidatePreflight();
+  };
   const saveConfig = async () => {
     if (!productId || !canProductWrite || !canOperateShop) {
       message.warning('当前账号不能修改该商品的 Ozon 配置。');
@@ -538,10 +619,24 @@ function OzonPublishPageContent() {
         ...values,
         shopId,
         platformAttributes: attributesValue,
+        ozonImages: toOzonImageConfigInput(skuImageConfigs),
       });
       setConfig(saved);
+      setSKUImageConfigs(
+        (saved.ozonImages?.skus ?? []).map((sku) =>
+          buildOzonSKUImagePreview(
+            sku,
+            saved.ozonImages?.sharedImages ?? [],
+            saved.ozonImages?.maxImagesPerSku ?? 10,
+          ),
+        ),
+      );
       setConfigDirty(false);
-      const { platformAttributes: _savedAttributes, ...savedFields } = saved;
+      const {
+        platformAttributes: _savedAttributes,
+        ozonImages: _savedImages,
+        ...savedFields
+      } = saved;
       form.setFieldsValue({
         ...savedFields,
         platformAttributes: toOzonAttributeFormValues(
@@ -1168,6 +1263,15 @@ function OzonPublishPageContent() {
                   </Form.Item>
                 ))}
               </Form>
+              <OzonSKUImageConfigurator
+                config={config?.ozonImages}
+                skus={skuImageConfigs}
+                bulkImageIds={bulkSharedImageIds}
+                disabled={imageControlsDisabled}
+                onBulkImageIdsChange={setBulkSharedImageIds}
+                onApplyBulk={applyBulkSharedImages}
+                onUpdateSKU={updateSKUImageSelection}
+              />
               <OperationToolbar>
                 {canManageConfig ? (
                   <Checkbox

@@ -1,17 +1,67 @@
 package productpublish
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
+	"gorm.io/gorm"
 )
 
 // BuildPlatformDraftFromProduct maps a hydrated product.Product into a provider-neutral listing draft (no encryption).
 func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProductDraft, error) {
+	return buildPlatformDraftFromProduct(p, true)
+}
+
+// BuildPlatformDraftForPlatform applies platform-owned product preparation
+// without changing category, pricing or inventory semantics. Ozon resolves a
+// separate image list for every SKU from the saved product-level configuration.
+func BuildPlatformDraftForPlatform(p product.Product, platform string, cfg *product.ProductPlatformPublishConfig) (platformp.PlatformProductDraft, error) {
+	if !strings.EqualFold(strings.TrimSpace(platform), "ozon") {
+		return BuildPlatformDraftFromProduct(p)
+	}
+	draft, err := buildPlatformDraftFromProduct(p, false)
+	if err != nil {
+		return platformp.PlatformProductDraft{}, err
+	}
+	var rawImages []byte
+	if cfg != nil {
+		rawImages = cfg.MappedImages
+	}
+	resolved := product.ResolveOzonImageConfig(p, rawImages)
+	if err := resolved.ValidationError(); err != nil {
+		return platformp.PlatformProductDraft{}, err
+	}
+	bySKU := make(map[uuid.UUID]product.OzonSKUImageDTO, len(resolved.SKUs))
+	for _, sku := range resolved.SKUs {
+		bySKU[sku.SKUID] = sku
+	}
+	for i := range draft.SKUs {
+		plan, ok := bySKU[draft.SKUs[i].LocalSKUID]
+		if !ok {
+			return platformp.PlatformProductDraft{}, fmt.Errorf("Ozon image plan missing SKU %s", draft.SKUs[i].LocalSKUID)
+		}
+		draft.SKUs[i].Images = make([]platformp.PlatformProductImage, 0, len(plan.FinalImages))
+		for _, image := range plan.FinalImages {
+			draft.SKUs[i].Images = append(draft.SKUs[i].Images, platformp.PlatformProductImage{
+				TenantID:  p.TenantID,
+				URL:       image.URL,
+				ObjectKey: image.ObjectKey,
+				Type:      image.ImageType,
+				SortOrder: image.Position,
+			})
+		}
+	}
+	return draft, nil
+}
+
+func buildPlatformDraftFromProduct(p product.Product, requireProductMain bool) (platformp.PlatformProductDraft, error) {
 	title := strings.TrimSpace(p.Title)
 	if title == "" {
 		title = strings.TrimSpace(p.AITitle)
@@ -30,8 +80,8 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 	if title == "" {
 		return platformp.PlatformProductDraft{}, fmt.Errorf("product title is required for publish")
 	}
-	imgs := p.Images
-	if len(imgs) == 0 {
+	imgs := append([]product.ProductImage(nil), p.Images...)
+	if len(imgs) == 0 && requireProductMain {
 		return platformp.PlatformProductDraft{}, fmt.Errorf("product main image required for publish")
 	}
 	sort.SliceStable(imgs, func(i, j int) bool {
@@ -75,7 +125,7 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 			}
 		}
 	}
-	if !hasMain {
+	if !hasMain && requireProductMain {
 		return platformp.PlatformProductDraft{}, fmt.Errorf("product main image required for publish")
 	}
 
@@ -140,6 +190,21 @@ func BuildPlatformDraftFromProduct(p product.Product) (platformp.PlatformProduct
 		Attributes:       attrs,
 		SourceProductRow: srcRow,
 	}, nil
+}
+
+func (s *Service) buildPlatformDraftForProduct(ctx context.Context, p product.Product, platform string) (platformp.PlatformProductDraft, error) {
+	if !strings.EqualFold(strings.TrimSpace(platform), "ozon") {
+		return BuildPlatformDraftFromProduct(p)
+	}
+	var cfg product.ProductPlatformPublishConfig
+	err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", p.ID, "ozon").First(&cfg).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return platformp.PlatformProductDraft{}, err
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return BuildPlatformDraftForPlatform(p, platform, nil)
+	}
+	return BuildPlatformDraftForPlatform(p, platform, &cfg)
 }
 
 func platformPayloadSnapshot(d platformp.PlatformProductDraft, merged map[string]string) map[string]any {

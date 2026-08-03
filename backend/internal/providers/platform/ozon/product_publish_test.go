@@ -79,8 +79,23 @@ func TestPublishProductHappyPath(t *testing.T) {
 				{URL: "https://example.com/detail.jpg", Type: "detail"},
 			},
 			SKUs: []platformp.PlatformProductSKU{
-				{LocalSKUID: uuid.New(), SKUCode: "SKU-001", SKUName: "Red", Price: 129.9, Stock: 10},
-				{LocalSKUID: uuid.New(), SKUCode: "SKU-002", SKUName: "Blue", Price: 99, Stock: 5},
+				{
+					LocalSKUID: uuid.New(), SKUCode: "SKU-001", SKUName: "Red", Price: 129.9, Stock: 10,
+					ImageURL: "https://example.com/red.jpg",
+					Images: []platformp.PlatformProductImage{
+						{URL: "https://example.com/red.jpg", Type: "main"},
+						{URL: "https://example.com/shared.jpg", Type: "detail"},
+						{URL: "https://example.com/shared.jpg", Type: "detail"},
+					},
+				},
+				{
+					LocalSKUID: uuid.New(), SKUCode: "SKU-002", SKUName: "Blue", Price: 99, Stock: 5,
+					ImageURL: "https://example.com/blue.jpg",
+					Images: []platformp.PlatformProductImage{
+						{URL: "https://example.com/blue.jpg", Type: "main"},
+						{URL: "https://example.com/blue-detail.jpg", Type: "detail"},
+					},
+				},
 			},
 		},
 	})
@@ -115,12 +130,16 @@ func TestPublishProductHappyPath(t *testing.T) {
 		t.Fatalf("unexpected price/currency: %+v", first)
 	}
 	imgs := first["images"].([]any)
-	if len(imgs) != 2 || first["primary_image"] != "https://example.com/main.jpg" {
+	if len(imgs) != 2 || imgs[0] != "https://example.com/red.jpg" || imgs[1] != "https://example.com/shared.jpg" || first["primary_image"] != "https://example.com/red.jpg" {
 		t.Fatalf("unexpected images: %+v", first)
 	}
 	second := items[1].(map[string]any)
 	if second["name"] != "Test Product / Blue" {
 		t.Fatalf("unexpected variant name: %+v", second)
+	}
+	secondImages := second["images"].([]any)
+	if len(secondImages) != 2 || secondImages[0] != "https://example.com/blue.jpg" || secondImages[1] != "https://example.com/blue-detail.jpg" || second["primary_image"] != "https://example.com/blue.jpg" {
+		t.Fatalf("unexpected second SKU images: %+v", second)
 	}
 
 	stocks := gotStockBody.Stocks
@@ -171,7 +190,7 @@ func TestPublishProductImportFailure(t *testing.T) {
 			ProductID: uuid.New(),
 			Title:     "T",
 			Images:    []platformp.PlatformProductImage{{URL: "https://example.com/a.jpg", Type: "main"}},
-			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-001", Price: 10, Stock: 1}},
+			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-001", Price: 10, Stock: 1, ImageURL: "https://example.com/a.jpg"}},
 		},
 	})
 	if err == nil {
@@ -231,7 +250,7 @@ func TestPublishProductResolvesContractCurrency(t *testing.T) {
 			ProductID: uuid.New(),
 			Title:     "T",
 			Images:    []platformp.PlatformProductImage{{URL: "https://example.com/a.jpg", Type: "main"}},
-			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "S1", Price: 10, Stock: 1}},
+			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "S1", Price: 10, Stock: 1, ImageURL: "https://example.com/a.jpg"}},
 		},
 	})
 	if err != nil {
@@ -278,7 +297,7 @@ func TestPublishProductSkippedIsFailure(t *testing.T) {
 			ProductID: uuid.New(),
 			Title:     "T",
 			Images:    []platformp.PlatformProductImage{{URL: "https://example.com/a.jpg", Type: "main"}},
-			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "S1", Price: 10, Stock: 1}},
+			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "S1", Price: 10, Stock: 1, ImageURL: "https://example.com/a.jpg"}},
 		},
 	})
 	if err == nil {
@@ -311,6 +330,42 @@ func TestPublishProductValidation(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "description_category_id") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveOzonSKUImagePlanRejectsMissingOrDisplacedOriginal(t *testing.T) {
+	missing := platformp.PlatformProductSKU{LocalSKUID: uuid.New(), SKUCode: "BLUE-L", SKUName: "蓝色 / L"}
+	if _, err := resolveOzonSKUImagePlan(missing); err == nil || !strings.Contains(err.Error(), "蓝色 / L") {
+		t.Fatalf("missing image error = %v", err)
+	}
+	displaced := platformp.PlatformProductSKU{
+		LocalSKUID: uuid.New(),
+		SKUCode:    "RED",
+		ImageURL:   "https://example.com/red.jpg",
+		Images: []platformp.PlatformProductImage{
+			{URL: "https://example.com/shared.jpg", Type: "main"},
+			{URL: "https://example.com/red.jpg", Type: "detail"},
+		},
+	}
+	if _, err := resolveOzonSKUImagePlan(displaced); err == nil || !strings.Contains(err.Error(), "must be the first image") {
+		t.Fatalf("displaced original error = %v", err)
+	}
+}
+
+func TestResolveOzonSKUImagePlanAllowsExplicitFallbackForMissingOriginal(t *testing.T) {
+	plan, err := resolveOzonSKUImagePlan(platformp.PlatformProductSKU{
+		LocalSKUID: uuid.New(),
+		SKUCode:    "NO-ORIGINAL",
+		Images: []platformp.PlatformProductImage{
+			{URL: "https://example.com/fallback.jpg", Type: "main"},
+			{URL: "https://example.com/detail.jpg", Type: "detail"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Primary != "https://example.com/fallback.jpg" || len(plan.Images) != 2 {
+		t.Fatalf("plan = %+v", plan)
 	}
 }
 
