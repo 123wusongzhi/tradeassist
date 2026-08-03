@@ -49,6 +49,7 @@ export const e2eOzonChanges = [
 ];
 
 export const e2eOzonConfig = {
+  id: 'e2e-ozon-config',
   productId: E2E_PRODUCT_ID,
   shopId: E2E_OZON_SHOP_ID,
   categoryId: E2E_OZON_CATEGORY_ID,
@@ -75,7 +76,9 @@ export function ozonPublishResponse(path: string) {
     return ok({
       list: [{ id: 'e2e-ozon-map', ...e2eOzonConfig, status: 'confirmed' }],
     });
-  if (decodedPath === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`)
+  if (
+    decodedPath === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`
+  )
     return ok(e2eOzonConfig);
   if (decodedPath === '/api/v1/platform/ozon/categories')
     return ok({

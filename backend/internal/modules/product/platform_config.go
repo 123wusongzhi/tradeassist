@@ -44,20 +44,23 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
 	if plat == "" {
-		return nil, fmt.Errorf("platform required")
+		return nil, newPlatformConfigError("platform required")
 	}
 	if plat != "douyin_shop" && plat != "ozon" {
-		return nil, fmt.Errorf("platform config is currently supported for douyin_shop or ozon only")
+		return nil, newPlatformConfigError("platform config is currently supported for douyin_shop or ozon only")
 	}
 	productRow, err := s.findTenantProduct(c, productID)
 	if err != nil {
+		return nil, err
+	}
+	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
 		return nil, err
 	}
 	var shopID *uuid.UUID
 	if raw := strings.TrimSpace(body.ShopID); raw != "" {
 		u, err := uuid.Parse(raw)
 		if err != nil || u == uuid.Nil {
-			return nil, fmt.Errorf("invalid shopId")
+			return nil, newPlatformConfigError("invalid shopId")
 		}
 		shopID = &u
 		if err := s.requirePlatformShopOperate(c, u, plat); err != nil {
@@ -65,7 +68,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		}
 	}
 	if plat == "ozon" && shopID == nil {
-		return nil, fmt.Errorf("Ozon 配置必须选择已授权店铺")
+		return nil, newOzonPlatformConfigError("Ozon 配置必须选择已授权店铺")
 	}
 	cid := strings.TrimSpace(body.CategoryID)
 	var selectedCategory *shop.PlatformCategory
@@ -75,21 +78,21 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			return nil, err
 		}
 		if !cat.IsLeaf {
-			return nil, fmt.Errorf("请选择平台叶子类目")
+			return nil, newPlatformConfigError("请选择平台叶子类目")
 		}
 		if plat == "ozon" && cat.Status != "active" {
-			return nil, fmt.Errorf("请选择有效的 Ozon 叶子类目")
+			return nil, newOzonPlatformConfigError("请选择有效的 Ozon 叶子类目")
 		}
 		selectedCategory = &cat
 	}
 	if plat == "ozon" && selectedCategory == nil {
-		return nil, fmt.Errorf("Ozon 配置必须选择有效叶子类目")
+		return nil, newOzonPlatformConfigError("Ozon 配置必须选择有效叶子类目")
 	}
 	attrs := datatypes.JSON([]byte("{}"))
 	if len(body.PlatformAttributes) > 0 && string(body.PlatformAttributes) != "null" {
 		var tmp map[string]any
 		if err := json.Unmarshal(body.PlatformAttributes, &tmp); err != nil || tmp == nil {
-			return nil, fmt.Errorf("platformAttributes must be valid JSON")
+			return nil, newPlatformConfigError("platformAttributes must be valid JSON")
 		}
 		attrs = datatypes.JSON(body.PlatformAttributes)
 	}
@@ -123,15 +126,21 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		now := time.Now().UTC()
 		row.SchemaConfirmedAt = &now
 	}
-	if err := s.DB.WithContext(c.Request.Context()).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}},
-		DoUpdates: clause.AssignmentColumns([]string{
-			"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at",
-		}),
-	}).Create(&row).Error; err != nil {
-		return nil, err
-	}
-	if err := s.DB.WithContext(c.Request.Context()).Where("product_id = ? AND platform = ?", productID, plat).First(&row).Error; err != nil {
+	var saved ProductPlatformPublishConfig
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at",
+			}),
+		}).Create(&row).Error; err != nil {
+			return err
+		}
+		// Always read into a fresh value. Reusing row would make GORM append the
+		// newly generated insert UUID after an ON CONFLICT update and query the
+		// wrong primary key.
+		return tx.Where("product_id = ? AND platform = ?", productID, plat).First(&saved).Error
+	}); err != nil {
 		return nil, err
 	}
 	if s.OpLog != nil {
@@ -154,12 +163,12 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			Message:     "platformAttributes updated",
 		})
 	}
-	return platformConfigDTO(row), nil
+	return platformConfigDTO(saved), nil
 }
 
 func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, platform string) error {
 	if shopID == uuid.Nil {
-		return fmt.Errorf("invalid shopId")
+		return newPlatformConfigError("invalid shopId")
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)
 	if err != nil {
@@ -169,10 +178,7 @@ func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, p
 	if err := s.DB.WithContext(c.Request.Context()).Where("id = ? AND tenant_id = ? AND platform = ? AND status = ? AND auth_status = ?", shopID, tenantID, platform, shop.StatusActive, shop.AuthAuthorized).First(&row).Error; err != nil {
 		return err
 	}
-	if !adminperm.RequireStoreOperate(c, s.DB, shopID) {
-		return fmt.Errorf("store operation is not permitted")
-	}
-	return nil
+	return adminperm.EnsureStoreOperate(c, s.DB, shopID)
 }
 
 func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON) error {
@@ -181,12 +187,12 @@ func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID
 		return err
 	}
 	if len(schema) == 0 {
-		return fmt.Errorf("Ozon 类目属性模板尚未同步")
+		return newOzonPlatformConfigError("Ozon 类目属性模板尚未同步")
 	}
 	values := map[string]any{}
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &values); err != nil {
-			return fmt.Errorf("platformAttributes must be valid JSON")
+			return newOzonPlatformConfigError("platformAttributes must be valid JSON")
 		}
 	}
 	byID := make(map[string]shop.PlatformCategoryAttribute, len(schema))
@@ -196,29 +202,29 @@ func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID
 	for attrID, value := range values {
 		attr, ok := byID[attrID]
 		if !ok {
-			return fmt.Errorf("Ozon 属性模板中不存在属性 %s", attrID)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 属性模板中不存在属性 %s", attrID))
 		}
 		nested, ok := value.(map[string]any)
 		if !ok {
-			return fmt.Errorf("Ozon 属性 %s 必须使用 {value,dictionaryValueId} 结构", attr.Name)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 属性 %s 必须使用 {value,dictionaryValueId} 结构", attr.Name))
 		}
 		text := ""
 		if rawValue, exists := nested["value"]; exists && rawValue != nil {
 			text = strings.TrimSpace(fmt.Sprint(rawValue))
 		}
 		if attr.Required && text == "" {
-			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
 		}
 		if dictionaryIDFromProductAttribute(attr) != "" {
 			dictID := productAttributeDictionaryValueID(nested)
 			if text != "" && dictID == "" {
-				return fmt.Errorf("Ozon 词典属性缺少 dictionaryValueId：%s", attr.Name)
+				return newOzonPlatformConfigError(fmt.Sprintf("Ozon 词典属性缺少 dictionaryValueId：%s", attr.Name))
 			}
 			if dictID != "" && !cachedOzonDictionaryValueMatches(attr.Options, dictID, text) {
-				return fmt.Errorf("Ozon 词典值与属性不匹配：%s", attr.Name)
+				return newOzonPlatformConfigError(fmt.Sprintf("Ozon 词典值与属性不匹配：%s", attr.Name))
 			}
 		} else if rawID, exists := nested["dictionaryValueId"]; exists && rawID != nil && strings.TrimSpace(fmt.Sprint(rawID)) != "" {
-			return fmt.Errorf("Ozon 非词典属性不能包含 dictionaryValueId：%s", attr.Name)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 非词典属性不能包含 dictionaryValueId：%s", attr.Name))
 		}
 	}
 	for _, attr := range schema {
@@ -227,11 +233,11 @@ func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID
 		}
 		value, ok := values[attr.AttrID]
 		if !ok {
-			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
 		}
 		nested, ok := value.(map[string]any)
 		if !ok || nested["value"] == nil || strings.TrimSpace(fmt.Sprint(nested["value"])) == "" {
-			return fmt.Errorf("Ozon 必填属性未填写：%s", attr.Name)
+			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
 		}
 	}
 	return nil
@@ -332,6 +338,7 @@ func (s *Service) ozonSchemaHash(ctx context.Context, categoryID string) (string
 
 func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigDTO {
 	return &PlatformPublishConfigDTO{
+		ID:                 &row.ID,
 		ProductID:          row.ProductID,
 		Platform:           row.Platform,
 		ShopID:             row.ShopID,

@@ -79,6 +79,7 @@ export type ShopDetail = {
 
 export type ShopListRow = {
   id: string;
+  tenantId?: number;
   platform: string;
   shopName: string;
   shopCode?: string;

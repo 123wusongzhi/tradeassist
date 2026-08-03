@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,10 @@ import (
 
 const maxResponseBytes = 16 << 20
 const maxOzonAttempts = 3
+
+// ErrTemporaryUnavailable marks rate limits, upstream 5xx responses, and
+// transient transport failures after the bounded read-only retry policy.
+var ErrTemporaryUnavailable = errors.New("ozon temporarily unavailable")
 
 // ozonClient is a thin, credential-scoped HTTP client for the Seller API.
 // All endpoints are POST + JSON; auth is carried in Client-Id / Api-Key headers.
@@ -174,10 +179,10 @@ func classifyOzonError(status int, body []byte) error {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return fmt.Errorf("%w: ozon http %d %s", platformp.ErrPlatformProductPublishPermissionDenied, status, msg)
 	case http.StatusTooManyRequests:
-		return fmt.Errorf("ozon: retryable: rate limited (http 429) %s", msg)
+		return fmt.Errorf("%w: ozon: retryable: rate limited (http 429) %s", ErrTemporaryUnavailable, msg)
 	default:
 		if status >= 500 {
-			return fmt.Errorf("ozon: retryable: upstream error (http %d) %s", status, msg)
+			return fmt.Errorf("%w: ozon: retryable: upstream error (http %d) %s", ErrTemporaryUnavailable, status, msg)
 		}
 		if msg != "" {
 			return fmt.Errorf("ozon: request failed (http %d): %s", status, msg)
@@ -194,7 +199,7 @@ func maybeRetryableTransportErr(err error) error {
 	if strings.Contains(s, "timeout") || strings.Contains(s, "timed out") ||
 		strings.Contains(s, "connection reset") || strings.Contains(s, "eof") ||
 		strings.Contains(s, "connection refused") || strings.Contains(s, "no such host") {
-		return fmt.Errorf("ozon: retryable transport error: %w", err)
+		return fmt.Errorf("%w: ozon: retryable transport error: %w", ErrTemporaryUnavailable, err)
 	}
 	return err
 }

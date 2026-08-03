@@ -36,7 +36,7 @@ const (
 	OzonCategorySyncFailedState = "failed"
 )
 
-const ozonCredentialInvalidMessage = "Ozon 店铺授权已失效或 API Key 已停用，请前往平台设置更新凭证后重试"
+const ozonCredentialInvalidMessage = "Ozon 店铺授权已失效或 API Key 已停用，请前往店铺管理更新凭证后重试"
 
 type OzonCategoryError struct {
 	Code    string

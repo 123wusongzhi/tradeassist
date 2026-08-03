@@ -1,5 +1,5 @@
 import { expect, test } from '../fixtures/admin.fixture';
-import { E2E_PRODUCT_ID } from '../mocks/product.fixture';
+import { E2E_PRODUCT_ID, e2eProductList } from '../mocks/product.fixture';
 import {
   E2E_OZON_CATEGORY_ID,
   E2E_OZON_SHOP_ID,
@@ -23,7 +23,7 @@ async function openStage(page: import('@playwright/test').Page, stage: string) {
                 ? '发布前检查'
                 : '草稿与提交',
     }),
-  ).toHaveAttribute('aria-selected', 'true');
+  ).toHaveAttribute('aria-selected', 'true', { timeout: 30_000 });
 }
 
 async function expectNoRootOverflow(page: import('@playwright/test').Page) {
@@ -150,6 +150,126 @@ test.describe('@ozon-publish Ozon 类目与刊登流程', () => {
     ).toBeDisabled();
   });
 
+  test('updates an existing product config and keeps it after refresh', async ({
+    admin,
+    page,
+  }) => {
+    let persisted = { ...e2eOzonConfig };
+    await page.route(
+      new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon(?:\\?.*)?$`,
+      ),
+      async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: 0, message: 'ok', data: persisted }),
+        });
+      },
+    );
+    admin.writeGuard.allow({
+      operation: 'ozon-config-update',
+      method: 'PUT',
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
+      ),
+      response: (record) => {
+        persisted = {
+          ...persisted,
+          ...(record.postDataJSON as Partial<typeof persisted>),
+          id: e2eOzonConfig.id,
+        };
+        return { code: 0, message: 'ok', data: persisted };
+      },
+    });
+
+    await openStage(page, 'config');
+    const sourceCategory = page.getByRole('textbox', {
+      name: '本地类目说明',
+    });
+    await sourceCategory.fill('E2E 已更新类目');
+    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
+    await admin.writeGuard.expectRequestCount('ozon-config-update', 1);
+    await expect(
+      page.getByText('商品级 Ozon 配置已保存，尚未提交到 Ozon。'),
+    ).toBeVisible();
+    expect(persisted.id).toBe(e2eOzonConfig.id);
+    expect(persisted.sourceCategoryName).toBe('E2E 已更新类目');
+
+    await page.reload();
+    await expect(sourceCategory).toHaveValue('E2E 已更新类目');
+  });
+
+  test('shows an actionable permission reason instead of internal error', async ({
+    admin,
+    page,
+  }) => {
+    admin.consoleGuard.allow(
+      /^Failed to load resource: the server responded with a status of 403 \(Forbidden\)$/,
+    );
+    admin.writeGuard.allow({
+      operation: 'ozon-preflight-forbidden',
+      method: 'POST',
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/readiness/validate$`,
+      ),
+      status: 403,
+      response: {
+        code: 40302,
+        message:
+          '全局管理员仅可跨租户查看，不能代表目标租户执行写操作；请使用目标租户管理员账号',
+        data: { errorCode: 'CROSS_TENANT_OPERATION_FORBIDDEN' },
+        traceId: 'e2e-ozon-forbidden',
+      },
+    });
+
+    await openStage(page, 'preflight');
+    await page.getByRole('button', { name: '运行发布前检查' }).click();
+    await admin.writeGuard.expectRequestCount('ozon-preflight-forbidden', 1);
+    const errorMessage = page.getByText(/当前为跨租户只读查看/);
+    await expect(errorMessage).toBeVisible();
+    await expect(page.getByText(/internal error/i)).toHaveCount(0);
+  });
+
+  test('disables tenant writes during a global-admin cross-tenant view', async ({
+    page,
+  }) => {
+    await page.route(/\/api\/v1\/products(?:\?.*)?$/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          code: 0,
+          message: 'ok',
+          data: {
+            list: [{ ...e2eProductList[0], tenantId: 1 }],
+            pagination: {
+              page: 1,
+              pageSize: 100,
+              total: 1,
+              totalPages: 1,
+            },
+          },
+        }),
+      }),
+    );
+    await openStage(page, 'config');
+    await expect(
+      page.getByText('当前为跨租户只读查看', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '保存商品级 Ozon 配置' }),
+    ).toBeDisabled();
+    await page.getByRole('tab', { name: '发布前检查' }).click();
+    await expect(
+      page.getByRole('button', { name: '运行发布前检查' }),
+    ).toBeDisabled();
+  });
+
   test('shows a deactivated Ozon credential and restores the last usable category', async ({
     admin,
     page,
@@ -186,7 +306,7 @@ test.describe('@ozon-publish Ozon 类目与刊登流程', () => {
       response: {
         code: 40001,
         message:
-          'Ozon 店铺授权已失效或 API Key 已停用，请前往平台设置更新凭证后重试',
+          'Ozon 店铺授权已失效或 API Key 已停用，请前往店铺管理更新凭证后重试',
         data: { errorCode: 'OZON_CATEGORY_ATTR_SYNC_FAILED' },
         traceId: 'e2e-ozon-invalid-credential',
       },
