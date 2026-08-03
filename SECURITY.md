@@ -62,6 +62,10 @@ Before exposing TradeMind to a public network, you should:
 - Keep the Playwright Collector on loopback for local development. Docker or any
   other non-loopback deployment requires a shared random `COLLECTOR_INTERNAL_TOKEN`;
   expose its host port on loopback only, and keep `/health` free of sensitive data.
+- Do not add a wildcard `chrome-extension://` CORS origin. Browser-extension writes
+  cross the Cookie-CSRF check only on the four documented, exact, cookie-free pairing
+  or device-token routes; Admin pairing and device-management writes keep the normal
+  Origin/Referer checks.
 - Treat tenant identity as authentication data. Never accept tenant scope from a
   URL, request body, queue message, or provider response; recover it from a verified
   session, one-time OAuth state, or a persisted task-to-shop relationship.

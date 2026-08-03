@@ -140,8 +140,13 @@ Compose，也没有新增环境变量。
 ## 安全边界
 
 - 一次性配对码和设备令牌在服务端都只保存 SHA-256 哈希。
-- 首次配对交换只允许精确接口上的无 Cookie 请求；携带 Cookie 的未知扩展来源仍受
-  CSRF 来源校验。
+- `chrome-extension://<extension-id>` 仅能在四个精确、无 Cookie 的 `POST` 路由穿过
+  Cookie-CSRF 来源检查：一次性配对交换，以及设备 Bearer 保护的任务创建、结果提交、
+  失败上报；不按路径前缀放行。携带 Cookie、相似路径、Admin 创建配对码或撤销设备
+  仍受原 CSRF 来源校验。
+- Backend 的 Admin CORS 白名单不增加 `chrome-extension://*`。MV3 侧边栏按 manifest
+  中的本机精确 host permission 或用户授予的远程 HTTPS origin 发起跨源请求；这不会
+  扩大普通网页或 Admin Cookie 写接口的来源权限。
 - 设备令牌限定到创建它的租户和 Admin 用户，可在“已连接设备”中立即撤销。
 - 配对、撤销和设备采集都要求该 Admin 用户当前仍处于启用状态并拥有商品写入权限；
   只读账号不能借助旧设备令牌创建草稿。
