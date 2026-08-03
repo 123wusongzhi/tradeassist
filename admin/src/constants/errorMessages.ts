@@ -10,6 +10,45 @@ export type UserErrorMessage = {
 };
 
 const ERROR_MAP: Record<string, UserErrorMessage> = {
+  PRODUCT_PLATFORM_CONFIG_INVALID: {
+    title: '商品平台配置不完整',
+    detail: '请检查店铺、类目和平台属性后重试。',
+  },
+  CROSS_TENANT_OPERATION_FORBIDDEN: {
+    title: '当前为跨租户只读查看',
+    detail:
+      '全局管理员不能代表目标租户保存配置或运行发布检查，请使用目标租户管理员账号。',
+  },
+  PRODUCT_OPERATION_FORBIDDEN: {
+    title: '没有商品操作权限',
+    detail:
+      '当前账号仅有商品关联店铺的查看权限，请联系租户管理员授予操作权限。',
+  },
+  STORE_OPERATION_FORBIDDEN: {
+    title: '没有店铺操作权限',
+    detail: '当前账号仅有该店铺的查看权限，请联系租户管理员授予操作权限。',
+  },
+  OZON_PRODUCT_CONFIG_INVALID: {
+    title: 'Ozon 商品配置不完整',
+    detail: '请重新确认店铺、叶类目和必填属性后保存。',
+  },
+  OZON_CONFIG_SHOP_MISMATCH: {
+    title: '商品配置与店铺不一致',
+    detail: '请重新选择当前 Ozon 店铺并保存商品级配置后再检查。',
+  },
+  OZON_CREDENTIAL_INVALID: {
+    title: 'Ozon 店铺授权已失效',
+    detail: 'API Key 已停用或授权不足，请前往店铺管理更新凭证后重试。',
+    action: '前往店铺管理',
+  },
+  OZON_UPSTREAM_UNAVAILABLE: {
+    title: 'Ozon 服务暂时不可用',
+    detail: '发布前检查尚未完成，请稍后重试；系统不会因此提交商品。',
+  },
+  OZON_UPSTREAM_REJECTED: {
+    title: 'Ozon 发布前检查请求失败',
+    detail: '请核对店铺授权与商品配置后重试。',
+  },
   AUTH_INVALID_CREDENTIALS: {
     title: '账号或密码不正确',
     detail: '请检查邮箱、手机号和密码后再试。',

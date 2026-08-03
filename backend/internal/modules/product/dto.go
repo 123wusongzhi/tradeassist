@@ -44,6 +44,7 @@ type PlatformPublishConfigBody struct {
 }
 
 type PlatformPublishConfigDTO struct {
+	ID                 *uuid.UUID          `json:"id,omitempty"`
 	ProductID          uuid.UUID           `json:"productId"`
 	Platform           string              `json:"platform"`
 	ShopID             *uuid.UUID          `json:"shopId,omitempty"`

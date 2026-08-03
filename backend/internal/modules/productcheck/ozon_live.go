@@ -35,10 +35,10 @@ func (s *Service) ValidateOzonReadiness(ctx context.Context, tenantID int64, pro
 	publishOptions := map[string]any{}
 	if configured {
 		if cfg.ShopID == nil || *cfg.ShopID != shopID {
-			return nil, fmt.Errorf("saved Ozon configuration does not match shopId")
+			return nil, ozonConfigShopMismatchError(fmt.Errorf("saved Ozon configuration does not match shopId"))
 		}
 		if _, err := s.Shops.RefreshOzonCategoryAttributeTemplate(ctx, tenantID, cfg.CategoryID, shopID); err != nil {
-			return nil, err
+			return nil, mapOzonReadinessError(err)
 		}
 		parts := strings.SplitN(cfg.CategoryID, ":", 2)
 		if len(parts) == 2 {
@@ -62,7 +62,7 @@ func (s *Service) ValidateOzonReadiness(ctx context.Context, tenantID int64, pro
 	if configured {
 		checks, validateErr := s.validateOzonDictionarySelectionsLive(ctx, tenantID, shopID, cfg)
 		if validateErr != nil {
-			return nil, validateErr
+			return nil, mapOzonReadinessError(validateErr)
 		}
 		result.Checks = append(result.Checks, checks...)
 		recalculateOzonReadiness(result)
@@ -83,7 +83,7 @@ func (s *Service) ValidateOzonReadiness(ctx context.Context, tenantID int64, pro
 func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tenantID int64, shopID uuid.UUID, cfg product.ProductPlatformPublishConfig) ([]CheckItem, error) {
 	parts := strings.SplitN(strings.TrimSpace(cfg.CategoryID), ":", 2)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid Ozon composite category id")
+		return nil, invalidOzonConfigError("已保存的 Ozon 类目编号无效，请重新选择类目", fmt.Errorf("invalid Ozon composite category id"))
 	}
 	_, auth, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, shopID)
 	if err != nil {
@@ -136,7 +136,7 @@ func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tena
 		}
 		matched, matchErr := client.ValidateDictionaryValue(ctx, parts[0], parts[1], attr.AttrID, selectedID, text)
 		if matchErr != nil {
-			return nil, matchErr
+			return nil, mapOzonProviderError(matchErr)
 		}
 		if !matched {
 			out = append(out, ozonLiveAttributeError("OZON_DICTIONARY_VALUE_CHANGED", "Ozon 词典值已变化或不属于该属性："+attr.Name, "请重新选择该属性值。"))

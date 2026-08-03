@@ -103,7 +103,7 @@ func EnsureProductOperate(c *gin.Context, db *gorm.DB, productID uuid.UUID) erro
 		return err
 	}
 	trustedTenantID, err := TenantIDFromGin(c)
-	if err != nil || trustedTenantID < 0 || p.TenantID != trustedTenantID {
+	if err != nil || trustedTenantID < 0 {
 		return gorm.ErrRecordNotFound
 	}
 	var count int64
@@ -111,6 +111,12 @@ func EnsureProductOperate(c *gin.Context, db *gorm.DB, productID uuid.UUID) erro
 	if err := q.Count(&count).Error; err != nil || count != 1 {
 		if err != nil {
 			return err
+		}
+		return gorm.ErrRecordNotFound
+	}
+	if p.TenantID != trustedTenantID {
+		if p.IsAdmin() {
+			return crossTenantOperationError()
 		}
 		return gorm.ErrRecordNotFound
 	}
@@ -132,6 +138,9 @@ SELECT DISTINCT shop_id FROM product_publications WHERE product_id = ? AND shop_
 	}
 	for _, shopID := range shopIDs {
 		if !p.CanOperateStore(shopID) {
+			if p.CanViewStore(shopID) {
+				return productOperationError()
+			}
 			return gorm.ErrRecordNotFound
 		}
 	}

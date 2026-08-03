@@ -25,6 +25,7 @@ import {
   TmPageContainer,
   TmProTable,
 } from '@/components/ui';
+import { formatUserErrorMessage } from '@/constants/errorMessages';
 import { usePermission } from '@/hooks/usePermission';
 import {
   queryOzonCategoryAttributes,
@@ -33,6 +34,7 @@ import {
   type OzonCategoryAttribute,
 } from '@/services/ozonCategories';
 import { fetchProducts, type ProductListRow } from '@/services/products';
+import { ApiRequestError } from '@/services/request';
 import {
   createPublishTargetDrafts,
   getProductPublishTask,
@@ -117,9 +119,19 @@ function includeConfiguredDictionaryOptions(
   });
 }
 
+function ozonActionErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiRequestError) {
+    const data = error.data as { errorCode?: unknown } | null;
+    const errorCode =
+      typeof data?.errorCode === 'string' ? data.errorCode : undefined;
+    return formatUserErrorMessage(errorCode, error.message || fallback);
+  }
+  return (error as Error)?.message || fallback;
+}
+
 function OzonPublishPageContent() {
   const location = useLocation();
-  const { can, readonly } = usePermission();
+  const { can, readonly, role } = usePermission();
   const params = useMemo(
     () => new URLSearchParams(location.search),
     [location.search],
@@ -172,10 +184,20 @@ function OzonPublishPageContent() {
 
   const selectedShop = shops.find((item) => item.id === shopId);
   const selectedProduct = products.find((item) => item.id === productId);
-  const canProductWrite = !readonly && can(PERMISSIONS.PRODUCT_WRITE);
-  const canPublish = !readonly && can(PERMISSIONS.PUBLISH_CREATE_DRAFT);
-  const canOperateShop = !readonly && can(PERMISSIONS.STORE_OPERATE);
-  const canManageConfig = !readonly && can(PERMISSIONS.CONFIG_MANAGE);
+  const crossTenantGlobalView = Boolean(
+    role === 'admin' &&
+    Number(selectedProduct?.tenantId || selectedShop?.tenantId || 0) > 0,
+  );
+  const canProductWrite =
+    !readonly && !crossTenantGlobalView && can(PERMISSIONS.PRODUCT_WRITE);
+  const canPublish =
+    !readonly &&
+    !crossTenantGlobalView &&
+    can(PERMISSIONS.PUBLISH_CREATE_DRAFT);
+  const canOperateShop =
+    !readonly && !crossTenantGlobalView && can(PERMISSIONS.STORE_OPERATE);
+  const canManageConfig =
+    !readonly && !crossTenantGlobalView && can(PERMISSIONS.CONFIG_MANAGE);
   const canManageSettings = !readonly && can(PERMISSIONS.SETTINGS_MANAGE);
   const canRunPublishFlow = canProductWrite && canPublish && canOperateShop;
   const configMatchesSelection = Boolean(
@@ -557,7 +579,7 @@ function OzonPublishPageContent() {
       message.success('商品级 Ozon 配置已保存，尚未提交到 Ozon。');
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) return;
-      message.error((error as Error).message || '保存商品级 Ozon 配置失败');
+      message.error(ozonActionErrorMessage(error, '保存商品级 Ozon 配置失败'));
     } finally {
       setSaving(false);
     }
@@ -581,7 +603,7 @@ function OzonPublishPageContent() {
           : '发布前检查发现需要处理的项目。',
       );
     } catch (error) {
-      message.error((error as Error).message || '发布前检查失败');
+      message.error(ozonActionErrorMessage(error, '发布前检查失败'));
     } finally {
       setChecking(false);
     }
@@ -825,7 +847,14 @@ function OzonPublishPageContent() {
               </Button>
             ))}
           </div>
-          {!canRunPublishFlow ? (
+          {crossTenantGlobalView ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="当前为跨租户只读查看"
+              description="全局管理员可以查看该租户的商品和 Ozon 配置，但不能代表目标租户保存配置、运行发布前检查或提交；请使用目标租户管理员账号。"
+            />
+          ) : !canRunPublishFlow ? (
             <Alert
               type="info"
               showIcon
@@ -1064,7 +1093,7 @@ function OzonPublishPageContent() {
                   description={attributeTemplateError}
                   action={
                     canManageSettings ? (
-                      <Link to="/settings/platforms?platform=ozon">
+                      <Link to="/shops/manage?platform=ozon">
                         更新 Ozon 凭证
                       </Link>
                     ) : undefined

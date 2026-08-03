@@ -45,7 +45,7 @@ func failProductPlatformConfig(c *gin.Context, err error) {
 		response.JSON(c, 400, response.CodeBadRequest, ce.Message, gin.H{"errorCode": ce.Code})
 		return
 	}
-	response.Fail(c, 400, response.CodeBadRequest, err.Error())
+	response.HandleError(c, err)
 }
 
 func adminUUID(c *gin.Context) *uuid.UUID {

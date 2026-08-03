@@ -84,6 +84,7 @@ export type OzonCategoryRecommendation = {
 };
 
 export type OzonProductConfig = {
+  id?: string;
   productId: string;
   shopId?: string;
   categoryId?: string;

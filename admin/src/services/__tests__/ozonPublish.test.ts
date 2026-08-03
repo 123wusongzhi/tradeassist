@@ -43,12 +43,18 @@ describe('ozon publish services', () => {
     requestMock.mockResolvedValueOnce({
       code: 0,
       message: 'ok',
-      data: { productId: 'p/1', shopId: 'shop-1', categoryId: 'cat-1' },
+      data: {
+        id: 'config-1',
+        productId: 'p/1',
+        shopId: 'shop-1',
+        categoryId: 'cat-1',
+      },
     });
-    await saveOzonProductConfig('p/1', {
+    const saved = await saveOzonProductConfig('p/1', {
       shopId: 'shop-1',
       categoryId: 'cat-1',
     });
+    expect(saved.id).toBe('config-1');
     expect(requestMock).toHaveBeenCalledWith(
       '/api/v1/products/p%2F1/platform-configs/ozon',
       {

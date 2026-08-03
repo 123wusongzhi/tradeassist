@@ -1,6 +1,7 @@
 package adminperm
 
 import (
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"testing"
@@ -51,6 +52,11 @@ func TestEnsureProductOperateRequiresEveryLinkedStoreAndExactTenant(t *testing.T
 	ctx.Set("adminperm.principal", &Principal{TenantID: 1, Role: RoleOperator, StoreGrants: []StoreGrant{{StoreID: a, PermissionScope: "operate"}, {StoreID: b, PermissionScope: "view"}}})
 	if err := EnsureProductOperate(ctx, db, productID); err == nil {
 		t.Fatal("shared product must require operate for every linked store")
+	} else {
+		var permissionErr *ScopeOperationError
+		if !errors.As(err, &permissionErr) || permissionErr.HTTPStatus() != 403 {
+			t.Fatalf("visible-but-readonly product should return 403, got %T %v", err, err)
+		}
 	}
 	ctx.Set("adminperm.principal", &Principal{TenantID: 1, Role: RoleOperator, StoreGrants: []StoreGrant{{StoreID: a, PermissionScope: "operate"}, {StoreID: b, PermissionScope: "operate"}}})
 	if err := EnsureProductOperate(ctx, db, productID); err != nil {
@@ -64,6 +70,15 @@ func TestEnsureProductOperateRequiresEveryLinkedStoreAndExactTenant(t *testing.T
 	missing := uuid.New()
 	if err := EnsureProductOperate(ctx, db, missing); err == nil {
 		t.Fatal("missing tenant-0 product must fail closed")
+	}
+	ctx.Set(ctxkey.TenantID, int64(1))
+	if err := EnsureProductOperate(ctx, db, productID); err == nil {
+		t.Fatal("tenant-0 admin must not use a tenant-1 request context for writes")
+	} else {
+		var permissionErr *ScopeOperationError
+		if !errors.As(err, &permissionErr) || permissionErr.Code != "CROSS_TENANT_OPERATION_FORBIDDEN" {
+			t.Fatalf("global cross-tenant write should return an explicit 403, got %T %v", err, err)
+		}
 	}
 }
 
