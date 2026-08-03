@@ -261,6 +261,13 @@
 | `POST` | `/api/v1/collect/browser-extension/tasks/:id/result` | 设备令牌 | 提交归一化商品 JSON，创建商品草稿并置任务为 `success`；非本设备返回 `403`，任务已结束返回 `403`，并发提交返回 `409`。 |
 | `POST` | `/api/v1/collect/browser-extension/tasks/:id/failure` | 设备令牌 | 上报失败码/信息，任务置为 `failed`。 |
 
+安全会话启用时，`chrome-extension://<extension-id>` 只可在**不携带 Cookie**的以下
+四个精确 `POST` 路由通过 Cookie-CSRF 来源检查：`pairings/exchange`、`tasks`、
+`tasks/:id/result`、`tasks/:id/failure`。前者仍必须提交有效、未使用、未过期的一次性
+配对码，后三者仍必须通过专用设备 Bearer Token、当前 Admin 状态/商品写权限和任务归属
+校验。该边界不使用路径前缀或 CORS 通配；Admin 创建配对码、设备列表和撤销路由仍走
+原有 Admin JWT/权限与 CSRF 规则。
+
 任务响应字段与通用采集任务一致的关键子集：`id`、`source`、`sourceUrl`、`status`、
 `resultProductId`。只支持 `source=taobao_tmall`，URL 按淘宝/天猫规则校验。
 

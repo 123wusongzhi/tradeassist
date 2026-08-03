@@ -44,6 +44,10 @@ func CSRFProtection(cfg *config.Config) gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		if browserExtensionNonCookieWriteAllowed(c) {
+			c.Next()
+			return
+		}
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		referer := strings.TrimSpace(c.GetHeader("Referer"))
 		allowed := []string{strings.TrimSpace(cfg.AdminPublicURL), strings.TrimSpace(cfg.APIPublicURL)}
@@ -63,6 +67,48 @@ func CSRFProtection(cfg *config.Config) gin.HandlerFunc {
 			"message": "请求来源未授权",
 		})
 	}
+}
+
+// browserExtensionNonCookieWriteAllowed keeps the CSRF exception limited to
+// registered routes that authenticate with a one-time pairing code or an
+// opaque device bearer token. Admin pairing/device management routes are not
+// included, and any Cookie header keeps the normal Origin/Referer checks.
+func browserExtensionNonCookieWriteAllowed(c *gin.Context) bool {
+	if c == nil || c.Request == nil || c.Request.Method != http.MethodPost {
+		return false
+	}
+	if strings.TrimSpace(c.GetHeader("Cookie")) != "" || !chromiumExtensionOrigin(c.GetHeader("Origin")) {
+		return false
+	}
+	switch c.FullPath() {
+	case "/api/v1/collect/browser-extension/pairings/exchange",
+		"/api/v1/collect/browser-extension/tasks",
+		"/api/v1/collect/browser-extension/tasks/:id/result",
+		"/api/v1/collect/browser-extension/tasks/:id/failure":
+		return true
+	default:
+		return false
+	}
+}
+
+// Chromium extension IDs are 32 lowercase characters in the a-p alphabet.
+// Origin serialization contains only the scheme and extension ID.
+func chromiumExtensionOrigin(raw string) bool {
+	const prefix = "chrome-extension://"
+	raw = strings.TrimSpace(raw)
+	if !strings.HasPrefix(raw, prefix) {
+		return false
+	}
+	id := strings.TrimPrefix(raw, prefix)
+	if len(id) != 32 {
+		return false
+	}
+	for i := range id {
+		if id[i] < 'a' || id[i] > 'p' {
+			return false
+		}
+	}
+	return true
 }
 
 func originAllowed(raw string, allowed []string) bool {
