@@ -1,0 +1,6 @@
+# Keep Go sources identical to gofmt output on every platform.
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+go.work text eol=lf
+go.work.sum text eol=lf

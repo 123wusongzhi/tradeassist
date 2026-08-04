@@ -48,5 +48,8 @@ describe('Ozon publish route access', () => {
     expect(canAccessPath('/product/ozon-publish', ROLES.OPERATOR)).toBe(true);
     expect(canAccessPath('/product/ozon-publish', ROLES.READONLY)).toBe(true);
     expect(canAccessPath('/product/ozon-publish', ROLES.REVIEWER)).toBe(false);
+    expect(canAccessPath('/product/publishing-center', ROLES.OPERATOR)).toBe(true);
+    expect(canAccessPath('/product/publishing-center', ROLES.READONLY)).toBe(true);
+    expect(canAccessPath('/product/publishing-center', ROLES.REVIEWER)).toBe(false);
   });
 });

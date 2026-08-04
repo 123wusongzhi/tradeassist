@@ -84,7 +84,7 @@ const stages: Array<{ key: Stage; title: string }> = [
   { key: 'mapping', title: '类目映射库' },
   { key: 'config', title: '商品配置' },
   { key: 'preflight', title: '发布前检查' },
-  { key: 'submit', title: '草稿与提交' },
+  { key: 'submit', title: '快照与提交' },
 ];
 
 function stageFromSearch(search: string): Stage {
@@ -705,7 +705,7 @@ function OzonPublishPageContent() {
   };
   const createLocalDraft = async () => {
     if (!productId || !shopId || !canRunPublishFlow) {
-      message.warning('当前账号不能创建该商品的本地刊登草稿。');
+      message.warning('当前账号不能创建该商品的本地刊登快照。');
       return;
     }
     setCreatingDraft(true);
@@ -714,9 +714,9 @@ function OzonPublishPageContent() {
         targets: [{ platform: 'ozon', shopId }],
         onlyReady: false,
       });
-      message.success('本地草稿已创建，未调用 Ozon。');
+      message.success('本地快照已保存，未调用 Ozon。');
     } catch (error) {
-      message.error((error as Error).message || '创建本地草稿失败');
+      message.error((error as Error).message || '保存本地快照失败');
     } finally {
       setCreatingDraft(false);
     }
@@ -962,7 +962,7 @@ function OzonPublishPageContent() {
               type="warning"
               showIcon
               message="商品级 Ozon 配置有未保存的修改"
-              description="请先保存配置；在保存前，发布前检查、本地草稿和真实提交均不可用。"
+              description="请先保存配置；在保存前，发布前检查、本地快照和真实提交均不可用。"
             />
           ) : null}
           {stage === 'sync' && (
@@ -1382,8 +1382,8 @@ function OzonPublishPageContent() {
           )}
           {stage === 'submit' && (
             <SectionCard
-              title="本地草稿与真实提交"
-              description="本地草稿与 Ozon 提交是两个不同动作。真实提交仅在已保存配置的最新检查通过后开放，并需要二次确认。"
+              title="高级操作与真实提交"
+              description="本地快照与 Ozon 提交是两个不同动作。真实提交仅在已保存配置的最新检查通过后开放，并需要二次确认。"
             >
               <OperationToolbar>
                 <Button
@@ -1391,7 +1391,7 @@ function OzonPublishPageContent() {
                   onClick={() => void createLocalDraft()}
                   disabled={!configReady || !canRunPublishFlow}
                 >
-                  创建本地草稿
+                  保存本地快照（不会提交 Ozon）
                 </Button>
                 <Button
                   type="primary"
@@ -1463,7 +1463,7 @@ function OzonPublishPageContent() {
                   type="info"
                   showIcon
                   message="尚未创建提交任务"
-                  description="创建本地草稿不会调用 Ozon；只有点击“提交到 Ozon”并确认后才会创建真实提交任务。"
+                  description="保存本地快照不会调用 Ozon；只有点击“提交到 Ozon”并确认后才会创建真实提交。"
                 />
               )}
             </SectionCard>

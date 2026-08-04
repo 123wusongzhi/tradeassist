@@ -359,7 +359,7 @@ export default function PlatformPublishSettingsPage() {
                 此处保存各平台刊登时的默认类目、物流、包裹尺寸等参数，写入系统配置并加密敏感项。与{' '}
                 <Link to="/settings/platforms">平台接入设置</Link> 分开：接入设置填应用 Key / Secret，此处填刊登业务参数。
                 在商品草稿详情选择店铺提交刊登时，可覆盖单次任务参数。查看进度请前往{' '}
-                <Link to="/product/publish-tasks">商品 · 刊登任务</Link>。
+                <Link to="/product/publish-tasks?tab=tasks">商品 · 刊登进度</Link>。
               </Paragraph>
             </div>
           </div>

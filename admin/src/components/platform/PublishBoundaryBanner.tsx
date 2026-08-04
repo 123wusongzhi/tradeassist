@@ -20,7 +20,7 @@ export default function PublishBoundaryBanner({
 
   if (!isLocalOnly && !isRealDraft && !blockedByCredentials) return null;
 
-  let message = '创建本地草稿不等于平台真实草稿；抖店当前仍为发布候选。';
+  let message = '保存本地快照不等于平台真实草稿；抖店当前仍为发布候选。';
   if (isLocalOnly) {
     message = `${publishCapabilityLabel('local_draft_only')}：仅在 TradeMind 内保存草稿记录，不会调用平台写接口。`;
   } else if (isRealDraft) {

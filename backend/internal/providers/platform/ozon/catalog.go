@@ -35,6 +35,20 @@ func NewClient(req platformp.TestConnectionRequest) (*Client, error) {
 	return &Client{inner: newClient(cfg)}, nil
 }
 
+// SellerCurrency reads the shop contract currency through Ozon's read-only
+// seller info endpoint. It is used by publishing preflight so its effective
+// value matches the adapter when no explicit currency override is saved.
+func (c *Client) SellerCurrency(ctx context.Context) (string, error) {
+	if c == nil || c.inner == nil {
+		return "", fmt.Errorf("ozon client not configured")
+	}
+	info, err := c.inner.getSellerInfo(ctx)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(info.Company.Currency), nil
+}
+
 // CatalogNode is one flattened row of the Ozon description category tree.
 // Leaf nodes carry TypeID; non-leaf nodes carry DescriptionCategoryID.
 type CatalogNode struct {

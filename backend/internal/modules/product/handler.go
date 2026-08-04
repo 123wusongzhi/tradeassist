@@ -304,7 +304,7 @@ func (h *Handler) GetPlatformPublishConfig(c *gin.Context) {
 	if !h.requireTenantProduct(c, id) {
 		return
 	}
-	out, err := h.Svc.GetPlatformPublishConfig(c, id, c.Param("platform"))
+	out, err := h.Svc.GetPlatformPublishConfigForShop(c, id, c.Param("platform"), c.Query("shopId"))
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			response.OK(c, gin.H{

@@ -113,9 +113,8 @@ type ozonImportItem struct {
 }
 
 // ozonComplexAttributeGroup represents one complex-attribute instance. The
-// current product UI supplies one value per attribute, so one group is emitted
-// for each non-zero complex ID; repeated complex instances are deliberately
-// not inferred here.
+// Legacy payloads are grouped once per complex ID here. Canonical v2 payloads
+// provide explicit repeated groups and bypass this inference.
 type ozonComplexAttributeGroup struct {
 	Attributes []ozonAttributeValue `json:"attributes"`
 }
@@ -200,15 +199,24 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			return nil, fmt.Errorf("ozon category schema changed after task creation; rerun preflight")
 		}
 	}
+	ordinarySchema := liveAttrs
+	if !explicitAttrs.Legacy {
+		ordinarySchema = make([]ozonAttribute, 0, len(liveAttrs))
+		for _, attr := range liveAttrs {
+			if attr.AttributeComplexID <= 0 {
+				ordinarySchema = append(ordinarySchema, attr)
+			}
+		}
+	}
 	attrPayload, missingAttrs, missingDefs, err := client.buildCategoryAttributesForPublish(
 		cctx,
 		merged.DescriptionCategoryID,
 		merged.TypeID,
 		localAttrs,
 		merged,
-		explicitAttrs,
+		explicitAttrs.Attributes,
 		merged.AutoFillAttributes,
-		liveAttrs,
+		ordinarySchema,
 	)
 	if err != nil {
 		return nil, mapOzonPublishError(err)
@@ -229,10 +237,16 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			missingAttrs = stillMissing
 		}
 	}
+	explicitComplex, complexMissing, complexErr := client.buildExplicitOzonComplexGroups(cctx, merged.DescriptionCategoryID, merged.TypeID, liveAttrs, explicitAttrs)
+	if complexErr != nil {
+		return nil, mapOzonPublishError(complexErr)
+	}
+	missingAttrs = append(missingAttrs, complexMissing...)
 	if len(missingAttrs) > 0 {
 		return nil, fmt.Errorf("ozon publish missing required category attributes: %s", strings.Join(missingAttrs, ", "))
 	}
 	ordinaryAttrs, complexAttrs := partitionOzonImportAttributes(attrPayload)
+	complexAttrs = append(complexAttrs, explicitComplex...)
 
 	currencyCode := strings.TrimSpace(merged.CurrencyCode)
 	if currencyCode == "" {
@@ -342,8 +356,19 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	}, nil
 }
 
-func parseExplicitOzonAttributes(options map[string]any) (map[string]explicitOzonAttribute, error) {
-	out := map[string]explicitOzonAttribute{}
+type explicitOzonComplexGroup struct {
+	ComplexID  int64
+	Attributes map[string][]explicitOzonAttribute
+}
+
+type explicitOzonAttributesPayload struct {
+	Legacy        bool
+	Attributes    map[string][]explicitOzonAttribute
+	ComplexGroups []explicitOzonComplexGroup
+}
+
+func parseExplicitOzonAttributes(options map[string]any) (explicitOzonAttributesPayload, error) {
+	out := explicitOzonAttributesPayload{Legacy: true, Attributes: map[string][]explicitOzonAttribute{}, ComplexGroups: []explicitOzonComplexGroup{}}
 	if options == nil {
 		return out, nil
 	}
@@ -351,31 +376,99 @@ func parseExplicitOzonAttributes(options map[string]any) (map[string]explicitOzo
 	if !ok || raw == nil {
 		return out, nil
 	}
-	var attrs map[string]any
+	var encoded []byte
 	switch v := raw.(type) {
 	case json.RawMessage:
-		if err := json.Unmarshal(v, &attrs); err != nil {
-			return nil, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
-		}
+		encoded = append([]byte(nil), v...)
 	case []byte:
-		if err := json.Unmarshal(v, &attrs); err != nil {
-			return nil, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
-		}
+		encoded = append([]byte(nil), v...)
 	case map[string]any:
-		attrs = v
+		var err error
+		encoded, err = json.Marshal(v)
+		if err != nil {
+			return out, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
+		}
 	default:
-		return nil, fmt.Errorf("ozon platform_attributes must be an object")
+		return out, fmt.Errorf("ozon platform_attributes must be an object")
+	}
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &probe); err != nil {
+		return out, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
+	}
+	if attributesRaw, isV2 := probe["attributes"]; isV2 {
+		out.Legacy = false
+		var version int
+		if rawVersion, exists := probe["version"]; exists {
+			if err := json.Unmarshal(rawVersion, &version); err != nil {
+				return out, fmt.Errorf("ozon platform_attributes.version must be an integer")
+			}
+		}
+		if version != 0 && version != 2 {
+			return out, fmt.Errorf("ozon platform_attributes version %d is unsupported", version)
+		}
+		var attrs map[string][]map[string]any
+		if err := json.Unmarshal(attributesRaw, &attrs); err != nil {
+			return out, fmt.Errorf("ozon platform_attributes.attributes must be an object of value arrays")
+		}
+		for key, values := range attrs {
+			parsed, err := parseExplicitOzonAttributeList(key, values, true)
+			if err != nil {
+				return out, err
+			}
+			out.Attributes[strings.TrimSpace(key)] = parsed
+		}
+		var groups []struct {
+			ComplexID  int64                       `json:"complexId"`
+			Attributes map[string][]map[string]any `json:"attributes"`
+		}
+		if rawGroups, exists := probe["complexGroups"]; exists {
+			if err := json.Unmarshal(rawGroups, &groups); err != nil {
+				return out, fmt.Errorf("ozon platform_attributes.complexGroups must be an array")
+			}
+		}
+		for index, group := range groups {
+			if group.ComplexID <= 0 {
+				return out, fmt.Errorf("ozon complex attribute group %d has invalid complexId", index+1)
+			}
+			parsedGroup := explicitOzonComplexGroup{ComplexID: group.ComplexID, Attributes: map[string][]explicitOzonAttribute{}}
+			for key, values := range group.Attributes {
+				parsed, err := parseExplicitOzonAttributeList(key, values, true)
+				if err != nil {
+					return out, err
+				}
+				parsedGroup.Attributes[strings.TrimSpace(key)] = parsed
+			}
+			out.ComplexGroups = append(out.ComplexGroups, parsedGroup)
+		}
+		return out, nil
+	}
+
+	var attrs map[string]map[string]any
+	if err := json.Unmarshal(encoded, &attrs); err != nil {
+		return out, fmt.Errorf("ozon legacy platform_attributes must map each attribute to {value,dictionaryValueId}")
 	}
 	for rawKey, rawValue := range attrs {
 		key := strings.TrimSpace(rawKey)
 		if key == "" {
-			return nil, fmt.Errorf("ozon platform_attributes contains an empty attribute key")
+			return out, fmt.Errorf("ozon platform_attributes contains an empty attribute key")
 		}
-		nested, ok := rawValue.(map[string]any)
-		if !ok {
-			return nil, fmt.Errorf("ozon attribute %s must use {value,dictionaryValueId}", key)
+		parsed, err := parseExplicitOzonAttributeList(key, []map[string]any{rawValue}, false)
+		if err != nil {
+			return out, err
 		}
-		spec := explicitOzonAttribute{}
+		out.Attributes[key] = parsed
+	}
+	return out, nil
+}
+
+func parseExplicitOzonAttributeList(key string, values []map[string]any, strict bool) ([]explicitOzonAttribute, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, fmt.Errorf("ozon platform_attributes contains an empty attribute key")
+	}
+	out := make([]explicitOzonAttribute, 0, len(values))
+	for _, nested := range values {
+		spec := explicitOzonAttribute{StrictDictionaryID: strict}
 		if value, exists := nested["value"]; exists && value != nil {
 			spec.Value = strings.TrimSpace(fmt.Sprint(value))
 		}
@@ -395,7 +488,7 @@ func parseExplicitOzonAttributes(options map[string]any) (map[string]explicitOzo
 				return nil, fmt.Errorf("ozon attribute %s has invalid dictionaryValueId", key)
 			}
 		}
-		out[key] = spec
+		out = append(out, spec)
 	}
 	return out, nil
 }

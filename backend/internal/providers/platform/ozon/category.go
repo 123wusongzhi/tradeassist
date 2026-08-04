@@ -165,8 +165,9 @@ func (c *ozonClient) validateDictionaryValue(
 }
 
 type explicitOzonAttribute struct {
-	Value             string
-	DictionaryValueID int64
+	Value              string
+	DictionaryValueID  int64
+	StrictDictionaryID bool
 }
 
 // categoryAttributeMatch is one auto-filled Ozon attribute.
@@ -193,7 +194,7 @@ func (c *ozonClient) buildCategoryAttributesForPublish(
 	categoryID, typeID int64,
 	localAttrs map[string]string,
 	merged ozonPublishMerged,
-	explicit map[string]explicitOzonAttribute,
+	explicit map[string][]explicitOzonAttribute,
 	allowAutoFill bool,
 	preloaded ...[]ozonAttribute,
 ) ([]ozonAttributeValue, []string, []ozonAttribute, error) {
@@ -242,34 +243,15 @@ func (c *ozonClient) buildCategoryAttributesForPublish(
 		ok := false
 		if hasExplicit {
 			usedExplicit[explicitKey] = true
-			value = strings.TrimSpace(selected.Value)
-			if value != "" {
-				if a.DictionaryID != 0 {
-					if selected.DictionaryValueID > 0 {
-						matched, matchErr := c.validateDictionaryValue(ctx, categoryID, typeID, a.ID, selected.DictionaryValueID, value)
-						if matchErr != nil {
-							return nil, nil, nil, matchErr
-						}
-						if matched == nil {
-							return nil, nil, nil, fmt.Errorf("ozon dictionary value does not belong to attribute %s", attributeDisplayName(a))
-						}
-						value, dictID, ok = matched.Value, matched.ID, true
-					} else {
-						matched, matchErr := c.searchAttributeValue(ctx, categoryID, typeID, a.ID, value)
-						if matchErr != nil {
-							return nil, nil, nil, matchErr
-						}
-						if matched == nil {
-							return nil, nil, nil, fmt.Errorf("ozon dictionary value is not an exact match for attribute %s", attributeDisplayName(a))
-						}
-						value, dictID, ok = matched.Value, matched.ID, true
-					}
-				} else {
-					if selected.DictionaryValueID > 0 {
-						return nil, nil, nil, fmt.Errorf("ozon non-dictionary attribute %s cannot use dictionaryValueId", attributeDisplayName(a))
-					}
-					ok = true
-				}
+			resolved, resolvedOK, resolveErr := c.resolveExplicitOzonSelections(ctx, categoryID, typeID, a, selected)
+			if resolveErr != nil {
+				return nil, nil, nil, resolveErr
+			}
+			if resolvedOK {
+				seen[a.ID] = true
+				added++
+				out = append(out, resolved)
+				continue
 			}
 		} else if allowAutoFill {
 			var resolveErr error
@@ -305,9 +287,9 @@ func (c *ozonClient) buildCategoryAttributesForPublish(
 	return out, missing, missingDefs, nil
 }
 
-func explicitAttributeFor(a ozonAttribute, explicit map[string]explicitOzonAttribute) (explicitOzonAttribute, string, bool) {
+func explicitAttributeFor(a ozonAttribute, explicit map[string][]explicitOzonAttribute) ([]explicitOzonAttribute, string, bool) {
 	if len(explicit) == 0 {
-		return explicitOzonAttribute{}, "", false
+		return nil, "", false
 	}
 	id := strconv.FormatInt(a.ID, 10)
 	if value, ok := explicit[id]; ok {
@@ -319,7 +301,155 @@ func explicitAttributeFor(a ozonAttribute, explicit map[string]explicitOzonAttri
 			return value, key, true
 		}
 	}
-	return explicitOzonAttribute{}, "", false
+	return nil, "", false
+}
+
+func (c *ozonClient) resolveExplicitOzonSelections(
+	ctx context.Context,
+	categoryID, typeID int64,
+	attr ozonAttribute,
+	selections []explicitOzonAttribute,
+) (ozonAttributeValue, bool, error) {
+	if len(selections) == 0 {
+		return ozonAttributeValue{}, false, nil
+	}
+	if !attr.IsCollection && len(selections) > 1 {
+		return ozonAttributeValue{}, false, fmt.Errorf("ozon attribute %s does not allow multiple values", attributeDisplayName(attr))
+	}
+	if attr.MaxValueCount > 0 && int64(len(selections)) > attr.MaxValueCount {
+		return ozonAttributeValue{}, false, fmt.Errorf("ozon attribute %s allows at most %d values", attributeDisplayName(attr), attr.MaxValueCount)
+	}
+	if len(selections) > 50 {
+		return ozonAttributeValue{}, false, fmt.Errorf("ozon attribute %s contains too many values", attributeDisplayName(attr))
+	}
+	values := make([]ozonAttrValue, 0, len(selections))
+	for _, selected := range selections {
+		value := strings.TrimSpace(selected.Value)
+		if value == "" {
+			return ozonAttributeValue{}, false, fmt.Errorf("ozon attribute %s contains an empty selected value", attributeDisplayName(attr))
+		}
+		if attr.DictionaryID != 0 {
+			if selected.StrictDictionaryID && selected.DictionaryValueID <= 0 {
+				return ozonAttributeValue{}, false, fmt.Errorf("ozon dictionary attribute %s requires dictionaryValueId", attributeDisplayName(attr))
+			}
+			if selected.DictionaryValueID > 0 {
+				matched, err := c.validateDictionaryValue(ctx, categoryID, typeID, attr.ID, selected.DictionaryValueID, value)
+				if err != nil {
+					return ozonAttributeValue{}, false, err
+				}
+				if matched == nil {
+					return ozonAttributeValue{}, false, fmt.Errorf("ozon dictionary value does not belong to attribute %s", attributeDisplayName(attr))
+				}
+				values = append(values, ozonAttrValue{DictionaryValueID: matched.ID, Value: matched.Value})
+				continue
+			}
+			matched, err := c.searchAttributeValue(ctx, categoryID, typeID, attr.ID, value)
+			if err != nil {
+				return ozonAttributeValue{}, false, err
+			}
+			if matched == nil {
+				return ozonAttributeValue{}, false, fmt.Errorf("ozon dictionary value is not an exact match for attribute %s", attributeDisplayName(attr))
+			}
+			values = append(values, ozonAttrValue{DictionaryValueID: matched.ID, Value: matched.Value})
+			continue
+		}
+		if selected.DictionaryValueID > 0 {
+			return ozonAttributeValue{}, false, fmt.Errorf("ozon non-dictionary attribute %s cannot use dictionaryValueId", attributeDisplayName(attr))
+		}
+		values = append(values, ozonAttrValue{Value: value})
+	}
+	if len(values) == 0 {
+		return ozonAttributeValue{}, false, nil
+	}
+	return ozonAttributeValue{ComplexID: attr.AttributeComplexID, ID: attr.ID, Values: values}, true, nil
+}
+
+func (c *ozonClient) buildExplicitOzonComplexGroups(
+	ctx context.Context,
+	categoryID, typeID int64,
+	schema []ozonAttribute,
+	payload explicitOzonAttributesPayload,
+) ([]ozonComplexAttributeGroup, []string, error) {
+	if payload.Legacy {
+		return nil, nil, nil
+	}
+	defsByComplex := map[int64][]ozonAttribute{}
+	byID := map[string]ozonAttribute{}
+	for _, attr := range schema {
+		if attr.AttributeComplexID <= 0 {
+			continue
+		}
+		defsByComplex[attr.AttributeComplexID] = append(defsByComplex[attr.AttributeComplexID], attr)
+		byID[strconv.FormatInt(attr.ID, 10)] = attr
+	}
+	counts := map[int64]int{}
+	out := make([]ozonComplexAttributeGroup, 0, len(payload.ComplexGroups))
+	for index, group := range payload.ComplexGroups {
+		defs, exists := defsByComplex[group.ComplexID]
+		if !exists {
+			return nil, nil, fmt.Errorf("ozon complex attribute group %d references unknown complexId %d", index+1, group.ComplexID)
+		}
+		counts[group.ComplexID]++
+		for key := range group.Attributes {
+			attr, exists := byID[strings.TrimSpace(key)]
+			if !exists || attr.AttributeComplexID != group.ComplexID {
+				return nil, nil, fmt.Errorf("ozon complex group %d contains unknown attribute %s", index+1, key)
+			}
+		}
+		sort.SliceStable(defs, func(i, j int) bool { return defs[i].ID < defs[j].ID })
+		values := make([]ozonAttributeValue, 0, len(group.Attributes))
+		for _, attr := range defs {
+			key := strconv.FormatInt(attr.ID, 10)
+			selections, hasValue := group.Attributes[key]
+			if !hasValue {
+				if attr.IsRequired {
+					return nil, nil, fmt.Errorf("ozon complex attribute group %d is missing required attribute %s", index+1, attributeDisplayName(attr))
+				}
+				continue
+			}
+			resolved, ok, err := c.resolveExplicitOzonSelections(ctx, categoryID, typeID, attr, selections)
+			if err != nil {
+				return nil, nil, err
+			}
+			if !ok {
+				if attr.IsRequired {
+					return nil, nil, fmt.Errorf("ozon complex attribute group %d is missing required attribute %s", index+1, attributeDisplayName(attr))
+				}
+				continue
+			}
+			values = append(values, resolved)
+		}
+		if len(values) > 0 {
+			out = append(out, ozonComplexAttributeGroup{Attributes: values})
+		}
+	}
+	for complexID, count := range counts {
+		if count <= 1 {
+			continue
+		}
+		repeatable := false
+		for _, attr := range defsByComplex[complexID] {
+			if attr.ComplexIsCollection {
+				repeatable = true
+				break
+			}
+		}
+		if !repeatable {
+			return nil, nil, fmt.Errorf("ozon complexId %d does not allow repeated groups", complexID)
+		}
+	}
+	missing := make([]string, 0)
+	for complexID, defs := range defsByComplex {
+		if counts[complexID] > 0 {
+			continue
+		}
+		for _, attr := range defs {
+			if attr.IsRequired {
+				missing = append(missing, attributeDisplayName(attr))
+			}
+		}
+	}
+	return out, missing, nil
 }
 
 func attributeDisplayName(a ozonAttribute) string {

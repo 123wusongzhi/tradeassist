@@ -61,7 +61,7 @@ func TestOzonPlatformConfigPersistsAndReloadsSKUImageSelections(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	reloaded, err := svc.GetPlatformPublishConfig(c, productRow.ID, "ozon")
+	reloaded, err := svc.GetPlatformPublishConfigForShop(c, productRow.ID, "ozon", shopRow.ID.String())
 	require.NoError(t, err)
 	require.NotNil(t, reloaded.OzonImages)
 	require.True(t, reloaded.OzonImages.Configured)

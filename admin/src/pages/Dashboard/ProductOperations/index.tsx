@@ -506,7 +506,7 @@ function buildKpiCards(summary: DashboardSummary): {
       emptyHint: '发布检查均通过',
     },
     {
-      title: '刊登任务异常',
+      title: '刊登进度异常',
       value: summary.publishFailedTasks ?? 0,
       link: '/product/publish-tasks?status=failed',
       intent: 'danger',

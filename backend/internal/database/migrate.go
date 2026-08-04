@@ -132,6 +132,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if err := migrateLegacyProductTextColumns(db); err != nil {
 		return err
 	}
+	if err := migrateProductPlatformConfigShopScope(db); err != nil {
+		return err
+	}
 	if err := db.AutoMigrate(
 		&admin.AdminUser{},
 		&admin.UserStorePermission{},

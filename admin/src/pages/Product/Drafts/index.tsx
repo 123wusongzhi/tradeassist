@@ -409,17 +409,24 @@ export default function ProductDraftsPage() {
     {
       title: '操作',
       valueType: 'option',
-      width: 132,
+      width: 180,
       fixed: 'right',
-      render: (_, row) => [
-        <Typography.Link
-          key="detail"
-          href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
-          onClick={(event) => event.stopPropagation()}
-        >
-          {row.operationProgress?.nextActionLabel || '继续完善'}
-        </Typography.Link>,
-      ],
+      render: (_, row) => (
+        <Space size={8} wrap>
+          <Typography.Link
+            href={row.operationProgress?.nextActionUrl || `/product/drafts/${row.id}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            {row.operationProgress?.nextActionLabel || '继续完善'}
+          </Typography.Link>
+          <Typography.Link
+            href={`/product/publishing-center?productId=${encodeURIComponent(row.id)}`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            去刊登
+          </Typography.Link>
+        </Space>
+      ),
     },
   ],
     [keywordFieldProps],

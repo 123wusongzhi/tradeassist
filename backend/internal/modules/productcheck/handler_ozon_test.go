@@ -160,12 +160,16 @@ func principalForReadiness(tenantID int64, role string, grants ...adminperm.Stor
 func TestValidateOzonReadinessHTTPAuthorizationMatrix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	var attributeCalls atomic.Int32
+	var sellerCalls atomic.Int32
 	var importCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/description-category/attribute":
 			attributeCalls.Add(1)
 			_, _ = w.Write([]byte(`{"result":[{"id":85,"name":"Brand","type":"string","dictionary_id":0,"is_required":true}]}`))
+		case "/v1/seller/info":
+			sellerCalls.Add(1)
+			_, _ = w.Write([]byte(`{"company":{"currency":"RUB"}}`))
 		case "/v3/product/import":
 			importCalls.Add(1)
 			w.WriteHeader(http.StatusTeapot)
@@ -192,7 +196,7 @@ func TestValidateOzonReadinessHTTPAuthorizationMatrix(t *testing.T) {
 		{name: "cross tenant operator gets not found", tenantID: 2, principal: principalForReadiness(2, adminperm.RoleOperator), shopID: fixture.shopA, wantStatus: http.StatusNotFound, wantCode: response.CodeNotFound, wantText: "资源不存在"},
 		{name: "cross tenant tenant-admin gets not found", tenantID: 2, principal: principalForReadiness(2, adminperm.RoleTenantAdmin), shopID: fixture.shopA, wantStatus: http.StatusNotFound, wantCode: response.CodeNotFound, wantText: "资源不存在"},
 		{name: "operator cannot select ungranted shop", tenantID: 1, principal: principalForReadiness(1, adminperm.RoleOperator, adminperm.StoreGrant{StoreID: fixture.shopA, PermissionScope: "operate"}), shopID: fixture.shopB, wantStatus: http.StatusNotFound, wantCode: response.CodeNotFound, wantText: "资源不存在"},
-		{name: "tenant admin gets actionable config mismatch", tenantID: 1, principal: principalForReadiness(1, adminperm.RoleTenantAdmin), shopID: fixture.shopB, wantStatus: http.StatusBadRequest, wantCode: response.CodeBadRequest, wantText: "不属于当前店铺"},
+		{name: "tenant admin sees unconfigured second store independently", tenantID: 1, principal: principalForReadiness(1, adminperm.RoleTenantAdmin), shopID: fixture.shopB, wantStatus: http.StatusOK, wantCode: response.CodeOK},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -213,6 +217,9 @@ func TestValidateOzonReadinessHTTPAuthorizationMatrix(t *testing.T) {
 	}
 	if got := attributeCalls.Load(); got != 2 {
 		t.Fatalf("Ozon read-only attribute calls=%d, want 2 allowed requests only", got)
+	}
+	if got := sellerCalls.Load(); got != 2 {
+		t.Fatalf("Ozon seller calls=%d, want only the two configured-store requests", got)
 	}
 	if got := importCalls.Load(); got != 0 {
 		t.Fatalf("real Ozon import must never be called, got %d", got)

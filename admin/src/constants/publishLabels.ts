@@ -1,7 +1,7 @@
 /** 刊登能力分级（与后端 productpublish 对齐） */
 export const PUBLISH_CAPABILITY_LABEL: Record<string, string> = {
   real_draft_create: '可创建平台草稿',
-  local_draft_only: '仅生成本地草稿',
+  local_draft_only: '仅保存本地快照',
   not_configured: '尚未配置',
   not_authorized: '店铺未授权',
   disabled: '已停用',

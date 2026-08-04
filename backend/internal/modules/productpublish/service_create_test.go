@@ -6,8 +6,21 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/trademind-ai/trademind/backend/internal/modules/product"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 )
+
+func TestApplyResolvedOzonPublishOptionsPreservesFallbackCurrency(t *testing.T) {
+	options := map[string]any{"currency_code": "RUB"}
+	applyResolvedOzonPublishOptions(options, product.OzonResolvedListingDTO{})
+	if got := options["currency_code"]; got != "RUB" {
+		t.Fatalf("fallback currency overwritten: %v", got)
+	}
+	applyResolvedOzonPublishOptions(options, product.OzonResolvedListingDTO{Currency: product.OzonResolvedString{Value: "CNY"}})
+	if got := options["currency_code"]; got != "CNY" {
+		t.Fatalf("resolved currency not applied: %v", got)
+	}
+}
 
 func TestValidatePublishIdempotencyKey(t *testing.T) {
 	t.Parallel()

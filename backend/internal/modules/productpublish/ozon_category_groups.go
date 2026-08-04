@@ -197,17 +197,21 @@ func (s *Service) ConfirmOzonCategoryGroups(ctx context.Context, tenantID int64,
 			groupOut := OzonCategoryGroup{Key: derivedKey, SourceCategoryKey: derivedKey, SourceCategoryName: derivedName, ProductIDs: g.ProductIDs, Count: len(g.ProductIDs), Status: "ready", StatusLabel: "本地配置已确认", CategoryID: g.CategoryID, RecommendedCategoryID: g.CategoryID, RecommendedCategoryPath: categoryPath}
 			for _, p := range owned {
 				pid := p.ID
-				var old product.ProductPlatformPublishConfig
-				if err := tx.Where("product_id = ? AND platform = ?", pid, "ozon").First(&old).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-					return err
+				old := product.ProductPlatformPublishConfig{}
+				oldRow, _, lookupErr := product.FindProductPlatformPublishConfig(ctx, tx, pid, "ozon", &shopID, true)
+				if lookupErr != nil && !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+					return lookupErr
+				}
+				if oldRow != nil {
+					old = *oldRow
 				}
 				attrsJSON := old.PlatformAttributes
 				if old.CategoryID != g.CategoryID || len(attrsJSON) == 0 {
 					attrsJSON = datatypes.JSON([]byte("{}"))
 				}
 				now := time.Now().UTC()
-				row := product.ProductPlatformPublishConfig{ProductID: pid, Platform: "ozon", ShopID: &shopID, CategoryID: g.CategoryID, CategoryPath: categoryPath, PlatformAttributes: attrsJSON, SourceCategoryKey: derivedKey, SourceCategoryName: derivedName, SchemaHash: hash, SchemaConfirmedAt: &now}
-				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}}, DoUpdates: clause.AssignmentColumns([]string{"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at"})}).Create(&row).Error; err != nil {
+				row := product.ProductPlatformPublishConfig{ProductID: pid, Platform: "ozon", ConfigScopeKey: product.PlatformConfigScopeKey("ozon", &shopID), ShopID: &shopID, CategoryID: g.CategoryID, CategoryPath: categoryPath, PlatformAttributes: attrsJSON, MappedImages: old.MappedImages, ListingConfig: old.ListingConfig, SourceCategoryKey: derivedKey, SourceCategoryName: derivedName, SchemaHash: hash, SchemaConfirmedAt: &now}
+				if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}, {Name: "config_scope_key"}}, DoUpdates: clause.AssignmentColumns([]string{"shop_id", "category_id", "category_path", "platform_attributes", "source_category_key", "source_category_name", "schema_hash", "schema_confirmed_at", "updated_at"})}).Create(&row).Error; err != nil {
 					return err
 				}
 				productStatus, productMessage := ozonConfiguredProductStatus(attrs, attrsJSON)

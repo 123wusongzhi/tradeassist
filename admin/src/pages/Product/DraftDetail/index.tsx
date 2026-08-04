@@ -1908,7 +1908,7 @@ export default function ProductDraftDetailPage() {
       setDouyinPublishTasks(res.list ?? []);
     } catch (e: unknown) {
       setDouyinPublishTasks([]);
-      setDouyinPublishTasksError((e as Error)?.message || '抖店刊登任务加载失败');
+      setDouyinPublishTasksError((e as Error)?.message || '抖店刊登进度加载失败');
     } finally {
       setDouyinPublishTasksLoading(false);
     }
@@ -4534,7 +4534,7 @@ export default function ProductDraftDetailPage() {
                         <div>
                           <Typography.Text strong>提交刊登</Typography.Text>
                           <Typography.Paragraph type="secondary">
-                            传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台刊登任务。
+                            传统入口会在发布检查通过后调用刊登提交接口，可能产生真实平台写操作和后台处理记录。
                           </Typography.Paragraph>
                         </div>
                         <div>
@@ -4639,32 +4639,9 @@ export default function ProductDraftDetailPage() {
                       </Space>
                     </SectionCard>
                     <SectionCard
-                      title="刊登路径选择"
-                      description="三条路径适用的场景不同；本页只整理入口，不自动触发任何写操作。"
-                      className="product-draft-publish__paths"
-                    >
-                      <div className="product-draft-publish__path-grid">
-                        <div className="product-draft-publish__path product-draft-publish__path--primary">
-                          <Typography.Text strong>多平台刊登中心</Typography.Text>
-                          <Tag color="blue">主推路径</Tag>
-                          <Typography.Text type="secondary">通过中心化流程创建多平台刊登草稿，创建后刷新刊登上下文、抖店任务和平台 SKU 映射。</Typography.Text>
-                        </div>
-                        <div className="product-draft-publish__path">
-                          <Typography.Text strong>抖店专项流程</Typography.Text>
-                          <Tag>草稿和配置</Tag>
-                          <Typography.Text type="secondary">处理抖店店铺、类目、属性、图片上传、草稿映射和抖店商品草稿创建；创建后仍需到抖店后台确认上架。</Typography.Text>
-                        </div>
-                        <div className="product-draft-publish__path product-draft-publish__path--compat">
-                          <Typography.Text strong>传统提交刊登</Typography.Text>
-                          <Tag color="orange">兼容入口</Tag>
-                          <Typography.Text type="secondary">执行 publish 模式发布检查后提交刊登任务，是可能触发真实平台写操作的入口。</Typography.Text>
-                        </div>
-                      </div>
-                    </SectionCard>
-                    <SectionCard
-                      title="多平台刊登中心"
-                      description="创建多平台刊登草稿，不等同于已经正式提交到平台。"
-                      headerExtra={<Link to={`/product/ozon-publish?productId=${encodeURIComponent(id)}`}>Ozon 类目与刊登流程</Link>}
+                      title="刊登中心"
+                      description="商品、平台、店铺、类目和平台字段统一从这里配置；首期完整支持 Ozon。"
+                      headerExtra={<Link to={`/product/publishing-center?productId=${encodeURIComponent(id)}`}>去刊登</Link>}
                       className="product-draft-publish__multi-platform"
                     >
                       <div className="product-draft-publish__multi-platform-brief">
@@ -4673,28 +4650,48 @@ export default function ProductDraftDetailPage() {
                           <Typography.Paragraph type="secondary">{productTitle}</Typography.Paragraph>
                         </div>
                         <div>
-                          <Typography.Text strong>创建后的下一步</Typography.Text>
-                          <Typography.Paragraph type="secondary">创建结果会刷新刊登上下文、抖店任务和平台 SKU 映射；请继续查看任务或进入对应平台配置。</Typography.Paragraph>
+                          <Typography.Text strong>统一配置</Typography.Text>
+                          <Typography.Paragraph type="secondary">Ozon 店铺级售价、图片、包裹和类目属性会独立保存；发布前检查与真实提交读取同一份配置。</Typography.Paragraph>
                         </div>
                         <div>
-                          <Typography.Text strong>只读状态</Typography.Text>
-                          <Typography.Paragraph type="secondary">{readonly ? '当前账号只应查看状态，不应触发检查或创建草稿。' : '需要手动选择平台和店铺，本页不会自动选择或自动提交。'}</Typography.Paragraph>
+                          <Typography.Text strong>安全边界</Typography.Text>
+                          <Typography.Paragraph type="secondary">{readonly ? '当前账号只可查看状态。' : '保存和发布前检查不会调用 Ozon 写接口，真实提交始终需要二次确认。'}</Typography.Paragraph>
                         </div>
                       </div>
-                      <MultiPlatformPublishCenter
-                        productId={id}
-                        onDraftsCreated={async () => {
-                          const rows = await reloadPublishContext();
-                          await reloadDouyinPublishTasks();
-                          await reloadPublicationSkus();
-                          const douyinRow = rows.find(
-                            (p) =>
-                              (p.platform || '').toLowerCase() === 'douyin_shop' &&
-                              String(p.externalProductId || '').trim() !== '',
-                          );
-                          await reloadDouyinSkuBindingsForPublication(douyinRow?.id);
-                        }}
-                      />
+                      {!readonly ? (
+                        <Collapse
+                          ghost
+                          items={[{
+                            key: 'local-snapshot',
+                            label: '高级操作：保存本地快照（不会提交 Ozon）',
+                            children: (
+                              <>
+                                <Alert
+                                  type="warning"
+                                  showIcon
+                                  message="仅用于尚未接入统一字段的平台"
+                                  description="这里保留旧版多平台本地快照能力；它不会替代 Ozon 刊登中心，也不会表示平台已经收到商品。"
+                                  style={{ marginBottom: 16 }}
+                                />
+                                <MultiPlatformPublishCenter
+                                  productId={id}
+                                  onDraftsCreated={async () => {
+                                    const rows = await reloadPublishContext();
+                                    await reloadDouyinPublishTasks();
+                                    await reloadPublicationSkus();
+                                    const douyinRow = rows.find(
+                                      (p) =>
+                                        (p.platform || '').toLowerCase() === 'douyin_shop' &&
+                                        String(p.externalProductId || '').trim() !== '',
+                                    );
+                                    await reloadDouyinSkuBindingsForPublication(douyinRow?.id);
+                                  }}
+                                />
+                              </>
+                            ),
+                          }]}
+                        />
+                      ) : null}
                     </SectionCard>
                     <Card variant="borderless" className="product-draft-publish__legacy-stack">
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
@@ -4704,10 +4701,10 @@ export default function ProductDraftDetailPage() {
                         message="三、各平台 / 店铺单独配置"
                         description={
                           <>
-                            可为已授权且支持刊登的店铺创建刊登任务。提交前请先在{' '}
+                            可为已授权且支持刊登的店铺创建刊登提交。提交前请先在{' '}
                             <Link to="/settings/platform-publish">平台刊登预设</Link>{' '}
                             补齐类目、品牌、包裹尺寸等信息；进度可在{' '}
-                            <Link to="/product/publish-tasks">刊登任务</Link> 查看。
+                            <Link to="/product/publish-tasks?tab=tasks">刊登进度</Link> 查看。
                             <TechnicalDetails label="预设项说明">
                               <Typography.Paragraph type="secondary" style={{ marginBottom: 0, fontSize: 12 }}>
                                 各平台需配置对应刊登模板（如 TikTok、Shopee、Lazada、Amazon 的类目与物流选项）。内部预设键名：
@@ -5418,15 +5415,15 @@ export default function ProductDraftDetailPage() {
                             <div className="product-draft-douyin-flow__panel-head">
                               <div>
                                 <Typography.Text strong>7. 创建任务与结果</Typography.Text>
-                                <Typography.Paragraph type="secondary">任务记录来自抖店刊登任务列表；任务成功只表示草稿创建流程完成，不表示平台商品已经正式上线。</Typography.Paragraph>
+                                <Typography.Paragraph type="secondary">进度记录来自抖店刊登处理列表；处理成功只表示草稿创建流程完成，不表示平台商品已经正式上线。</Typography.Paragraph>
                               </div>
                               <Button size="small" onClick={() => void reloadDouyinPublishTasks()}>刷新任务</Button>
                             </div>
                             <Spin spinning={douyinPublishTasksLoading}>
                               {douyinPublishTasksError ? (
-                                <Alert type="error" showIcon message="抖店刊登任务加载失败" description={douyinPublishTasksError} action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>重新加载</Button>} />
+                                <Alert type="error" showIcon message="抖店刊登进度加载失败" description={douyinPublishTasksError} action={<Button size="small" onClick={() => void reloadDouyinPublishTasks()}>重新加载</Button>} />
                               ) : douyinPublishTasks.length === 0 ? (
-                                <EmptyState compact title="暂无抖店刊登任务" description="创建抖店商品草稿后会在这里显示任务处理状态。" />
+                                <EmptyState compact title="暂无抖店刊登进度" description="创建抖店商品草稿后会在这里显示处理状态。" />
                               ) : (
                                 <Table
                                   size="small"
@@ -5441,7 +5438,7 @@ export default function ProductDraftDetailPage() {
                                     { title: '抖店商品 ID', dataIndex: 'platformProductId', ellipsis: true, render: (v) => v || '—' },
                                     { title: '创建时间', dataIndex: 'createdAt', width: 168, render: (v) => formatDateTime(v) },
                                     { title: '失败原因', dataIndex: 'errorMessage', ellipsis: true, render: (v, r) => { const text = (v as string) || formatUserErrorMessage(r.errorCode); return text || '—'; } },
-                                    { title: '操作', width: 120, render: (_, r) => <Space size={4}><Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>{r.status === 'failed' && r.retryable !== false ? <Button type="link" size="small" onClick={() => void retryProductPublishTask(r.id).then(() => { message.success('已重试刊登任务'); void reloadDouyinPublishTasks(); }).catch((e: Error) => message.error(e.message || '重试失败'))}>重试</Button> : null}</Space> },
+                                    { title: '操作', width: 120, render: (_, r) => <Space size={4}><Link to={`/product/publish-tasks?productId=${id}`}>详情</Link>{r.status === 'failed' && r.retryable !== false ? <Button type="link" size="small" onClick={() => void retryProductPublishTask(r.id).then(() => { message.success('已重新发起刊登处理'); void reloadDouyinPublishTasks(); }).catch((e: Error) => message.error(e.message || '重试失败'))}>重试</Button> : null}</Space> },
                                   ]}
                                 />
                               )}
@@ -5454,7 +5451,7 @@ export default function ProductDraftDetailPage() {
                         showIcon
                         className="product-draft-publish__legacy-warning"
                         message="传统提交刊登是兼容入口"
-                        description="此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登任务，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续任务和刊登记录为准。"
+                        description="此入口会先打开确认，再执行 publish 模式发布检查；检查通过后提交刊登请求，可能触发真实平台写操作。检查通过不代表平台最终成功，结果以后续进度和刊登记录为准。"
                       />
                       {eligibleShopsForPublish.length === 0 && !pubCtxError ? (
                         <Alert
@@ -5469,7 +5466,7 @@ export default function ProductDraftDetailPage() {
                           type="info"
                           showIcon
                           message="正在执行 publish 模式发布检查"
-                          description="检查完成前不会提交刊登任务。"
+                          description="检查完成前不会提交刊登请求。"
                         />
                       ) : null}
                       {publishReadiness ? (
@@ -5549,7 +5546,7 @@ export default function ProductDraftDetailPage() {
                                 okButtonProps: { danger: true },
                                 content: (
                                   <Space direction="vertical" size={8}>
-                                    <Typography.Text>该操作会执行 publish 模式发布检查，检查通过后提交刊登任务。</Typography.Text>
+                                    <Typography.Text>该操作会执行 publish 模式发布检查，检查通过后提交刊登请求。</Typography.Text>
                                     <Typography.Text type="secondary">
                                       这不是本地保存，也不是只创建草稿；可能触发真实平台写操作，平台最终结果请以任务和刊登记录为准。
                                     </Typography.Text>
@@ -5578,7 +5575,7 @@ export default function ProductDraftDetailPage() {
                                 Modal.confirm({
                                   title: '发布检查存在警告，确认继续？',
                                   width: 640,
-                                  okText: '确认创建刊登任务',
+                                  okText: '确认提交刊登请求',
                                   cancelText: '返回处理',
                                   content: <div>{readinessCheckList((r.checks || []).filter((c) => c.level !== 'error'), 10)}</div>,
                                   onOk: () => resolve(),
@@ -5588,7 +5585,7 @@ export default function ProductDraftDetailPage() {
                             }
                             const task = await publishProduct(id, { shopId, options: {} });
                             if (task.readiness) setPublishReadiness(task.readiness);
-                            message.success('已提交刊登任务');
+                            message.success('已提交刊登请求');
                             publishForm.resetFields();
                             setPublishReadiness(null);
                             await reloadPublishContext();
@@ -5667,7 +5664,7 @@ export default function ProductDraftDetailPage() {
                           action={<Button size="small" onClick={() => void reloadPublishContext()}>重新加载</Button>}
                         />
                       ) : pubRows.length === 0 ? (
-                        <EmptyState compact title="暂无刊登记录" description="创建草稿或提交刊登任务后，刊登记录会在这里展示。" />
+                        <EmptyState compact title="暂无刊登记录" description="创建草稿或提交刊登请求后，刊登记录会在这里展示。" />
                       ) : (
                         <Table<ProductPublicationRow>
                           size="small"

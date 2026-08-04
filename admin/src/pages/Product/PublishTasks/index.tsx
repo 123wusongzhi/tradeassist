@@ -4,7 +4,7 @@ import { Alert, Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, messag
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { Link, useSearchParams } from '@umijs/max';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { COLLECT_TASK_STATUS } from '@/constants/status';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { useUrlQueryState } from '@/hooks/useUrlState';
@@ -46,10 +46,11 @@ function tagFromStatus(raw: string) {
 }
 
 export default function ProductPublishTasksPage() {
-  const { state: urlState, setState: setUrlState, clearState: clearUrlState } =
-    useUrlQueryState<Record<(typeof PUBLISH_TASK_QUERY_KEYS)[number], string | undefined>>(
-      PUBLISH_TASK_QUERY_KEYS,
-    );
+  const {
+    state: urlState,
+    setState: setUrlState,
+    clearState: clearUrlState,
+  } = useUrlQueryState<Record<(typeof PUBLISH_TASK_QUERY_KEYS)[number], string | undefined>>(PUBLISH_TASK_QUERY_KEYS);
   const navSource = normalizeSource(urlState.source);
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -59,11 +60,13 @@ export default function ProductPublishTasksPage() {
   const [tablePageSize, setTablePageSize] = useState(20);
   const [batchPage, setBatchPage] = useState(1);
   const [batchPageSize, setBatchPageSize] = useState(20);
-  const activeTab = urlState.tab === 'tasks' ? 'tasks' : 'batches';
+  const activeTab = urlState.tab === 'batches' ? 'batches' : 'tasks';
   const taskIdFromUrl = urlState.id;
   const statusFromUrl = urlState.status;
   const batchIdFromUrl = urlState.batchId;
-  const emptyLocale = useListEmptyLocale('publishBatches', { permissionScoped: true });
+  const emptyLocale = useListEmptyLocale('publishBatches', {
+    permissionScoped: true,
+  });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
 
@@ -72,12 +75,7 @@ export default function ProductPublishTasksPage() {
     setTablePageSize(parsePositiveInt(urlState.pageSize, 20));
     setBatchPage(parsePositiveInt(urlState.page, 1));
     setBatchPageSize(parsePositiveInt(urlState.pageSize, 20));
-    const createdRange = queryTimeRange(
-      urlState.start,
-      urlState.end,
-      urlState.createdFrom,
-      urlState.createdTo,
-    );
+    const createdRange = queryTimeRange(urlState.start, urlState.end, urlState.createdFrom, urlState.createdTo);
     formRef.current?.setFieldsValue?.({
       status: statusFromUrl,
       platform: urlState.platform,
@@ -217,12 +215,12 @@ export default function ProductPublishTasksPage() {
         title: '操作',
         valueType: 'option',
         width: 140,
-        render: (_, r) => (
-          <Space>
-            <a onClick={() => void openTaskDetail(r.id)}>查看</a>
-            {r.status === 'failed' ? (
+        render: (_, r) => {
+          let retryAction: ReactNode = null;
+          if (r.status === 'failed' && (r.platform !== 'ozon' || r.retryable === true)) {
+            retryAction = (
               <Popconfirm
-                title="确认重试该刊登任务？"
+                title="确认重试该刊登提交？"
                 onConfirm={async () => {
                   await retryProductPublishTask(r.id);
                   message.success('已提交重试');
@@ -233,9 +231,17 @@ export default function ProductPublishTasksPage() {
                   重试
                 </Button>
               </Popconfirm>
-            ) : null}
-          </Space>
-        ),
+            );
+          } else if (r.status === 'failed' && r.platform === 'ozon') {
+            retryAction = <Typography.Text type="secondary">请人工核对</Typography.Text>;
+          }
+          return (
+            <Space>
+              <a onClick={() => void openTaskDetail(r.id)}>查看</a>
+              {retryAction}
+            </Space>
+          );
+        },
       },
     ],
     [],
@@ -277,9 +283,7 @@ export default function ProductPublishTasksPage() {
         valueType: 'option',
         width: 100,
         render: (_, r) => {
-          const detailHref = navSource
-            ? `/product/publish-batches/${r.id}?source=${encodeURIComponent(navSource)}`
-            : `/product/publish-batches/${r.id}`;
+          const detailHref = navSource ? `/product/publish-batches/${r.id}?source=${encodeURIComponent(navSource)}` : `/product/publish-batches/${r.id}`;
           return <Link to={detailHref}>查看</Link>;
         },
       },
@@ -299,23 +303,9 @@ export default function ProductPublishTasksPage() {
   });
 
   return (
-    <TmPageContainer title="商品刊登任务" subTitle="查看刊登子任务与批量刊登批次进度。">
-      {navSource ? (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message="已从关联页面带入导航上下文（不影响权限与店铺范围）。"
-        />
-      ) : null}
-      {batchIdFromUrl ? (
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message={`当前批次筛选：${batchIdFromUrl}`}
-        />
-      ) : null}
+    <TmPageContainer title="刊登进度" subTitle="默认查看单品提交；可核对最终提交快照、平台返回结果和平台商品编号。">
+      {navSource ? <Alert type="info" showIcon style={{ marginBottom: 12 }} message="已从关联页面带入导航上下文（不影响权限与店铺范围）。" /> : null}
+      {batchIdFromUrl ? <Alert type="info" showIcon style={{ marginBottom: 12 }} message={`当前批次筛选：${batchIdFromUrl}`} /> : null}
       <Tabs
         activeKey={activeTab}
         onChange={(key) => {
@@ -335,7 +325,7 @@ export default function ProductPublishTasksPage() {
         items={[
           {
             key: 'tasks',
-            label: '子任务',
+            label: '单品提交',
             children: (
               <ProTable<ProductPublishTaskDTO>
                 rowKey="id"
@@ -384,14 +374,18 @@ export default function ProductPublishTasksPage() {
                     { replace: true },
                   );
                   const res = await queryProductPublishTasks(qp);
-                  return { data: res.list, total: res.pagination.total, success: true };
+                  return {
+                    data: res.list,
+                    total: res.pagination.total,
+                    success: true,
+                  };
                 }}
               />
             ),
           },
           {
             key: 'batches',
-            label: '刊登批次',
+            label: '批次（高级）',
             children: (
               <ProTable<PublishBatchListItem>
                 rowKey="id"
@@ -428,7 +422,11 @@ export default function ProductPublishTasksPage() {
                     { replace: true },
                   );
                   const res = await queryPublishBatches({ page, pageSize });
-                  return { data: res.list, total: res.pagination.total, success: true };
+                  return {
+                    data: res.list,
+                    total: res.pagination.total,
+                    success: true,
+                  };
                 }}
               />
             ),
@@ -436,25 +434,20 @@ export default function ProductPublishTasksPage() {
         ]}
       />
 
-      <Drawer
-        width={560}
-        title={detail ? `刊登任务 ${detail.id}` : '详情'}
-        open={detailOpen}
-        destroyOnHidden
-        onClose={closeTaskDetail}
-      >
+      <Drawer width={560} title={detail ? `刊登进度 ${detail.id}` : '详情'} open={detailOpen} destroyOnHidden onClose={closeTaskDetail}>
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <div>
-              <Typography.Text strong>状态：</Typography.Text> {tagFromStatus(detail.status)}
-            </div>
+            <Space size={8} wrap>
+              <Typography.Text strong>业务状态：</Typography.Text>
+              {tagFromStatus(detail.status)}
+              {detail.publishStatus ? <Tag>{detail.publishStatus}</Tag> : null}
+            </Space>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
               <Typography.Text type="secondary">({detail.platform})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>商品：</Typography.Text>{' '}
-              {detail.productTitle || detail.productId}
+              <Typography.Text strong>商品：</Typography.Text> {detail.productTitle || detail.productId}
             </Typography.Paragraph>
             {detail.errorMessage ? (
               <Typography.Paragraph>
@@ -466,11 +459,25 @@ export default function ProductPublishTasksPage() {
                 <Typography.Text strong>平台商品编号：</Typography.Text> {detail.platformProductId}
               </Typography.Paragraph>
             ) : null}
-            {detail.retryable != null ? (
+            {detail.retryable !== undefined && detail.retryable !== null ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
                 <Typography.Text strong>可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
               </Typography.Paragraph>
             ) : null}
+            {detail.status === 'failed' && detail.platform === 'ozon' && detail.retryable !== true ? (
+              <Alert
+                type="warning"
+                showIcon
+                message="该失败或不确定结果不可自动重试"
+                description="请先在 Ozon 后台按 offer_id / 平台商品编号人工核对是否已受理，避免重复创建。只有服务端明确返回 retryable=true 时才会开放重试。"
+              />
+            ) : null}
+            <Space wrap>
+              <Link to={`/product/publishing-center?productId=${encodeURIComponent(detail.productId)}&shopId=${encodeURIComponent(detail.shopId)}`}>
+                返回商品刊登配置
+              </Link>
+              <Link to={`/product/drafts/${encodeURIComponent(detail.productId)}`}>查看商品详情</Link>
+            </Space>
             <TechnicalDetails>
               {detail.requestId ? (
                 <Typography.Paragraph copyable={{ text: detail.requestId }} style={{ marginBottom: 8 }}>
@@ -480,7 +487,7 @@ export default function ProductPublishTasksPage() {
               <Typography.Paragraph copyable={{ text: detail.id }} style={{ marginBottom: 8 }}>
                 <Typography.Text strong>任务编号：</Typography.Text> {detail.id}
               </Typography.Paragraph>
-              <TaskJsonBlock title="平台提交内容" value={detail.platformPayload} />
+              <TaskJsonBlock title="最终提交快照" value={detail.platformPayload} />
               <TaskJsonBlock title="平台返回结果" value={detail.platformResult ?? detail.output} />
               <TaskJsonBlock title="任务输入" value={detail.input} />
               <TaskJsonBlock title="任务输出" value={detail.output} last />

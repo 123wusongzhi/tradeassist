@@ -183,9 +183,14 @@ export default [
         component: "./Product/Drafts",
       },
       {
+        path: "/product/publishing-center",
+        name: "刊登中心",
+        component: "./Product/PublishingCenter",
+      },
+      {
         path: "/product/ozon-publish",
-        name: "Ozon 类目与刊登",
-        component: "./Product/OzonPublish",
+        name: "旧版 Ozon 刊登入口",
+        component: "./Product/PublishingCenter/LegacyRedirect",
         hideInMenu: true,
       },
       {
@@ -241,7 +246,7 @@ export default [
       },
       {
         path: "/product/publish-tasks",
-        name: "刊登任务",
+        name: "刊登进度",
         component: "./Product/PublishTasks",
       },
     ],

@@ -107,7 +107,7 @@ The screenshots below come from the local development environment and show the m
 - Store authorization with a working Douyin Shop OAuth loop, Ozon API-key stores, encrypted secrets, and connection tests.
 - Order collaboration with sync, SKU matching, and exception handling.
 - Inventory collaboration with stock mirrors, alerts, and sync tasks.
-- Product publishing via a multi-platform listing center, single-product and batch draft creation, multi-product publish workflows, AI title/description review, AI image processing, draft mapping, publish tasks, recovery paths, and manual correction; Ozon real listing and category-attribute auto-fill are supported.
+- Product publishing through unified Listing Center and Listing Progress entries. The first complete flow targets Ozon with product-and-store scoped configuration, per-SKU price overrides, live local inventory, deterministic per-SKU images, package data, multi-value and complex category attributes, read-only preflight, immutable submission snapshots, and the real adapter path. Other platforms expose only capabilities that are actually integrated, and every real submission requires a second confirmation.
 - AI customer-service reply suggestions with manual confirmation before sending.
 
 ### Engineering and Extensibility

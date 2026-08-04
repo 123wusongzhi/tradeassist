@@ -73,13 +73,13 @@ export const OPERATION_PLATFORM_LABELS: Record<string, string> = {
 };
 
 export const OPERATION_ADAPTER_MODE_LABELS: Record<string, string> = {
-  local_draft_only: '仅生成本地草稿',
+  local_draft_only: '仅保存本地快照',
   mock: '模拟草稿',
   sandbox: '沙箱草稿',
 };
 
 export const OPERATION_RESULT_TYPE_LABELS: Record<string, string> = {
-  local_draft: '本地草稿',
+  local_draft: '本地快照',
   mock_draft: '模拟草稿',
   sandbox_fixture: '沙箱夹具',
 };

@@ -81,12 +81,13 @@ func seedBatchProduct(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 	price := 19.9
 	stock := 10
 	p := product.Product{
-		Base:      model.Base{ID: pid},
-		Source:    "manual",
-		Title:     "Batch Test Product",
-		Currency:  "USD",
-		Status:    product.StatusDraft,
-		CreatedBy: &adminID,
+		Base:        model.Base{ID: pid},
+		Source:      "manual",
+		Title:       "Batch Test Product",
+		Description: "Batch test product description",
+		Currency:    "USD",
+		Status:      product.StatusDraft,
+		CreatedBy:   &adminID,
 	}
 	if err := db.Create(&p).Error; err != nil {
 		t.Fatal(err)
@@ -123,6 +124,28 @@ func seedBatchProduct(t *testing.T, db *gorm.DB) (uuid.UUID, uuid.UUID) {
 		t.Fatal(err)
 	}
 	return pid, sid
+}
+
+func seedBatchOzonConfig(t *testing.T, db *gorm.DB, productID, shopID uuid.UUID) {
+	t.Helper()
+	weight, width, height, depth := int64(100), int64(200), int64(300), int64(400)
+	listing, err := json.Marshal(product.OzonListingConfigInput{
+		Version:      product.OzonListingConfigVersion,
+		CurrencyCode: "RUB",
+		Package: product.OzonPackageConfigInput{
+			WeightG: &weight, WidthMM: &width, HeightMM: &height, DepthMM: &depth, WarehouseID: "10", VAT: "0.2",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := product.ProductPlatformPublishConfig{
+		ProductID: productID, Platform: "ozon", ConfigScopeKey: product.PlatformConfigScopeKey("ozon", &shopID), ShopID: &shopID,
+		CategoryID: "100:200", SchemaHash: "batch-schema-v1", ListingConfig: datatypes.JSON(listing),
+	}
+	if err := db.Create(&config).Error; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func batchCreateReq(pid uuid.UUID, sid uuid.UUID, common map[string]any) BatchTargetsCreateDraftsRequest {
@@ -266,12 +289,31 @@ func TestRetryFailedRejectsOzonTaskUntilExternalResultIsReconciled(t *testing.T)
 	if _, err := svc.RetryFailed(testGinContext(), task.ID, nil); err == nil || !strings.Contains(err.Error(), "Ozon") {
 		t.Fatalf("expected Ozon retry block, got %v", err)
 	}
+
+	retryableTask := task
+	retryableTask.ID = uuid.New()
+	retryableTask.Retryable = true
+	if err := db.Create(&retryableTask).Error; err != nil {
+		t.Fatal(err)
+	}
+	_, retryErr := svc.RetryFailed(testGinContext(), retryableTask.ID, nil)
+	if retryErr != nil && strings.Contains(retryErr.Error(), "不能自动重试") {
+		t.Fatalf("retryable Ozon task must pass the retry gate, got %v", retryErr)
+	}
+	var reloaded ProductPublishTask
+	if err := db.First(&reloaded, "id = ?", retryableTask.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Retryable {
+		t.Fatal("claimed Ozon retry must clear retryable until the next provider result")
+	}
 }
 
 func TestCreateLocalDraftForTargetReusesPublicationAcrossRepeatedRequests(t *testing.T) {
 	db := newBatchIntegrationDB(t)
 	svc := newBatchTestService(db)
 	pid, sid := seedBatchProduct(t, db)
+	seedBatchOzonConfig(t, db, pid, sid)
 	chk := PublishTargetCheckResult{ShopName: "Ozon test"}
 	first := svc.createLocalDraftForTarget(context.Background(), pid, "ozon", &sid, uuid.New(), nil, chk)
 	if first.Status != TaskSuccess || first.PublicationID == "" || first.TaskID == "" {
@@ -297,6 +339,7 @@ func TestCreateLocalDraftForTargetConcurrentRequestsKeepOnePublication(t *testin
 	db := newBatchIntegrationDB(t)
 	svc := newBatchTestService(db)
 	pid, sid := seedBatchProduct(t, db)
+	seedBatchOzonConfig(t, db, pid, sid)
 	results := make(chan PublishTargetTaskResult, 2)
 	var wg sync.WaitGroup
 	for i := 0; i < 2; i++ {

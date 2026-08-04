@@ -120,16 +120,21 @@ type OzonCategoryChangeDTO struct {
 }
 
 type OzonAttributeDTO struct {
-	ID           uuid.UUID       `json:"id"`
-	CategoryID   string          `json:"categoryId"`
-	AttrID       string          `json:"attrId"`
-	Name         string          `json:"name"`
-	Required     bool            `json:"required"`
-	ValueType    string          `json:"valueType,omitempty"`
-	DictionaryID string          `json:"dictionaryId,omitempty"`
-	Options      json.RawMessage `json:"options,omitempty"`
-	SyncedAt     *time.Time      `json:"syncedAt,omitempty"`
-	CacheStale   bool            `json:"cacheStale"`
+	ID                  uuid.UUID       `json:"id"`
+	CategoryID          string          `json:"categoryId"`
+	AttrID              string          `json:"attrId"`
+	Name                string          `json:"name"`
+	Required            bool            `json:"required"`
+	ValueType           string          `json:"valueType,omitempty"`
+	DictionaryID        string          `json:"dictionaryId,omitempty"`
+	IsCollection        bool            `json:"isCollection"`
+	MaxValueCount       int64           `json:"maxValueCount,omitempty"`
+	AttributeComplexID  int64           `json:"attributeComplexId,omitempty"`
+	ComplexIsCollection bool            `json:"complexIsCollection"`
+	CategoryDependent   bool            `json:"categoryDependent"`
+	Options             json.RawMessage `json:"options,omitempty"`
+	SyncedAt            *time.Time      `json:"syncedAt,omitempty"`
+	CacheStale          bool            `json:"cacheStale"`
 }
 
 type OzonAttributeMappingDTO struct {
@@ -723,17 +728,14 @@ func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID str
 	}
 	out := make([]OzonAttributeDTO, 0, len(rows))
 	for _, r := range rows {
+		meta := ozonAttributeSchemaMeta(r.Raw)
 		dto := OzonAttributeDTO{
-			ID:         r.ID,
-			CategoryID: r.CategoryID,
-			AttrID:     r.AttrID,
-			Name:       r.Name,
-			Required:   r.Required,
-			ValueType:  r.ValueType,
-			SyncedAt:   r.SyncedAt,
-			CacheStale: cacheStale,
+			ID: r.ID, CategoryID: r.CategoryID, AttrID: r.AttrID, Name: r.Name,
+			Required: r.Required, ValueType: r.ValueType, SyncedAt: r.SyncedAt, CacheStale: cacheStale,
+			IsCollection: meta.IsCollection, MaxValueCount: meta.MaxValueCount, AttributeComplexID: meta.AttributeComplexID,
+			ComplexIsCollection: meta.ComplexIsCollection, CategoryDependent: meta.CategoryDependent,
 		}
-		dto.DictionaryID = dictionaryIDFromRaw(r.Raw)
+		dto.DictionaryID = meta.DictionaryID
 		if r.Options != nil && len(r.Options) > 0 {
 			dto.Options = json.RawMessage(r.Options)
 		}
