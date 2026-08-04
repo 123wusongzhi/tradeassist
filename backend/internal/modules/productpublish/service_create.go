@@ -67,10 +67,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if prod.DeletedAt.Valid {
 		return nil, fmt.Errorf("deleted product cannot be published")
 	}
-	draft, err := BuildPlatformDraftFromProduct(prod)
-	if err != nil {
-		return nil, err
-	}
+	var draft platformp.PlatformProductDraft
 
 	row, plainAuth, err := s.Shops.PlainAuthForProviderCtx(ctx, tenantID, sid)
 	if err != nil {
@@ -116,6 +113,10 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		body.Options["type_id"] = parts[1]
 		body.Options["platform_attributes"] = json.RawMessage(cfg.PlatformAttributes)
 		body.Options["ozon_schema_hash"] = cfg.SchemaHash
+	}
+	draft, err = s.buildPlatformDraftForProduct(ctx, prod, platKey)
+	if err != nil {
+		return nil, err
 	}
 
 	prov := platformp.Get(platKey)

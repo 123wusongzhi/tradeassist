@@ -93,13 +93,15 @@ Ozon (`ozon`) beta — 店铺级凭证接入（`Client-ID` + `Api-Key`，无需 
 - Admin 入口：`/settings/platforms?platform=ozon` 只说明“店铺级授权、无需应用配置”并引导现有流程，不保存或回显 Ozon 密钥；`/shops/manage` 维护 Client-ID、Api-Key 与连接测试；`/settings/platform-publish` 维护重量、尺寸、VAT、仓库、币种等默认值；`/product/ozon-publish` 处理商品级类目、动态属性、发布前检查和真实提交。第三方集成总览中的 Ozon 状态必须显示为“店铺级授权 / 无需应用配置”，不得伪造“已配置”。
 - 凭证与网络边界：Ozon Seller API 主机由 Provider 固定，租户保存的 `authConfig` 不可覆盖请求基址或注入明文凭证；历史 Ozon `authConfig` 不会回传或参与运行。仅进程内受信任测试覆盖可替换基址，禁止接收租户输入。
 - 刊登：`PublishProduct` 调用 `POST /v3/product/import` 提交商品 → 轮询 `POST /v1/product/import/info`（`imported` 且 `product_id>0` 才算成功；`failed`/`skipped` 判失败；已导入商品带 error 级提示时记录为警告）→ 可选按仓库 `POST /v2/products/stocks` 写库存。多 SKU 时每个本地 SKU 生成一个 Ozon 商品（`offer_id` 取 SKU 编码），写入 `product_publication_skus.external_sku_id`。商品导入和库存写入禁用 HTTP 传输层自动重试，避免超时或 5xx 后产生隐藏的重复写；只读查询仍保留有界重试。
-- 图片要求：Ozon 商品图片必须是 Ozon 服务器可访问的公开 `https://` 图片 URL（导入时直接引用，不经过 TradeMind 中转）。本地/对象存储的图片需先配置公开访问地址（`PublicURL`）后再刊登。
+- 图片要求：多 SKU 商品按 SKU 独立生成图片列表。`product_skus.image_url`（neutral draft 的 `SKU.ImageURL`）是该 SKU 的采集原始主图，存在时必须稳定排在第 1 张；运营者可在商品级 Ozon 配置中逐 SKU 选择要追加的商品公共图片，也可先批量应用再逐项调整，但系统不会默认把全部公共图片复制给所有 SKU。顺序固定为“SKU 原始主图（或明确保存的替代主图）→ 已选公共图片”，相同 URL 稳定去重，每个 SKU 最多 10 张。缺少原始主图时禁止借用其他 SKU 图片；只有显式保存一个 `product_images` 引用作为 `fallbackMainImageId` 才能替代并保留审计可追溯性。旧商品没有新版图片配置时采用安全兼容模式：只使用各 SKU 原图、不追加公共图片；任一 SKU 缺图即阻断。Ozon 图片仍必须是服务器可访问的公开 `https://` URL（导入时直接引用，不经过 TradeMind 中转）；本地/对象存储图片需先配置 `PublicURL`。
 - 类目与属性：商品级 Ozon 类目优先于任何全局预设；`platform_publish_ozon` 中的类目仅是历史 fallback。同步缓存会记录 `added` / `changed` / `deactivated` / `reactivated` 差异；租户可将本地来源类目映射到已确认的 Ozon 叶子类目。商品必须显式保存其动态属性与 schema hash，推荐映射只是候选，绝不静默应用到商品。
 - 类目树与尺寸：类目同步按 Ozon 官方树的递归 `children` 结构解析，不依赖固定层级。真实提交前，重量以及深度、宽度、高度均必须为大于 0 的数值；任一缺失或不合法会由发布前校验阻断。
 - 复杂属性：平台模板中 `attribute_complex_id > 0` 的属性在导入 payload 中按 complex ID 稳定分组写入 `complex_attributes`；普通属性继续写入顶层 `attributes`，避免把 Ozon 复杂属性错误地当作普通属性提交。
 - 同步运行：启用 Redis 时类目同步为异步队列任务，先返回 `pending` / `running` 运行记录；Redis 不可用仅作为开发环境 inline fallback，仍保留同一运行记录生命周期。响应恰好达到 20,000 节点安全上限时运行标记为 `partial`，**不会**因缺失数据停用已有类目；超过上限时 Provider 直接报错且不写入部分树。只有确认完整的响应才能把已消失的缓存类目标记为停用。
 - 字典值：类目属性缓存只预取有界字典值，避免大字典无限写入缓存。运营者可按店铺与关键字远程搜索单一字典属性；该调用和发布前精确校验都只访问 Ozon 只读类目/属性接口，绝不调用 `/v3/product/import` 或库存写接口。
-- 发布前校验：提交前按店铺重新校验类目活动状态、属性模板、必填动态属性和 schema hash。缺失必填属性、类目停用或 schema 变化会硬阻断真实 Ozon 写入。自动填充可以生成候选属性，但正常商品级流程必须先显式保存配置；Worker 在导入前再次拉取实时模板并比较保存时的 schema hash，变化时不调用商品导入。
+- 发布前校验：提交前按店铺重新校验类目活动状态、属性模板、必填动态属性、schema hash 和逐 SKU 图片计划。缺图错误使用 `OZON_SKU_MAIN_IMAGE_MISSING` 并携带具体 `product_sku` 资源 ID/名称；失效的 SKU、替代图或公共图引用同样硬阻断。缺失必填属性、类目停用或 schema 变化也会硬阻断真实 Ozon 写入。自动填充可以生成候选属性，但正常商品级流程必须先显式保存配置；Worker 在导入前再次拉取实时模板并比较保存时的 schema hash，变化时不调用商品导入。任务中的不可变草稿快照保存每个 SKU 已解析的独立图片顺序，Adapter 在发起 `/v3/product/import` 前再次校验第 1 张主图和 SKU 原图一致性。
+- 租户操作边界：`tenant_id=0` 的全局管理员可以跨租户查看业务资源，但开发默认租户回退不是租户 impersonation，不能据此保存目标租户的商品配置、运行实时发布检查或提交商品。业务写操作必须由目标租户管理员，或具有商品全部关联店铺操作授权的普通操作员发起；可见但不可操作返回 403，不可见返回 404。
+- 预检故障边界：Ozon 凭证失效或只读请求被拒绝映射为安全的 502，限流、5xx 与临时网络故障映射为 503；响应保留 `traceId` 和稳定 `data.errorCode`，不回传上游正文或任何凭证明文。
 - 合同币种：`currency_code` 留空时自动读取卖家合同币种（避免 `currency_differs_from_contract`）；`vat` 默认 `0`（跨境卖家通常 0%，按合同国家规定可改）。
 - 刊登预设：`platform_publish_ozon` 保留仓库 `warehouse_id`、币种、VAT、默认品牌/类型/原产国/制造商、重量尺寸与补充属性 JSON 等店铺/实例默认值；不再作为单一固定商品类目来源。
 - 状态边界：创建“本地草稿”只在 TradeMind 写入本地记录，明确为“本地草稿已创建，未调用 Ozon”。真实提交必须经用户二次确认，先创建 TradeMind 提交任务；Worker 才可调用 Ozon。仅当 Ozon 返回真实 product ID 后才可声明“Ozon 商品已创建，等待平台审核”。

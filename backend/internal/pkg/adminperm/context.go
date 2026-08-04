@@ -227,6 +227,35 @@ func RequireStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) bool {
 	return false
 }
 
+// EnsureStoreOperate returns 404 for stores outside view scope and a safe 403
+// error when the store is visible but the caller lacks write authority.
+func EnsureStoreOperate(c *gin.Context, db *gorm.DB, storeID uuid.UUID) error {
+	if storeID == uuid.Nil {
+		return gorm.ErrRecordNotFound
+	}
+	p, err := LoadPrincipal(c, db)
+	if err != nil {
+		return err
+	}
+	trustedTenantID, err := TenantIDFromGin(c)
+	if err != nil || trustedTenantID < 0 || !tenantStoreVisible(c, db, trustedTenantID, storeID) {
+		return gorm.ErrRecordNotFound
+	}
+	if p.TenantID != trustedTenantID {
+		if p.IsAdmin() {
+			return crossTenantOperationError()
+		}
+		return gorm.ErrRecordNotFound
+	}
+	if p.IsAdmin() || p.IsTenantAdmin() || p.CanOperateStore(storeID) {
+		return nil
+	}
+	if p.CanViewStore(storeID) {
+		return storeOperationError()
+	}
+	return gorm.ErrRecordNotFound
+}
+
 func tenantStoreVisible(c *gin.Context, db *gorm.DB, tenantID int64, storeID uuid.UUID) bool {
 	if db == nil || tenantID <= 0 || storeID == uuid.Nil {
 		return false

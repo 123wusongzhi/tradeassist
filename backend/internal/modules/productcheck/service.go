@@ -73,8 +73,12 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	checks = append(checks, checkTaobaoTmallExternalImages(prod)...)
 	checks = append(checks, checkCollectWarnings(prod)...)
 
-	imgChecks, mainURLs := checkImages(prod, plat)
-	checks = append(checks, imgChecks...)
+	var mainURLs []string
+	if plat != "ozon" {
+		imgChecks, resolvedMainURLs := checkImages(prod, plat)
+		checks = append(checks, imgChecks...)
+		mainURLs = resolvedMainURLs
+	}
 	checks = append(checks, s.checkImageQualityHints(ctx, prod)...)
 
 	checks = append(checks, checkInventoryHints(prod)...)

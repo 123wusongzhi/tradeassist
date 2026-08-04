@@ -88,7 +88,8 @@ func (h *Handler) ValidateOzonReadiness(c *gin.Context) {
 		response.HandleError(c, err)
 		return
 	}
-	if !adminperm.RequireStoreOperate(c, h.Svc.DB, shopID) {
+	if err := adminperm.EnsureStoreOperate(c, h.Svc.DB, shopID); err != nil {
+		response.HandleError(c, err)
 		return
 	}
 	tenantID, err := adminperm.TenantIDFromGin(c)

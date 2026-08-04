@@ -52,6 +52,20 @@
 
 安全会话模式下，access JWT 必须携带非零 UUID `session_id`，并在每次受保护请求中与服务端会话的管理员、租户和 token version 一并校验；缺失、格式无效、已撤销或不匹配的会话均不被接受。`session_id` 是服务端绑定字段，客户端不得指定或覆盖。
 
+## 用户与租户管理
+
+以下接口仅允许 `tenant_id=0` 且具备 `user.manage` 的全局管理员调用。这里的 `tenantId` 只用于受控的账号归属配置，不会覆盖当前请求的可信租户上下文。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/tenants` | 返回可分配的正数租户列表 `{ list: [{ id, name?, shopNames? }] }`。以 `tenants` 表为主，同时合并历史店铺和已有用户中的正数租户编号，保证升级前数据仍可选择。 |
+| `GET` | `/api/v1/admin/users` | 分页读取管理员账号；每项明确返回 `tenantId`、角色、状态和适用的店铺授权。 |
+| `POST` | `/api/v1/admin/users` | 创建管理员账号。body 可含 `email`、`phone`、`password`、`displayName`、`role`、`tenantId`；`tenant_admin` 必须显式选择已存在的正数租户，系统级 `admin` 只能使用租户 0。旧客户端创建 `operator` / `readonly` / 系统管理员时省略 `tenantId` 仍按租户 0 处理。 |
+| `PATCH` | `/api/v1/admin/users/:id` | 更新显示名、角色、状态或租户归属。角色/租户组合按最终值校验；租户、角色或状态写入会同步递增 `token_version`，使旧会话失效。 |
+| `PUT` | `/api/v1/admin/users/:id/store-permissions` | 替换普通运营或只读账号的店铺授权。租户管理员自动拥有所属租户内全部店铺，不依赖此授权列表。 |
+
+无效的 `tenant_admin + tenantId=0`、`admin + tenantId>0`、负数租户或不存在的正数租户均返回 400。历史库中尚未修复的无效租户管理员仍由权限解析器 fail-closed，不会静默获得其他租户权限；应先在“用户与权限”页面明确分配租户，再让该用户重新登录。
+
 ## 设置
 
 | 方法 | 路径 | 说明 |
@@ -390,11 +404,21 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/platform/ozon/category-mappings` | 读取当前租户的本地来源类目 → Ozon 叶子类目映射；可按 `shopId` 筛选。映射是租户拥有的数据，店铺级映射优先于租户默认映射。 |
 | `POST` | `/api/v1/platform/ozon/category-mappings/recommend` | 根据可选 `shopId`、`sourceCategoryKey` 和可选 `sourceCategoryName` 返回推荐候选；候选未确认、不会写入映射或商品。传入 `shopId` 时必须是当前租户已授权且启用的 Ozon 店铺。 |
 | `PUT` | `/api/v1/platform/ozon/category-mappings` | 保存人工确认的映射；body 含 `shopId?`、`sourceCategoryKey`、`sourceCategoryName?`、`categoryId`、`categoryPath?`、`status?`。只能指向活动 Ozon 叶子类目；`schemaHash` 由服务端根据当前属性模板生成，客户端不可指定。 |
-| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；Ozon 返回 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`、`sourceCategoryKey`、`sourceCategoryName`、`schemaHash`、`schemaConfirmedAt`。 |
-| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；Ozon body 为 `shopId`、`categoryId`、`categoryPath?`、`platformAttributes`、`sourceCategoryKey?`、`sourceCategoryName?`。类目必须是活动叶子类目，`platformAttributes` 是显式商品级动态属性；`schemaHash` / `schemaConfirmedAt` 由服务端生成。保存成功仅表示“配置已保存”，不创建任务、不调用 Ozon。 |
-| `POST` | `/api/v1/products/:id/readiness/validate` | 对指定 `platform=ozon`、`shopId` 做发布前实时精确校验；响应含 `checks[]`（每项 `level`）、`checkedAt`、`schemaHash`、`schemaChanged`。属性模板、类目状态、必填属性、schema 变化，以及重量、长、宽、高任一不大于 0，都会硬阻断 Ozon 提交。该预检只调用 Ozon 的只读属性模板接口，绝不调用商品导入或库存接口。 |
+| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；已保存的 Ozon 配置返回稳定记录 `id`，以及 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`、来源类目与 schema 字段。响应还含 `ozonImages`：`version`、`configured`、`compatibilityMode?`、`maxImagesPerSku`、可选公共图 `sharedImages[]`，以及每个 SKU 的原图、已选替代/追加图片 ID、`finalImages[]` 稳定顺序、`canPublish` 与 `issues[]`。旧商品没有配置行或没有新版图片配置时返回安全兼容视图 `compatibilityMode=sku_original_only`，仅使用各 SKU 原图且不追加公共图片。 |
+| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；Ozon body 在 `shopId`、`categoryId`、`categoryPath?`、`platformAttributes`、`sourceCategoryKey?`、`sourceCategoryName?` 外可带版本化 `ozonImages: { version: 1, skuSelections: [{ skuId, fallbackMainImageId?, additionalImageIds: [] }] }`。SKU 和图片 ID 必须属于当前商品；替代主图只能在该 SKU 缺少原图时显式指定，追加图最多 9 张。该选择存入当前 Ozon 行的 `mapped_images`；字段缺省时兼容旧客户端并保留既有图片选择。类目必须是活动叶子类目，`schemaHash` / `schemaConfirmedAt` 由服务端生成。首次保存与更新均返回数据库中的真实稳定 `id`；Upsert 与按 `productId + platform` 回读位于同一事务，回读失败时整体回滚。保存成功只写 TradeMind，不创建任务、不调用 Ozon。 |
+| `POST` | `/api/v1/products/:id/readiness/validate` | 对指定 `platform=ozon`、`shopId` 做发布前实时精确校验；响应含 `checks[]`（每项 `level`）、`checkedAt`、`schemaHash`、`schemaChanged`。属性模板、类目状态、必填属性、schema 变化、重量/长/宽/高不合法，以及任一 SKU 缺少原始或显式替代主图，都会硬阻断 Ozon 提交；SKU 图片错误携带具体 `relatedResourceId`。该预检只调用 Ozon 的只读属性模板接口，绝不调用商品导入或库存接口。全局管理员可跨租户查看，但不能代表目标租户保存配置或运行该实时检查；必须使用目标租户管理员或具备全部关联店铺操作授权的账号。 |
 | `POST` | `/api/v1/product-publish/ozon/category-groups/check` | 对 `productIds[]` 按本地来源类目分组，返回每组建议/已确认 Ozon 类目与 `ready` / `needs_work` / `skipped` 异常项；`shopId` 必填，且必须是当前租户已授权、启用并允许当前管理员操作的 Ozon 店铺。 |
 | `POST` | `/api/v1/product-publish/ozon/category-groups/confirm` | 确认一个或多个分组；body 为必填 `shopId`、`groups[]`（每项含 `sourceCategoryKey`、`sourceCategoryName?`、`productIds[]`、`categoryId`、`categoryPath?`）和 `saveMappings`。同一请求内商品不可跨组重复。仅保存商品级配置；`saveMappings=true` 还要求 `config.manage` 权限，不提交到 Ozon。 |
+
+Ozon 商品配置与实时发布检查的错误语义：
+
+- `400`：请求或已保存业务配置不可操作，例如目标店铺与商品配置不一致；`data.errorCode` 提供稳定领域码。
+- `403`：资源可见，但账号无写权限；全局管理员跨租户查看时返回 `CROSS_TENANT_OPERATION_FORBIDDEN`，店铺仅查看授权返回对应操作权限错误。
+- `404`：商品或店铺不存在，或不在当前账号可见范围内；不泄露跨租户资源存在性。
+- `502`：Ozon 拒绝只读预检请求或店铺凭证失效，例如 `OZON_CREDENTIAL_INVALID`。
+- `503`：Ozon 限流、5xx 或临时网络故障，例如 `OZON_UPSTREAM_UNAVAILABLE`。
+
+所有上述响应继续使用统一 envelope 并携带 `traceId`；不得把上游响应正文、Client-ID、Api-Key 或其他凭证明文返回给 Admin。
 | `POST` | `/api/v1/products/:id/platform-configs/douyin_shop/build-mapping` | 根据当前商品草稿、抖店店铺/类目/属性配置生成并保存抖店刊登草稿预览；不调用抖店创建商品或图片上传接口。 |
 | `GET` | `/api/v1/products/:id/platform-configs/douyin_shop/mapping` | 读取已保存的抖店刊登草稿映射。 |
 | `PUT` | `/api/v1/products/:id/platform-configs/douyin_shop/mapping` | 保存人工调整后的抖店刊登草稿映射。 |

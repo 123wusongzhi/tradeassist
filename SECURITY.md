@@ -73,3 +73,8 @@ Before exposing TradeMind to a public network, you should:
 - Public registration creates a tenant-scoped administrator, not an instance-wide
   administrator. Reserve system-tenant (`tenant_id=0`) administration for explicit
   bootstrap or operator-controlled provisioning.
+- The global user-management API can assign an account to a tenant through an
+  explicit request field. It requires a system-tenant administrator with
+  `user.manage`, validates the selected positive tenant against persisted tenant,
+  shop, or legacy user records, and invalidates existing sessions after a role or
+  tenant change. A `tenant_admin` with `tenant_id=0` always fails closed.

@@ -41,6 +41,9 @@ type PlatformProductSKU struct {
 	Price      float64
 	Stock      int
 	ImageURL   string
+	// Images is the resolved, stable per-SKU listing order. Platform adapters
+	// must prefer it over the product-level gallery when it is present.
+	Images []PlatformProductImage
 }
 
 // PublishProductRequest is passed to adapters (never log Auth secrets).

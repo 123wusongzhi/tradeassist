@@ -152,7 +152,7 @@ func TestPublishProductAIFillApplied(t *testing.T) {
 			Title:       "Test",
 			Description: "desc",
 			Images:      []platformp.PlatformProductImage{{URL: "https://example.com/a.jpg", Type: "main"}},
-			SKUs:        []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-1", Price: 10, Stock: 1}},
+			SKUs:        []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-1", Price: 10, Stock: 1, ImageURL: "https://example.com/a.jpg"}},
 		},
 	})
 	if err != nil {

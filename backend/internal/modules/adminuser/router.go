@@ -7,6 +7,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	if g == nil || h == nil {
 		return
 	}
+	g.GET("/admin/tenants", h.ListTenants)
 	rg := g.Group("/admin/users")
 	rg.GET("", h.List)
 	rg.POST("", h.Create)

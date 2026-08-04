@@ -16,6 +16,8 @@ const (
 	CodeUserManagePermissionRequired  = 40306
 	CodeNotFound                      = 40401
 	CodeInternalError                 = 50000
+	// CodeBadGateway indicates an invalid or rejected response from an upstream provider.
+	CodeBadGateway = 50201
 	// CodeServiceUnavailable indicates dependency unavailable (e.g. Redis queue).
 	CodeServiceUnavailable = 50301
 )

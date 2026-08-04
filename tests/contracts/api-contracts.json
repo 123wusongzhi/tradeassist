@@ -6,6 +6,10 @@
   },
   "endpoints": [
     { "method": "GET", "path": "/api/v1/auth/profile", "auth": true, "responseData": "AdminProfile" },
+    { "method": "GET", "path": "/api/v1/admin/tenants", "auth": true, "responseData": "AdminTenantOptionList", "responseFields": ["list[].id", "list[].name", "list[].shopNames"] },
+    { "method": "GET", "path": "/api/v1/admin/users", "auth": true, "query": ["page", "pageSize", "role", "status", "keyword"], "responseData": "AdminUserList", "responseFields": ["list[].id", "list[].tenantId", "list[].role", "list[].status"] },
+    { "method": "POST", "path": "/api/v1/admin/users", "auth": true, "requestBody": ["email", "phone", "password", "displayName", "role", "tenantId"], "responseData": "AdminUser", "responseFields": ["id", "tenantId", "role", "status"], "errorStatuses": [400, 403] },
+    { "method": "PATCH", "path": "/api/v1/admin/users/:id", "auth": true, "requestBody": ["displayName", "role", "status", "tenantId"], "responseData": "AdminUser", "responseFields": ["id", "tenantId", "role", "status"], "errorStatuses": [400, 403, 404] },
     { "method": "GET", "path": "/api/v1/collect/engines/status", "auth": true, "responseData": "CollectEnginesStatus" },
     {
       "method": "POST",
@@ -56,9 +60,9 @@
     { "method": "GET", "path": "/api/v1/platform/ozon/category-mappings", "auth": true, "query": ["shopId"], "responseData": "OzonCategoryMappingList" },
     { "method": "POST", "path": "/api/v1/platform/ozon/category-mappings/recommend", "auth": true, "requestBody": ["shopId", "sourceCategoryKey", "sourceCategoryName"], "responseData": "OzonCategoryMappingRecommendation" },
     { "method": "PUT", "path": "/api/v1/platform/ozon/category-mappings", "auth": true, "requestBody": ["shopId", "sourceCategoryKey", "sourceCategoryName", "categoryId", "categoryPath", "status"], "responseData": "OzonCategoryMapping" },
-    { "method": "GET", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "responseData": "OzonProductPlatformConfig" },
-    { "method": "PUT", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "requestBody": ["shopId", "categoryId", "categoryPath", "platformAttributes", "sourceCategoryKey", "sourceCategoryName"], "responseData": "OzonProductPlatformConfig" },
-    { "method": "POST", "path": "/api/v1/products/:id/readiness/validate", "auth": true, "requestBody": ["platform", "shopId"], "responseData": "OzonPublishReadiness" },
+    { "method": "GET", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "responseData": "OzonProductPlatformConfig", "responseFields": ["id", "productId", "platform", "shopId", "categoryId", "categoryPath", "platformAttributes", "ozonImages.version", "ozonImages.configured", "ozonImages.sharedImages", "ozonImages.skus", "ozonImages.skus[].finalImages", "ozonImages.skus[].issues"], "errorStatuses": [404] },
+    { "method": "PUT", "path": "/api/v1/products/:id/platform-configs/ozon", "auth": true, "requestBody": ["shopId", "categoryId", "categoryPath", "platformAttributes", "sourceCategoryKey", "sourceCategoryName", "ozonImages"], "responseData": "OzonProductPlatformConfig", "responseFields": ["id", "productId", "platform", "shopId", "categoryId", "categoryPath", "platformAttributes", "ozonImages.version", "ozonImages.configured", "ozonImages.sharedImages", "ozonImages.skus", "ozonImages.skus[].finalImages", "ozonImages.skus[].issues"], "errorStatuses": [400, 403, 404] },
+    { "method": "POST", "path": "/api/v1/products/:id/readiness/validate", "auth": true, "requestBody": ["platform", "shopId"], "responseData": "OzonPublishReadiness", "responseFields": ["productId", "platform", "shopId", "canPublish", "checks", "checkedAt", "schemaHash", "schemaChanged"], "errorStatuses": [400, 403, 404, 502, 503], "errorDataFields": ["errorCode"] },
     { "method": "POST", "path": "/api/v1/product-publish/ozon/category-groups/check", "auth": true, "requestBody": ["productIds", "shopId"], "responseData": "OzonCategoryGroupsCheck" },
     { "method": "POST", "path": "/api/v1/product-publish/ozon/category-groups/confirm", "auth": true, "requestBody": ["shopId", "groups", "saveMappings"], "responseData": "OzonCategoryGroupConfirmResult" }
   ]

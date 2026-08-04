@@ -9,6 +9,7 @@ export type SensitiveConfirmOptions = {
   reversible?: boolean;
   failureHint?: string;
   onOk: () => void | Promise<void>;
+  onCancel?: () => void;
 };
 
 /** Standard sensitive-operation confirm dialog (F5 audit UX). */
@@ -30,6 +31,7 @@ export function confirmSensitiveAction(opts: SensitiveConfirmOptions) {
     okText: '确认执行',
     cancelText: '取消',
     onOk: opts.onOk,
+    onCancel: opts.onCancel,
   };
   Modal.confirm(modalOpts);
 }

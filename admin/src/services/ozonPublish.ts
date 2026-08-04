@@ -84,6 +84,7 @@ export type OzonCategoryRecommendation = {
 };
 
 export type OzonProductConfig = {
+  id?: string;
   productId: string;
   shopId?: string;
   categoryId?: string;
@@ -93,6 +94,7 @@ export type OzonProductConfig = {
   sourceCategoryName?: string;
   schemaHash?: string;
   schemaConfirmedAt?: string;
+  ozonImages?: OzonImageConfigView;
 };
 
 export type OzonProductConfigInput = Pick<
@@ -103,7 +105,181 @@ export type OzonProductConfigInput = Pick<
   | 'platformAttributes'
   | 'sourceCategoryKey'
   | 'sourceCategoryName'
->;
+> & {
+  ozonImages?: OzonImageConfigInput;
+};
+
+export type OzonImageSource =
+  | 'sku_original'
+  | 'manual_fallback'
+  | 'product_shared';
+
+export type OzonSharedImage = {
+  id: string;
+  url: string;
+  imageType: string;
+  sortOrder: number;
+};
+
+export type OzonResolvedImage = {
+  imageId?: string;
+  url: string;
+  source: OzonImageSource;
+  position: number;
+  imageType?: string;
+};
+
+export type OzonImageIssue = {
+  code: string;
+  message: string;
+  suggestion?: string;
+  skuId?: string;
+};
+
+export type OzonSKUImageConfig = {
+  skuId: string;
+  skuCode?: string;
+  skuName?: string;
+  attrs?: Record<string, unknown>;
+  originalMainImageUrl?: string;
+  fallbackMainImageId?: string;
+  additionalImageIds: string[];
+  finalImages: OzonResolvedImage[];
+  canPublish: boolean;
+  issues: OzonImageIssue[];
+};
+
+export type OzonImageConfigView = {
+  version: number;
+  configured: boolean;
+  compatibilityMode?: 'sku_original_only' | string;
+  maxImagesPerSku: number;
+  sharedImages: OzonSharedImage[];
+  skus: OzonSKUImageConfig[];
+  issues: OzonImageIssue[];
+  errorCount: number;
+};
+
+export type OzonImageConfigInput = {
+  version: number;
+  skuSelections: Array<{
+    skuId: string;
+    fallbackMainImageId?: string;
+    additionalImageIds: string[];
+  }>;
+};
+
+export function buildOzonSKUImagePreview(
+  sku: OzonSKUImageConfig,
+  sharedImages: OzonSharedImage[],
+  maxImagesPerSku = 10,
+): OzonSKUImageConfig {
+  const byId = new Map(sharedImages.map((image) => [image.id, image]));
+  const finalImages: OzonResolvedImage[] = [];
+  const issues: OzonImageIssue[] = [];
+  const seenUrls = new Set<string>();
+  const append = (
+    url: string | undefined,
+    source: OzonImageSource,
+    image?: OzonSharedImage,
+  ) => {
+    const normalized = String(url || '').trim();
+    if (
+      !normalized ||
+      seenUrls.has(normalized) ||
+      finalImages.length >= maxImagesPerSku
+    )
+      return;
+    seenUrls.add(normalized);
+    finalImages.push({
+      imageId: image?.id,
+      url: normalized,
+      source,
+      position: finalImages.length + 1,
+      imageType: source === 'product_shared' ? 'detail' : 'main',
+    });
+  };
+
+  let hasPrimary = false;
+  const original = String(sku.originalMainImageUrl || '').trim();
+  if (original) {
+    append(original, 'sku_original');
+    hasPrimary = true;
+    if (sku.fallbackMainImageId)
+      issues.push({
+        code: 'OZON_SKU_FALLBACK_NOT_ALLOWED',
+        message: 'SKU 已有原始主图，不能同时保存替代主图',
+        suggestion: '请清除该 SKU 的替代主图。',
+        skuId: sku.skuId,
+      });
+  } else if (sku.fallbackMainImageId) {
+    const fallback = byId.get(sku.fallbackMainImageId);
+    if (fallback) {
+      append(fallback.url, 'manual_fallback', fallback);
+      hasPrimary = true;
+    } else {
+      issues.push({
+        code: 'OZON_SKU_FALLBACK_IMAGE_STALE',
+        message: 'SKU 保存的替代主图已不存在或不可用',
+        suggestion: '请重新选择替代主图。',
+        skuId: sku.skuId,
+      });
+    }
+  }
+
+  const additionalImageIds = Array.from(
+    new Set((sku.additionalImageIds || []).filter(Boolean)),
+  );
+  if (additionalImageIds.length > maxImagesPerSku - 1)
+    issues.push({
+      code: 'OZON_SKU_IMAGE_LIMIT_EXCEEDED',
+      message: `SKU 追加图片超过 Ozon 上限（最多 ${maxImagesPerSku - 1} 张）`,
+      suggestion: '请减少商品公共图片选择。',
+      skuId: sku.skuId,
+    });
+  additionalImageIds.forEach((imageId) => {
+    const image = byId.get(imageId);
+    if (!image) {
+      issues.push({
+        code: 'OZON_SKU_SHARED_IMAGE_STALE',
+        message: 'SKU 选择的商品公共图片已不存在或不可用',
+        suggestion: '请重新检查追加图片。',
+        skuId: sku.skuId,
+      });
+      return;
+    }
+    append(image.url, 'product_shared', image);
+  });
+  if (!hasPrimary)
+    issues.push({
+      code: 'OZON_SKU_MAIN_IMAGE_MISSING',
+      message: `SKU「${sku.skuName || sku.skuCode || sku.skuId}」缺少原始主图，且未指定替代主图`,
+      suggestion: '请补齐采集原图，或明确选择替代主图。',
+      skuId: sku.skuId,
+    });
+  return {
+    ...sku,
+    additionalImageIds,
+    finalImages,
+    issues,
+    canPublish: hasPrimary && issues.length === 0,
+  };
+}
+
+export function toOzonImageConfigInput(
+  skus: OzonSKUImageConfig[],
+): OzonImageConfigInput {
+  return {
+    version: 1,
+    skuSelections: skus.map((sku) => ({
+      skuId: sku.skuId,
+      fallbackMainImageId: sku.fallbackMainImageId || undefined,
+      additionalImageIds: Array.from(
+        new Set((sku.additionalImageIds || []).filter(Boolean)),
+      ),
+    })),
+  };
+}
 
 export type OzonReadinessResult = {
   canPublish: boolean;

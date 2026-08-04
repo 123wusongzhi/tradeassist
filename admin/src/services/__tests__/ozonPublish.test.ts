@@ -2,10 +2,12 @@ import { request } from '@umijs/max';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildOzonPlatformAttributes,
+  buildOzonSKUImagePreview,
   confirmOzonCategoryGroup,
   publishOzonProduct,
   saveOzonProductConfig,
   syncOzonCategoryFlow,
+  toOzonImageConfigInput,
   toOzonAttributeFormValues,
   validateOzonReadiness,
 } from '../ozonPublish';
@@ -43,17 +45,138 @@ describe('ozon publish services', () => {
     requestMock.mockResolvedValueOnce({
       code: 0,
       message: 'ok',
-      data: { productId: 'p/1', shopId: 'shop-1', categoryId: 'cat-1' },
+      data: {
+        id: 'config-1',
+        productId: 'p/1',
+        shopId: 'shop-1',
+        categoryId: 'cat-1',
+      },
     });
-    await saveOzonProductConfig('p/1', {
+    const saved = await saveOzonProductConfig('p/1', {
       shopId: 'shop-1',
       categoryId: 'cat-1',
     });
+    expect(saved.id).toBe('config-1');
     expect(requestMock).toHaveBeenCalledWith(
       '/api/v1/products/p%2F1/platform-configs/ozon',
       {
         method: 'PUT',
         data: { shopId: 'shop-1', categoryId: 'cat-1' },
+      },
+    );
+  });
+
+  it('builds stable per-SKU image order and serializes explicit selections', () => {
+    const sharedImages = [
+      {
+        id: 'shared-1',
+        url: 'https://example.test/shared.jpg',
+        imageType: 'main',
+        sortOrder: 1,
+      },
+      {
+        id: 'duplicate-original',
+        url: 'https://example.test/red.jpg',
+        imageType: 'detail',
+        sortOrder: 2,
+      },
+    ];
+    const red = buildOzonSKUImagePreview(
+      {
+        skuId: 'sku-red',
+        skuCode: 'RED',
+        skuName: '红色',
+        originalMainImageUrl: 'https://example.test/red.jpg',
+        additionalImageIds: [
+          'shared-1',
+          'duplicate-original',
+          'shared-1',
+        ],
+        finalImages: [],
+        canPublish: false,
+        issues: [],
+      },
+      sharedImages,
+    );
+    expect(red.finalImages.map((image) => image.url)).toEqual([
+      'https://example.test/red.jpg',
+      'https://example.test/shared.jpg',
+    ]);
+    expect(red.finalImages.map((image) => image.position)).toEqual([1, 2]);
+    expect(red.canPublish).toBe(true);
+
+    const missing = buildOzonSKUImagePreview(
+      {
+        skuId: 'sku-missing',
+        skuName: '蓝色 / L',
+        additionalImageIds: ['shared-1'],
+        finalImages: [],
+        canPublish: false,
+        issues: [],
+      },
+      sharedImages,
+    );
+    expect(missing.canPublish).toBe(false);
+    expect(missing.issues[0]).toMatchObject({
+      code: 'OZON_SKU_MAIN_IMAGE_MISSING',
+      skuId: 'sku-missing',
+    });
+
+    expect(toOzonImageConfigInput([red, missing])).toEqual({
+      version: 1,
+      skuSelections: [
+        {
+          skuId: 'sku-red',
+          fallbackMainImageId: undefined,
+          additionalImageIds: ['shared-1', 'duplicate-original'],
+        },
+        {
+          skuId: 'sku-missing',
+          fallbackMainImageId: undefined,
+          additionalImageIds: ['shared-1'],
+        },
+      ],
+    });
+  });
+
+  it('sends the versioned Ozon SKU image config without invoking publish', async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: 'ok',
+      data: { productId: 'p1' },
+    });
+    await saveOzonProductConfig('p1', {
+      shopId: 'shop-1',
+      categoryId: '100:200',
+      ozonImages: {
+        version: 1,
+        skuSelections: [
+          {
+            skuId: 'sku-1',
+            fallbackMainImageId: 'image-1',
+            additionalImageIds: ['image-2'],
+          },
+        ],
+      },
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      '/api/v1/products/p1/platform-configs/ozon',
+      {
+        method: 'PUT',
+        data: {
+          shopId: 'shop-1',
+          categoryId: '100:200',
+          ozonImages: {
+            version: 1,
+            skuSelections: [
+              {
+                skuId: 'sku-1',
+                fallbackMainImageId: 'image-1',
+                additionalImageIds: ['image-2'],
+              },
+            ],
+          },
+        },
       },
     );
   });

@@ -11,6 +11,7 @@ const allowedWarnings: RegExp[] = [
 export class ConsoleGuard {
   private readonly errors: GuardEntry[] = [];
   private readonly warnings: GuardEntry[] = [];
+  private readonly allowed = [...allowedWarnings];
 
   constructor(private readonly page: Page) {}
 
@@ -22,9 +23,13 @@ export class ConsoleGuard {
   }
 
   async expectNoFatalErrors() {
-    const fatalErrors = this.errors.filter((entry) => !allowedWarnings.some((pattern) => pattern.test(entry.text)));
-    const fatalWarnings = this.warnings.filter((entry) => !allowedWarnings.some((pattern) => pattern.test(entry.text)));
+    const fatalErrors = this.errors.filter((entry) => !this.allowed.some((pattern) => pattern.test(entry.text)));
+    const fatalWarnings = this.warnings.filter((entry) => !this.allowed.some((pattern) => pattern.test(entry.text)));
     expect([...fatalErrors, ...fatalWarnings], 'fatal console/page errors').toEqual([]);
+  }
+
+  allow(pattern: RegExp) {
+    this.allowed.push(pattern);
   }
 
   entries() {

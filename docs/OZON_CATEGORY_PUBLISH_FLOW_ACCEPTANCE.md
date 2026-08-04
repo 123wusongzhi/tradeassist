@@ -3,6 +3,7 @@
 > 验收日期：2026-08-03
 > 参考任务：`019fc52d-f757-76e2-9919-7b2afc1ae374`
 > 验收分支：`feat/ozon-category-publish-flow`
+> 多 SKU 图片补充验收：2026-08-04（本工作树，未执行真实 Ozon 写入）
 
 ## 1. 验收结论
 
@@ -22,6 +23,7 @@
 | Ozon 类目同步 | 通过 | Redis 可用时创建异步运行；记录 `added` / `changed` / `deactivated` / `reactivated` 四态差异；截断结果为 `partial`，不误停用缓存类目。 |
 | 来源类目映射 | 通过 | 按租户隔离；店铺映射优先于租户默认映射；推荐仅提供候选，人工确认后才落库。 |
 | 商品级刊登配置 | 通过 | 显式保存店铺、叶子类目、动态属性、来源类目和服务端生成的 schema 快照；未保存变更时禁止预检和提交。 |
+| 多 SKU 图片配置 | 补充实现，本地自动化验收通过 | 每个 SKU 原始主图固定第 1；公共图仅按人工选择追加，支持批量应用后逐 SKU 调整；缺原图只能显式保存替代图，旧配置默认仅用 SKU 原图。 |
 | 实时发布前校验 | 通过 | 重新读取活动类目与属性模板；必填属性、schema 漂移以及重量/长/宽/高不合法时硬阻断。 |
 | 批量分组确认 | 通过 | 按来源类目分组；限制请求规模和组间重复商品；保存全局映射时额外要求配置管理权限。 |
 | 本地草稿与真实提交 | 通过 | 本地草稿不调用 Ozon；真实提交需二次确认并创建 TradeMind 任务；只有取得真实 Ozon product ID 后才显示商品已创建。 |
@@ -49,27 +51,47 @@
 
 本次修复后，HTTP 错误会保留后端安全错误信息；授权失效会明确引导更新 Ozon 凭证；新类目同步失败时不会应用该类目，而是恢复上一个可用类目或清除本次选择，避免继续保存无模板配置。修复未自动修改店铺状态、权限或任何真实平台数据。
 
+补充权限与一致性回归：商品配置 Upsert 现在在事务内写入并使用全新变量按 `product_id + platform` 回读，更新已有记录时返回真实稳定记录 ID；回读失败会回滚写入。全局管理员仍可跨租户查看，但不能把开发默认租户回退当作租户切换来保存配置或运行实时发布检查；Admin 会显示跨租户只读提示并禁用相关按钮。租户管理员及具备全部关联店铺操作授权的普通操作员可以运行检查，仅查看授权返回明确 403，不可见或跨租户普通账号返回 404。Ozon 凭证拒绝、上游拒绝与临时故障分别使用安全的 502/503 领域错误，响应携带 `traceId` 且不包含凭证明文。
+
 ## 4. 自动化与工程门禁证据
 
 | 检查 | 结果 |
 | --- | --- |
-| `go test ./... -count=1 -timeout=300s` | 通过，全量后端包无失败。 |
+| `go test ./... -count=1` | 通过，全量后端包无失败。 |
 | `go vet ./...` | 通过。 |
-| `pnpm test:frontend` | 通过，22 个文件、85 项测试；新增 HTTP 错误 envelope 保真回归。 |
+| `go build ./...` | 通过。 |
+| `pnpm test:frontend` | 通过，23 个文件、89 项测试；包含 Ozon 配置稳定 ID 与 HTTP 错误 envelope 回归。 |
 | `pnpm test:contracts` | 通过，4 项契约测试。 |
 | `pnpm build:admin` | 通过。 |
-| Ozon 专项 Playwright E2E | 通过，7/7；覆盖异步同步、四态差异、映射确认、未保存阻断、凭证停用提示与类目恢复、schema 漂移阻断、二次确认、幂等请求和五档视口。 |
-| `ADMIN_E2E_PORT=18091 TEST_AFFECTED_BASE=HEAD pnpm test:affected` | 通过；Admin smoke 6/6、前端 85/85、契约 4/4、全量后端测试均通过。默认端口 8001 可能被本机其他服务占用，故验收使用隔离端口。 |
+| Ozon 专项 Playwright E2E | 通过，10/10；新增覆盖已有配置更新与刷新保持、稳定 ID、结构化 403、跨租户只读禁用，并继续覆盖异步同步、四态差异、映射确认、未保存阻断、凭证停用提示与类目恢复、schema 漂移阻断、二次确认、幂等请求和五档视口。源码开发服务器与重建后 `:8000` Admin 容器各通过一轮，所有写请求均由守卫拦截。 |
+| `ADMIN_E2E_PORT=8018 pnpm test:affected` | 通过；Admin smoke 6/6、前端 89/89、契约 4/4、全量后端测试均通过。默认端口 8001 的首次运行在进入用例前发生 WebServer 启动超时，隔离端口重跑通过。 |
 | `pnpm architecture:affected` | 通过；架构测试 11/11，边界检查 0 个新增或扩大违规。 |
 | `pnpm check:ui-copy --strict` | 通过。 |
 | `pnpm quality:sensitive` | 通过，变更行高置信敏感信息发现数为 0。 |
-| `pnpm check:dev` | 通过；工具链与 Docker 可用。 |
+| `pnpm check:dev` | 工具链与 Docker 均可用，但独立 worktree 未创建根 `.env`，因此命令按设计返回失败；未复制或生成敏感配置。 |
+| Backend / Admin 容器与本地浏览器 | Backend、Admin 从当前 worktree 重建；Backend health 与 Admin/Backend HTTP 探针均为 200。Chrome 实际登录会话显示跨租户只读提示、预检按钮禁用且无 `internal error`/控制台错误；重建后目标配置 GET 为 200，日志中无 Ozon 商品导入调用。 |
 
-本机验收时 `TEST_DATABASE_URL` 与 `TEST_REDIS_URL` 均未配置，PostgreSQL 与 Redis 容器也未运行，因此未把外部 PostgreSQL/Redis 集成套件记为已执行。已有单元、HTTP、SQLite、队列状态与 Worker 回归通过；生产前应在安全隔离的 PostgreSQL/Redis 环境补跑 `pnpm test:backend:integration`、`pnpm test:db` 和 `pnpm test:redis`。
+本机验收时 `TEST_DATABASE_URL` 与 `TEST_REDIS_URL` 均未配置；现有运行栈的 PostgreSQL/Redis 不是专用破坏性测试环境，因此未把外部 PostgreSQL/Redis 集成套件记为已执行。已有单元、HTTP、SQLite、队列状态与 Worker 回归通过；生产前应在安全隔离的 PostgreSQL/Redis 环境补跑 `pnpm test:backend:integration`、`pnpm test:db` 和 `pnpm test:redis`。
+
+### 4.1 2026-08-04 多 SKU 图片补充验收
+
+| 检查 | 结果 |
+| --- | --- |
+| `TEST_AFFECTED_BASE=HEAD GOFLAGS=-p=1 ADMIN_E2E_PORT=18096 pnpm test:affected` | 通过；Admin smoke 6/6、前端 23 个文件 91/91、契约 4/4、全量后端均通过。Go 并行度只用于避免本机内存争用，不改变测试集合。 |
+| Ozon 图片专项 Playwright E2E | 通过，10/10；覆盖多 SKU 独立主图、公共图批量应用与逐 SKU 调整、保存请求、具体 SKU 缺图、显式替代图、失效选择恢复和五档视口；全部 Ozon 写请求均拦截。 |
+| `pnpm build:admin` | 通过。 |
+| `pnpm architecture:test` / `TEST_AFFECTED_BASE=HEAD pnpm architecture:affected` | 通过；架构测试 11/11，扫描 456 个 TypeScript 文件，0 个新增或扩大违规，受影响门禁失败数 0。 |
+| `pnpm quality:baseline:admin-ts` | 通过；当前 24 项 / 17 个签名，相对 30 项 / 18 个签名基线无新增或增加。 |
+| `pnpm quality:sensitive` / `pnpm check:ui-copy --strict` | 通过；敏感信息发现数 0，UI 文案检查无问题。 |
+| `go vet -p=1 ./...` / `go test -p 1 ./...` | 通过；本次变更的 19 个 Go 文件单独执行 `gofmt -l`，结果为空。 |
+| `pnpm test:redis` | 通过。 |
+| `pnpm check:dev` | 未通过；工具链与 Docker 均正常，仅本工作树未创建根 `.env` 或 `backend/.env`。未为验收复制或提交环境配置。 |
+
+补充验收未调用真实 `/v3/product/import`、库存或归档接口。`pnpm quality:affected` 的敏感信息、架构、契约、Admin Ratchet 和前端测试阶段通过，随后被当前 Windows 工作树全仓 `gofmt -l .` 报告的 1,248 个历史行尾/格式文件阻断；未扩大 baseline，也未批量改写无关文件。一次冗余的默认并行 Go 全量复跑曾因本机内存耗尽失败，限制编译并行度后同一全量测试集合通过。
 
 ## 5. 已知基线与剩余风险
 
-`pnpm quality:affected` 的敏感信息、架构、契约、前端和后端测试阶段均通过，但最终被仓库级 `gofmt -l .` 阻断：当前主线继承的 791 个 Go 文件存在既有 CRLF/格式基线。本次没有批量改写历史文件；本分支新增或修改的 Go 文件已单独执行 `gofmt` 并确认无未格式化项。该例外不代表全仓格式门禁已恢复为绿色，后续应单独治理基线。
+`pnpm quality:affected` 的敏感信息、架构、契约、前端测试阶段均通过，随后被 `quality:backend` 的仓库级 `gofmt -l .` 阻断：当前 Windows worktree 报告 1250 个继承的 Go 格式/换行基线文件。本次没有批量改写历史文件；本次新增或修改的 Go 文件已单独执行 `gofmt` 并确认无未格式化项，且全量 `go test`、`go vet`、`go build` 均通过。该例外不代表全仓格式门禁已恢复为绿色，后续应单独治理基线。
 
 仍需生产前关闭的风险：
 
@@ -78,6 +100,7 @@
 3. Ozon 导入和审核具有异步性。任务失败或调用结果未知时，当前策略是安全地阻止自动重试，仍依赖运营人员在 Ozon 后台与任务中心人工核对。
 4. 尚未提供经生产演练验证的“核对后恢复/重新提交”专用流程；在该流程落地前不得自动放量。
 5. 外部 PostgreSQL/Redis 集成套件本次因安全测试环境未配置而未执行。
+6. 多 SKU 图片补充实现没有执行真实 `/v3/product/import`；自动化仅使用 Go `httptest` Ozon server 与 Admin 写请求拦截，生产真实图片抓取和平台审核仍属于 Deferred 验收。
 
 ## 6. 发布与回滚边界
 
