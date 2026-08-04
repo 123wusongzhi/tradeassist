@@ -212,13 +212,14 @@ export function confirmStoragePublicTest(onOk: OkFn) {
 }
 
 /** 修改用户角色 */
-export function confirmChangeUserRole(username: string, roleLabel: string, onOk: OkFn) {
+export function confirmChangeUserRole(username: string, roleLabel: string, onOk: OkFn, onCancel?: () => void) {
   confirmSensitiveAction({
     title: '修改用户角色',
     content: `将把用户「${username}」的角色调整为「${roleLabel}」。`,
     impacts: ['用户权限范围', '菜单可见性', '写操作能力'],
     reversible: true,
     onOk,
+    onCancel,
   });
 }
 

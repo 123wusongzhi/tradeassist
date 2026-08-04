@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -21,8 +22,12 @@ import (
 
 var (
 	ErrSelfDisable       = errors.New("不能禁用当前登录账号")
-	ErrSelfRoleDowngrade = errors.New("不能将当前账号降级为非管理员")
+	ErrSelfRoleDowngrade = errors.New("不能降低当前账号的系统管理员权限")
 	ErrDuplicateAccount  = errors.New("邮箱或手机号已被使用")
+	ErrTenantRequired    = errors.New("租户管理员必须选择所属租户")
+	ErrTenantNotFound    = errors.New("所选租户不存在")
+	ErrInvalidTenant     = errors.New("租户 ID 必须是非负整数")
+	ErrGlobalAdminTenant = errors.New("系统管理员必须属于系统租户")
 )
 
 // Service manages admin users and store permissions.
@@ -57,6 +62,7 @@ type CreateBody struct {
 	Password    string `json:"password"`
 	DisplayName string `json:"displayName"`
 	Role        string `json:"role"`
+	TenantID    *int64 `json:"tenantId"`
 }
 
 // UpdateBody patches user fields.
@@ -64,6 +70,7 @@ type UpdateBody struct {
 	DisplayName *string `json:"displayName"`
 	Role        *string `json:"role"`
 	Status      *string `json:"status"`
+	TenantID    *int64  `json:"tenantId"`
 }
 
 // SetStorePermissionsBody replaces store grants.
@@ -118,6 +125,139 @@ func normalizeStatus(status string) string {
 	return "active"
 }
 
+func (s *Service) tenantExists(ctx context.Context, tenantID int64) (bool, error) {
+	if tenantID <= 0 {
+		return false, nil
+	}
+	var count int64
+	if err := s.DB.WithContext(ctx).Table("tenants").Where("id = ?", tenantID).Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+	if err := s.DB.WithContext(ctx).Model(&shop.Shop{}).Where("tenant_id = ?", tenantID).Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count > 0 {
+		return true, nil
+	}
+	if err := s.DB.WithContext(ctx).Model(&admin.AdminUser{}).Where("tenant_id = ?", tenantID).Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Service) validateTenantAssignment(ctx context.Context, role string, tenantID int64) error {
+	if tenantID < 0 {
+		return ErrInvalidTenant
+	}
+	switch normalizeRole(role) {
+	case adminperm.RoleTenantAdmin:
+		if tenantID == 0 {
+			return ErrTenantRequired
+		}
+	case adminperm.RoleAdmin:
+		if tenantID != 0 {
+			return ErrGlobalAdminTenant
+		}
+	}
+	if tenantID == 0 {
+		return nil
+	}
+	exists, err := s.tenantExists(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrTenantNotFound
+	}
+	return nil
+}
+
+// ListTenants returns assignable positive tenant ids. The tenants table is the
+// primary registry; shop and user rows preserve discoverability for legacy data.
+func (s *Service) ListTenants(c *gin.Context) ([]TenantOption, error) {
+	if s == nil || s.DB == nil {
+		return nil, fmt.Errorf("adminuser: no db")
+	}
+	ctx := c.Request.Context()
+	type tenantRow struct {
+		ID   int64
+		Name string
+	}
+	type shopTenantRow struct {
+		TenantID int64
+		ShopName string
+	}
+
+	byID := make(map[int64]*TenantOption)
+	ensure := func(tenantID int64) *TenantOption {
+		if tenantID <= 0 {
+			return nil
+		}
+		if existing := byID[tenantID]; existing != nil {
+			return existing
+		}
+		item := &TenantOption{ID: tenantID}
+		byID[tenantID] = item
+		return item
+	}
+
+	var tenants []tenantRow
+	if err := s.DB.WithContext(ctx).Table("tenants").Select("id", "name").Where("id > 0").Find(&tenants).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range tenants {
+		item := ensure(row.ID)
+		if item != nil {
+			item.Name = strings.TrimSpace(row.Name)
+		}
+	}
+
+	var shopRows []shopTenantRow
+	if err := s.DB.WithContext(ctx).Model(&shop.Shop{}).
+		Select("tenant_id", "shop_name").
+		Where("tenant_id > 0").
+		Order("tenant_id ASC, shop_name ASC").
+		Find(&shopRows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range shopRows {
+		item := ensure(row.TenantID)
+		if item == nil {
+			continue
+		}
+		name := strings.TrimSpace(row.ShopName)
+		if name == "" || (len(item.ShopNames) > 0 && item.ShopNames[len(item.ShopNames)-1] == name) {
+			continue
+		}
+		item.ShopNames = append(item.ShopNames, name)
+	}
+
+	var userTenantIDs []int64
+	if err := s.DB.WithContext(ctx).Model(&admin.AdminUser{}).
+		Distinct("tenant_id").
+		Where("tenant_id > 0").
+		Pluck("tenant_id", &userTenantIDs).Error; err != nil {
+		return nil, err
+	}
+	for _, tenantID := range userTenantIDs {
+		ensure(tenantID)
+	}
+
+	ids := make([]int64, 0, len(byID))
+	for tenantID := range byID {
+		ids = append(ids, tenantID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	items := make([]TenantOption, 0, len(ids))
+	for _, tenantID := range ids {
+		items = append(items, *byID[tenantID])
+	}
+	return items, nil
+}
+
 func (s *Service) loadStorePerms(ctx context.Context, userID uuid.UUID) ([]StorePerm, error) {
 	var rows []admin.UserStorePermission
 	if err := s.DB.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&rows).Error; err != nil {
@@ -159,6 +299,7 @@ func (s *Service) toUserRow(ctx context.Context, u *admin.AdminUser, withStores 
 	}
 	row := &UserRow{
 		ID:          u.ID.String(),
+		TenantID:    u.TenantID,
 		Username:    u.LoginLabel(),
 		Email:       strings.TrimSpace(u.Email),
 		Phone:       strings.TrimSpace(u.Phone),
@@ -299,13 +440,22 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 	if err != nil {
 		return nil, err
 	}
+	role := normalizeRole(body.Role)
+	tenantID := int64(0)
+	if body.TenantID != nil {
+		tenantID = *body.TenantID
+	}
+	if err := s.validateTenantAssignment(c.Request.Context(), role, tenantID); err != nil {
+		return nil, err
+	}
 	u := &admin.AdminUser{
+		TenantID:     tenantID,
 		Username:     admin.NewInternalUsername(),
 		Email:        em,
 		Phone:        ph,
 		PasswordHash: hash,
 		DisplayName:  strings.TrimSpace(body.DisplayName),
-		Role:         normalizeRole(body.Role),
+		Role:         role,
 		Status:       "active",
 	}
 	if err := s.DB.WithContext(c.Request.Context()).Create(u).Error; err != nil {
@@ -318,13 +468,13 @@ func (s *Service) Create(c *gin.Context, body CreateBody, actorID *uuid.UUID) (*
 			Resource:    "admin_user",
 			ResourceID:  u.ID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("userId=%s role=%s email=%s", u.ID.String(), u.Role, em),
+			Message:     fmt.Sprintf("userId=%s role=%s tenantId=%d email=%s", u.ID.String(), u.Role, u.TenantID, em),
 		})
 	}
 	return s.toUserRow(c.Request.Context(), u, true)
 }
 
-// Update patches role/status/displayName.
+// Update patches role/status/displayName/tenant assignment.
 func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, actorID *uuid.UUID) (*UserRow, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("adminuser: no db")
@@ -334,13 +484,25 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 		return nil, err
 	}
 	oldRole := normalizeRole(u.Role)
+	nextRole := oldRole
+	nextTenantID := u.TenantID
 	if body.Role != nil {
-		newRole := normalizeRole(*body.Role)
-		if actorID != nil && *actorID == userID && newRole != adminperm.RoleAdmin && oldRole == adminperm.RoleAdmin {
-			return nil, ErrSelfRoleDowngrade
-		}
-		u.Role = newRole
+		nextRole = normalizeRole(*body.Role)
 	}
+	if body.TenantID != nil {
+		nextTenantID = *body.TenantID
+	}
+	if actorID != nil && *actorID == userID && oldRole == adminperm.RoleAdmin &&
+		(nextRole != adminperm.RoleAdmin || nextTenantID != 0) {
+		return nil, ErrSelfRoleDowngrade
+	}
+	if body.Role != nil || body.TenantID != nil {
+		if err := s.validateTenantAssignment(c.Request.Context(), nextRole, nextTenantID); err != nil {
+			return nil, err
+		}
+	}
+	u.Role = nextRole
+	u.TenantID = nextTenantID
 	if body.Status != nil {
 		st := normalizeStatus(*body.Status)
 		if actorID != nil && *actorID == userID && st == "disabled" {
@@ -351,10 +513,16 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 	if body.DisplayName != nil {
 		u.DisplayName = strings.TrimSpace(*body.DisplayName)
 	}
+	securityMutation := body.Role != nil || body.Status != nil || body.TenantID != nil
+	if securityMutation {
+		u.TokenVersion++
+	}
 	if err := s.DB.WithContext(c.Request.Context()).Save(&u).Error; err != nil {
 		return nil, err
 	}
-	s.invalidateUserPermissions(c.Request.Context(), userID, body.Role != nil || body.Status != nil)
+	if securityMutation {
+		adminperm.InvalidateUserPermissionCache(userID)
+	}
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
 			AdminUserID: actorID,
@@ -362,7 +530,7 @@ func (s *Service) Update(c *gin.Context, userID uuid.UUID, body UpdateBody, acto
 			Resource:    "admin_user",
 			ResourceID:  userID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("userId=%s role=%s status=%s", userID.String(), u.Role, u.Status),
+			Message:     fmt.Sprintf("userId=%s role=%s tenantId=%d status=%s", userID.String(), u.Role, u.TenantID, u.Status),
 		})
 	}
 	return s.toUserRow(c.Request.Context(), &u, true)

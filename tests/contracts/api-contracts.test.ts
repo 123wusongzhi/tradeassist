@@ -16,6 +16,10 @@ describe('TradeMind API contract registry', () => {
     expect(routes).toEqual(
       new Set([
         'GET /api/v1/auth/profile',
+        'GET /api/v1/admin/tenants',
+        'GET /api/v1/admin/users',
+        'POST /api/v1/admin/users',
+        'PATCH /api/v1/admin/users/:id',
         'GET /api/v1/collect/engines/status',
         'GET /api/v1/image/providers',
         'GET /api/v1/products/:id',
@@ -63,6 +67,9 @@ describe('TradeMind API contract registry', () => {
     const ozonReadiness = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/products/:id/readiness/validate');
     const ozonGroupConfirm = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/product-publish/ozon/category-groups/confirm');
     const ozonChanges = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/platform/ozon/categories/changes');
+    const adminTenantOptions = contracts.endpoints.find((item) => routeKey(item) === 'GET /api/v1/admin/tenants');
+    const createAdminUser = contracts.endpoints.find((item) => routeKey(item) === 'POST /api/v1/admin/users');
+    const updateAdminUser = contracts.endpoints.find((item) => routeKey(item) === 'PATCH /api/v1/admin/users/:id');
 
     expect(createDraft?.requestBody).toEqual(['shopId', 'publishMode', 'force']);
     expect(publish?.requestBody).toEqual(['shopId', 'options', 'force']);
@@ -99,10 +106,15 @@ describe('TradeMind API contract registry', () => {
     expect(ozonReadiness?.errorDataFields).toEqual(['errorCode']);
     expect(ozonGroupConfirm?.requestBody).toEqual(['shopId', 'groups', 'saveMappings']);
     expect(ozonChanges?.responseFields).toEqual(['list[].categoryName', 'list[].occurredAt', 'list[].detail']);
+    expect(adminTenantOptions?.responseFields).toEqual(['list[].id', 'list[].name', 'list[].shopNames']);
+    expect(createAdminUser?.requestBody).toEqual(['email', 'phone', 'password', 'displayName', 'role', 'tenantId']);
+    expect(createAdminUser?.responseFields).toContain('tenantId');
+    expect(updateAdminUser?.requestBody).toEqual(['displayName', 'role', 'status', 'tenantId']);
+    expect(updateAdminUser?.errorStatuses).toEqual([400, 403, 404]);
   });
 
   it('marks every protected Admin endpoint as authenticated', () => {
-    expect(contracts.endpoints).toHaveLength(31);
+    expect(contracts.endpoints).toHaveLength(35);
     expect(contracts.endpoints.every((endpoint) => endpoint.auth === true)).toBe(true);
   });
 });

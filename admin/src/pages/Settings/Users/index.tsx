@@ -10,14 +10,17 @@ import {
 import { formatDateTime } from '@/utils/formatTime';
 import {
   createAdminUser,
+  fetchAdminTenants,
   fetchAdminUsers,
   setAdminUserStorePermissions,
   updateAdminUser,
+  type AdminTenantOption,
   type AdminUserRow,
+  type CreateAdminUserBody,
 } from '@/services/adminUsers';
 import { queryShops, type ShopListRow } from '@/services/shops';
-import { Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
-import { useCallback, useRef, useState } from 'react';
+import { Alert, Button, Form, Input, Modal, Select, Space, Tag, message } from 'antd';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePermission } from '@/hooks/usePermission';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 import { PERMISSIONS } from '@/utils/permission';
@@ -40,6 +43,11 @@ const SCOPE_OPTIONS = [
   { label: '管理', value: 'manage' },
 ];
 
+type RoleFormValues = {
+  role: string;
+  tenantId?: number;
+};
+
 function roleTag(role: string) {
   const r = (role || '').toLowerCase();
   if (r === 'admin') return <Tag color="blue">管理员</Tag>;
@@ -53,19 +61,67 @@ function adminUserLabel(row: Pick<AdminUserRow, 'displayName' | 'email' | 'usern
   return (row.displayName || '').trim() || (row.email || '').trim() || row.username || '该用户';
 }
 
+function tenantOptionLabel(option: AdminTenantOption): string {
+  const base = option.name?.trim() || `租户 ${option.id}`;
+  const shops = (option.shopNames || []).filter(Boolean);
+  return shops.length > 0 ? `${base}（店铺：${shops.join('、')}）` : base;
+}
+
+function tenantAssignmentLabel(row: Pick<AdminUserRow, 'tenantId' | 'role'>) {
+  const tenantId = Number(row.tenantId || 0);
+  if (row.role === 'tenant_admin' && tenantId <= 0) {
+    return <Tag color="error">未分配（权限失效）</Tag>;
+  }
+  if (tenantId <= 0) return <Tag>系统域</Tag>;
+  return <Tag color="geekblue">租户 {tenantId}</Tag>;
+}
+
+function storePermissionLabel(row: AdminUserRow): string {
+  if (row.role === 'admin') return '全部';
+  if (row.role === 'tenant_admin') {
+    return row.tenantId > 0 ? `租户 ${row.tenantId} 内全部店铺` : '未分配租户';
+  }
+  return (row.storePermissions || []).map((permission) => permission.storeName || permission.storeId).join('、') || '—';
+}
+
 export default function SettingsUsersPage() {
   const actionRef = useRef<ActionType>();
   const { canManageUsers, user: currentUser } = usePermission();
   const [createOpen, setCreateOpen] = useState(false);
-  const emptyLocale = useListEmptyLocale('usersSettings', {
-    onAction: () => setCreateOpen(true),
-    actionLabel: '创建用户',
-  });
+  const [createSubmitting, setCreateSubmitting] = useState(false);
   const [permOpen, setPermOpen] = useState(false);
   const [editUser, setEditUser] = useState<AdminUserRow | null>(null);
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [roleUser, setRoleUser] = useState<AdminUserRow | null>(null);
+  const [roleSubmitting, setRoleSubmitting] = useState(false);
   const [shops, setShops] = useState<ShopListRow[]>([]);
-  const [createForm] = Form.useForm();
+  const [tenants, setTenants] = useState<AdminTenantOption[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [tenantLoadError, setTenantLoadError] = useState('');
+  const [createForm] = Form.useForm<CreateAdminUserBody>();
+  const [roleForm] = Form.useForm<RoleFormValues>();
   const [permForm] = Form.useForm();
+  const createRole = Form.useWatch('role', createForm);
+  const editRole = Form.useWatch('role', roleForm);
+
+  const tenantOptions = useMemo(
+    () => tenants.map((tenant) => ({ label: tenantOptionLabel(tenant), value: tenant.id })),
+    [tenants],
+  );
+
+  const loadTenants = useCallback(async () => {
+    setTenantsLoading(true);
+    setTenantLoadError('');
+    try {
+      const res = await fetchAdminTenants();
+      setTenants(res.list || []);
+    } catch (error: unknown) {
+      setTenants([]);
+      setTenantLoadError((error as Error)?.message || '租户列表加载失败');
+    } finally {
+      setTenantsLoading(false);
+    }
+  }, []);
 
   const loadShops = useCallback(async () => {
     try {
@@ -75,6 +131,70 @@ export default function SettingsUsersPage() {
       setShops([]);
     }
   }, []);
+
+  const openCreateModal = useCallback(() => {
+    setCreateOpen(true);
+    void loadTenants();
+  }, [loadTenants]);
+
+  const emptyLocale = useListEmptyLocale('usersSettings', {
+    onAction: openCreateModal,
+    actionLabel: '创建用户',
+  });
+
+  const openRoleModal = useCallback(
+    (row: AdminUserRow) => {
+      setRoleUser(row);
+      setRoleOpen(true);
+      void loadTenants();
+    },
+    [loadTenants],
+  );
+
+  useEffect(() => {
+    if (!roleOpen || !roleUser) return;
+    roleForm.setFieldsValue({
+      role: roleUser.role,
+      tenantId: roleUser.tenantId > 0 ? roleUser.tenantId : undefined,
+    });
+  }, [roleForm, roleOpen, roleUser]);
+
+  const saveRoleAssignment = useCallback(async () => {
+    if (!roleUser) return;
+    let values: RoleFormValues;
+    try {
+      values = await roleForm.validateFields();
+    } catch {
+      return;
+    }
+    const nextTenantId =
+      values.role === 'admin'
+        ? 0
+        : values.role === 'tenant_admin'
+          ? Number(values.tenantId)
+          : Number(roleUser.tenantId || 0);
+    if (values.role === roleUser.role && nextTenantId === Number(roleUser.tenantId || 0)) {
+      setRoleOpen(false);
+      return;
+    }
+    const roleLabel = ROLE_OPTIONS.find((option) => option.value === values.role)?.label || values.role;
+    const assignmentLabel =
+      values.role === 'tenant_admin' ? `${roleLabel}（租户 ${nextTenantId}）` : roleLabel;
+    setRoleSubmitting(true);
+    confirmChangeUserRole(adminUserLabel(roleUser), assignmentLabel, async () => {
+      try {
+        await updateAdminUser(roleUser.id, { role: values.role, tenantId: nextTenantId });
+        message.success('角色与租户归属已更新，请该用户重新登录');
+        setRoleOpen(false);
+        actionRef.current?.reload();
+      } catch (error: unknown) {
+        message.error((error as Error)?.message || '更新失败');
+        throw error;
+      } finally {
+        setRoleSubmitting(false);
+      }
+    }, () => setRoleSubmitting(false));
+  }, [roleForm, roleUser]);
 
   const columns: ProColumns<AdminUserRow>[] = [
     { title: '显示名', dataIndex: 'displayName', width: 140, ellipsis: true },
@@ -98,14 +218,18 @@ export default function SettingsUsersPage() {
         row.status === 'disabled' ? <Tag color="error">禁用</Tag> : <Tag color="success">正常</Tag>,
     },
     {
+      title: '所属租户',
+      dataIndex: 'tenantId',
+      width: 150,
+      search: false,
+      render: (_, row) => tenantAssignmentLabel(row),
+    },
+    {
       title: '授权店铺',
       dataIndex: 'storePermissions',
       search: false,
       ellipsis: true,
-      render: (_, row) =>
-        row.role === 'admin'
-          ? '全部'
-          : (row.storePermissions || []).map((p) => p.storeName || p.storeId).join('、') || '—',
+      render: (_, row) => storePermissionLabel(row),
     },
     {
       title: '最近操作',
@@ -124,44 +248,11 @@ export default function SettingsUsersPage() {
           type="link"
           size="small"
           disabled={!canManageUsers}
-          onClick={() => {
-            let selectedRole = row.role;
-            Modal.confirm({
-              title: '修改角色',
-              content: (
-                <Select
-                  defaultValue={row.role}
-                  style={{ width: '100%', marginTop: 8 }}
-                  options={ROLE_OPTIONS}
-                  onChange={(v) => {
-                    selectedRole = v;
-                  }}
-                />
-              ),
-              okText: '确认修改',
-              onOk: async () => {
-                if (selectedRole === row.role) return;
-                const roleLabel = ROLE_OPTIONS.find((o) => o.value === selectedRole)?.label || selectedRole;
-                return new Promise<void>((resolve, reject) => {
-                  confirmChangeUserRole(adminUserLabel(row), roleLabel, async () => {
-                    try {
-                      await updateAdminUser(row.id, { role: selectedRole });
-                      message.success('角色已更新');
-                      actionRef.current?.reload();
-                      resolve();
-                    } catch (e: unknown) {
-                      message.error((e as Error)?.message || '更新失败');
-                      reject(e);
-                    }
-                  });
-                });
-              },
-            });
-          }}
+          onClick={() => openRoleModal(row)}
         >
           改角色
         </Button>,
-        row.role !== 'admin' ? (
+        row.role !== 'admin' && row.role !== 'tenant_admin' ? (
           <Button
             key="perm"
             type="link"
@@ -220,7 +311,7 @@ export default function SettingsUsersPage() {
           search={{ labelWidth: 80 }}
           locale={emptyLocale}
           toolBarRender={() => [
-            <Button key="create" type="primary" onClick={() => setCreateOpen(true)}>
+            <Button key="create" type="primary" onClick={openCreateModal}>
               新建用户
             </Button>,
           ]}
@@ -243,19 +334,39 @@ export default function SettingsUsersPage() {
         <Modal
           title="新建用户"
           open={createOpen}
-          onCancel={() => setCreateOpen(false)}
+          okText="创建用户"
+          confirmLoading={createSubmitting}
+          onCancel={() => {
+            if (!createSubmitting) setCreateOpen(false);
+          }}
           onOk={() => createForm.submit()}
-          destroyOnClose
+          destroyOnHidden
+          afterClose={() => createForm.resetFields()}
         >
           <Form
             form={createForm}
             layout="vertical"
-            onFinish={async (v) => {
-              await createAdminUser(v);
-              message.success('用户已创建');
-              setCreateOpen(false);
-              createForm.resetFields();
-              actionRef.current?.reload();
+            onFinish={async (values) => {
+              const { tenantId: selectedTenantId, ...baseValues } = values;
+              const body: CreateAdminUserBody = {
+                ...baseValues,
+                ...(values.role === 'tenant_admin'
+                  ? { tenantId: Number(selectedTenantId) }
+                  : values.role === 'admin'
+                    ? { tenantId: 0 }
+                    : {}),
+              };
+              setCreateSubmitting(true);
+              try {
+                await createAdminUser(body);
+                message.success('用户已创建');
+                setCreateOpen(false);
+                actionRef.current?.reload();
+              } catch (error: unknown) {
+                message.error((error as Error)?.message || '创建失败');
+              } finally {
+                setCreateSubmitting(false);
+              }
             }}
           >
             <Form.Item name="email" label="邮箱" rules={[{ required: true }]}>
@@ -268,8 +379,92 @@ export default function SettingsUsersPage() {
               <Input />
             </Form.Item>
             <Form.Item name="role" label="角色" initialValue="operator">
-              <Select options={ROLE_OPTIONS} />
+              <Select aria-label="角色" options={ROLE_OPTIONS} virtual={false} />
             </Form.Item>
+            {createRole === 'tenant_admin' ? (
+              <>
+                {tenantLoadError ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="租户列表加载失败"
+                    description={tenantLoadError}
+                    action={<Button size="small" onClick={() => void loadTenants()}>重新加载</Button>}
+                    style={{ marginBottom: 16 }}
+                  />
+                ) : null}
+                <Form.Item
+                  name="tenantId"
+                  label="所属租户"
+                  rules={[{ required: true, message: '请选择所属租户' }]}
+                  extra="租户管理员将拥有该租户内全部店铺和商品的业务权限。"
+                >
+                  <Select
+                    aria-label="所属租户"
+                    showSearch
+                    optionFilterProp="label"
+                    loading={tenantsLoading}
+                    placeholder="选择租户"
+                    options={tenantOptions}
+                    notFoundContent={tenantsLoading ? '正在加载租户' : '暂无可分配租户'}
+                    virtual={false}
+                  />
+                </Form.Item>
+              </>
+            ) : null}
+          </Form>
+        </Modal>
+
+        <Modal
+          title={`修改角色与租户 — ${roleUser ? adminUserLabel(roleUser) : ''}`}
+          open={roleOpen}
+          okText="保存角色"
+          confirmLoading={roleSubmitting}
+          onCancel={() => {
+            if (!roleSubmitting) setRoleOpen(false);
+          }}
+          onOk={saveRoleAssignment}
+          destroyOnHidden
+          afterClose={() => {
+            roleForm.resetFields();
+            setRoleUser(null);
+          }}
+        >
+          <Form form={roleForm} layout="vertical">
+            <Form.Item name="role" label="角色" rules={[{ required: true, message: '请选择角色' }]}>
+              <Select aria-label="角色" options={ROLE_OPTIONS} virtual={false} />
+            </Form.Item>
+            {editRole === 'tenant_admin' ? (
+              <>
+                {tenantLoadError ? (
+                  <Alert
+                    type="error"
+                    showIcon
+                    message="租户列表加载失败"
+                    description={tenantLoadError}
+                    action={<Button size="small" onClick={() => void loadTenants()}>重新加载</Button>}
+                    style={{ marginBottom: 16 }}
+                  />
+                ) : null}
+                <Form.Item
+                  name="tenantId"
+                  label="所属租户"
+                  rules={[{ required: true, message: '请选择所属租户' }]}
+                  extra="保存后旧会话立即失效，用户需要重新登录。"
+                >
+                  <Select
+                    aria-label="所属租户"
+                    showSearch
+                    optionFilterProp="label"
+                    loading={tenantsLoading}
+                    placeholder="选择租户"
+                    options={tenantOptions}
+                    notFoundContent={tenantsLoading ? '正在加载租户' : '暂无可分配租户'}
+                    virtual={false}
+                  />
+                </Form.Item>
+              </>
+            ) : null}
           </Form>
         </Modal>
 
@@ -282,7 +477,7 @@ export default function SettingsUsersPage() {
             if (!editUser) return;
             confirmAssignStorePermissions(adminUserLabel(editUser), () => permForm.submit());
           }}
-          destroyOnClose
+          destroyOnHidden
         >
           <Form
             form={permForm}

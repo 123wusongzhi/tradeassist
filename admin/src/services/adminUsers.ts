@@ -10,6 +10,7 @@ export type StorePermissionRow = {
 
 export type AdminUserRow = {
   id: string;
+  tenantId: number;
   username: string;
   email?: string;
   phone?: string;
@@ -20,6 +21,28 @@ export type AdminUserRow = {
   lastOperationAt?: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type AdminTenantOption = {
+  id: number;
+  name?: string;
+  shopNames?: string[];
+};
+
+export type CreateAdminUserBody = {
+  email?: string;
+  phone?: string;
+  password: string;
+  displayName?: string;
+  role: string;
+  tenantId?: number;
+};
+
+export type UpdateAdminUserBody = {
+  displayName?: string;
+  role?: string;
+  status?: string;
+  tenantId?: number;
 };
 
 export async function fetchAdminUsers(params: Record<string, string | number | undefined>) {
@@ -33,17 +56,13 @@ export async function fetchAdminUser(id: string) {
   return getJSON<AdminUserRow>(`/api/v1/admin/users/${id}`);
 }
 
-export async function createAdminUser(body: {
-  email?: string;
-  phone?: string;
-  password: string;
-  displayName?: string;
-  role: string;
-}) {
-  return postJSON<AdminUserRow>('/api/v1/admin/users', body);
+export async function fetchAdminTenants() {
+  return getJSON<{ list: AdminTenantOption[] }>('/api/v1/admin/tenants');
 }
 
-type UpdateAdminUserBody = { displayName?: string; role?: string; status?: string };
+export async function createAdminUser(body: CreateAdminUserBody) {
+  return postJSON<AdminUserRow>('/api/v1/admin/users', body);
+}
 
 type SetStorePermissionsBody = {
   items: { storeId: string; platform?: string; permissionScope: string }[];

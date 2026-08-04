@@ -45,6 +45,19 @@ func (h *Handler) requireManage(c *gin.Context) bool {
 	return true
 }
 
+// ListTenants GET /api/v1/admin/tenants
+func (h *Handler) ListTenants(c *gin.Context) {
+	if !h.requireManage(c) {
+		return
+	}
+	items, err := h.Svc.ListTenants(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": items})
+}
+
 // List GET /api/v1/admin/users
 func (h *Handler) List(c *gin.Context) {
 	if !h.requireManage(c) {
@@ -137,7 +150,9 @@ func (h *Handler) Update(c *gin.Context) {
 		switch {
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			response.Fail(c, 404, response.CodeNotFound, "用户不存在")
-		case errors.Is(err, ErrSelfDisable), errors.Is(err, ErrSelfRoleDowngrade):
+		case errors.Is(err, ErrSelfDisable), errors.Is(err, ErrSelfRoleDowngrade),
+			errors.Is(err, ErrTenantRequired), errors.Is(err, ErrTenantNotFound),
+			errors.Is(err, ErrInvalidTenant), errors.Is(err, ErrGlobalAdminTenant):
 			response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		default:
 			response.HandleError(c, err)

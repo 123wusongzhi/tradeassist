@@ -52,6 +52,20 @@
 
 安全会话模式下，access JWT 必须携带非零 UUID `session_id`，并在每次受保护请求中与服务端会话的管理员、租户和 token version 一并校验；缺失、格式无效、已撤销或不匹配的会话均不被接受。`session_id` 是服务端绑定字段，客户端不得指定或覆盖。
 
+## 用户与租户管理
+
+以下接口仅允许 `tenant_id=0` 且具备 `user.manage` 的全局管理员调用。这里的 `tenantId` 只用于受控的账号归属配置，不会覆盖当前请求的可信租户上下文。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/v1/admin/tenants` | 返回可分配的正数租户列表 `{ list: [{ id, name?, shopNames? }] }`。以 `tenants` 表为主，同时合并历史店铺和已有用户中的正数租户编号，保证升级前数据仍可选择。 |
+| `GET` | `/api/v1/admin/users` | 分页读取管理员账号；每项明确返回 `tenantId`、角色、状态和适用的店铺授权。 |
+| `POST` | `/api/v1/admin/users` | 创建管理员账号。body 可含 `email`、`phone`、`password`、`displayName`、`role`、`tenantId`；`tenant_admin` 必须显式选择已存在的正数租户，系统级 `admin` 只能使用租户 0。旧客户端创建 `operator` / `readonly` / 系统管理员时省略 `tenantId` 仍按租户 0 处理。 |
+| `PATCH` | `/api/v1/admin/users/:id` | 更新显示名、角色、状态或租户归属。角色/租户组合按最终值校验；租户、角色或状态写入会同步递增 `token_version`，使旧会话失效。 |
+| `PUT` | `/api/v1/admin/users/:id/store-permissions` | 替换普通运营或只读账号的店铺授权。租户管理员自动拥有所属租户内全部店铺，不依赖此授权列表。 |
+
+无效的 `tenant_admin + tenantId=0`、`admin + tenantId>0`、负数租户或不存在的正数租户均返回 400。历史库中尚未修复的无效租户管理员仍由权限解析器 fail-closed，不会静默获得其他租户权限；应先在“用户与权限”页面明确分配租户，再让该用户重新登录。
+
 ## 设置
 
 | 方法 | 路径 | 说明 |
