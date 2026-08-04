@@ -64,10 +64,20 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 		out.ShopID = &sid
 	}
 
+	effectiveProduct := prod
+	effectivePublishOptions := req.PublishOptions
+	if plat == "ozon" {
+		var prepareErr error
+		effectiveProduct, effectivePublishOptions, prepareErr = s.prepareOzonReadinessInputs(ctx, prod, req.ShopID, req.PublishOptions)
+		if prepareErr != nil {
+			return nil, prepareErr
+		}
+	}
+
 	checks := make([]CheckItem, 0, 32)
-	checks = append(checks, checkProductBasics(prod)...)
+	checks = append(checks, checkProductBasics(effectiveProduct)...)
 	checks = append(checks, checkSKUBasics(prod)...)
-	checks = append(checks, s.checkSKUPricing(ctx, prod, plat)...)
+	checks = append(checks, s.checkSKUPricing(ctx, effectiveProduct, plat)...)
 	checks = append(checks, checkPinduoduoCollectHints(prod)...)
 	checks = append(checks, checkTaobaoTmallCollectHints(prod)...)
 	checks = append(checks, checkTaobaoTmallExternalImages(prod)...)
@@ -84,7 +94,7 @@ func (s *Service) CheckProductReadiness(ctx context.Context, req CheckProductRea
 	checks = append(checks, checkInventoryHints(prod)...)
 
 	if plat != "" {
-		pc, err := s.checkPlatform(ctx, plat, req.ShopID, prod, req.PublishOptions)
+		pc, err := s.checkPlatform(ctx, plat, req.ShopID, prod, effectivePublishOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -837,7 +847,67 @@ func (s *Service) checkPlatform(ctx context.Context, plat string, shopID *uuid.U
 		out = append(out, s.checkDouyinListingConfig(ctx, prod)...)
 	}
 	if plat == "ozon" {
-		out = append(out, s.checkOzonListingConfig(ctx, prod, shopID)...)
+		out = append(out, s.checkOzonListingConfig(ctx, prod, shopID, publishOpts)...)
 	}
 	return out, nil
+}
+
+func (s *Service) prepareOzonReadinessInputs(ctx context.Context, prod product.Product, shopID *uuid.UUID, publishOptions map[string]any) (product.Product, map[string]any, error) {
+	effective := prod
+	options := make(map[string]any, len(publishOptions)+8)
+	for key, value := range publishOptions {
+		options[key] = value
+	}
+	cfg, _, err := product.FindProductPlatformPublishConfig(ctx, s.DB, prod.ID, "ozon", shopID, true)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return product.Product{}, nil, err
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		cfg = nil
+	}
+	preset := map[string]string{}
+	if s.Settings != nil {
+		preset, err = s.Settings.PlainByGroup(ctx, 0, "platform_publish_ozon")
+		if err != nil {
+			return product.Product{}, nil, err
+		}
+	}
+	contractCurrency := coerceAnyToStringReadiness(options["currency_code"])
+	resolved := product.ResolveOzonListing(prod, cfg, preset, contractCurrency)
+	effective.Title = resolved.Title.Value
+	effective.Description = resolved.Description.Value
+	effective.Currency = resolved.Currency.Value
+	effective.SKUs = append([]product.ProductSKU(nil), prod.SKUs...)
+	resolvedSKUs := make(map[uuid.UUID]product.OzonResolvedSKUListingDTO, len(resolved.SKUs))
+	for _, sku := range resolved.SKUs {
+		resolvedSKUs[sku.SKUID] = sku
+	}
+	for index := range effective.SKUs {
+		if sku, ok := resolvedSKUs[effective.SKUs[index].ID]; ok {
+			price := sku.Price.Value
+			effective.SKUs[index].Price = &price
+		}
+	}
+	if resolved.Package.WeightG.Value > 0 {
+		options["default_weight"] = resolved.Package.WeightG.Value
+	}
+	if resolved.Package.WidthMM.Value > 0 {
+		options["default_width"] = resolved.Package.WidthMM.Value
+	}
+	if resolved.Package.HeightMM.Value > 0 {
+		options["default_height"] = resolved.Package.HeightMM.Value
+	}
+	if resolved.Package.DepthMM.Value > 0 {
+		options["default_depth"] = resolved.Package.DepthMM.Value
+	}
+	if resolved.Package.WarehouseID.Value != "" {
+		options["warehouse_id"] = resolved.Package.WarehouseID.Value
+	}
+	if resolved.Package.VAT.Value != "" {
+		options["vat"] = resolved.Package.VAT.Value
+	}
+	if resolved.Currency.Value != "" {
+		options["currency_code"] = resolved.Currency.Value
+	}
+	return effective, options, nil
 }

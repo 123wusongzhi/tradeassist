@@ -222,7 +222,7 @@ export default function MultiPlatformPublishCenter({
           message="多平台刊登中心"
           description={
             <>
-              选择要刊登的平台和店铺，检查后可批量创建刊登草稿。当前不会直接上架；未接入真实接口的平台仅生成本地草稿与任务快照。
+              选择要刊登的平台和店铺，检查后可批量保存本地快照。当前不会直接上架；未接入真实接口的平台只保留本地快照和处理记录。
               抖店继续使用现有平台草稿链路。批量多商品发布将在下一阶段开放。
             </>
           }
@@ -377,7 +377,7 @@ export default function MultiPlatformPublishCenter({
                         </Tag>{' '}
                         {t.platformLabel}
                         {t.shopName ? ` / ${t.shopName}` : ''}
-                        {t.localDraftOnly ? '（本地草稿）' : ''}
+                        {t.localDraftOnly ? '（仅本地快照）' : ''}
                         {t.errorMessage ? (
                           <Typography.Text type="danger"> — {t.errorMessage}</Typography.Text>
                         ) : null}

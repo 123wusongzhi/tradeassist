@@ -1,728 +1,554 @@
-import { expect, test } from '../fixtures/admin.fixture';
-import { E2E_PRODUCT_ID, e2eProductList } from '../mocks/product.fixture';
+import type { Page } from "@playwright/test";
+import { expect, test } from "../fixtures/admin.fixture";
+import { e2eUser } from "../mocks/auth";
+import { fail, ok } from "../mocks/envelope";
+import { E2E_PRODUCT_ID } from "../mocks/product.fixture";
 import {
   E2E_OZON_CATEGORY_ID,
   E2E_OZON_SHOP_ID,
   e2eOzonConfig,
-} from '../mocks/ozon-publish';
+} from "../mocks/ozon-publish";
+import { e2eShops } from "../mocks/publish";
+import {
+  expectHeaderContentAligned,
+  expectNoRootOverflow,
+} from "../utils/assertions";
 
-const pagePath = `/product/ozon-publish?productId=${E2E_PRODUCT_ID}`;
+const centerPath = `/product/publishing-center?productId=${E2E_PRODUCT_ID}&shopId=${E2E_OZON_SHOP_ID}`;
+const configPath = `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`;
+const fiveViewports = [
+  { width: 1440, height: 900 },
+  { width: 1280, height: 800 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 900 },
+  { width: 375, height: 812 },
+];
 
-async function openStage(page: import('@playwright/test').Page, stage: string) {
-  await page.goto(`${pagePath}&stage=${stage}`);
+function cloneConfig() {
+  return JSON.parse(JSON.stringify(e2eOzonConfig)) as typeof e2eOzonConfig;
+}
+
+async function routeConfigReads(
+  page: Page,
+  read: (url: URL) => unknown = () => cloneConfig(),
+) {
+  await page.route(new RegExp(`${configPath}(?:\\?.*)?$`), async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(ok(read(new URL(route.request().url())))),
+    });
+  });
+}
+
+async function expectCenterReady(page: Page) {
   await expect(
-    page.getByRole('tab', {
-      name:
-        stage === 'sync'
-          ? '同步状态'
-          : stage === 'mapping'
-            ? '类目映射库'
-            : stage === 'config'
-              ? '商品配置'
-              : stage === 'preflight'
-                ? '发布前检查'
-                : '草稿与提交',
-    }),
-  ).toHaveAttribute('aria-selected', 'true', { timeout: 30_000 });
+    page.getByText("刊登中心", { exact: true }).first(),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Ozon 标题" })).toHaveValue(
+    "E2E Ozon 店铺标题",
+  );
+  await expect(page.getByLabel("即时检查与最终提交预览")).toBeVisible();
 }
 
-async function expectNoRootOverflow(page: import('@playwright/test').Page) {
-  const dimensions = await page.evaluate(() => ({
-    html: [
-      document.documentElement.scrollWidth,
-      document.documentElement.clientWidth,
-    ],
-    body: [document.body.scrollWidth, document.body.clientWidth],
-  }));
-  expect(
-    dimensions.html[0],
-    `html overflow ${dimensions.html.join(' > ')}`,
-  ).toBeLessThanOrEqual(dimensions.html[1]);
-  expect(
-    dimensions.body[0],
-    `body overflow ${dimensions.body.join(' > ')}`,
-  ).toBeLessThanOrEqual(dimensions.body[1]);
-}
+const readinessPassed = {
+  productId: E2E_PRODUCT_ID,
+  platform: "ozon",
+  shopId: E2E_OZON_SHOP_ID,
+  mode: "publish",
+  status: "passed",
+  statusLabel: "检查通过",
+  result: "passed",
+  resultLabel: "通过",
+  canPublish: true,
+  errorCount: 0,
+  warningCount: 0,
+  checks: [],
+  checkedAt: "2026-08-04T00:00:00Z",
+  schemaHash: "e2e-schema-v1",
+  schemaChanged: false,
+  resolvedOzon: e2eOzonConfig.ozonPreview,
+};
 
-test.describe('@ozon-publish Ozon 类目与刊登流程', () => {
-  test('shows async sync task processing, four change states, and preserves deep-link stage', async ({
-    page,
-  }) => {
-    await openStage(page, 'sync');
-    for (const change of ['added', 'changed', 'deactivated', 'reactivated'])
-      await expect(page.getByText(change, { exact: true })).toBeVisible();
-    await expect(
-      page.getByText('任务已创建，等待处理', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/全量同步只更新 TradeMind 的 Ozon 类目树缓存/),
-    ).toBeVisible();
-    await page.getByRole('tab', { name: '类目映射库' }).click();
-    await expect(page).toHaveURL(/stage=mapping/);
-    await page.reload();
-    await expect(page.getByRole('tab', { name: '类目映射库' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-  });
-
-  test('keeps recommendation unconfirmed and confirms a category group with one guarded write', async ({
+test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
+  test("redirects the legacy deep link and preserves product/store context", async ({
     admin,
     page,
   }) => {
-    admin.writeGuard.allow({
-      operation: 'group-check',
-      method: 'POST',
-      path: /\/api\/v1\/product-publish\/ozon\/category-groups\/check$/,
-      response: {
-        code: 0,
-        message: 'ok',
-        data: {
-          groups: [
-            {
-              key: 'e2e-source-table',
-              sourceCategoryKey: 'e2e-source-table',
-              sourceCategoryName: 'E2E 本地桌子',
-              productIds: [E2E_PRODUCT_ID],
-              recommendedCategoryId: E2E_OZON_CATEGORY_ID,
-              recommendedCategoryPath: '家具 / 桌子',
-              status: 'ready',
-              statusLabel: '可确认',
-            },
-          ],
-        },
-      },
+    const reads: string[] = [];
+    await routeConfigReads(page, (url) => {
+      reads.push(url.searchParams.get("shopId") || "");
+      return cloneConfig();
     });
-    admin.writeGuard.allow({
-      operation: 'group-confirm',
-      method: 'POST',
-      path: /\/api\/v1\/product-publish\/ozon\/category-groups\/confirm$/,
-      response: { code: 0, message: 'ok', data: {} },
+
+    await admin.goto(
+      `/product/ozon-publish?productId=${E2E_PRODUCT_ID}&shopId=${E2E_OZON_SHOP_ID}`,
+    );
+
+    // The first local MFSU visit may still be compiling this lazy route even
+    // after the login route has made Playwright's web server probe ready.
+    await expect(page).toHaveURL(/\/product\/publishing-center\?/, {
+      timeout: 30_000,
     });
-    await openStage(page, 'mapping');
-    await page
-      .getByRole('button', { name: '检查批量类目分组' })
-      .locator('..')
-      .locator('.ant-select')
-      .click();
-    await page.keyboard.press('ArrowDown');
-    await page.keyboard.press('Enter');
-    await page.getByRole('button', { name: '检查批量类目分组' }).click();
-    await expect(page.getByText(/推荐候选，尚未确认/)).toBeVisible();
-    await page.getByRole('button', { name: '确认本组类目' }).click();
-    await admin.writeGuard.expectRequestCount('group-confirm', 1);
-    expect(admin.writeGuard.calls('group-confirm')[0].postDataJSON).toEqual({
-      shopId: E2E_OZON_SHOP_ID,
-      groups: [
-        {
-          sourceCategoryKey: 'e2e-source-table',
-          sourceCategoryName: 'E2E 本地桌子',
-          productIds: [E2E_PRODUCT_ID],
-          categoryId: E2E_OZON_CATEGORY_ID,
-          categoryPath: '家具 / 桌子',
-        },
-      ],
-      saveMappings: false,
-    });
+    await expectCenterReady(page);
+    expect(reads).toContain(E2E_OZON_SHOP_ID);
   });
 
-  test('blocks preflight and submit while product configuration has unsaved changes', async ({
-    page,
-  }) => {
-    await openStage(page, 'config');
-    await page
-      .getByRole('textbox', { name: '本地类目说明' })
-      .fill('尚未保存的类目说明');
-    await expect(
-      page.getByText('商品级 Ozon 配置有未保存的修改'),
-    ).toBeVisible();
-
-    await page.getByRole('tab', { name: '发布前检查' }).click();
-    await expect(
-      page.getByRole('button', { name: '运行发布前检查' }),
-    ).toBeDisabled();
-    await page.getByRole('tab', { name: '草稿与提交' }).click();
-    await expect(
-      page.getByRole('button', { name: '创建本地草稿' }),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole('button', { name: '提交到 Ozon' }),
-    ).toBeDisabled();
-  });
-
-  test('updates an existing product config and keeps it after refresh', async ({
+  test("saves one product + Ozon store configuration and restores the same values", async ({
     admin,
     page,
   }) => {
-    let persisted = { ...e2eOzonConfig };
-    await page.route(
-      new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon(?:\\?.*)?$`,
-      ),
-      async (route) => {
-        if (route.request().method() !== 'GET') {
-          await route.fallback();
-          return;
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ code: 0, message: 'ok', data: persisted }),
-        });
-      },
-    );
+    let persisted: Record<string, unknown> = cloneConfig();
+    const readShops: string[] = [];
+    await routeConfigReads(page, (url) => {
+      readShops.push(url.searchParams.get("shopId") || "");
+      return persisted;
+    });
     admin.writeGuard.allow({
-      operation: 'ozon-config-update',
-      method: 'PUT',
-      path: new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
-      ),
+      operation: "save-ozon-store-config",
+      method: "PUT",
+      path: new RegExp(`${configPath}$`),
       response: (record) => {
+        const body = record.postDataJSON as {
+          ozonListing: {
+            titleOverride?: string;
+            skuPriceOverrides: Record<string, number>;
+          };
+          ozonImages: unknown;
+          platformAttributes: unknown;
+        } & Record<string, unknown>;
+        const base = cloneConfig();
         persisted = {
-          ...persisted,
-          ...(record.postDataJSON as Partial<typeof persisted>),
-          id: e2eOzonConfig.id,
+          ...base,
+          ...body,
+          id: base.id,
+          ozonImages: base.ozonImages,
+          ozonPreview: {
+            ...base.ozonPreview,
+            title: {
+              value:
+                body.ozonListing.titleOverride || base.ozonPreview.title.value,
+              source: "ozon_product_shop_config",
+            },
+            skus: base.ozonPreview.skus.map((sku) => ({
+              ...sku,
+              price: {
+                value:
+                  body.ozonListing.skuPriceOverrides[sku.skuId] ??
+                  sku.price.value,
+                source: "ozon_product_shop_config",
+              },
+            })),
+          },
         };
-        return { code: 0, message: 'ok', data: persisted };
+        return ok(persisted);
       },
     });
 
-    await openStage(page, 'config');
-    const sourceCategory = page.getByRole('textbox', {
-      name: '本地类目说明',
-    });
-    await sourceCategory.fill('E2E 已更新类目');
-    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
-    await admin.writeGuard.expectRequestCount('ozon-config-update', 1);
-    await expect(
-      page.getByText('商品级 Ozon 配置已保存，尚未提交到 Ozon。'),
-    ).toBeVisible();
-    expect(persisted.id).toBe(e2eOzonConfig.id);
-    expect(persisted.sourceCategoryName).toBe('E2E 已更新类目');
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await page
+      .getByRole("textbox", { name: "Ozon 标题" })
+      .fill("E2E 店铺 A 独立刊登标题");
+    await page.getByRole("spinbutton", { name: "Ozon 售价" }).fill("2099");
+    await page.getByRole("button", { name: "保存当前编辑（不提交）" }).click();
+
+    await admin.writeGuard.expectRequestCount("save-ozon-store-config", 1);
+    const body = admin.writeGuard.calls("save-ozon-store-config")[0]
+      .postDataJSON as {
+      shopId: string;
+      platformAttributes: {
+        version: number;
+        attributes: Record<string, unknown[]>;
+        complexGroups: Array<{
+          complexId: number;
+          attributes: Record<string, unknown[]>;
+        }>;
+      };
+      ozonListing: {
+        titleOverride?: string;
+        skuPriceOverrides: Record<string, number>;
+      };
+      ozonImages: { skuSelections: unknown[] };
+    };
+    expect(body.shopId).toBe(E2E_OZON_SHOP_ID);
+    expect(body.ozonListing.titleOverride).toBe("E2E 店铺 A 独立刊登标题");
+    expect(body.ozonListing.skuPriceOverrides).toEqual({ "e2e-sku-1": 2099 });
+    expect(body.ozonListing).not.toHaveProperty("stock");
+    expect(body).not.toHaveProperty("stock");
+    expect(body.platformAttributes.version).toBe(2);
+    expect(body.platformAttributes.attributes["86"]).toHaveLength(2);
+    expect(body.platformAttributes.complexGroups).toEqual([
+      {
+        complexId: 501,
+        attributes: { "87": [{ value: "棉" }] },
+      },
+    ]);
+    expect(body.ozonImages.skuSelections).toHaveLength(1);
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
 
     await page.reload();
-    await expect(sourceCategory).toHaveValue('E2E 已更新类目');
+    await expect(page.getByRole("textbox", { name: "Ozon 标题" })).toHaveValue(
+      "E2E 店铺 A 独立刊登标题",
+    );
+    await expect(
+      page.getByRole("spinbutton", { name: "Ozon 售价" }),
+    ).toHaveValue("2099.00");
+    expect(readShops.length).toBeGreaterThanOrEqual(2);
+    expect(readShops.every((value) => value === E2E_OZON_SHOP_ID)).toBe(true);
   });
 
-  test('shows an actionable permission reason instead of internal error', async ({
+  test("requires confirmation before switching away from unsaved store edits", async ({
     admin,
     page,
   }) => {
-    admin.consoleGuard.allow(
-      /^Failed to load resource: the server responded with a status of 403 \(Forbidden\)$/,
-    );
+    const secondShopId = "e2e-ozon-shop-second";
+    await routeConfigReads(page);
+    await page.route("**/api/v1/shops?**", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      const secondShop = {
+        ...e2eShops.find((shop) => shop.id === E2E_OZON_SHOP_ID)!,
+        id: secondShopId,
+        shopName: "E2E Ozon 第二店铺",
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          ok({
+            list: [...e2eShops, secondShop],
+            pagination: { page: 1, pageSize: 500, total: 3, totalPages: 1 },
+          }),
+        ),
+      });
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    const title = page.getByRole("textbox", { name: "Ozon 标题" });
+    await title.fill("尚未保存的店铺编辑");
+    const shopControl = page
+      .locator(".publishing-center__context-grid > div")
+      .filter({ hasText: "Ozon 店铺" });
+    await shopControl.locator(".ant-select-selector").click();
+    await page.getByText("E2E Ozon 第二店铺", { exact: true }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "放弃未保存的刊登编辑？",
+    });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "继续编辑" }).click();
+    await expect(title).toHaveValue("尚未保存的店铺编辑");
+    await expect(page).toHaveURL(new RegExp(`shopId=${E2E_OZON_SHOP_ID}`));
+
+    await shopControl.locator(".ant-select-selector").click();
+    await page.getByText("E2E Ozon 第二店铺", { exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "放弃未保存的刊登编辑？" })
+      .getByRole("button", { name: "放弃并切换" })
+      .click();
+    await expect(page).toHaveURL(new RegExp(`shopId=${secondShopId}`));
+  });
+
+  test("uses read-only backend preflight, requires a second confirmation, and submits once", async ({
+    admin,
+    page,
+  }) => {
+    const task = {
+      id: "e2e-ozon-publish-task",
+      productId: E2E_PRODUCT_ID,
+      shopId: E2E_OZON_SHOP_ID,
+      shopName: "E2E Ozon 测试店铺",
+      productTitle: "E2E Ozon 店铺标题",
+      platform: "ozon",
+      taskType: "product_publish",
+      status: "pending",
+      mode: "publish",
+      createdAt: "2026-08-04T00:00:00Z",
+      updatedAt: "2026-08-04T00:00:00Z",
+    };
     admin.writeGuard.allow({
-      operation: 'ozon-preflight-forbidden',
-      method: 'POST',
+      operation: "ozon-readonly-preflight",
+      method: "POST",
       path: new RegExp(
         `/api/v1/products/${E2E_PRODUCT_ID}/readiness/validate$`,
       ),
-      status: 403,
-      response: {
-        code: 40302,
-        message:
-          '全局管理员仅可跨租户查看，不能代表目标租户执行写操作；请使用目标租户管理员账号',
-        data: { errorCode: 'CROSS_TENANT_OPERATION_FORBIDDEN' },
-        traceId: 'e2e-ozon-forbidden',
-      },
-    });
-
-    await openStage(page, 'preflight');
-    await page.getByRole('button', { name: '运行发布前检查' }).click();
-    await admin.writeGuard.expectRequestCount('ozon-preflight-forbidden', 1);
-    const errorMessage = page.getByText(/当前为跨租户只读查看/);
-    await expect(errorMessage).toBeVisible();
-    await expect(page.getByText(/internal error/i)).toHaveCount(0);
-  });
-
-  test('disables tenant writes during a global-admin cross-tenant view', async ({
-    page,
-  }) => {
-    await page.route(/\/api\/v1\/products(?:\?.*)?$/, (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: 0,
-          message: 'ok',
-          data: {
-            list: [{ ...e2eProductList[0], tenantId: 1 }],
-            pagination: {
-              page: 1,
-              pageSize: 100,
-              total: 1,
-              totalPages: 1,
-            },
-          },
-        }),
-      }),
-    );
-    await openStage(page, 'config');
-    await expect(
-      page.getByText('当前为跨租户只读查看', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '保存商品级 Ozon 配置' }),
-    ).toBeDisabled();
-    await page.getByRole('tab', { name: '发布前检查' }).click();
-    await expect(
-      page.getByRole('button', { name: '运行发布前检查' }),
-    ).toBeDisabled();
-  });
-
-  test('previews per-SKU image order, applies a bulk choice, and saves adjustable selections locally', async ({
-    admin,
-    page,
-  }) => {
-    admin.writeGuard.allow({
-      operation: 'save-ozon-sku-images',
-      method: 'PUT',
-      path: new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
-      ),
-      response: { code: 0, message: 'ok', data: e2eOzonConfig },
-    });
-    await openStage(page, 'config');
-    await expect(page.getByText('红色 / M', { exact: true })).toBeVisible();
-    await expect(page.getByText('蓝色 / L', { exact: true })).toBeVisible();
-    await expect(
-      page.getByText('SKU 原始主图', { exact: true }).first(),
-    ).toBeVisible();
-
-    const bulk = page.locator('[aria-label="批量选择商品公共图片"]');
-    await bulk.getByRole('checkbox', { name: /图片 2/ }).check();
-    await page.getByRole('button', { name: '应用到所有 SKU' }).click();
-
-    const red = page.locator('section[aria-label="SKU 图片配置：红色 / M"]');
-    const blue = page.locator('section[aria-label="SKU 图片配置：蓝色 / L"]');
-    await expect(red.getByAltText('红色 / M 提交图片 1')).toHaveAttribute(
-      'src',
-      'https://example.test/ozon-red.jpg',
-    );
-    await expect(red.getByAltText('红色 / M 提交图片 2')).toHaveAttribute(
-      'src',
-      'https://example.test/ozon-shared-2.jpg',
-    );
-    await blue.getByRole('checkbox', { name: '图片 2' }).uncheck();
-    await blue.getByRole('checkbox', { name: '图片 1' }).check();
-    await expect(blue.getByAltText('蓝色 / L 提交图片 1')).toHaveAttribute(
-      'src',
-      'https://example.test/ozon-blue.jpg',
-    );
-    await expect(blue.getByAltText('蓝色 / L 提交图片 2')).toHaveAttribute(
-      'src',
-      'https://example.test/ozon-shared-1.jpg',
-    );
-
-    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
-    await admin.writeGuard.expectRequestCount('save-ozon-sku-images', 1);
-    expect(
-      admin.writeGuard.calls('save-ozon-sku-images')[0].postDataJSON.ozonImages,
-    ).toEqual({
-      version: 1,
-      skuSelections: [
-        {
-          skuId: 'e2e-ozon-sku-red',
-          additionalImageIds: ['e2e-ozon-shared-2'],
-        },
-        {
-          skuId: 'e2e-ozon-sku-blue',
-          additionalImageIds: ['e2e-ozon-shared-1'],
-        },
-      ],
-    });
-  });
-
-  test('names a SKU with no collected image and persists an explicit fallback main image', async ({
-    admin,
-    page,
-  }) => {
-    const missingConfig = {
-      ...e2eOzonConfig,
-      ozonImages: {
-        ...e2eOzonConfig.ozonImages,
-        skus: [
-          {
-            skuId: 'e2e-ozon-sku-missing',
-            skuCode: 'OZON-NO-IMAGE',
-            skuName: '无原图 / XL',
-            attrs: { 尺码: 'XL' },
-            additionalImageIds: [],
-            finalImages: [],
-            canPublish: false,
-            issues: [
-              {
-                code: 'OZON_SKU_MAIN_IMAGE_MISSING',
-                skuId: 'e2e-ozon-sku-missing',
-                message:
-                  'SKU「无原图 / XL」缺少原始主图，且未指定可追溯的替代主图',
-                suggestion: '请明确选择替代主图。',
-              },
-            ],
-          },
-        ],
-        errorCount: 1,
-      },
-    };
-    await page.route(
-      `**/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`,
-      (route) =>
-        route.request().method() === 'GET'
-          ? route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                code: 0,
-                message: 'ok',
-                data: missingConfig,
-              }),
-            })
-          : route.fallback(),
-    );
-    admin.writeGuard.allow({
-      operation: 'save-ozon-fallback-image',
-      method: 'PUT',
-      path: new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
-      ),
-      response: { code: 0, message: 'ok', data: e2eOzonConfig },
-    });
-    await openStage(page, 'config');
-    await expect(
-      page.getByText(/SKU「无原图 \/ XL」缺少原始主图/),
-    ).toBeVisible();
-    const fallback = page.getByRole('combobox', {
-      name: '为 无原图 / XL 选择替代主图',
-    });
-    await fallback.click();
-    await page
-      .locator('.ant-select-item-option-content')
-      .filter({ hasText: '图片 1 · main' })
-      .click();
-    const card = page.locator(
-      'section[aria-label="SKU 图片配置：无原图 / XL"]',
-    );
-    await expect(card.getByText('人工替代主图', { exact: true })).toBeVisible();
-    await expect(card.getByText('图片可提交', { exact: true })).toBeVisible();
-
-    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
-    await admin.writeGuard.expectRequestCount('save-ozon-fallback-image', 1);
-    expect(
-      admin.writeGuard.calls('save-ozon-fallback-image')[0].postDataJSON
-        .ozonImages.skuSelections,
-    ).toEqual([
-      {
-        skuId: 'e2e-ozon-sku-missing',
-        fallbackMainImageId: 'e2e-ozon-shared-1',
-        additionalImageIds: [],
-      },
-    ]);
-  });
-
-  test('can clear stale image selections after the SKU original image changes', async ({
-    admin,
-    page,
-  }) => {
-    const changedImageConfig = {
-      ...e2eOzonConfig,
-      ozonImages: {
-        ...e2eOzonConfig.ozonImages,
-        sharedImages: [],
-        skus: [
-          {
-            skuId: 'e2e-ozon-sku-red',
-            skuCode: 'OZON-RED-M',
-            skuName: '红色 / M',
-            originalMainImageUrl: 'https://example.test/ozon-red.jpg',
-            fallbackMainImageId: 'e2e-ozon-shared-1',
-            additionalImageIds: ['e2e-ozon-deleted-image'],
-            finalImages: [
-              {
-                url: 'https://example.test/ozon-red.jpg',
-                source: 'sku_original',
-                position: 1,
-                imageType: 'main',
-              },
-            ],
-            canPublish: false,
-            issues: [
-              {
-                code: 'OZON_SKU_FALLBACK_NOT_ALLOWED',
-                skuId: 'e2e-ozon-sku-red',
-                message: 'SKU 已有原始主图，不能同时保存替代主图',
-              },
-              {
-                code: 'OZON_SKU_SHARED_IMAGE_STALE',
-                skuId: 'e2e-ozon-sku-red',
-                message: 'SKU 选择的商品公共图片已不存在或不可用',
-              },
-            ],
-          },
-        ],
-        errorCount: 2,
-      },
-    };
-    await page.route(
-      `**/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`,
-      (route) =>
-        route.request().method() === 'GET'
-          ? route.fulfill({
-              status: 200,
-              contentType: 'application/json',
-              body: JSON.stringify({
-                code: 0,
-                message: 'ok',
-                data: changedImageConfig,
-              }),
-            })
-          : route.fallback(),
-    );
-    admin.writeGuard.allow({
-      operation: 'clear-stale-ozon-images',
-      method: 'PUT',
-      path: new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon$`,
-      ),
-      response: { code: 0, message: 'ok', data: e2eOzonConfig },
-    });
-
-    await openStage(page, 'config');
-    await page.getByRole('button', { name: '清除已保存的替代主图' }).click();
-    await page.getByRole('button', { name: '清空该 SKU 的追加图片' }).click();
-    await expect(page.getByText('图片可提交', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '保存商品级 Ozon 配置' }).click();
-
-    await admin.writeGuard.expectRequestCount('clear-stale-ozon-images', 1);
-    expect(
-      admin.writeGuard.calls('clear-stale-ozon-images')[0].postDataJSON
-        .ozonImages.skuSelections,
-    ).toEqual([
-      {
-        skuId: 'e2e-ozon-sku-red',
-        additionalImageIds: [],
-      },
-    ]);
-  });
-
-  test('shows a deactivated Ozon credential and restores the last usable category', async ({
-    admin,
-    page,
-  }) => {
-    const unavailableCategoryId = '101:201';
-    await page.route('**/api/v1/platform/ozon/categories?**', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          code: 0,
-          message: 'ok',
-          data: {
-            list: [
-              {
-                id: 'e2e-unavailable-category',
-                categoryId: unavailableCategoryId,
-                name: '失效凭证测试类目',
-                descriptionCategoryId: '101',
-                typeId: '201',
-                isLeaf: true,
-                status: 'active',
-              },
-            ],
-            total: 1,
-          },
-        }),
-      }),
-    );
-    admin.writeGuard.allow({
-      operation: 'category-attribute-sync-invalid-credential',
-      method: 'POST',
-      path: /\/api\/v1\/platform\/ozon\/categories\/101(?:%3A|:)201\/attributes\/sync$/i,
-      response: {
-        code: 40001,
-        message:
-          'Ozon 店铺授权已失效或 API Key 已停用，请前往店铺管理更新凭证后重试',
-        data: { errorCode: 'OZON_CATEGORY_ATTR_SYNC_FAILED' },
-        traceId: 'e2e-ozon-invalid-credential',
-      },
-    });
-
-    await openStage(page, 'config');
-    const category = page.getByRole('combobox', { name: 'Ozon 叶类目' });
-    await category.fill('失效凭证测试类目');
-    await category.click();
-    const unavailableOption = page
-      .locator('.ant-select-item-option-content')
-      .filter({ hasText: '失效凭证测试类目（101）' });
-    await expect(unavailableOption).toBeVisible();
-    await unavailableOption.click();
-
-    await admin.writeGuard.expectRequestCount(
-      'category-attribute-sync-invalid-credential',
-      1,
-    );
-    await expect(
-      page.getByText('Ozon 类目属性模板同步失败', { exact: true }),
-    ).toBeVisible();
-    const templateError = page
-      .locator('.ant-alert-error')
-      .filter({ hasText: 'Ozon 类目属性模板同步失败' });
-    await expect(templateError).toContainText('API Key 已停用');
-    await expect(templateError).toContainText('已恢复上一个可用类目');
-    await expect(
-      page.locator(
-        `.ant-select-selection-item[title="${E2E_OZON_CATEGORY_ID}"]`,
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '保存商品级 Ozon 配置' }),
-    ).toBeEnabled();
-    expect(admin.writeGuard.allCalls()).toHaveLength(1);
-  });
-
-  test('blocks submit when the live schema has changed and performs no write', async ({
-    page,
-  }) => {
-    await page.route(
-      `**/api/v1/products/${E2E_PRODUCT_ID}/readiness/validate`,
-      (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            code: 0,
-            message: 'ok',
-            data: {
-              canPublish: false,
-              schemaChanged: true,
-              schemaHash: 'e2e-schema-v2',
-              checkedAt: '2026-08-03T00:00:00Z',
-              checks: [
-                {
-                  code: 'OZON_SCHEMA_CHANGED',
-                  level: 'error',
-                  title: '属性模板已变化',
-                  message: '请重新确认类目和属性。',
-                },
-              ],
-            },
-          }),
-        }),
-    );
-    await openStage(page, 'preflight');
-    await page.getByRole('button', { name: '运行发布前检查' }).click();
-    await expect(page.getByText('检查未通过，不能提交到 Ozon')).toBeVisible();
-    await page.getByRole('tab', { name: '草稿与提交' }).click();
-    await expect(
-      page.getByRole('button', { name: '提交到 Ozon' }),
-    ).toBeDisabled();
-  });
-
-  test('distinguishes local draft from real submit and sends one idempotent request after confirmation', async ({
-    admin,
-    page,
-  }) => {
-    admin.writeGuard.allow({
-      operation: 'local-draft',
-      method: 'POST',
-      path: new RegExp(
-        `/api/v1/products/${E2E_PRODUCT_ID}/publish-targets/create-drafts$`,
-      ),
-      response: { code: 0, message: 'ok', data: {} },
+      response: ok(readinessPassed),
     });
     admin.writeGuard.allow({
-      operation: 'ozon-submit',
-      method: 'POST',
+      operation: "publish-ozon",
+      method: "POST",
       path: new RegExp(`/api/v1/products/${E2E_PRODUCT_ID}/publish$`),
-      response: {
-        code: 0,
-        message: 'ok',
-        data: {
-          id: 'e2e-ozon-task',
-          status: 'queued',
-          productId: E2E_PRODUCT_ID,
-          shopId: E2E_OZON_SHOP_ID,
-          platform: 'ozon',
-          createdAt: '2026-08-03T00:00:00Z',
-          updatedAt: '2026-08-03T00:00:00Z',
-        },
-      },
+      response: ok(task),
     });
-    await page.route(
-      `**/api/v1/products/${E2E_PRODUCT_ID}/readiness/validate`,
-      (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            code: 0,
-            message: 'ok',
-            data: {
-              canPublish: true,
-              schemaChanged: false,
-              schemaHash: 'e2e-schema-v1',
-              checkedAt: '2026-08-03T00:00:00Z',
-              checks: [],
-            },
-          }),
-        }),
-    );
-    await openStage(page, 'submit');
-    await page.getByRole('button', { name: '创建本地草稿' }).click();
-    await admin.writeGuard.expectRequestCount('local-draft', 1);
-    await expect(page.getByText('本地草稿已创建，未调用 Ozon。')).toBeVisible();
+    await page.route("**/api/v1/product-publish/tasks**", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      const path = new URL(route.request().url()).pathname;
+      const data = path.endsWith(`/${task.id}`)
+        ? task
+        : {
+            list: [task],
+            pagination: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+          };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(ok(data)),
+      });
+    });
 
-    await openStage(page, 'preflight');
-    await page.getByRole('button', { name: '运行发布前检查' }).click();
-    await page.getByRole('tab', { name: '草稿与提交' }).click();
-    await expect(page.getByRole('tab', { name: '草稿与提交' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    );
-    await page.getByRole('button', { name: '提交到 Ozon' }).click();
-    const dialog = page.getByRole('dialog', { name: '确认提交到 Ozon？' });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole('button', { name: /取\s*消/ }).click();
-    await admin.writeGuard.expectRequestCount('ozon-submit', 0);
-    await page.getByRole('button', { name: '提交到 Ozon' }).click();
-    await dialog
-      .getByRole('button', { name: '创建 Ozon 提交任务' })
-      .click({ clickCount: 2 });
-    await admin.writeGuard.expectRequestCount('ozon-submit', 1);
-    const record = admin.writeGuard.calls('ozon-submit')[0];
-    expect(record.postDataJSON).toEqual({
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await page.getByRole("button", { name: "检查并进入提交确认" }).click();
+
+    await admin.writeGuard.expectRequestCount("ozon-readonly-preflight", 1);
+    expect(
+      admin.writeGuard.calls("ozon-readonly-preflight")[0].postDataJSON,
+    ).toEqual({ platform: "ozon", shopId: E2E_OZON_SHOP_ID });
+    await expect(page.getByText("只读检查通过", { exact: true })).toBeVisible();
+    await expect(page.getByText(/库存：88/)).toBeVisible();
+    await expect(page.getByText(/本地库存/).last()).toBeVisible();
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
+
+    const submit = page
+      .locator(".publishing-center__actions")
+      .getByRole("button", { name: "确认提交到 Ozon" });
+    await submit.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "返回继续检查" }).click();
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
+
+    await submit.click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "确认提交到 Ozon" })
+      .click();
+    await admin.writeGuard.expectRequestCount("publish-ozon", 1);
+    const publishCall = admin.writeGuard.calls("publish-ozon")[0];
+    expect(publishCall.postDataJSON).toEqual({
       shopId: E2E_OZON_SHOP_ID,
-      options: { platform: 'ozon' },
+      options: { platform: "ozon" },
     });
-    expect(record.headers['idempotency-key']).toMatch(/^ozon-submit:/);
-    expect(record.url).toContain(`/api/v1/products/${E2E_PRODUCT_ID}/publish`);
-    await expect(
-      page.getByText('已创建提交任务，等待处理', { exact: true }),
-    ).toBeVisible();
-    expect(admin.writeGuard.allCalls()).toHaveLength(2);
+    expect(publishCall.headers["idempotency-key"]).toMatch(/^ozon-submit:/);
+    await expect(page).toHaveURL(/\/product\/publish-tasks\?/);
   });
 
-  test('has no root horizontal overflow at required viewports', async ({
+  test("keeps category synchronization in advanced maintenance and intercepts it", async ({
+    admin,
     page,
   }) => {
-    for (const viewport of [
-      [1440, 900],
-      [1280, 800],
-      [1024, 768],
-      [768, 900],
-      [375, 812],
-    ] as const) {
-      await page.setViewportSize({ width: viewport[0], height: viewport[1] });
-      await openStage(page, 'config');
-      await expect(
-        page.getByText('商品级 Ozon 配置', { exact: true }),
-      ).toBeVisible();
-      await expectNoRootOverflow(page);
-    }
+    admin.writeGuard.allow({
+      operation: "sync-ozon-category-cache",
+      method: "POST",
+      path: /\/api\/v1\/platform\/ozon\/categories\/sync$/,
+      response: ok({ runId: "e2e-ozon-sync-run" }),
+    });
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await page.getByText("高级类目维护", { exact: true }).click();
+    await page.getByRole("button", { name: "同步类目缓存" }).click();
+    await admin.writeGuard.expectRequestCount("sync-ozon-category-cache", 1);
+    expect(
+      admin.writeGuard.calls("sync-ozon-category-cache")[0].postDataJSON,
+    ).toEqual({ shopId: E2E_OZON_SHOP_ID });
+  });
+
+  test("shows loading, empty, error, and readonly states without issuing writes", async ({
+    page,
+  }) => {
+    let releaseConfig: (() => void) | undefined;
+    const pendingConfig = new Promise<void>((resolve) => {
+      releaseConfig = resolve;
+    });
+    await page.route(new RegExp(`${configPath}(?:\\?.*)?$`), async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      await pendingConfig;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(ok(cloneConfig())),
+      });
+    });
+    await page.goto(centerPath);
+    await expect(page.getByText("正在读取当前店铺配置…")).toBeVisible();
+    releaseConfig?.();
+    await expectCenterReady(page);
+
+    await page.route("**/api/v1/auth/profile", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          ok({
+            ...e2eUser,
+            permissions: ["product.view"],
+            storePermissions: [],
+          }),
+        ),
+      });
+    });
+    await page.reload();
     await expect(
-      page.getByRole('button', { name: '保存商品级 Ozon 配置' }),
-    ).toBeVisible();
-    await expect(page.getByText(e2eOzonConfig.sourceCategoryName)).toHaveCount(
-      0,
+      page.getByRole("button", { name: "保存当前编辑（不提交）" }),
+    ).toBeDisabled();
+
+    await page.route(new RegExp(`${configPath}(?:\\?.*)?$`), async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(fail("店铺级 Ozon 配置读取失败", 4404)),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.reload();
+    await expect(page.getByText("刊登中心加载失败")).toBeVisible();
+
+    await page.route("**/api/v1/products?**", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            ok({
+              list: [],
+              pagination: {
+                page: 1,
+                pageSize: 200,
+                total: 0,
+                totalPages: 1,
+              },
+            }),
+          ),
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.goto("/product/publishing-center");
+    await expect(page.getByText("请选择商品和 Ozon 店铺")).toBeVisible();
+  });
+
+  for (const viewport of fiveViewports) {
+    test(`has no root overflow and keeps the check panel first at ${viewport.width}x${viewport.height}`, async ({
+      admin,
+      page,
+    }) => {
+      await page.setViewportSize(viewport);
+      await admin.goto(centerPath);
+      await expectCenterReady(page);
+      await expectNoRootOverflow(page);
+      await expectHeaderContentAligned(page);
+      if (viewport.width <= 1024) {
+        const positions = await page.evaluate(() => {
+          const editor = document
+            .querySelector(".publishing-center__editor")
+            ?.getBoundingClientRect();
+          const check = document
+            .querySelector(".publishing-center__check-panel")
+            ?.getBoundingClientRect();
+          return { editorTop: editor?.top, checkTop: check?.top };
+        });
+        expect(positions.checkTop).toBeLessThanOrEqual(
+          positions.editorTop ?? Number.POSITIVE_INFINITY,
+        );
+      }
+    });
+  }
+});
+
+test.describe("@publishing-center 刊登进度", () => {
+  test("defaults to single submissions and gates Ozon retry by retryable=true", async ({
+    admin,
+    page,
+  }) => {
+    const nonRetryable = {
+      id: "e2e-ozon-uncertain",
+      productId: E2E_PRODUCT_ID,
+      shopId: E2E_OZON_SHOP_ID,
+      shopName: "E2E Ozon 测试店铺",
+      productTitle: "E2E Ozon 店铺标题",
+      platform: "ozon",
+      taskType: "product_publish",
+      status: "failed",
+      publishStatus: "result_uncertain",
+      mode: "publish",
+      retryable: false,
+      errorMessage: "Ozon 返回结果不确定",
+      platformProductId: "ozon-product-10001",
+      platformPayload: { offer_id: "E2E-SKU-1", price: "1990" },
+      platformResult: { result: "uncertain", request_id: "ozon-request-1" },
+      createdAt: "2026-08-04T00:00:00Z",
+      updatedAt: "2026-08-04T00:01:00Z",
+    };
+    const retryable = {
+      ...nonRetryable,
+      id: "e2e-ozon-retryable",
+      retryable: true,
+      errorMessage: "Ozon 明确返回限流错误",
+      platformProductId: undefined,
+    };
+    await page.route("**/api/v1/product-publish/tasks**", async (route) => {
+      if (route.request().method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      const path = new URL(route.request().url()).pathname;
+      const data = path.endsWith(`/${nonRetryable.id}`)
+        ? nonRetryable
+        : path.endsWith(`/${retryable.id}`)
+          ? retryable
+          : {
+              list: [nonRetryable, retryable],
+              pagination: {
+                page: 1,
+                pageSize: 20,
+                total: 2,
+                totalPages: 1,
+              },
+            };
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(ok(data)),
+      });
+    });
+
+    await admin.goto("/product/publish-tasks");
+    await expect(page.getByRole("tab", { name: "单品提交" })).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
+    await expect(
+      page.getByRole("tab", { name: "批次（高级）" }),
+    ).toHaveAttribute("aria-selected", "false");
+    await expect(page.getByText("请人工核对", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "重试" })).toHaveCount(1);
+
+    await page.getByText("查看", { exact: true }).first().click();
+    await expect(page.getByText(/刊登进度 e2e-ozon-uncertain/)).toBeVisible();
+    await expect(page.getByText(/业务状态：/)).toBeVisible();
+    await expect(page.getByText(/ozon-product-10001/)).toBeVisible();
+    await expect(page.getByText("返回商品刊登配置")).toBeVisible();
+    await expect(
+      page.getByText("该失败或不确定结果不可自动重试"),
+    ).toBeVisible();
+    await page.getByText("技术详情", { exact: true }).click();
+    await expect(page.getByText("最终提交快照", { exact: true })).toBeVisible();
+    await expect(page.getByText("平台返回结果", { exact: true })).toBeVisible();
   });
 });

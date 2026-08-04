@@ -274,9 +274,10 @@ func (s *Service) ensureDemoProduct(ctx context.Context, adminID *uuid.UUID, sho
 		return uuid.Nil, uuid.Nil, "", fmt.Errorf("demoseed: create sku: %w", err)
 	}
 	pubCfg := product.ProductPlatformPublishConfig{
-		ProductID: p.ID,
-		Platform:  "manual",
-		ShopID:    &shopID,
+		ProductID:      p.ID,
+		Platform:       "manual",
+		ConfigScopeKey: product.PlatformConfigLegacyScope,
+		ShopID:         &shopID,
 	}
 	id.Ensure(&pubCfg.ID)
 	if err := s.DB.WithContext(ctx).Create(&pubCfg).Error; err != nil {

@@ -206,7 +206,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 	if strings.TrimSpace(task.Status) != TaskFailed {
 		return nil, fmt.Errorf("only failed tasks can be retried")
 	}
-	if strings.EqualFold(strings.TrimSpace(task.Platform), "ozon") {
+	if strings.EqualFold(strings.TrimSpace(task.Platform), "ozon") && !task.Retryable {
 		// Ozon import can be accepted remotely even when our subsequent poll
 		// times out or returns an unknown result. Retrying would submit another
 		// import, so recovery must first reconcile the external result manually.
@@ -223,6 +223,7 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 			"finished_at":     nil,
 			"output":          nil,
 			"platform_result": nil,
+			"retryable":       false,
 			"locked_by":       nil,
 			"locked_until":    nil,
 			"updated_at":      reset,

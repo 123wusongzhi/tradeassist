@@ -6,8 +6,8 @@ export const WORKBENCH_TODO_TYPES = [
   { value: 'ai_image_conflict', label: 'AI 图片有冲突' },
   { value: 'publish_check_failed', label: '发布检查未通过' },
   { value: 'publish_check_warning', label: '发布检查建议处理' },
-  { value: 'publish_batch_failed', label: '刊登任务失败' },
-  { value: 'publish_batch_partial_success', label: '刊登任务部分成功' },
+  { value: 'publish_batch_failed', label: '刊登进度失败' },
+  { value: 'publish_batch_partial_success', label: '刊登进度部分成功' },
   { value: 'taskcenter_failure', label: '系统失败任务' },
 ] as const;
 
@@ -60,7 +60,7 @@ export const WORKBENCH_SUMMARY_CARDS = [
     key: 'publishTaskIssueCount',
     highKey: 'publishTaskIssueHighPriority',
     todayKey: 'publishTaskIssueTodayNew',
-    title: '刊登任务异常',
+    title: '刊登进度异常',
     filterType: 'publish_batch_failed',
     actionLabel: '查看批次',
     link: '/product/publish-tasks?status=failed&tab=batches&source=ai_workbench',

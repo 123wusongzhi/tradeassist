@@ -61,6 +61,49 @@ func BuildPlatformDraftForPlatform(p product.Product, platform string, cfg *prod
 	return draft, nil
 }
 
+// BuildOzonPlatformDraftFromResolved is the only task-snapshot builder for the
+// unified Ozon listing flow. The resolved values are produced by product.ResolveOzonListing,
+// which is also returned by readback and live preflight.
+func BuildOzonPlatformDraftFromResolved(p product.Product, resolved product.OzonResolvedListingDTO) (platformp.PlatformProductDraft, error) {
+	if !resolved.CanSubmit {
+		if len(resolved.Issues) > 0 {
+			return platformp.PlatformProductDraft{}, fmt.Errorf("Ozon listing is incomplete: %s", resolved.Issues[0].Message)
+		}
+		for _, sku := range resolved.SKUs {
+			if len(sku.Issues) > 0 {
+				return platformp.PlatformProductDraft{}, fmt.Errorf("Ozon listing is incomplete: %s", sku.Issues[0].Message)
+			}
+		}
+		return platformp.PlatformProductDraft{}, fmt.Errorf("Ozon listing is incomplete")
+	}
+	draft, err := buildPlatformDraftFromProduct(p, false)
+	if err != nil {
+		return platformp.PlatformProductDraft{}, err
+	}
+	draft.Title = strings.TrimSpace(resolved.Title.Value)
+	draft.Description = strings.TrimSpace(resolved.Description.Value)
+	draft.Currency = strings.TrimSpace(resolved.Currency.Value)
+	bySKU := make(map[uuid.UUID]product.OzonResolvedSKUListingDTO, len(resolved.SKUs))
+	for _, sku := range resolved.SKUs {
+		bySKU[sku.SKUID] = sku
+	}
+	for i := range draft.SKUs {
+		value, ok := bySKU[draft.SKUs[i].LocalSKUID]
+		if !ok {
+			return platformp.PlatformProductDraft{}, fmt.Errorf("Ozon resolved values missing SKU %s", draft.SKUs[i].LocalSKUID)
+		}
+		draft.SKUs[i].Price = value.Price.Value
+		draft.SKUs[i].Stock = value.LocalStock
+		draft.SKUs[i].Images = make([]platformp.PlatformProductImage, 0, len(value.Images))
+		for _, image := range value.Images {
+			draft.SKUs[i].Images = append(draft.SKUs[i].Images, platformp.PlatformProductImage{
+				TenantID: p.TenantID, URL: image.URL, ObjectKey: image.ObjectKey, Type: image.ImageType, SortOrder: image.Position,
+			})
+		}
+	}
+	return draft, nil
+}
+
 func buildPlatformDraftFromProduct(p product.Product, requireProductMain bool) (platformp.PlatformProductDraft, error) {
 	title := strings.TrimSpace(p.Title)
 	if title == "" {
@@ -192,19 +235,25 @@ func buildPlatformDraftFromProduct(p product.Product, requireProductMain bool) (
 	}, nil
 }
 
-func (s *Service) buildPlatformDraftForProduct(ctx context.Context, p product.Product, platform string) (platformp.PlatformProductDraft, error) {
+func (s *Service) buildPlatformDraftForProductShop(ctx context.Context, p product.Product, platform string, shopID *uuid.UUID, preset map[string]string, contractCurrency string) (platformp.PlatformProductDraft, error) {
 	if !strings.EqualFold(strings.TrimSpace(platform), "ozon") {
 		return BuildPlatformDraftFromProduct(p)
 	}
-	var cfg product.ProductPlatformPublishConfig
-	err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", p.ID, "ozon").First(&cfg).Error
+	cfg, _, err := product.FindProductPlatformPublishConfig(ctx, s.DB, p.ID, "ozon", shopID, true)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return platformp.PlatformProductDraft{}, err
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return BuildPlatformDraftForPlatform(p, platform, nil)
+		return platformp.PlatformProductDraft{}, fmt.Errorf("ozon product configuration is required")
 	}
-	return BuildPlatformDraftForPlatform(p, platform, &cfg)
+	if preset == nil && s.Settings != nil {
+		preset, err = s.Settings.PlainByGroup(ctx, 0, "platform_publish_ozon")
+		if err != nil {
+			return platformp.PlatformProductDraft{}, err
+		}
+	}
+	resolved := product.ResolveOzonListing(p, cfg, preset, contractCurrency)
+	return BuildOzonPlatformDraftFromResolved(p, resolved)
 }
 
 func platformPayloadSnapshot(d platformp.PlatformProductDraft, merged map[string]string) map[string]any {

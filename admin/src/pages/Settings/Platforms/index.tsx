@@ -520,7 +520,7 @@ function OzonPlatformAccessPanel({ meta }: { meta: PlatformProviderMeta }) {
             <Link to="/settings/platform-publish">
               <Button icon={<CloudUploadOutlined />}>前往 Ozon 刊登预设</Button>
             </Link>
-            <Link to="/product/ozon-publish">
+            <Link to="/product/publishing-center">
               <Button>进入商品级 Ozon 流程</Button>
             </Link>
             <Typography.Link

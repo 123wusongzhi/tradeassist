@@ -91,12 +91,13 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if platKey == "ozon" && s.Idempotency == nil {
 		return nil, fmt.Errorf("Ozon 幂等控制不可用，不能创建提交任务")
 	}
+	var ozonConfig *product.ProductPlatformPublishConfig
 	if platKey == "ozon" {
-		var cfg product.ProductPlatformPublishConfig
-		if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", prod.ID, "ozon").First(&cfg).Error; err != nil {
+		cfg, _, configErr := product.FindProductPlatformPublishConfig(ctx, s.DB, prod.ID, "ozon", &sid, true)
+		if configErr != nil {
 			return nil, fmt.Errorf("ozon product configuration is required")
 		}
-		if cfg.ShopID == nil || *cfg.ShopID != sid {
+		if cfg.ShopID != nil && *cfg.ShopID != sid {
 			return nil, fmt.Errorf("ozon product configuration must select this authorized shop")
 		}
 		if strings.TrimSpace(cfg.CategoryID) == "" || strings.TrimSpace(cfg.SchemaHash) == "" {
@@ -113,10 +114,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		body.Options["type_id"] = parts[1]
 		body.Options["platform_attributes"] = json.RawMessage(cfg.PlatformAttributes)
 		body.Options["ozon_schema_hash"] = cfg.SchemaHash
-	}
-	draft, err = s.buildPlatformDraftForProduct(ctx, prod, platKey)
-	if err != nil {
-		return nil, err
+		ozonConfig = cfg
 	}
 
 	prov := platformp.Get(platKey)
@@ -176,9 +174,37 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 	if err != nil {
 		return nil, err
 	}
+	var resolvedOzon *product.OzonResolvedListingDTO
+	if platKey == "ozon" {
+		if readinessResult != nil && readinessResult.ResolvedOzon != nil {
+			copyResolved := *readinessResult.ResolvedOzon
+			resolvedOzon = &copyResolved
+		} else {
+			copyResolved := product.ResolveOzonListing(prod, ozonConfig, curPub, "")
+			resolvedOzon = &copyResolved
+		}
+		applyResolvedOzonPublishOptions(body.Options, *resolvedOzon)
+	}
 	base := mergePublishBaseline(pubSch, curPub)
 	merged := ApplyPublishOptions(base, body.Options)
 	if err := validateMergedPublishAgainstSchema(pubSch, merged); err != nil {
+		return nil, err
+	}
+	if platKey == "ozon" {
+		if resolvedOzon == nil {
+			return nil, fmt.Errorf("Ozon resolved listing unavailable")
+		}
+		if resolvedOzon.Currency.Value == "" && strings.TrimSpace(merged["currency_code"]) != "" {
+			copyResolved := product.ResolveOzonListing(prod, ozonConfig, curPub, merged["currency_code"])
+			resolvedOzon = &copyResolved
+			applyResolvedOzonPublishOptions(body.Options, *resolvedOzon)
+			merged = ApplyPublishOptions(base, body.Options)
+		}
+		draft, err = BuildOzonPlatformDraftFromResolved(prod, *resolvedOzon)
+	} else {
+		draft, err = BuildPlatformDraftFromProduct(prod)
+	}
+	if err != nil {
 		return nil, err
 	}
 	// Only claim idempotency after every non-mutating validation has passed. A
@@ -217,14 +243,8 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		}
 	}
 
-	title := strings.TrimSpace(prod.Title)
-	if title == "" {
-		title = strings.TrimSpace(prod.AITitle)
-	}
-	currency := strings.TrimSpace(prod.Currency)
-	if currency == "" {
-		currency = "USD"
-	}
+	title := strings.TrimSpace(draft.Title)
+	currency := strings.TrimSpace(draft.Currency)
 
 	var task ProductPublishTask
 	if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -399,4 +419,19 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		out.Readiness = readinessSnap
 	}
 	return &out, nil
+}
+
+func applyResolvedOzonPublishOptions(options map[string]any, resolved product.OzonResolvedListingDTO) {
+	if options == nil {
+		return
+	}
+	options["default_weight"] = resolved.Package.WeightG.Value
+	options["default_width"] = resolved.Package.WidthMM.Value
+	options["default_height"] = resolved.Package.HeightMM.Value
+	options["default_depth"] = resolved.Package.DepthMM.Value
+	options["warehouse_id"] = resolved.Package.WarehouseID.Value
+	options["vat"] = resolved.Package.VAT.Value
+	if strings.TrimSpace(resolved.Currency.Value) != "" {
+		options["currency_code"] = resolved.Currency.Value
+	}
 }

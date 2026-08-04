@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestPutOzonPlatformConfigCreatesThenUpdatesStableRecord(t *testing.T) {
+func TestPutOzonPlatformConfigKeepsIndependentShopScopes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:ozon_config_%s?mode=memory&cache=shared", uuid.NewString())), &gorm.Config{})
 	if err != nil {
@@ -104,22 +104,60 @@ func TestPutOzonPlatformConfigCreatesThenUpdatesStableRecord(t *testing.T) {
 
 	first := put(fmt.Sprintf(`{"shopId":%q,"categoryId":"100:200","categoryPath":"untrusted","platformAttributes":{"85":{"value":"Acme"}},"sourceCategoryKey":"desk","sourceCategoryName":"桌子"}`, shops[0].ID.String()))
 	second := put(fmt.Sprintf(`{"shopId":%q,"categoryId":"101:201","categoryPath":"also-untrusted","platformAttributes":{"86":{"value":"Wood"}},"sourceCategoryKey":"chair","sourceCategoryName":"椅子"}`, shops[1].ID.String()))
-	if *first.ID != *second.ID {
-		t.Fatalf("upsert returned a different id: first=%s second=%s", first.ID.String(), second.ID.String())
+	if *first.ID == *second.ID {
+		t.Fatalf("different Ozon shops must have independent configuration ids: %s", first.ID.String())
 	}
 	if second.ShopID == nil || *second.ShopID != shops[1].ID || second.CategoryID != "101:201" || second.CategoryPath != "椅子" {
 		t.Fatalf("updated response did not contain persisted values: %+v", second)
 	}
-	var attrs map[string]map[string]any
-	if err := json.Unmarshal(second.PlatformAttributes, &attrs); err != nil || attrs["86"]["value"] != "Wood" {
+	attrs, err := DecodeOzonPlatformAttributes(second.PlatformAttributes)
+	if err != nil || len(attrs.Attributes["86"]) != 1 || attrs.Attributes["86"][0].Value != "Wood" {
 		t.Fatalf("updated attributes=%s err=%v", second.PlatformAttributes, err)
 	}
 	var rows []ProductPlatformPublishConfig
 	if err := db.Where("product_id = ? AND platform = ?", productRow.ID, "ozon").Find(&rows).Error; err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 1 || rows[0].ID != *first.ID || rows[0].ShopID == nil || *rows[0].ShopID != shops[1].ID || rows[0].CategoryID != "101:201" || rows[0].SourceCategoryKey != "chair" {
+	if len(rows) != 2 {
 		t.Fatalf("unexpected persisted row: %+v", rows)
+	}
+	byShop := map[uuid.UUID]ProductPlatformPublishConfig{}
+	for _, row := range rows {
+		if row.ShopID != nil {
+			byShop[*row.ShopID] = row
+		}
+	}
+	if byShop[shops[0].ID].ID != *first.ID || byShop[shops[0].ID].CategoryID != "100:200" || byShop[shops[1].ID].ID != *second.ID || byShop[shops[1].ID].CategoryID != "101:201" || byShop[shops[1].ID].SourceCategoryKey != "chair" {
+		t.Fatalf("shop-scoped rows were not preserved independently: %+v", rows)
+	}
+	for _, expected := range []PlatformPublishConfigDTO{first, second} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/products/"+productRow.ID.String()+"/platform-configs/ozon?shopId="+expected.ShopID.String(), nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("shop-scoped readback status=%d body=%s", w.Code, w.Body.String())
+		}
+		var envelope struct {
+			Data PlatformPublishConfigDTO `json:"data"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil || envelope.Data.ID == nil || *envelope.Data.ID != *expected.ID || envelope.Data.CategoryID != expected.CategoryID {
+			t.Fatalf("shop-scoped readback mismatch: body=%s err=%v", w.Body.String(), err)
+		}
+	}
+	withoutShop := httptest.NewRequest(http.MethodGet, "/api/v1/products/"+productRow.ID.String()+"/platform-configs/ozon", nil)
+	withoutShopRecorder := httptest.NewRecorder()
+	router.ServeHTTP(withoutShopRecorder, withoutShop)
+	if withoutShopRecorder.Code != http.StatusOK {
+		t.Fatalf("unscoped readback status=%d body=%s", withoutShopRecorder.Code, withoutShopRecorder.Body.String())
+	}
+	var unscopedEnvelope struct {
+		Data PlatformPublishConfigDTO `json:"data"`
+	}
+	if err := json.Unmarshal(withoutShopRecorder.Body.Bytes(), &unscopedEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if unscopedEnvelope.Data.ID != nil || unscopedEnvelope.Data.CategoryID != "" || unscopedEnvelope.Data.ShopID != nil {
+		t.Fatalf("unscoped read must not expose an arbitrary shop configuration: %+v", unscopedEnvelope.Data)
 	}
 
 	validUpdate := fmt.Sprintf(`{"shopId":%q,"categoryId":"101:201","platformAttributes":{"86":{"value":"Wood"}},"sourceCategoryKey":"chair","sourceCategoryName":"椅子"}`, shops[1].ID.String())
@@ -162,7 +200,7 @@ func TestPutOzonPlatformConfigCreatesThenUpdatesStableRecord(t *testing.T) {
 			},
 			wantStatus: http.StatusForbidden,
 			wantCode:   response.CodePermissionDenied,
-			wantText:   "仅有查看权限",
+			wantText:   "查看权限",
 		},
 		{
 			name:       "operator without visibility gets not found",

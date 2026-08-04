@@ -1,4 +1,4 @@
-import { getJSON, getWithParams, postJSON, putJSON } from '@/services/request';
+import { getJSON, getWithParams, postJSON, putJSON } from "@/services/request";
 
 export type OzonCategoryNode = {
   id: string;
@@ -35,6 +35,11 @@ export type OzonCategoryAttribute = {
   required: boolean;
   valueType?: string;
   dictionaryId?: string;
+  isCollection: boolean;
+  maxValueCount?: number;
+  attributeComplexId?: number;
+  complexIsCollection: boolean;
+  categoryDependent: boolean;
   options?: { id: string; value: string }[];
   syncedAt?: string;
   cacheStale?: boolean;
@@ -57,28 +62,38 @@ export async function queryOzonCategories(params?: {
   total: number;
   leafCount: number;
 }> {
-  return getWithParams('/api/v1/platform/ozon/categories', {
+  return getWithParams("/api/v1/platform/ozon/categories", {
     keyword: params?.keyword || undefined,
-    onlyLeaf: params?.onlyLeaf ? '1' : undefined,
+    onlyLeaf: params?.onlyLeaf ? "1" : undefined,
     limit: params?.limit ? String(params.limit) : undefined,
   });
 }
 
-export async function syncOzonCategories(shopId?: string): Promise<OzonCategorySyncStart> {
-  return postJSON('/api/v1/platform/ozon/categories/sync', shopId ? { shopId } : {});
+export async function syncOzonCategories(
+  shopId?: string,
+): Promise<OzonCategorySyncStart> {
+  return postJSON(
+    "/api/v1/platform/ozon/categories/sync",
+    shopId ? { shopId } : {},
+  );
 }
 
 export async function getOzonCategoryStats(): Promise<OzonCategoryStats> {
-  return getJSON('/api/v1/platform/ozon/categories/stats');
+  return getJSON("/api/v1/platform/ozon/categories/stats");
 }
 
 export async function queryOzonCategoryAttributes(categoryId: string): Promise<{
   list: OzonCategoryAttribute[];
 }> {
-  return getJSON(`/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`);
+  return getJSON(
+    `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`,
+  );
 }
 
-export async function syncOzonCategoryAttributes(categoryId: string, shopId?: string): Promise<OzonCategoryStats> {
+export async function syncOzonCategoryAttributes(
+  categoryId: string,
+  shopId?: string,
+): Promise<OzonCategoryStats> {
   return postJSON(
     `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes/sync`,
     shopId ? { shopId } : {},
@@ -100,12 +115,17 @@ export async function searchOzonDictionaryValues(
 export async function getOzonAttributeMappings(categoryId: string): Promise<{
   list: OzonAttributeMapping[];
 }> {
-  return getJSON(`/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attribute-mappings`);
+  return getJSON(
+    `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attribute-mappings`,
+  );
 }
 
 export async function putOzonAttributeMappings(
   categoryId: string,
   items: OzonAttributeMapping[],
 ): Promise<{ list: OzonAttributeMapping[] }> {
-  return putJSON(`/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attribute-mappings`, { items });
+  return putJSON(
+    `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attribute-mappings`,
+    { items },
+  );
 }

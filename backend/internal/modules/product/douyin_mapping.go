@@ -247,6 +247,7 @@ func (s *Service) SaveDouyinDraftMapping(ctx context.Context, productID uuid.UUI
 	row := ProductPlatformPublishConfig{
 		ProductID:          productID,
 		Platform:           "douyin_shop",
+		ConfigScopeKey:     PlatformConfigLegacyScope,
 		ShopID:             shopID,
 		CategoryID:         strings.TrimSpace(mapping.CategoryID),
 		CategoryPath:       strings.TrimSpace(mapping.CategoryPath),
@@ -262,7 +263,7 @@ func (s *Service) SaveDouyinDraftMapping(ctx context.Context, productID uuid.UUI
 		LastMappedAt:       &now,
 	}
 	return s.DB.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}},
+		Columns: []clause.Column{{Name: "product_id"}, {Name: "platform"}, {Name: "config_scope_key"}},
 		DoUpdates: clause.AssignmentColumns([]string{
 			"shop_id", "category_id", "category_path", "platform_attributes",
 			"mapped_title", "mapped_description", "mapped_images", "mapped_skus",

@@ -776,7 +776,13 @@ func (s *Service) createLocalDraftForTarget(ctx context.Context, productID uuid.
 		res.ErrorMessage = err.Error()
 		return res
 	}
-	draft, err := s.buildPlatformDraftForProduct(ctx, prod, plat)
+	var draft platformp.PlatformProductDraft
+	var err error
+	if strings.EqualFold(strings.TrimSpace(plat), "ozon") {
+		draft, err = s.buildPlatformDraftForProductShop(ctx, prod, plat, sid, nil, "")
+	} else {
+		draft, err = BuildPlatformDraftFromProduct(prod)
+	}
 	if err != nil {
 		res.Status = TaskFailed
 		res.StatusLabel = opslabels.StatusLabel(TaskFailed)

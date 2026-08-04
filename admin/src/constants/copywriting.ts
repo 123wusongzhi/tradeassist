@@ -435,7 +435,7 @@ export const COMMON_STATUS_LABEL: Record<string, string> = {
   succeeded: '已完成',
   mock: '模拟模式',
   sandbox: '沙箱模式',
-  local_draft_only: '仅本地草稿',
+  local_draft_only: '仅保存本地快照',
   real_draft_create: '创建平台草稿',
   blocked_by_real_credentials: '缺少真实凭证',
   blocked_by_provider_config: '接入服务未配置',

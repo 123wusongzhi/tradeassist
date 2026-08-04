@@ -30,6 +30,7 @@ export const ROUTE_PERMISSIONS: Record<string, PermissionKey | PermissionKey[]> 
   '/ai/operation-workbench': PERMISSIONS.PRODUCT_VIEW,
   '/product/drafts': PERMISSIONS.PRODUCT_VIEW,
   '/product/publish-tasks': PERMISSIONS.PRODUCT_VIEW,
+  '/product/publishing-center': PERMISSIONS.PRODUCT_VIEW,
   '/product/ozon-publish': PERMISSIONS.PRODUCT_VIEW,
   '/collect/hub': PERMISSIONS.PRODUCT_VIEW,
   '/collect/tasks': PERMISSIONS.PRODUCT_VIEW,

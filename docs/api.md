@@ -183,7 +183,9 @@
 
 发布前检查 `GET /api/v1/products/:id/readiness` 返回兼容字段 `status=ready|warning|blocked`，并新增 `result=passed|warning|failed`，以及用户可见 `statusLabel` / `resultLabel`。每个 `checks[]` 项含 `title`、`message`、`severity`（同 `level`）与 `technicalDetails.rawCode`（内部码，前端默认折叠）。`failed` 阻止创建刊登任务；`warning` 可继续但前端必须人工确认。采集 warning 码（如 `DETAIL_IMAGES_INCOMPLETE`）在后端统一中文化。
 
-**多平台刊登中心（Phase A1.2）**
+**统一刊登中心（Ozon 首期）与旧多平台草稿（Phase A1.2）**
+
+Admin 日常入口为 `/product/publishing-center`，先选择商品、平台、店铺和平台叶子类目；商品草稿列表/详情的“去刊登”只进入该通用入口，旧 `/product/ozon-publish` 保留查询参数并重定向。首期只有 Ozon 开放完整字段，其他平台显示为尚未接入，不用本地占位字段伪装成可提交能力。旧多平台本地草稿能力如需使用，仅放在商品详情高级操作并显示为“保存本地快照”。
 
 刊登目标、商品和店铺均按当前可信租户查询；`/product-publish/targets` 中的“全局”仅指不绑定单一商品，不表示跨租户店铺。
 
@@ -214,7 +216,7 @@
 
 详见 [`docs/MULTI_PLATFORM_PUBLISHING_DESIGN.md`](MULTI_PLATFORM_PUBLISHING_DESIGN.md)。
 
-刊登任务 `POST /api/v1/products/:id/publish` 会保存 `product_publish_tasks`，任务字段包括 `productId`、`targetPlatform`、`targetStoreId`、`status`（队列态，兼容旧值）、`publishStatus`（业务态：`draft` / `checking` / `ready` / `publishing` / `success` / `failed` / `cancelled`）、`publishMode`、`title`、`description`、`images`、`skus`、`price`、`currency`、`checkResult`、`platformPayload`、`platformResult`、`errorCode`、`errorMessage`、`createdAt`、`updatedAt`。平台字段映射快照包含 `platformTitle`、`platformDescription`、`platformImages`、`platformSkus`、`platformPrice`、`platformStock`、`platformCategory`、`platformAttributes`。对于 Ozon，创建任务只表示“已创建提交任务，等待处理”；仅 Worker 得到 Ozon 的真实 `platformProductId` 后才可显示“商品已创建，等待平台审核”。Ozon `failed` 或结果未知的任务不得自动/批量重试，也不能通过新 `Idempotency-Key` 创建绕过任务；需先人工核对 Ozon 与任务中心记录。
+刊登提交 `POST /api/v1/products/:id/publish` 会保存 `product_publish_tasks`，任务字段包括 `productId`、`targetPlatform`、`targetStoreId`、`status`（队列态，兼容旧值）、`publishStatus`（业务态：`draft` / `checking` / `ready` / `publishing` / `success` / `failed` / `cancelled`）、`publishMode`、`title`、`description`、`images`、`skus`、`price`、`currency`、`checkResult`、`platformPayload`、`platformResult`、`platformProductId`、`retryable`、`errorCode`、`errorMessage`、`createdAt`、`updatedAt`。平台字段映射快照包含 `platformTitle`、`platformDescription`、`platformImages`、`platformSkus`、`platformPrice`、`platformStock`、`platformCategory`、`platformAttributes`。对于 Ozon，创建记录只表示“已创建提交，等待处理”；仅 Worker 得到 Ozon 的真实 `platformProductId` 后才可显示“商品已创建，等待平台审核”。Ozon `failed` 或结果未知时只有服务端明确保存 `retryable=true` 才开放手动重试；否则必须先按 `offer_id` / 平台商品 ID 在 Ozon 与刊登进度中人工核对，且不能通过新 `Idempotency-Key` 创建绕过提交。
 
 ## AI
 
@@ -396,7 +398,7 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/platform/ozon/categories/sync-runs/:id` | 读取当前租户的一次同步运行详情及其 `summary`。 |
 | `GET` | `/api/v1/platform/ozon/categories/changes` | 读取当前租户的同步差异；`changeType` 为 `added` / `changed` / `deactivated` / `reactivated`，支持 `limit`、`changeType` 筛选。每项稳定返回 `categoryName`、`occurredAt`、`detail`，供 UI 直接呈现。 |
 | `GET` | `/api/v1/platform/ozon/categories/stats` | 返回 Ozon 类目缓存数量、叶子类目数量与最近同步时间（24h TTL 提示）。 |
-| `GET` | `/api/v1/platform/ozon/categories/:id/attributes` | 读取某个 Ozon 叶子类目的属性模板缓存（`platform_category_attributes`）；`dictionaryId` 非空表示字典属性，`options` 为预取字典值；`cacheStale` 提示超过 24h。 |
+| `GET` | `/api/v1/platform/ozon/categories/:id/attributes` | 读取某个 Ozon 叶子类目的属性模板缓存（`platform_category_attributes`）；除 `required`、`dictionaryId`、`options` 外，稳定返回 `isCollection`、`maxValueCount`、`attributeComplexId`、`complexIsCollection`、`categoryDependent`。`cacheStale` 提示超过 24h；调用方必须按这些元数据表达多值和可重复复杂字段组，不能降级成静默单值。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attributes/:attrId/values` | 按 `shopId`、至少两个字符的 `keyword` 远程搜索单个字典属性值；要求店铺操作权限。返回 `{ list: [{ id, value }] }`，仅用于补全有界缓存，不写入类目/商品，也不调用 Ozon 商品导入或库存接口。 |
 | `POST` | `/api/v1/platform/ozon/categories/:id/attributes/sync` | 刷新叶子类目属性模板缓存（body 可选 `shopId`）；字典属性预取字典值（`/v1/description-category/attribute/values` 分页）。授权失效或 API Key 停用时返回统一错误 envelope，保留 `data.errorCode=OZON_CATEGORY_ATTR_SYNC_FAILED`，`message` 给出更新店铺凭证的安全提示，不返回上游响应或凭证明文。 |
 | `GET` | `/api/v1/platform/ozon/categories/:id/attribute-mappings` | 读取该类目的「Ozon 属性 ↔ 本地字段」映射配置（`platform_category_attribute_mappings`）。 |
@@ -404,9 +406,9 @@ OpenCLI 原始输出或本机路径。部署和排错见
 | `GET` | `/api/v1/platform/ozon/category-mappings` | 读取当前租户的本地来源类目 → Ozon 叶子类目映射；可按 `shopId` 筛选。映射是租户拥有的数据，店铺级映射优先于租户默认映射。 |
 | `POST` | `/api/v1/platform/ozon/category-mappings/recommend` | 根据可选 `shopId`、`sourceCategoryKey` 和可选 `sourceCategoryName` 返回推荐候选；候选未确认、不会写入映射或商品。传入 `shopId` 时必须是当前租户已授权且启用的 Ozon 店铺。 |
 | `PUT` | `/api/v1/platform/ozon/category-mappings` | 保存人工确认的映射；body 含 `shopId?`、`sourceCategoryKey`、`sourceCategoryName?`、`categoryId`、`categoryPath?`、`status?`。只能指向活动 Ozon 叶子类目；`schemaHash` 由服务端根据当前属性模板生成，客户端不可指定。 |
-| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置；已保存的 Ozon 配置返回稳定记录 `id`，以及 `shopId`、`categoryId`、`categoryPath`、`platformAttributes`、来源类目与 schema 字段。响应还含 `ozonImages`：`version`、`configured`、`compatibilityMode?`、`maxImagesPerSku`、可选公共图 `sharedImages[]`，以及每个 SKU 的原图、已选替代/追加图片 ID、`finalImages[]` 稳定顺序、`canPublish` 与 `issues[]`。旧商品没有配置行或没有新版图片配置时返回安全兼容视图 `compatibilityMode=sku_original_only`，仅使用各 SKU 原图且不追加公共图片。 |
-| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置；Ozon body 在 `shopId`、`categoryId`、`categoryPath?`、`platformAttributes`、`sourceCategoryKey?`、`sourceCategoryName?` 外可带版本化 `ozonImages: { version: 1, skuSelections: [{ skuId, fallbackMainImageId?, additionalImageIds: [] }] }`。SKU 和图片 ID 必须属于当前商品；替代主图只能在该 SKU 缺少原图时显式指定，追加图最多 9 张。该选择存入当前 Ozon 行的 `mapped_images`；字段缺省时兼容旧客户端并保留既有图片选择。类目必须是活动叶子类目，`schemaHash` / `schemaConfirmedAt` 由服务端生成。首次保存与更新均返回数据库中的真实稳定 `id`；Upsert 与按 `productId + platform` 回读位于同一事务，回读失败时整体回滚。保存成功只写 TradeMind，不创建任务、不调用 Ozon。 |
-| `POST` | `/api/v1/products/:id/readiness/validate` | 对指定 `platform=ozon`、`shopId` 做发布前实时精确校验；响应含 `checks[]`（每项 `level`）、`checkedAt`、`schemaHash`、`schemaChanged`。属性模板、类目状态、必填属性、schema 变化、重量/长/宽/高不合法，以及任一 SKU 缺少原始或显式替代主图，都会硬阻断 Ozon 提交；SKU 图片错误携带具体 `relatedResourceId`。该预检只调用 Ozon 的只读属性模板接口，绝不调用商品导入或库存接口。全局管理员可跨租户查看，但不能代表目标租户保存配置或运行该实时检查；必须使用目标租户管理员或具备全部关联店铺操作授权的账号。 |
+| `GET` | `/api/v1/products/:id/platform-configs/:platform` | 读取商品的平台刊登准备配置。Ozon 调用应传查询参数 `shopId`，按商品 + 平台 + 店铺精确读取；响应含 `legacyFallback` 说明是否临时读取旧商品级配置。除稳定 `id`、类目/schema 外，返回版本化 `platformAttributes` v2（普通多值 `attributes` + 可重复 `complexGroups`）、`ozonImages`、可编辑 `ozonListing`，以及后端统一解析的 `ozonPreview`。预览为每个 SKU 返回最终价格及来源、本地库存及 `stockSource=local_inventory`、最终图片顺序和错误；商品级标题/描述/币种/重量尺寸/仓库/VAT 同样带值来源。旧商品没有新版图片选择时只使用各 SKU 原图，不默认追加公共图。 |
+| `PUT` | `/api/v1/products/:id/platform-configs/:platform` | 保存商品的平台刊登准备配置。Ozon body 必须含 `shopId` 与活动叶子类目，可保存 `platformAttributes: { version: 2, attributes: { attrId: [{ value, dictionaryValueId? }] }, complexGroups: [{ complexId, attributes }] }`、版本化 `ozonImages`，以及 `ozonListing: { version: 1, titleOverride?, descriptionOverride?, currencyCode?, skuPriceOverrides, package: { weightG?, widthMm?, heightMm?, depthMm?, warehouseId?, vat? } }`。SKU 售价覆盖只作用于当前 Ozon 店铺；库存字段不在配置中，仍以 `product_skus.stock` 和既有调整审计链路为唯一来源。SKU/图片必须属于当前商品；原始主图优先，只有缺原图时才允许显式替代，公共图按保存顺序追加并做 URL 去重。`product_platform_publish_configs` 的唯一键迁移为 `(product_id, platform, config_scope_key)`，Ozon 的 scope 为店铺 UUID，旧行保留安全回退并在下次保存时物化为店铺级行，不会让多个 Ozon 店铺互相覆盖。保存只写 TradeMind，不创建刊登提交、不调用 Ozon 商品或库存写接口。 |
+| `POST` | `/api/v1/products/:id/readiness/validate` | 对指定 `platform=ozon`、`shopId` 做实时只读发布前检查；响应除 `checks[]`、`schemaHash`、`schemaChanged` 外返回 `resolvedOzon`，逐 SKU 给出最终有效价格、库存、图片、来源与错误，并给出标题/描述/币种/包裹配置的最终值和来源。重量尺寸/仓库先取商品 + Ozon 店铺配置，再取全局 `platform_publish_ozon` 预设；仍缺失即阻断。多值、复杂组合、字典值、必填属性、类目/schema 与图片计划均按实时模板校验；无法正确表达的具体属性会返回错误而非单值降级。预览、此预检和任务不可变快照共用 `ResolveOzonListing`；Adapter 消费该快照并再次校验实时 schema。预检只调用 seller info、类目/属性/字典等 Ozon 只读接口，不调用商品导入或库存接口；权限继续执行既有商品操作保护，并校验所选店铺操作权限。 |
 | `POST` | `/api/v1/product-publish/ozon/category-groups/check` | 对 `productIds[]` 按本地来源类目分组，返回每组建议/已确认 Ozon 类目与 `ready` / `needs_work` / `skipped` 异常项；`shopId` 必填，且必须是当前租户已授权、启用并允许当前管理员操作的 Ozon 店铺。 |
 | `POST` | `/api/v1/product-publish/ozon/category-groups/confirm` | 确认一个或多个分组；body 为必填 `shopId`、`groups[]`（每项含 `sourceCategoryKey`、`sourceCategoryName?`、`productIds[]`、`categoryId`、`categoryPath?`）和 `saveMappings`。同一请求内商品不可跨组重复。仅保存商品级配置；`saveMappings=true` 还要求 `config.manage` 权限，不提交到 Ozon。 |
 

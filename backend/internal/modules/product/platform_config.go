@@ -3,8 +3,8 @@ package product
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -19,10 +19,28 @@ import (
 )
 
 func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, platform string) (*PlatformPublishConfigDTO, error) {
+	return s.GetPlatformPublishConfigForShop(c, productID, platform, "")
+}
+
+// GetPlatformPublishConfigForShop resolves an Ozon configuration in the
+// selected shop scope. The empty shop form is kept for older API clients and
+// reads only the historical legacy scope; it never selects an arbitrary shop.
+func (s *Service) GetPlatformPublishConfigForShop(c *gin.Context, productID uuid.UUID, platform, rawShopID string) (*PlatformPublishConfigDTO, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("product: no db")
 	}
 	plat := strings.TrimSpace(strings.ToLower(platform))
+	var requestedShopID *uuid.UUID
+	if raw := strings.TrimSpace(rawShopID); raw != "" {
+		parsed, parseErr := uuid.Parse(raw)
+		if parseErr != nil || parsed == uuid.Nil {
+			return nil, newPlatformConfigError("invalid shopId")
+		}
+		requestedShopID = &parsed
+		if err := adminperm.EnsureStoreVisible(c, s.DB, requestedShopID); err != nil {
+			return nil, err
+		}
+	}
 	preloads := []string{}
 	if plat == "ozon" {
 		preloads = []string{"Images", "SKUs"}
@@ -31,20 +49,27 @@ func (s *Service) GetPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	var row ProductPlatformPublishConfig
-	if err := s.DB.WithContext(c.Request.Context()).
-		Where("product_id = ? AND platform = ?", productID, plat).
-		First(&row).Error; err != nil {
+	row, legacyFallback, err := FindProductPlatformPublishConfig(c.Request.Context(), s.DB, productID, plat, requestedShopID, true)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound && plat == "ozon" {
 			images := ResolveOzonImageConfig(*productRow, nil)
-			return &PlatformPublishConfigDTO{ProductID: productID, Platform: plat, PlatformAttributes: json.RawMessage(`{}`), OzonImages: &images}, nil
+			emptyRow := &ProductPlatformPublishConfig{ProductID: productID, Platform: plat, ShopID: requestedShopID}
+			out := &PlatformPublishConfigDTO{ProductID: productID, Platform: plat, ShopID: requestedShopID, PlatformAttributes: json.RawMessage(`{}`), OzonImages: &images}
+			if hydrateErr := s.hydrateOzonListingDTO(c.Request.Context(), *productRow, emptyRow, out); hydrateErr != nil {
+				return nil, hydrateErr
+			}
+			return out, nil
 		}
 		return nil, err
 	}
-	out := platformConfigDTO(row)
+	out := platformConfigDTO(*row)
+	out.LegacyFallback = legacyFallback
 	if plat == "ozon" {
 		images := ResolveOzonImageConfig(*productRow, row.MappedImages)
 		out.OzonImages = &images
+		if err := s.hydrateOzonListingDTO(c.Request.Context(), *productRow, row, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -68,9 +93,6 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
-		return nil, err
-	}
 	var shopID *uuid.UUID
 	if raw := strings.TrimSpace(body.ShopID); raw != "" {
 		u, err := uuid.Parse(raw)
@@ -84,6 +106,15 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	}
 	if plat == "ozon" && shopID == nil {
 		return nil, newOzonPlatformConfigError("Ozon 配置必须选择已授权店铺")
+	}
+	// Ozon rows are isolated by the selected shop. An operator with operate
+	// permission for that shop may edit only that row; requiring operate access
+	// to every other shop linked to the same product would defeat store scoping.
+	// Legacy singleton platforms retain the stricter whole-product guard.
+	if plat != "ozon" {
+		if err := adminperm.EnsureProductOperate(c, s.DB, productID); err != nil {
+			return nil, err
+		}
 	}
 	cid := strings.TrimSpace(body.CategoryID)
 	var selectedCategory *shop.PlatformCategory
@@ -112,9 +143,11 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		attrs = datatypes.JSON(body.PlatformAttributes)
 	}
 	if plat == "ozon" {
-		if err := s.validateOzonPlatformAttributes(c.Request.Context(), cid, attrs); err != nil {
+		canonical, err := s.canonicalizeOzonPlatformAttributes(c.Request.Context(), cid, attrs, false)
+		if err != nil {
 			return nil, err
 		}
+		attrs = canonical
 	}
 	sourceKey := normalizeSourceCategory(firstNonEmptyProduct(body.SourceCategoryKey, body.SourceCategoryName))
 	sourceName := strings.TrimSpace(body.SourceCategoryName)
@@ -124,6 +157,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	row := ProductPlatformPublishConfig{
 		ProductID:          productID,
 		Platform:           plat,
+		ConfigScopeKey:     PlatformConfigScopeKey(plat, shopID),
 		ShopID:             shopID,
 		CategoryID:         cid,
 		CategoryPath:       strings.TrimSpace(body.CategoryPath),
@@ -151,11 +185,19 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 			row.MappedImages = datatypes.JSON(rawImages)
 			updates = append(updates, "mapped_images")
 		}
+		if body.OzonListing != nil {
+			rawListing, err := MarshalOzonListingConfig(*productRow, *body.OzonListing)
+			if err != nil {
+				return nil, newOzonPlatformConfigError(err.Error())
+			}
+			row.ListingConfig = datatypes.JSON(rawListing)
+			updates = append(updates, "listing_config")
+		}
 	}
 	var saved ProductPlatformPublishConfig
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "product_id"}, {Name: "platform"}},
+			Columns:   []clause.Column{{Name: "product_id"}, {Name: "platform"}, {Name: "config_scope_key"}},
 			DoUpdates: clause.AssignmentColumns(updates),
 		}).Create(&row).Error; err != nil {
 			return err
@@ -163,7 +205,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		// Always read into a fresh value. Reusing row would make GORM append the
 		// newly generated insert UUID after an ON CONFLICT update and query the
 		// wrong primary key.
-		return tx.Where("product_id = ? AND platform = ?", productID, plat).First(&saved).Error
+		return tx.Where("product_id = ? AND platform = ? AND config_scope_key = ?", productID, plat, row.ConfigScopeKey).First(&saved).Error
 	}); err != nil {
 		return nil, err
 	}
@@ -207,6 +249,9 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 	if plat == "ozon" {
 		images := ResolveOzonImageConfig(*productRow, saved.MappedImages)
 		out.OzonImages = &images
+		if err := s.hydrateOzonListingDTO(c.Request.Context(), *productRow, &saved, out); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
 }
@@ -226,112 +271,19 @@ func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, p
 	return adminperm.EnsureStoreOperate(c, s.DB, shopID)
 }
 
-func (s *Service) validateOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON) error {
+func (s *Service) canonicalizeOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON, requireComplete bool) (datatypes.JSON, error) {
 	var schema []shop.PlatformCategoryAttribute
 	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ?", "ozon", categoryID).Find(&schema).Error; err != nil {
-		return err
+		return nil, err
 	}
 	if len(schema) == 0 {
-		return newOzonPlatformConfigError("Ozon 类目属性模板尚未同步")
+		return nil, newOzonPlatformConfigError("Ozon 类目属性模板尚未同步")
 	}
-	values := map[string]any{}
-	if len(raw) > 0 {
-		if err := json.Unmarshal(raw, &values); err != nil {
-			return newOzonPlatformConfigError("platformAttributes must be valid JSON")
-		}
+	canonical, err := CanonicalOzonPlatformAttributes(schema, raw, requireComplete)
+	if err != nil {
+		return nil, newOzonPlatformConfigError(err.Error())
 	}
-	byID := make(map[string]shop.PlatformCategoryAttribute, len(schema))
-	for _, attr := range schema {
-		byID[attr.AttrID] = attr
-	}
-	for attrID, value := range values {
-		attr, ok := byID[attrID]
-		if !ok {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 属性模板中不存在属性 %s", attrID))
-		}
-		nested, ok := value.(map[string]any)
-		if !ok {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 属性 %s 必须使用 {value,dictionaryValueId} 结构", attr.Name))
-		}
-		text := ""
-		if rawValue, exists := nested["value"]; exists && rawValue != nil {
-			text = strings.TrimSpace(fmt.Sprint(rawValue))
-		}
-		if attr.Required && text == "" {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
-		}
-		if dictionaryIDFromProductAttribute(attr) != "" {
-			dictID := productAttributeDictionaryValueID(nested)
-			if text != "" && dictID == "" {
-				return newOzonPlatformConfigError(fmt.Sprintf("Ozon 词典属性缺少 dictionaryValueId：%s", attr.Name))
-			}
-			if dictID != "" && !cachedOzonDictionaryValueMatches(attr.Options, dictID, text) {
-				return newOzonPlatformConfigError(fmt.Sprintf("Ozon 词典值与属性不匹配：%s", attr.Name))
-			}
-		} else if rawID, exists := nested["dictionaryValueId"]; exists && rawID != nil && strings.TrimSpace(fmt.Sprint(rawID)) != "" {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 非词典属性不能包含 dictionaryValueId：%s", attr.Name))
-		}
-	}
-	for _, attr := range schema {
-		if !attr.Required {
-			continue
-		}
-		value, ok := values[attr.AttrID]
-		if !ok {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
-		}
-		nested, ok := value.(map[string]any)
-		if !ok || nested["value"] == nil || strings.TrimSpace(fmt.Sprint(nested["value"])) == "" {
-			return newOzonPlatformConfigError(fmt.Sprintf("Ozon 必填属性未填写：%s", attr.Name))
-		}
-	}
-	return nil
-}
-
-func productAttributeDictionaryValueID(value map[string]any) string {
-	raw, ok := value["dictionaryValueId"]
-	if !ok || raw == nil {
-		return ""
-	}
-	switch typed := raw.(type) {
-	case string:
-		parsed, err := strconv.ParseInt(strings.TrimSpace(typed), 10, 64)
-		if err == nil && parsed > 0 {
-			return strconv.FormatInt(parsed, 10)
-		}
-	case float64:
-		if typed > 0 {
-			return strconv.FormatInt(int64(typed), 10)
-		}
-	}
-	return ""
-}
-
-func dictionaryIDFromProductAttribute(attr shop.PlatformCategoryAttribute) string {
-	var raw map[string]any
-	if json.Unmarshal(attr.Raw, &raw) != nil {
-		return ""
-	}
-	value, ok := raw["dictionary_id"]
-	if !ok || value == nil {
-		return ""
-	}
-	switch typed := value.(type) {
-	case string:
-		trimmed := strings.TrimSpace(typed)
-		parsed, err := strconv.ParseInt(trimmed, 10, 64)
-		if err != nil || parsed <= 0 {
-			return ""
-		}
-		return strconv.FormatInt(parsed, 10)
-	case float64:
-		if typed <= 0 {
-			return ""
-		}
-		return strconv.FormatInt(int64(typed), 10)
-	default:
-		return ""
-	}
+	return canonical, nil
 }
 
 func cachedOzonDictionaryValueMatches(raw datatypes.JSON, id, value string) bool {
@@ -379,6 +331,80 @@ func (s *Service) ozonSchemaHash(ctx context.Context, categoryID string) (string
 		return "", err
 	}
 	return shop.OzonCategorySchemaHash(attrs), nil
+}
+
+const PlatformConfigLegacyScope = "legacy"
+
+// PlatformConfigScopeKey keeps legacy platform configurations on their old
+// product+platform scope while Ozon is isolated per selected shop.
+func PlatformConfigScopeKey(platform string, shopID *uuid.UUID) string {
+	if strings.EqualFold(strings.TrimSpace(platform), "ozon") && shopID != nil && *shopID != uuid.Nil {
+		return shopID.String()
+	}
+	return PlatformConfigLegacyScope
+}
+
+// FindProductPlatformPublishConfig is the shared store-scope lookup used by
+// config readback, live preflight and task creation. A legacy Ozon row without
+// a shop may be used only as a read-only fallback and is materialized into the
+// selected shop scope on the next save.
+func FindProductPlatformPublishConfig(ctx context.Context, db *gorm.DB, productID uuid.UUID, platform string, shopID *uuid.UUID, allowLegacy bool) (*ProductPlatformPublishConfig, bool, error) {
+	if db == nil {
+		return nil, false, fmt.Errorf("product platform config: no db")
+	}
+	plat := strings.ToLower(strings.TrimSpace(platform))
+	query := db.WithContext(ctx).Where("product_id = ? AND platform = ?", productID, plat)
+	if shopID == nil || *shopID == uuid.Nil {
+		var row ProductPlatformPublishConfig
+		if err := query.Where("config_scope_key = ?", PlatformConfigLegacyScope).Order("updated_at DESC").First(&row).Error; err != nil {
+			return nil, false, err
+		}
+		return &row, false, nil
+	}
+
+	scopeKey := PlatformConfigScopeKey(plat, shopID)
+	var exact ProductPlatformPublishConfig
+	if err := query.Where("config_scope_key = ?", scopeKey).First(&exact).Error; err == nil {
+		return &exact, false, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, err
+	}
+	if !allowLegacy || !strings.EqualFold(plat, "ozon") {
+		return nil, false, gorm.ErrRecordNotFound
+	}
+	var legacy ProductPlatformPublishConfig
+	if err := db.WithContext(ctx).
+		Where("product_id = ? AND platform = ? AND config_scope_key = ? AND (shop_id IS NULL OR shop_id = ?)", productID, plat, PlatformConfigLegacyScope, *shopID).
+		Order("updated_at DESC").First(&legacy).Error; err != nil {
+		return nil, false, err
+	}
+	return &legacy, true, nil
+}
+
+func (s *Service) hydrateOzonListingDTO(ctx context.Context, productRow Product, row *ProductPlatformPublishConfig, out *PlatformPublishConfigDTO) error {
+	if out == nil {
+		return nil
+	}
+	preset := map[string]string{}
+	if s != nil && s.Settings != nil {
+		values, err := s.Settings.PlainByGroup(ctx, 0, "platform_publish_ozon")
+		if err != nil {
+			return err
+		}
+		preset = values
+	}
+	listing := OzonListingConfigInput{Version: OzonListingConfigVersion, SKUPriceOverrides: map[string]float64{}}
+	if row != nil {
+		decoded, _, err := DecodeOzonListingConfig(row.ListingConfig)
+		if err != nil {
+			return fmt.Errorf("decode saved Ozon listing configuration: %w", err)
+		}
+		listing = decoded
+	}
+	out.OzonListing = &listing
+	preview := ResolveOzonListing(productRow, row, preset, "")
+	out.OzonPreview = &preview
+	return nil
 }
 
 func platformConfigDTO(row ProductPlatformPublishConfig) *PlatformPublishConfigDTO {

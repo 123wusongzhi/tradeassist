@@ -121,7 +121,7 @@ func (s *Service) processGenericPublishTask(ctx context.Context, taskID uuid.UUI
 			return fail(fmt.Sprintf("load product: %v", err))
 		}
 		var buildErr error
-		draft, buildErr = s.buildPlatformDraftForProduct(ctx, prod, taskRow.Platform)
+		draft, buildErr = s.buildPlatformDraftForProductShop(ctx, prod, taskRow.Platform, &taskRow.ShopID, snap.MergedPublish, snap.MergedPublish["currency_code"])
 		if buildErr != nil {
 			return fail(buildErr.Error())
 		}

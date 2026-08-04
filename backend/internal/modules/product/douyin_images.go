@@ -417,6 +417,7 @@ func (s *Service) saveDouyinDraftMappingNoValidation(ctx context.Context, produc
 	row := ProductPlatformPublishConfig{
 		ProductID:       productID,
 		Platform:        "douyin_shop",
+		ConfigScopeKey:  PlatformConfigLegacyScope,
 		MappedImages:    datatypes.JSON(imagesJSON),
 		MappingWarnings: datatypes.JSON(warnJSON),
 		MappingErrors:   datatypes.JSON(errJSON),
@@ -426,7 +427,7 @@ func (s *Service) saveDouyinDraftMappingNoValidation(ctx context.Context, produc
 		row.LastMappedAt = &now
 	}
 	return s.DB.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "product_id"}, {Name: "platform"}},
+		Columns:   []clause.Column{{Name: "product_id"}, {Name: "platform"}, {Name: "config_scope_key"}},
 		DoUpdates: clause.AssignmentColumns([]string{"mapped_images", "mapping_warnings", "mapping_errors", "last_mapped_at", "updated_at"}),
 	}).Create(&row).Error
 }

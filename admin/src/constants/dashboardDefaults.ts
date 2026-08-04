@@ -13,7 +13,7 @@ export const DEFAULT_QUICK_LINKS: DashboardQuickLink[] = [
   { title: '批量 AI 优化', link: '/ai/text-batches', description: '批量生成并复核标题与描述' },
   { title: 'AI 图片任务', link: '/ai/image-tasks', description: '去水印、营销图等图片处理' },
   { title: '发布检查', link: '/product/drafts?readiness=blocked', description: '查看未通过发布检查的商品' },
-  { title: '商品刊登任务', link: '/product/publish-tasks', description: '管理刊登到平台的任务' },
+  { title: '商品刊登进度', link: '/product/publish-tasks', description: '查看提交到平台的处理进度' },
   { title: '库存预警', link: '/inventory/alerts', description: '低库存与缺货提醒' },
   { title: '失败任务中心', link: '/ops/task-center/failures', description: '统一查看各类失败任务' },
   { title: '订单异常工作台', link: '/orders/exceptions', description: '处理规格未匹配等订单问题' },
@@ -31,7 +31,7 @@ export const DEFAULT_FUNNEL: DashboardFunnelStep[] = [
   { key: 'draft', title: '商品草稿', count: 0, link: '/product/drafts', description: '草稿与就绪状态的商品' },
   { key: 'ai_text', title: 'AI 标题 / 描述', count: 0, link: '/product/drafts', description: '已完成 AI 标题与描述的商品' },
   { key: 'ai_image', title: 'AI 图片处理', count: 0, link: '/ai/image-tasks', description: '已有 AI 处理图片的商品' },
-  { key: 'readiness_pass', title: '发布检查通过', count: 0, link: '/product/drafts?publishable=1', description: '基础信息完备、可创建刊登任务' },
+  { key: 'readiness_pass', title: '发布检查通过', count: 0, link: '/product/drafts?publishable=1', description: '基础信息完备、可进入刊登确认' },
   { key: 'published', title: '已刊登', count: 0, link: '/product/drafts?status=published', description: '已刊登到平台的商品' },
 ];
 

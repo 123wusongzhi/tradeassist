@@ -49,6 +49,33 @@ func TestBuildPlatformDraftForPlatformBlocksNamedOzonSKUWithoutMainImage(t *test
 	}
 }
 
+func TestBuildOzonPlatformDraftFromResolvedUsesSameEffectiveSKUValues(t *testing.T) {
+	price, stock := 10.0, 6
+	sku := product.ProductSKU{HardDeleteBase: model.HardDeleteBase{ID: uuid.New()}, SKUCode: "SKU-1", SKUName: "Blue", Price: &price, Stock: &stock, ImageURL: "https://img.example/blue.jpg"}
+	p := product.Product{Base: model.Base{ID: uuid.New()}, TenantID: 7, Title: "Local", Description: "Local description", Currency: "CNY", SKUs: []product.ProductSKU{sku}}
+	resolved := product.OzonResolvedListingDTO{
+		ProductID:   p.ID,
+		Title:       product.OzonResolvedString{Value: "Ozon title", Source: product.OzonValueSourceShopConfig},
+		Description: product.OzonResolvedString{Value: "Ozon description", Source: product.OzonValueSourceShopConfig},
+		Currency:    product.OzonResolvedString{Value: "RUB", Source: product.OzonValueSourceShopConfig},
+		SKUs: []product.OzonResolvedSKUListingDTO{{
+			SKUID: sku.ID, SKUCode: sku.SKUCode, SKUName: sku.SKUName,
+			Price:      product.OzonResolvedFloat{Value: 12.5, Source: product.OzonValueSourceShopConfig},
+			LocalStock: stock, StockSource: product.OzonValueSourceLocalStock,
+			Images:    []product.OzonResolvedImageDTO{{URL: sku.ImageURL, Source: product.OzonImageSourceSKUOriginal, ImageType: product.ImageTypeMain, Position: 1}},
+			CanSubmit: true,
+		}},
+		CanSubmit: true,
+	}
+	draft, err := BuildOzonPlatformDraftFromResolved(p, resolved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.Title != "Ozon title" || draft.Description != "Ozon description" || draft.Currency != "RUB" || len(draft.SKUs) != 1 || draft.SKUs[0].Price != 12.5 || draft.SKUs[0].Stock != stock || len(draft.SKUs[0].Images) != 1 {
+		t.Fatalf("draft diverged from resolved preview: %+v", draft)
+	}
+}
+
 func assertStringSlice(t *testing.T, got []string, want ...string) {
 	t.Helper()
 	if len(got) != len(want) {

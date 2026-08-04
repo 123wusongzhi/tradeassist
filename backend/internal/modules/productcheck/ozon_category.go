@@ -3,7 +3,6 @@ package productcheck
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -16,9 +15,9 @@ import (
 // checkOzonListingConfig validates the saved, user-confirmed Ozon selection.
 // It is deliberately cache-only; the publish provider still performs the
 // final read-only schema lookup immediately before product/import.
-func (s *Service) checkOzonListingConfig(ctx context.Context, p product.Product, requestedShopID *uuid.UUID) []CheckItem {
-	var cfg product.ProductPlatformPublishConfig
-	if err := s.DB.WithContext(ctx).Where("product_id = ? AND platform = ?", p.ID, "ozon").First(&cfg).Error; err != nil {
+func (s *Service) checkOzonListingConfig(ctx context.Context, p product.Product, requestedShopID *uuid.UUID, publishOptions map[string]any) []CheckItem {
+	cfg, _, err := product.FindProductPlatformPublishConfig(ctx, s.DB, p.ID, "ozon", requestedShopID, true)
+	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			out := checkOzonSKUImages(p, nil)
 			return append(out, CheckItem{Group: "platform", Code: "OZON_CATEGORY_NOT_SELECTED", Level: levelError, Message: "Ozon 类目未选择", Suggestion: "请先保存商品级 Ozon 类目与属性。"})
@@ -48,21 +47,38 @@ func (s *Service) checkOzonListingConfig(ctx context.Context, p product.Product,
 	if cfg.SchemaHash == "" || cfg.SchemaHash != hash {
 		out = append(out, CheckItem{Group: "platform", Code: "OZON_SCHEMA_CHANGED", Level: levelError, Message: "Ozon 类目属性模板已变化", Suggestion: "请重新确认 Ozon 类目属性后再提交。"})
 	}
-	vals := map[string]any{}
-	_ = json.Unmarshal(cfg.PlatformAttributes, &vals)
-	for _, a := range attrs {
-		if !a.Required {
-			continue
-		}
-		v, ok := vals[a.AttrID]
-		if !ok {
-			v, ok = vals[a.Name]
-		}
-		if !ok || !ozonAttributeValuePresent(v, a) {
-			out = append(out, CheckItem{Group: "platform", Code: "OZON_REQUIRED_ATTR_MISSING", Level: levelError, Message: "Ozon 必填属性未补齐：" + strings.TrimSpace(a.Name), Suggestion: "请补全商品级 Ozon 属性。"})
+	payload, decodeErr := product.DecodeOzonPlatformAttributes(cfg.PlatformAttributes)
+	if decodeErr != nil {
+		out = append(out, CheckItem{Group: "platform", Code: "OZON_ATTRIBUTE_PAYLOAD_INVALID", Level: levelError, Message: decodeErr.Error(), Suggestion: "请重新保存商品级 Ozon 属性。"})
+	} else if validateErr := product.ValidateOzonPlatformAttributePayload(attrs, payload, true); validateErr != nil {
+		out = append(out, CheckItem{Group: "platform", Code: "OZON_REQUIRED_ATTR_MISSING", Level: levelError, Message: validateErr.Error(), Suggestion: "请补全商品级 Ozon 属性；多值使用多选，组合属性使用可重复字段组。"})
+	}
+	preset := map[string]string{}
+	if s.Settings != nil {
+		if values, settingsErr := s.Settings.PlainByGroup(ctx, 0, "platform_publish_ozon"); settingsErr == nil {
+			preset = values
 		}
 	}
+	resolved := product.ResolveOzonListing(p, cfg, preset, ozonPublishOptionString(publishOptions, "currency_code"))
+	for _, issue := range resolved.Issues {
+		out = append(out, CheckItem{Group: "platform", Code: issue.Code, Level: levelError, Message: issue.Message, Suggestion: issue.Suggestion})
+	}
 	return out
+}
+
+func ozonPublishOptionString(options map[string]any, key string) string {
+	if options == nil {
+		return ""
+	}
+	value, ok := options[key]
+	if !ok || value == nil {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
 }
 
 func checkOzonSKUImages(p product.Product, raw []byte) []CheckItem {
@@ -101,23 +117,6 @@ func checkOzonSKUImages(p product.Product, raw []byte) []CheckItem {
 	return out
 }
 
-func ozonAttributeValuePresent(value any, attr shop.PlatformCategoryAttribute) bool {
-	nested, ok := value.(map[string]any)
-	if !ok {
-		return false
-	}
-	text := strings.TrimSpace(toOzonCheckString(nested["value"]))
-	if text == "" {
-		return false
-	}
-	var raw map[string]any
-	_ = json.Unmarshal(attr.Raw, &raw)
-	if ozonDictionaryID(attr.Raw) != "" {
-		return strings.TrimSpace(toOzonCheckString(nested["dictionaryValueId"])) != ""
-	}
-	return true
-}
-
 func ozonDictionaryID(raw []byte) string {
 	var values map[string]any
 	if json.Unmarshal(raw, &values) != nil {
@@ -135,11 +134,4 @@ func ozonDictionaryID(raw []byte) string {
 		}
 	}
 	return ""
-}
-
-func toOzonCheckString(value any) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(fmt.Sprint(value))
 }

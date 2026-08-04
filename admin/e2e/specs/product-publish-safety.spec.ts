@@ -2,6 +2,7 @@ import { test, expect } from '../fixtures/admin.fixture';
 import { ok, fail } from '../mocks/envelope';
 import { e2eReadinessFailed, e2eReadinessPassed, E2E_PRODUCT_ID, E2E_PUBLICATION_NEW, E2E_SHOP_ID } from '../mocks/product.fixture';
 import { latestPublicationsResponse, skuBindingsResponse } from '../mocks/publish';
+import { e2eUser } from '../mocks/auth';
 import { expectRequestCount } from '../utils/assertions';
 
 async function openPublish(page: import('@playwright/test').Page) {
@@ -11,6 +12,11 @@ async function openPublish(page: import('@playwright/test').Page) {
 
 async function selectFirstMultiPlatformTarget(page: import('@playwright/test').Page) {
   await page.getByText('E2E 抖店测试店铺').first().click();
+}
+
+async function openAdvancedLocalSnapshot(page: import('@playwright/test').Page) {
+  await page.getByText('高级操作：保存本地快照（不会提交 Ozon）').click();
+  await expect(page.getByRole('button', { name: '创建刊登草稿' })).toBeVisible();
 }
 
 async function selectLegacyPublishShop(page: import('@playwright/test').Page) {
@@ -45,6 +51,19 @@ async function closeModal(page: import('@playwright/test').Page, title: string) 
 }
 
 test.describe('@publish-safety 发布写请求安全', () => {
+  test('readonly detail hides the advanced local snapshot write controls', async ({ page }) => {
+    await page.route('**/api/v1/auth/profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({ ...e2eUser, role: 'readonly', permissions: ['product.view'], storePermissions: [] })),
+      });
+    });
+    await openPublish(page);
+    await expect(page.getByText('当前账号为只读模式', { exact: true })).toBeVisible();
+    await expect(page.getByText('高级操作：保存本地快照（不会提交 Ozon）')).toHaveCount(0);
+  });
+
   test('creates multi-platform drafts with exact payload and no other writes', async ({ admin, page }) => {
     admin.writeGuard.allow({
       operation: 'create-multi-platform-drafts',
@@ -53,6 +72,7 @@ test.describe('@publish-safety 发布写请求安全', () => {
       response: ok({ batchId: 'e2e-batch', status: 'done', statusLabel: '已完成', targetCount: 1, successCount: 1, failedCount: 0, skippedCount: 0, targets: [] }),
     });
     await openPublish(page);
+    await openAdvancedLocalSnapshot(page);
     await selectFirstMultiPlatformTarget(page);
     await page.getByRole('button', { name: '创建刊登草稿' }).click();
     await expectRequestCount(admin.writeGuard, 'create-multi-platform-drafts', 1);
@@ -72,6 +92,7 @@ test.describe('@publish-safety 发布写请求安全', () => {
       response: ok({ batchId: 'e2e-ozon-batch', status: 'done', statusLabel: '已完成', targetCount: 1, successCount: 1, failedCount: 0, skippedCount: 0, targets: [] }),
     });
     await openPublish(page);
+    await openAdvancedLocalSnapshot(page);
     await page.getByText('E2E Ozon 测试店铺').first().click();
     await page.getByRole('button', { name: '创建刊登草稿' }).click();
     await expectRequestCount(admin.writeGuard, 'create-ozon-draft', 1);

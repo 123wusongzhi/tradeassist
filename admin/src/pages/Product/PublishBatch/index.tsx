@@ -488,7 +488,7 @@ export default function PublishBatchWizardPage() {
                 type="info"
                 showIcon
                 style={{ marginBottom: 16 }}
-                message={`已选择 ${products.length} 个商品${selectedTargetList.length ? `，预计生成 ${expectedTasks} 个刊登任务` : ''}`}
+                message={`已选择 ${products.length} 个商品${selectedTargetList.length ? `，预计生成 ${expectedTasks} 个刊登提交` : ''}`}
               />
               <Table
                 rowKey="id"
@@ -710,7 +710,7 @@ export default function PublishBatchWizardPage() {
             <Descriptions.Item label="暂不能创建">
               <Tag color="red">{checkResult.summary.blockedCount}</Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="仅本地草稿">{checkResult.summary.localDraftOnlyCount}</Descriptions.Item>
+            <Descriptions.Item label="仅本地快照">{checkResult.summary.localDraftOnlyCount}</Descriptions.Item>
           </Descriptions>
 
           <ConfigPriorityBanner />
