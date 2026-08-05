@@ -4,6 +4,7 @@ import {
   PlusOutlined,
   SaveOutlined,
   SyncOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { history, Link, useLocation } from "@umijs/max";
 import {
@@ -34,10 +35,12 @@ import {
   type OzonCategoryAttribute,
 } from "@/services/ozonCategories";
 import {
-  buildOzonPlatformAttributesV2,
+  autoMatchOzonSKUAttributes,
+  buildOzonPlatformAttributesV3,
   buildOzonSKUImagePreview,
   getOzonProductConfig,
   normalizeOzonAttributeEditorValues,
+  ozonSKUVariantTuple,
   publishOzonProduct,
   saveOzonProductConfig,
   searchOzonLeafCategories,
@@ -176,7 +179,7 @@ function addSavedDictionaryOptions(
     });
   };
   if (
-    raw.version === 2 &&
+    (raw.version === 2 || raw.version === 3) &&
     raw.attributes &&
     typeof raw.attributes === "object"
   ) {
@@ -190,6 +193,16 @@ function addSavedDictionaryOptions(
         .attributes;
       Object.entries(attrs || {}).forEach(([attrId, values]) =>
         add(attrId, values),
+      );
+    });
+    const overrides =
+      raw.skuAttributeOverrides && typeof raw.skuAttributeOverrides === "object"
+        ? (raw.skuAttributeOverrides as Record<string, unknown>)
+        : {};
+    Object.values(overrides).forEach((row) => {
+      if (!row || typeof row !== "object") return;
+      Object.entries(row as Record<string, unknown>).forEach(
+        ([attrId, values]) => add(attrId, values),
       );
     });
   } else {
@@ -425,6 +438,12 @@ export default function PublishingCenterPage() {
         nextAttributes,
         toOzonAttributeEditorValues(next.platformAttributes),
       );
+      const currentSKUs = new Set(detail.skus.map((sku) => sku.id));
+      const currentSKUOverrides = Object.fromEntries(
+        Object.entries(editor.skuAttributeOverrides || {}).filter(([skuId]) =>
+          currentSKUs.has(skuId),
+        ),
+      );
       const groups = complexAttributeGroups(nextAttributes);
       const complexValues = { ...(editor.complexGroups || {}) };
       groups.forEach(([complexId, defs]) => {
@@ -464,6 +483,8 @@ export default function PublishingCenterPage() {
         package: { ...(listing?.package || {}) },
         attributes: editor.attributes || {},
         complexGroups: complexValues,
+        skuVariantAttributeIds: editor.skuVariantAttributeIds || [],
+        skuAttributeOverrides: currentSKUOverrides,
       });
       setAttributes(nextAttributes);
       setCategoryPath(next.categoryPath || categoryId || "");
@@ -587,7 +608,12 @@ export default function PublishingCenterPage() {
       categoryOptions.find((item) => item.value === categoryId)?.label || "",
     );
     setAttributes([]);
-    form.setFieldsValue({ attributes: {}, complexGroups: {} });
+    form.setFieldsValue({
+      attributes: {},
+      complexGroups: {},
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
+    });
     markDirty();
     if (!categoryId) return;
     try {
@@ -681,10 +707,71 @@ export default function PublishingCenterPage() {
   };
 
   const resolvedPreview = config?.ozonPreview;
-  const ordinaryAttributes = attributes.filter(
+  const selectableVariantAttributes = attributes.filter(
     (attribute) => !attribute.attributeComplexId,
   );
+  const selectedVariantAttributeIDs = watched.skuVariantAttributeIds || [];
+  const selectedVariantAttributeSet = new Set(selectedVariantAttributeIDs);
+  const variantAttributes = selectedVariantAttributeIDs
+    .map((attributeId) =>
+      selectableVariantAttributes.find(
+        (attribute) => attribute.attrId === attributeId,
+      ),
+    )
+    .filter((attribute): attribute is OzonCategoryAttribute => !!attribute);
+  const ordinaryAttributes = selectableVariantAttributes.filter(
+    (attribute) => !selectedVariantAttributeSet.has(attribute.attrId),
+  );
   const complexGroups = complexAttributeGroups(attributes);
+
+  const onVariantAttributesChange = (attributeIDs: string[]) => {
+    const selected = new Set(attributeIDs);
+    const values = form.getFieldsValue(true) as PublishingFormValues;
+    const commonAttributes = { ...(values.attributes || {}) };
+    attributeIDs.forEach((attributeID) => {
+      delete commonAttributes[attributeID];
+      // Ant Design merges nested objects in setFieldsValue and preserves
+      // unmounted fields by default. Clear the exact path as well so an
+      // attribute promoted to a SKU dimension cannot remain in the common
+      // product payload and be submitted alongside per-SKU values.
+      form.setFieldValue(["attributes", attributeID], undefined);
+    });
+    const overrides = Object.fromEntries(
+      (product?.skus || []).map((sku) => [
+        sku.id,
+        Object.fromEntries(
+          Object.entries(values.skuAttributeOverrides?.[sku.id] || {}).filter(
+            ([attributeID]) => selected.has(attributeID),
+          ),
+        ),
+      ]),
+    );
+    form.setFieldsValue({
+      skuVariantAttributeIds: attributeIDs,
+      skuAttributeOverrides: overrides,
+      attributes: commonAttributes,
+    });
+    markDirty();
+  };
+
+  const autoMatchSKUAttributes = () => {
+    if (!product || selectedVariantAttributeIDs.length === 0) return;
+    const result = autoMatchOzonSKUAttributes(
+      attributes,
+      product.skus,
+      selectedVariantAttributeIDs,
+      form.getFieldValue("skuAttributeOverrides") || {},
+    );
+    form.setFieldValue("skuAttributeOverrides", result.values);
+    markDirty();
+    if (result.unresolved.length > 0) {
+      message.warning(
+        `已自动匹配 ${result.matchedCount} 项；另有 ${result.unresolved.length} 项需从 Ozon 词典手动选择。`,
+      );
+    } else {
+      message.success(`已从本地 SKU 属性匹配 ${result.matchedCount} 项`);
+    }
+  };
 
   const immediateIssues = useMemo<EditorIssue[]>(() => {
     const issues: EditorIssue[] = [];
@@ -775,6 +862,61 @@ export default function PublishingCenterPage() {
         );
       }),
     );
+    if (
+      (product?.skus.length || 0) > 1 &&
+      selectedVariantAttributeIDs.length === 0
+    ) {
+      add(
+        "sku-variant-mapping",
+        "多 SKU 商品尚未选择 Ozon 变体属性",
+        selectableVariantAttributes.length > 0
+          ? "请选择颜色、尺码等普通类目属性，并为每个 SKU 分配唯一值。"
+          : "当前模板没有可安全表达的普通变体属性；复杂组合属性不能静默作为 SKU 变体，请拆分商品或暂停提交。",
+        "skuAttributeOverrides",
+      );
+    }
+    const variantByID = new Map(
+      selectableVariantAttributes.map((attribute) => [
+        attribute.attrId,
+        attribute,
+      ]),
+    );
+    const tupleOwners = new Map<string, ProductSKURow>();
+    (product?.skus || []).forEach((sku) => {
+      const values = watched.skuAttributeOverrides?.[sku.id] || {};
+      selectedVariantAttributeIDs.forEach((attributeID) => {
+        const definition = variantByID.get(attributeID);
+        if (!definition) {
+          add(
+            `variant-unknown-${attributeID}`,
+            `已选择的 Ozon 变体属性 ${attributeID} 已不在当前模板中`,
+            "请重新选择变体属性并保存。",
+            "skuAttributeOverrides",
+          );
+          return;
+        }
+        if (!isFilled(values[attributeID]))
+          add(
+            `variant-${sku.id}-${attributeID}`,
+            `SKU「${sku.skuName || sku.skuCode || sku.id}」缺少变体属性：${definition.name}`,
+            definition.dictionaryId
+              ? "请从 Ozon 词典中选择；本地文字不能代替 dictionaryValueId。"
+              : "请填写该 SKU 对应的 Ozon 属性值。",
+            `skuAttributeOverrides.${sku.id}.${attributeID}`,
+          );
+      });
+      const tuple = ozonSKUVariantTuple(selectedVariantAttributeIDs, values);
+      if (!tuple || selectedVariantAttributeIDs.length === 0) return;
+      const previous = tupleOwners.get(tuple);
+      if (previous) {
+        add(
+          `variant-duplicate-${sku.id}`,
+          `SKU「${sku.skuName || sku.skuCode || sku.id}」与「${previous.skuName || previous.skuCode || previous.id}」的变体组合重复`,
+          "请为每个 SKU 分配唯一的 Ozon 变体属性组合。",
+          `skuAttributeOverrides.${sku.id}`,
+        );
+      } else tupleOwners.set(tuple, sku);
+    });
     ordinaryAttributes.forEach((attribute) => {
       const value = watched.attributes?.[attribute.attrId];
       if (attribute.required && !isFilled(value))
@@ -829,6 +971,8 @@ export default function PublishingCenterPage() {
     preflight,
     resolvedPreview,
     shopId,
+    selectedVariantAttributeIDs,
+    selectableVariantAttributes,
     skuImages,
     watched,
   ]);
@@ -873,9 +1017,11 @@ export default function PublishingCenterPage() {
           shopId,
           categoryId: values.categoryId,
           categoryPath,
-          platformAttributes: buildOzonPlatformAttributesV2(attributes, {
+          platformAttributes: buildOzonPlatformAttributesV3(attributes, {
             attributes: values.attributes,
             complexGroups: values.complexGroups,
+            skuVariantAttributeIds: values.skuVariantAttributeIds,
+            skuAttributeOverrides: values.skuAttributeOverrides,
           }),
           ozonImages: toOzonImageConfigInput(skuImages),
           ozonListing: {
@@ -1046,6 +1192,22 @@ export default function PublishingCenterPage() {
         ?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    if (issue.field.startsWith("skuAttributeOverrides")) {
+      const skuId = issue.field.split(".")[1];
+      document
+        .getElementById(
+          skuId
+            ? `field-skuAttributeOverrides-${skuId}`
+            : "ozon-sku-variant-mapping",
+        )
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (issue.field.split(".").length > 2)
+        form.scrollToField(issue.field.split("."), {
+          behavior: "smooth",
+          block: "center",
+        });
+      return;
+    }
     form.scrollToField(issue.field.split("."), {
       behavior: "smooth",
       block: "center",
@@ -1102,6 +1264,12 @@ export default function PublishingCenterPage() {
   const localSKUByID = new Map(
     (product?.skus || []).map((sku) => [sku.id, sku]),
   );
+  const currentAttributePayload = buildOzonPlatformAttributesV3(attributes, {
+    attributes: watched.attributes,
+    complexGroups: watched.complexGroups,
+    skuVariantAttributeIds: selectedVariantAttributeIDs,
+    skuAttributeOverrides: watched.skuAttributeOverrides,
+  });
   const previewSKUs =
     finalPreview?.skus ||
     (product?.skus || []).map((sku) => ({
@@ -1121,6 +1289,21 @@ export default function PublishingCenterPage() {
       stockSource: "local_inventory",
       images:
         skuImages.find((item) => item.skuId === sku.id)?.finalImages || [],
+      platformAttributes: {
+        version: 3 as const,
+        attributes: {
+          ...currentAttributePayload.attributes,
+          ...(currentAttributePayload.skuAttributeOverrides[sku.id] || {}),
+        },
+        complexGroups: currentAttributePayload.complexGroups,
+        skuVariantAttributeIds: currentAttributePayload.skuVariantAttributeIds,
+      },
+      attributeSources: Object.fromEntries(
+        selectedVariantAttributeIDs.map((attributeID) => [
+          attributeID,
+          "ozon_sku_shop_config",
+        ]),
+      ),
       canSubmit: !immediateIssues.some((issue) => issue.key.includes(sku.id)),
       issues: [],
     }));
@@ -1636,6 +1819,152 @@ export default function PublishingCenterPage() {
                   )}
                 </SectionCard>
 
+                <SectionCard
+                  title="SKU 变体属性映射"
+                  description="先指定用于区分 SKU 的 Ozon 普通属性，再逐个 SKU 选择平台值；这些值只保存在当前商品与 Ozon 店铺配置中。"
+                >
+                  <Space
+                    id="ozon-sku-variant-mapping"
+                    direction="vertical"
+                    size={16}
+                    style={{ width: "100%" }}
+                  >
+                    {product.skus.length <= 1 ? (
+                      <Alert
+                        type="info"
+                        showIcon
+                        message="当前是单 SKU 商品，不强制配置变体属性"
+                        description="如后续增加 SKU，发布前检查会要求每个 SKU 都有唯一的变体组合。"
+                      />
+                    ) : null}
+                    {complexGroups.length > 0 ? (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        message="组合属性不能作为 SKU 变体维度"
+                        description="attribute_complex_id 大于 0 的属性仍按上方商品级字段组提交。若当前类目只能依靠组合属性区分 SKU，系统会阻止提交，请拆分为单品或暂停刊登。"
+                      />
+                    ) : null}
+                    <div className="publishing-center__variant-toolbar">
+                      <Form.Item
+                        name="skuVariantAttributeIds"
+                        label="用于区分 SKU 的 Ozon 属性"
+                        extra="例如颜色、尺码。category_dependent 仅表示类目依赖，不会被系统误判为变体属性。"
+                      >
+                        <Select
+                          mode="multiple"
+                          allowClear
+                          optionFilterProp="label"
+                          placeholder="选择一个或多个普通类目属性"
+                          options={selectableVariantAttributes.map(
+                            (attribute) => ({
+                              value: attribute.attrId,
+                              label: `${attribute.name}${attribute.required ? "（必填）" : ""}`,
+                            }),
+                          )}
+                          onChange={onVariantAttributesChange}
+                        />
+                      </Form.Item>
+                      <Button
+                        icon={<ThunderboltOutlined />}
+                        disabled={selectedVariantAttributeIDs.length === 0}
+                        onClick={autoMatchSKUAttributes}
+                      >
+                        从本地 SKU 属性自动匹配
+                      </Button>
+                    </div>
+                    {product.skus.length > 1 &&
+                    selectedVariantAttributeIDs.length === 0 ? (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message="当前配置可以保存，但不能提交 Ozon"
+                        description="多 SKU 必须明确选择变体维度并为每个 SKU 分配唯一值；系统不会把商品级同一属性复制给所有 SKU。"
+                      />
+                    ) : null}
+                    <div className="publishing-center__variant-grid">
+                      {product.skus.map((sku) => (
+                        <section
+                          key={sku.id}
+                          id={`field-skuAttributeOverrides-${sku.id}`}
+                          className="publishing-center__variant-card"
+                        >
+                          <div className="publishing-center__sku-heading">
+                            <div>
+                              <Typography.Text strong>
+                                {sku.skuName || sku.skuCode || sku.id}
+                              </Typography.Text>
+                              {sku.skuCode ? (
+                                <Typography.Text type="secondary">
+                                  SKU：{sku.skuCode}
+                                </Typography.Text>
+                              ) : null}
+                            </div>
+                            <Tag color="blue">逐 SKU 配置</Tag>
+                          </div>
+                          <div className="publishing-center__local-attrs">
+                            <Typography.Text type="secondary">
+                              本地属性候选
+                            </Typography.Text>
+                            <Space size={[4, 4]} wrap>
+                              {Object.entries(sku.attrs || {}).length > 0 ? (
+                                Object.entries(sku.attrs || {}).map(
+                                  ([key, value]) => (
+                                    <Tag key={key}>
+                                      {key}：
+                                      {Array.isArray(value)
+                                        ? value.map(String).join(" / ")
+                                        : String(value ?? "")}
+                                    </Tag>
+                                  ),
+                                )
+                              ) : (
+                                <Typography.Text type="secondary">
+                                  无；请手动选择 Ozon 值
+                                </Typography.Text>
+                              )}
+                            </Space>
+                          </div>
+                          {variantAttributes.length === 0 ? (
+                            <Typography.Text type="secondary">
+                              选择上方变体属性后在此分配对应值。
+                            </Typography.Text>
+                          ) : (
+                            <div className="publishing-center__variant-fields">
+                              {variantAttributes.map((attribute) => (
+                                <Form.Item
+                                  key={attribute.attrId}
+                                  name={[
+                                    "skuAttributeOverrides",
+                                    sku.id,
+                                    attribute.attrId,
+                                  ]}
+                                  label={
+                                    <Space size={4}>
+                                      {attribute.name}
+                                      <Tag color="red">每个 SKU 必填</Tag>
+                                      {attribute.isCollection ? (
+                                        <Tag color="blue">多值</Tag>
+                                      ) : null}
+                                    </Space>
+                                  }
+                                  extra={
+                                    attribute.dictionaryId
+                                      ? "必须选择 Ozon 词典值；自动匹配失败时请手动搜索。"
+                                      : undefined
+                                  }
+                                >
+                                  {renderAttributeInput(attribute)}
+                                </Form.Item>
+                              ))}
+                            </div>
+                          )}
+                        </section>
+                      ))}
+                    </div>
+                  </Space>
+                </SectionCard>
+
                 <div className="publishing-center__actions">
                   <Space wrap>
                     <Button
@@ -1825,6 +2154,28 @@ export default function PublishingCenterPage() {
                               .join(" → ") || "—"}
                             ）
                           </Typography.Text>
+                          {variantAttributes.length > 0 ? (
+                            <div className="publishing-center__preview-attributes">
+                              {variantAttributes.map((attribute) => {
+                                const values =
+                                  sku.platformAttributes?.attributes?.[
+                                    attribute.attrId
+                                  ] || [];
+                                return (
+                                  <Typography.Text key={attribute.attrId}>
+                                    {attribute.name}：
+                                    {values
+                                      .map((selection) => selection.value)
+                                      .filter(Boolean)
+                                      .join(" / ") || "—"}{" "}
+                                    {sourceTag(
+                                      sku.attributeSources?.[attribute.attrId],
+                                    )}
+                                  </Typography.Text>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                           {sku.issues.map((issue, index) => (
                             <Typography.Text
                               type="danger"

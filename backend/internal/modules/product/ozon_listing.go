@@ -16,6 +16,7 @@ const (
 
 	OzonValueSourceProduct       = "product"
 	OzonValueSourceShopConfig    = "ozon_product_shop_config"
+	OzonValueSourceSKUShopConfig = "ozon_sku_shop_config"
 	OzonValueSourceGlobalPreset  = "global_ozon_preset"
 	OzonValueSourceLocalStock    = "local_inventory"
 	OzonValueSourceStoreContract = "store_contract"
@@ -77,15 +78,17 @@ type OzonResolvedPackageDTO struct {
 }
 
 type OzonResolvedSKUListingDTO struct {
-	SKUID       uuid.UUID              `json:"skuId"`
-	SKUCode     string                 `json:"skuCode,omitempty"`
-	SKUName     string                 `json:"skuName,omitempty"`
-	Price       OzonResolvedFloat      `json:"price"`
-	LocalStock  int                    `json:"localStock"`
-	StockSource string                 `json:"stockSource"`
-	Images      []OzonResolvedImageDTO `json:"images"`
-	CanSubmit   bool                   `json:"canSubmit"`
-	Issues      []OzonListingIssueDTO  `json:"issues"`
+	SKUID              uuid.UUID                     `json:"skuId"`
+	SKUCode            string                        `json:"skuCode,omitempty"`
+	SKUName            string                        `json:"skuName,omitempty"`
+	Price              OzonResolvedFloat             `json:"price"`
+	LocalStock         int                           `json:"localStock"`
+	StockSource        string                        `json:"stockSource"`
+	Images             []OzonResolvedImageDTO        `json:"images"`
+	PlatformAttributes OzonEffectiveAttributePayload `json:"platformAttributes"`
+	AttributeSources   map[string]string             `json:"attributeSources"`
+	CanSubmit          bool                          `json:"canSubmit"`
+	Issues             []OzonListingIssueDTO         `json:"issues"`
 }
 
 // OzonResolvedListingDTO is the canonical effective-value view reused by the
@@ -205,12 +208,26 @@ func ResolveOzonListing(p Product, cfg *ProductPlatformPublishConfig, preset map
 		Issues:    []OzonListingIssueDTO{},
 	}
 	var listing OzonListingConfigInput
+	attributePayload := OzonPlatformAttributePayload{
+		Version: OzonPlatformAttributesVersion, Attributes: map[string][]OzonAttributeSelection{}, ComplexGroups: []OzonComplexAttributeGroup{},
+		SKUVariantAttributeIDs: []string{}, SKUAttributeOverrides: map[string]map[string][]OzonAttributeSelection{},
+	}
+	attributePayloadValid := true
 	if cfg != nil {
 		resolved.ShopID = cfg.ShopID
 		resolved.CategoryID = strings.TrimSpace(cfg.CategoryID)
 		resolved.CategoryPath = strings.TrimSpace(cfg.CategoryPath)
 		resolved.SchemaHash = strings.TrimSpace(cfg.SchemaHash)
 		resolved.PlatformAttributes = append(json.RawMessage(nil), cfg.PlatformAttributes...)
+		decodedAttributes, decodeErr := DecodeOzonPlatformAttributes(cfg.PlatformAttributes)
+		if decodeErr != nil {
+			attributePayloadValid = false
+			resolved.Issues = append(resolved.Issues, OzonListingIssueDTO{
+				Code: "OZON_ATTRIBUTE_PAYLOAD_INVALID", Message: "已保存的 Ozon 类目属性无法读取", Suggestion: "请重新选择并保存当前类目属性。", Field: "platformAttributes",
+			})
+		} else {
+			attributePayload = decodedAttributes
+		}
 		decoded, _, err := DecodeOzonListingConfig(cfg.ListingConfig)
 		if err != nil {
 			resolved.Issues = append(resolved.Issues, OzonListingIssueDTO{
@@ -276,6 +293,10 @@ func ResolveOzonListing(p Product, cfg *ProductPlatformPublishConfig, preset map
 	for _, imageSKU := range imageView.SKUs {
 		imagesBySKU[imageSKU.SKUID] = imageSKU
 	}
+	variantIssues := map[uuid.UUID][]OzonListingIssueDTO{}
+	if cfg != nil && attributePayloadValid {
+		variantIssues = resolveOzonSKUVariantIssues(p.SKUs, attributePayload)
+	}
 	for _, sku := range sortedOzonSKUs(p.SKUs) {
 		price := 0.0
 		priceSource := OzonValueSourceProduct
@@ -292,8 +313,23 @@ func ResolveOzonListing(p Product, cfg *ProductPlatformPublishConfig, preset map
 		row := OzonResolvedSKUListingDTO{
 			SKUID: sku.ID, SKUCode: strings.TrimSpace(sku.SKUCode), SKUName: strings.TrimSpace(sku.SKUName),
 			Price: OzonResolvedFloat{Value: price, Source: priceSource}, LocalStock: stock, StockSource: OzonValueSourceLocalStock,
-			Images: []OzonResolvedImageDTO{}, Issues: []OzonListingIssueDTO{},
+			Images: []OzonResolvedImageDTO{}, Issues: []OzonListingIssueDTO{}, AttributeSources: map[string]string{},
 		}
+		if attributePayloadValid {
+			row.PlatformAttributes = ResolveOzonEffectiveSKUAttributes(attributePayload, sku.ID.String())
+			for attrID := range attributePayload.Attributes {
+				row.AttributeSources[attrID] = OzonValueSourceShopConfig
+			}
+			for _, group := range attributePayload.ComplexGroups {
+				for attrID := range group.Attributes {
+					row.AttributeSources[attrID] = OzonValueSourceShopConfig
+				}
+			}
+			for attrID := range attributePayload.SKUAttributeOverrides[sku.ID.String()] {
+				row.AttributeSources[attrID] = OzonValueSourceSKUShopConfig
+			}
+		}
+		row.Issues = append(row.Issues, variantIssues[sku.ID]...)
 		if imageSKU, ok := imagesBySKU[sku.ID]; ok {
 			row.Images = append(row.Images, imageSKU.FinalImages...)
 			for _, issue := range imageSKU.Issues {
@@ -316,6 +352,58 @@ func ResolveOzonListing(p Product, cfg *ProductPlatformPublishConfig, preset map
 	resolved.ErrorCount += len(resolved.Issues)
 	resolved.CanSubmit = resolved.ErrorCount == 0
 	return resolved
+}
+
+func resolveOzonSKUVariantIssues(skus []ProductSKU, payload OzonPlatformAttributePayload) map[uuid.UUID][]OzonListingIssueDTO {
+	out := make(map[uuid.UUID][]OzonListingIssueDTO, len(skus))
+	if len(skus) > 1 && len(payload.SKUVariantAttributeIDs) == 0 {
+		for _, sku := range skus {
+			skuID := sku.ID
+			out[sku.ID] = append(out[sku.ID], OzonListingIssueDTO{
+				Code: "OZON_SKU_VARIANT_MAPPING_MISSING", Message: fmt.Sprintf("SKU「%s」尚未分配 Ozon 变体属性", ozonSKUDisplayName(sku)),
+				Suggestion: "请选择至少一个普通 Ozon 类目属性，并为每个 SKU 明确选择对应值。复杂组合属性暂不能作为 SKU 变体。",
+				Field:      "skuAttributeOverrides." + sku.ID.String(), SKUID: &skuID,
+			})
+		}
+		return out
+	}
+	tupleOwner := map[string]ProductSKU{}
+	for _, sku := range skus {
+		override := payload.SKUAttributeOverrides[sku.ID.String()]
+		complete := true
+		for _, attrID := range payload.SKUVariantAttributeIDs {
+			if len(override[attrID]) > 0 {
+				continue
+			}
+			complete = false
+			skuID := sku.ID
+			out[sku.ID] = append(out[sku.ID], OzonListingIssueDTO{
+				Code: "OZON_SKU_VARIANT_VALUE_MISSING", Message: fmt.Sprintf("SKU「%s」缺少 Ozon 变体属性 %s", ozonSKUDisplayName(sku), attrID),
+				Suggestion: "请从当前 Ozon 类目允许的值中手动选择；词典属性不能只填写本地文本。",
+				Field:      "skuAttributeOverrides." + sku.ID.String() + "." + attrID, SKUID: &skuID,
+			})
+		}
+		if !complete || len(payload.SKUVariantAttributeIDs) == 0 {
+			continue
+		}
+		tuple := ozonSKUVariantTuple(payload.SKUVariantAttributeIDs, override)
+		if previous, exists := tupleOwner[tuple]; exists {
+			currentID := sku.ID
+			previousID := previous.ID
+			message := fmt.Sprintf("SKU「%s」与 SKU「%s」的 Ozon 变体组合重复", ozonSKUDisplayName(sku), ozonSKUDisplayName(previous))
+			out[sku.ID] = append(out[sku.ID], OzonListingIssueDTO{
+				Code: "OZON_SKU_VARIANT_DUPLICATE", Message: message, Suggestion: "请为每个 SKU 分配唯一的 Ozon 变体属性组合。",
+				Field: "skuAttributeOverrides." + sku.ID.String(), SKUID: &currentID,
+			})
+			out[previous.ID] = append(out[previous.ID], OzonListingIssueDTO{
+				Code: "OZON_SKU_VARIANT_DUPLICATE", Message: message, Suggestion: "请为每个 SKU 分配唯一的 Ozon 变体属性组合。",
+				Field: "skuAttributeOverrides." + previous.ID.String(), SKUID: &previousID,
+			})
+			continue
+		}
+		tupleOwner[tuple] = sku
+	}
+	return out
 }
 
 func isOzonCurrencyCode(value string) bool {

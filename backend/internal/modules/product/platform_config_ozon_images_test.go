@@ -2,6 +2,8 @@ package product
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -72,6 +74,68 @@ func TestOzonPlatformConfigPersistsAndReloadsSKUImageSelections(t *testing.T) {
 	}
 	require.Equal(t, []string{originalSKU.ImageURL, detail.PublicURL}, resolvedOzonURLs(bySKU[originalSKU.ID].FinalImages))
 	require.Equal(t, []string{shared.PublicURL, detail.PublicURL}, resolvedOzonURLs(bySKU[fallbackSKU.ID].FinalImages))
+}
+
+func TestOzonPlatformConfigPersistsAndReloadsSKUVariantMappings(t *testing.T) {
+	svc, productRow := tenantProductFixture(t, 1)
+	require.NoError(t, svc.DB.AutoMigrate(
+		&ProductPlatformPublishConfig{},
+		&shop.Shop{},
+		&shop.PlatformCategory{},
+		&shop.PlatformCategoryAttribute{},
+	))
+	shopRow := shop.Shop{TenantID: 1, Platform: "ozon", ShopName: "Ozon variants", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
+	require.NoError(t, svc.DB.Create(&shopRow).Error)
+	require.NoError(t, svc.DB.Create(&shop.PlatformCategory{Platform: "ozon", CategoryID: "100:200", Name: "服装", IsLeaf: true, Status: "active"}).Error)
+	require.NoError(t, svc.DB.Create(&shop.PlatformCategoryAttribute{
+		Platform: "ozon", CategoryID: "100:200", AttrID: "10096", Name: "颜色", Required: true,
+		Options: datatypes.JSON([]byte(`[{"id":"1","value":"红色"},{"id":"2","value":"蓝色"}]`)),
+		Raw:     datatypes.JSON([]byte(`{"dictionary_id":"7","is_collection":false,"attribute_complex_id":0}`)),
+	}).Error)
+	red := ProductSKU{ProductID: productRow.ID, SKUCode: "RED", SKUName: "红色"}
+	blue := ProductSKU{ProductID: productRow.ID, SKUCode: "BLUE", SKUName: "蓝色"}
+	require.NoError(t, svc.DB.Create(&red).Error)
+	require.NoError(t, svc.DB.Create(&blue).Error)
+
+	payload := fmt.Sprintf(`{
+		"version":3,
+		"attributes":{},
+		"complexGroups":[],
+		"skuVariantAttributeIds":["10096"],
+		"skuAttributeOverrides":{
+			%q:{"10096":[{"value":"红色","dictionaryValueId":"1"}]},
+			%q:{"10096":[{"value":"蓝色","dictionaryValueId":"2"}]}
+		}
+	}`, red.ID.String(), blue.ID.String())
+	c := tenantProductAdminContext(t, svc, 1)
+	saved, err := svc.PutPlatformPublishConfig(c, productRow.ID, "ozon", PlatformPublishConfigBody{
+		ShopID: shopRow.ID.String(), CategoryID: "100:200", PlatformAttributes: json.RawMessage(payload),
+	}, nil)
+	require.NoError(t, err)
+	require.NotNil(t, saved.OzonPreview)
+
+	reloaded, err := svc.GetPlatformPublishConfigForShop(c, productRow.ID, "ozon", shopRow.ID.String())
+	require.NoError(t, err)
+	decoded, err := DecodeOzonPlatformAttributes(reloaded.PlatformAttributes)
+	require.NoError(t, err)
+	require.Equal(t, OzonPlatformAttributesVersion, decoded.Version)
+	require.Equal(t, []string{"10096"}, decoded.SKUVariantAttributeIDs)
+	require.Equal(t, "红色", decoded.SKUAttributeOverrides[red.ID.String()]["10096"][0].Value)
+	require.Equal(t, "蓝色", decoded.SKUAttributeOverrides[blue.ID.String()]["10096"][0].Value)
+
+	previewBySKU := map[uuid.UUID]OzonResolvedSKUListingDTO{}
+	for _, sku := range reloaded.OzonPreview.SKUs {
+		previewBySKU[sku.SKUID] = sku
+	}
+	require.Equal(t, "红色", previewBySKU[red.ID].PlatformAttributes.Attributes["10096"][0].Value)
+	require.Equal(t, OzonValueSourceSKUShopConfig, previewBySKU[red.ID].AttributeSources["10096"])
+
+	unknownSKU := uuid.New()
+	invalid := strings.Replace(payload, red.ID.String(), unknownSKU.String(), 1)
+	_, err = svc.PutPlatformPublishConfig(c, productRow.ID, "ozon", PlatformPublishConfigBody{
+		ShopID: shopRow.ID.String(), CategoryID: "100:200", PlatformAttributes: json.RawMessage(invalid),
+	}, nil)
+	require.ErrorContains(t, err, "不存在的 SKU")
 }
 
 func resolvedOzonURLs(images []OzonResolvedImageDTO) []string {

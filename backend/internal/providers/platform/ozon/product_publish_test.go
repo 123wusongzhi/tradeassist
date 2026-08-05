@@ -23,9 +23,16 @@ func TestPublishProductHappyPath(t *testing.T) {
 		} `json:"stocks"`
 	}
 	var importCalls, stockCalls int
+	redSKUID := uuid.New()
+	blueSKUID := uuid.New()
 
 	mux := http.NewServeMux()
-	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[
+			{"id":10096,"name":"Color","type":"String","dictionary_id":0,"is_required":true,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false},
+			{"id":85,"name":"Brand","type":"String","dictionary_id":0,"is_required":false,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false}
+		]}`))
+	})
 	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
 		importCalls++
 		_ = json.NewDecoder(r.Body).Decode(&gotImportBody)
@@ -67,21 +74,25 @@ func TestPublishProductHappyPath(t *testing.T) {
 			"warehouse_id":            "22142605386000",
 			"currency_code":           "RUB",
 			"vat":                     "0.1",
-			"auto_fill_attributes":    "false",
+			"auto_fill_attributes":    "true",
 		},
 		Product: platformp.PlatformProductDraft{
 			ProductID:   uuid.New(),
 			Title:       "Test Product",
 			Description: "Test description",
 			Currency:    "CNY",
+			Attributes:  map[string]any{"Brand": "LocalBrand"},
 			Images: []platformp.PlatformProductImage{
 				{URL: "https://example.com/main.jpg", Type: "main"},
 				{URL: "https://example.com/detail.jpg", Type: "detail"},
 			},
 			SKUs: []platformp.PlatformProductSKU{
 				{
-					LocalSKUID: uuid.New(), SKUCode: "SKU-001", SKUName: "Red", Price: 129.9, Stock: 10,
+					LocalSKUID: redSKUID, SKUCode: "SKU-001", SKUName: "Red", Price: 129.9, Stock: 10,
 					ImageURL: "https://example.com/red.jpg",
+					PlatformAttributes: map[string]any{
+						"version": 3, "attributes": map[string]any{"10096": []map[string]any{{"value": "Red"}}}, "complexGroups": []any{}, "skuVariantAttributeIds": []string{"10096"},
+					},
 					Images: []platformp.PlatformProductImage{
 						{URL: "https://example.com/red.jpg", Type: "main"},
 						{URL: "https://example.com/shared.jpg", Type: "detail"},
@@ -89,8 +100,11 @@ func TestPublishProductHappyPath(t *testing.T) {
 					},
 				},
 				{
-					LocalSKUID: uuid.New(), SKUCode: "SKU-002", SKUName: "Blue", Price: 99, Stock: 5,
+					LocalSKUID: blueSKUID, SKUCode: "SKU-002", SKUName: "Blue", Price: 99, Stock: 5,
 					ImageURL: "https://example.com/blue.jpg",
+					PlatformAttributes: map[string]any{
+						"version": 3, "attributes": map[string]any{"10096": []map[string]any{{"value": "Blue"}}}, "complexGroups": []any{}, "skuVariantAttributeIds": []string{"10096"},
+					},
 					Images: []platformp.PlatformProductImage{
 						{URL: "https://example.com/blue.jpg", Type: "main"},
 						{URL: "https://example.com/blue-detail.jpg", Type: "detail"},
@@ -141,6 +155,11 @@ func TestPublishProductHappyPath(t *testing.T) {
 	if len(secondImages) != 2 || secondImages[0] != "https://example.com/blue.jpg" || secondImages[1] != "https://example.com/blue-detail.jpg" || second["primary_image"] != "https://example.com/blue.jpg" {
 		t.Fatalf("unexpected second SKU images: %+v", second)
 	}
+	firstAttributes := first["attributes"].([]any)
+	secondAttributes := second["attributes"].([]any)
+	if len(firstAttributes) != 1 || len(secondAttributes) != 1 || firstAttributes[0].(map[string]any)["values"].([]any)[0].(map[string]any)["value"] != "Red" || secondAttributes[0].(map[string]any)["values"].([]any)[0].(map[string]any)["value"] != "Blue" {
+		t.Fatalf("SKU variant attributes were not submitted independently: first=%+v second=%+v", firstAttributes, secondAttributes)
+	}
 
 	stocks := gotStockBody.Stocks
 	if len(stocks) != 2 {
@@ -149,6 +168,54 @@ func TestPublishProductHappyPath(t *testing.T) {
 	stock0 := stocks[0]
 	if stock0.WarehouseID != 22142605386000 || stock0.Stock != 10 {
 		t.Fatalf("unexpected stock row: %+v", stock0)
+	}
+}
+
+func TestPublishProductBlocksLegacyMultiSKUBeforeOzonWrite(t *testing.T) {
+	var importCalls int
+	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
+		importCalls++
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	prov := ozonProvider{}
+	_, err := prov.PublishProduct(context.Background(), platformp.PublishProductRequest{
+		ShopID:   uuid.New(),
+		Platform: "ozon",
+		Auth: platformp.TestConnectionRequest{
+			AppKey:      "1",
+			AccessToken: "2",
+			Extra:       map[string]string{"api_base_url": srv.URL},
+		},
+		PublishConfig: map[string]any{
+			"description_category_id": "200001240",
+			"type_id":                 "93488",
+			"default_weight":          "100",
+			"default_width":           "100",
+			"default_height":          "100",
+			"default_depth":           "100",
+			"currency_code":           "RUB",
+			"vat":                     "0",
+			"auto_fill_attributes":    "false",
+		},
+		Product: platformp.PlatformProductDraft{
+			ProductID: uuid.New(),
+			Title:     "Legacy multi-SKU task",
+			SKUs: []platformp.PlatformProductSKU{
+				{LocalSKUID: uuid.New(), SKUCode: "OLD-1", Price: 10, ImageURL: "https://example.com/old-1.jpg"},
+				{LocalSKUID: uuid.New(), SKUCode: "OLD-2", Price: 11, ImageURL: "https://example.com/old-2.jpg"},
+			},
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "no per-SKU variant mapping") {
+		t.Fatalf("expected legacy multi-SKU snapshot to be blocked, got %v", err)
+	}
+	if importCalls != 0 {
+		t.Fatalf("expected no Ozon product import write, got %d", importCalls)
 	}
 }
 

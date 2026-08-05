@@ -112,6 +112,11 @@ type ozonImportItem struct {
 	AutoRenew             string                      `json:"auto_renew,omitempty"`
 }
 
+type ozonSKUAttributePlan struct {
+	Ordinary []ozonAttributeValue
+	Complex  []ozonComplexAttributeGroup
+}
+
 // ozonComplexAttributeGroup represents one complex-attribute instance. The
 // Legacy payloads are grouped once per complex ID here. Canonical v2 payloads
 // provide explicit repeated groups and bypass this inference.
@@ -199,54 +204,128 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			return nil, fmt.Errorf("ozon category schema changed after task creation; rerun preflight")
 		}
 	}
-	ordinarySchema := liveAttrs
-	if !explicitAttrs.Legacy {
-		ordinarySchema = make([]ozonAttribute, 0, len(liveAttrs))
-		for _, attr := range liveAttrs {
-			if attr.AttributeComplexID <= 0 {
-				ordinarySchema = append(ordinarySchema, attr)
-			}
+	ordinarySchema := make([]ozonAttribute, 0, len(liveAttrs))
+	for _, attr := range liveAttrs {
+		if attr.AttributeComplexID <= 0 {
+			ordinarySchema = append(ordinarySchema, attr)
 		}
 	}
-	attrPayload, missingAttrs, missingDefs, err := client.buildCategoryAttributesForPublish(
-		cctx,
-		merged.DescriptionCategoryID,
-		merged.TypeID,
-		localAttrs,
-		merged,
-		explicitAttrs.Attributes,
-		merged.AutoFillAttributes,
-		ordinarySchema,
-	)
-	if err != nil {
-		return nil, mapOzonPublishError(err)
-	}
-
+	attributePlans := make([]ozonSKUAttributePlan, len(d.SKUs))
+	resolvedAttributeCount := 0
+	missingAttrs := make([]string, 0)
 	aiFillUsed := false
 	aiFillFailed := false
-	if merged.AutoFillAI && len(missingDefs) > 0 && boundChat != nil {
-		suggestions, aiErr := fillMissingAttributesWithAI(cctx, boundChat, d, missingDefs)
-		if aiErr != nil {
-			aiFillFailed = true
-		} else if len(suggestions) > 0 {
-			extra, stillMissing := client.applySuggestedAttributes(cctx, merged.DescriptionCategoryID, merged.TypeID, missingDefs, suggestions)
-			if len(extra) > 0 {
-				attrPayload = append(attrPayload, extra...)
-				aiFillUsed = true
-			}
-			missingAttrs = stillMissing
+	resolvedSKUCount := 0
+	for _, sku := range d.SKUs {
+		if len(sku.PlatformAttributes) > 0 {
+			resolvedSKUCount++
 		}
 	}
-	explicitComplex, complexMissing, complexErr := client.buildExplicitOzonComplexGroups(cctx, merged.DescriptionCategoryID, merged.TypeID, liveAttrs, explicitAttrs)
-	if complexErr != nil {
-		return nil, mapOzonPublishError(complexErr)
+	if resolvedSKUCount > 0 {
+		if resolvedSKUCount != len(d.SKUs) {
+			return nil, fmt.Errorf("ozon publish task snapshot has incomplete per-SKU attribute payloads; rerun preflight")
+		}
+		variantDimensions := ""
+		seenVariantTuples := map[string]string{}
+		for i, sku := range d.SKUs {
+			resolvedAttrs, parseErr := parseExplicitOzonAttributesValue(sku.PlatformAttributes)
+			if parseErr != nil {
+				return nil, fmt.Errorf("ozon SKU %s attributes are invalid: %w", skuDisplayNameForPublish(sku), parseErr)
+			}
+			if resolvedAttrs.Legacy {
+				return nil, fmt.Errorf("ozon SKU %s task snapshot does not contain canonical per-SKU attributes; rerun preflight", skuDisplayNameForPublish(sku))
+			}
+			dimensions := append([]string(nil), resolvedAttrs.SKUVariantAttributeIDs...)
+			sort.Strings(dimensions)
+			joinedDimensions := strings.Join(dimensions, "\x00")
+			if i == 0 {
+				variantDimensions = joinedDimensions
+			} else if joinedDimensions != variantDimensions {
+				return nil, fmt.Errorf("ozon SKU variant dimensions changed inside the task snapshot; rerun preflight")
+			}
+			if len(d.SKUs) > 1 {
+				if len(dimensions) == 0 {
+					return nil, fmt.Errorf("ozon multi-SKU publish requires explicit SKU variant attributes; no Ozon write was sent")
+				}
+				tuple, tupleErr := explicitOzonSKUVariantTuple(dimensions, resolvedAttrs.Attributes)
+				if tupleErr != nil {
+					return nil, fmt.Errorf("ozon SKU %s: %w", skuDisplayNameForPublish(sku), tupleErr)
+				}
+				if previous, exists := seenVariantTuples[tuple]; exists {
+					return nil, fmt.Errorf("ozon SKU %s duplicates the variant attributes of SKU %s; no Ozon write was sent", skuDisplayNameForPublish(sku), previous)
+				}
+				seenVariantTuples[tuple] = skuDisplayNameForPublish(sku)
+			}
+			// Canonical per-SKU snapshots are the final values produced by the
+			// shared resolver and shown during confirmation. Applying local or AI
+			// auto-fill here would make the Ozon write diverge from that immutable
+			// preview, so auto-fill remains a legacy single-SKU compatibility path.
+			attrPayload, skuMissing, _, buildErr := client.buildCategoryAttributesForPublish(
+				cctx, merged.DescriptionCategoryID, merged.TypeID, nil, merged,
+				resolvedAttrs.Attributes, false, ordinarySchema,
+			)
+			if buildErr != nil {
+				return nil, mapOzonPublishError(fmt.Errorf("ozon SKU %s: %w", skuDisplayNameForPublish(sku), buildErr))
+			}
+			explicitComplex, complexMissing, complexErr := client.buildExplicitOzonComplexGroups(
+				cctx, merged.DescriptionCategoryID, merged.TypeID, liveAttrs, resolvedAttrs,
+			)
+			if complexErr != nil {
+				return nil, mapOzonPublishError(fmt.Errorf("ozon SKU %s: %w", skuDisplayNameForPublish(sku), complexErr))
+			}
+			skuMissing = append(skuMissing, complexMissing...)
+			if len(skuMissing) > 0 {
+				return nil, fmt.Errorf("ozon SKU %s missing required category attributes: %s", skuDisplayNameForPublish(sku), strings.Join(skuMissing, ", "))
+			}
+			ordinary, complex := partitionOzonImportAttributes(attrPayload)
+			complex = append(complex, explicitComplex...)
+			attributePlans[i] = ozonSKUAttributePlan{Ordinary: ordinary, Complex: complex}
+			resolvedAttributeCount += len(ordinary) + len(complex)
+		}
+	} else {
+		// Old single-SKU task snapshots remain readable. Multi-SKU snapshots
+		// without explicit variant mapping are stopped before product/import.
+		if len(d.SKUs) > 1 {
+			return nil, fmt.Errorf("ozon multi-SKU publish task has no per-SKU variant mapping; rerun preflight before submitting")
+		}
+		legacySchema := ordinarySchema
+		if explicitAttrs.Legacy {
+			legacySchema = liveAttrs
+		}
+		attrPayload, legacyMissing, missingDefs, buildErr := client.buildCategoryAttributesForPublish(
+			cctx, merged.DescriptionCategoryID, merged.TypeID, localAttrs, merged,
+			explicitAttrs.Attributes, merged.AutoFillAttributes, legacySchema,
+		)
+		if buildErr != nil {
+			return nil, mapOzonPublishError(buildErr)
+		}
+		missingAttrs = legacyMissing
+		if merged.AutoFillAI && len(missingDefs) > 0 && boundChat != nil {
+			suggestions, aiErr := fillMissingAttributesWithAI(cctx, boundChat, d, missingDefs)
+			if aiErr != nil {
+				aiFillFailed = true
+			} else if len(suggestions) > 0 {
+				extra, stillMissing := client.applySuggestedAttributes(cctx, merged.DescriptionCategoryID, merged.TypeID, missingDefs, suggestions)
+				if len(extra) > 0 {
+					attrPayload = append(attrPayload, extra...)
+					aiFillUsed = true
+				}
+				missingAttrs = stillMissing
+			}
+		}
+		explicitComplex, complexMissing, complexErr := client.buildExplicitOzonComplexGroups(cctx, merged.DescriptionCategoryID, merged.TypeID, liveAttrs, explicitAttrs)
+		if complexErr != nil {
+			return nil, mapOzonPublishError(complexErr)
+		}
+		missingAttrs = append(missingAttrs, complexMissing...)
+		if len(missingAttrs) > 0 {
+			return nil, fmt.Errorf("ozon publish missing required category attributes: %s", strings.Join(missingAttrs, ", "))
+		}
+		ordinary, complex := partitionOzonImportAttributes(attrPayload)
+		complex = append(complex, explicitComplex...)
+		attributePlans[0] = ozonSKUAttributePlan{Ordinary: ordinary, Complex: complex}
+		resolvedAttributeCount = len(ordinary) + len(complex)
 	}
-	missingAttrs = append(missingAttrs, complexMissing...)
-	if len(missingAttrs) > 0 {
-		return nil, fmt.Errorf("ozon publish missing required category attributes: %s", strings.Join(missingAttrs, ", "))
-	}
-	ordinaryAttrs, complexAttrs := partitionOzonImportAttributes(attrPayload)
-	complexAttrs = append(complexAttrs, explicitComplex...)
 
 	currencyCode := strings.TrimSpace(merged.CurrencyCode)
 	if currencyCode == "" {
@@ -263,13 +342,14 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	items := make([]ozonImportItem, 0, len(d.SKUs))
 	for i, sku := range d.SKUs {
 		imagePlan := skuImagePlans[i]
+		attributePlan := attributePlans[i]
 		name := title
 		if len(d.SKUs) > 1 && strings.TrimSpace(sku.SKUName) != "" {
 			name = title + " / " + strings.TrimSpace(sku.SKUName)
 		}
 		item := ozonImportItem{
-			Attributes:            ordinaryAttrs,
-			ComplexAttributes:     complexAttrs,
+			Attributes:            attributePlan.Ordinary,
+			ComplexAttributes:     attributePlan.Complex,
 			DescriptionCategoryID: merged.DescriptionCategoryID,
 			TypeID:                merged.TypeID,
 			Name:                  truncateRunes(name, maxNameRunes),
@@ -339,13 +419,17 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 		"typeId":           merged.TypeID,
 		"currencyCode":     merged.CurrencyCode,
 		"resolvedCurrency": currencyCode,
-		"autoFillAttrs":    len(attrPayload),
-		"aiFillUsed":       aiFillUsed,
-		"aiFillFailed":     aiFillFailed,
-		"missingAttrs":     missingAttrs,
-		"importWarnings":   warnings,
-		"stockWarnings":    stockWarnings,
-		"warehouseId":      merged.WarehouseID,
+		"resolvedAttrs":    resolvedAttributeCount,
+		"resolvedSKUCount": len(d.SKUs),
+		// Kept for task-summary compatibility; resolvedAttrs is the precise
+		// name for canonical multi-SKU snapshots.
+		"autoFillAttrs":  resolvedAttributeCount,
+		"aiFillUsed":     aiFillUsed,
+		"aiFillFailed":   aiFillFailed,
+		"missingAttrs":   missingAttrs,
+		"importWarnings": warnings,
+		"stockWarnings":  stockWarnings,
+		"warehouseId":    merged.WarehouseID,
 	}
 	return &platformp.PublishProductResult{
 		ExternalProductID: strconv.FormatInt(firstProductID, 10),
@@ -362,18 +446,29 @@ type explicitOzonComplexGroup struct {
 }
 
 type explicitOzonAttributesPayload struct {
-	Legacy        bool
-	Attributes    map[string][]explicitOzonAttribute
-	ComplexGroups []explicitOzonComplexGroup
+	Version                int
+	Legacy                 bool
+	Attributes             map[string][]explicitOzonAttribute
+	ComplexGroups          []explicitOzonComplexGroup
+	SKUVariantAttributeIDs []string
 }
 
 func parseExplicitOzonAttributes(options map[string]any) (explicitOzonAttributesPayload, error) {
-	out := explicitOzonAttributesPayload{Legacy: true, Attributes: map[string][]explicitOzonAttribute{}, ComplexGroups: []explicitOzonComplexGroup{}}
 	if options == nil {
-		return out, nil
+		return parseExplicitOzonAttributesValue(nil)
 	}
 	raw, ok := options["platform_attributes"]
 	if !ok || raw == nil {
+		return parseExplicitOzonAttributesValue(nil)
+	}
+	return parseExplicitOzonAttributesValue(raw)
+}
+
+func parseExplicitOzonAttributesValue(raw any) (explicitOzonAttributesPayload, error) {
+	out := explicitOzonAttributesPayload{
+		Legacy: true, Attributes: map[string][]explicitOzonAttribute{}, ComplexGroups: []explicitOzonComplexGroup{}, SKUVariantAttributeIDs: []string{},
+	}
+	if raw == nil {
 		return out, nil
 	}
 	var encoded []byte
@@ -395,7 +490,7 @@ func parseExplicitOzonAttributes(options map[string]any) (explicitOzonAttributes
 	if err := json.Unmarshal(encoded, &probe); err != nil {
 		return out, fmt.Errorf("ozon platform_attributes must be valid JSON: %w", err)
 	}
-	if attributesRaw, isV2 := probe["attributes"]; isV2 {
+	if attributesRaw, isCanonical := probe["attributes"]; isCanonical {
 		out.Legacy = false
 		var version int
 		if rawVersion, exists := probe["version"]; exists {
@@ -403,8 +498,28 @@ func parseExplicitOzonAttributes(options map[string]any) (explicitOzonAttributes
 				return out, fmt.Errorf("ozon platform_attributes.version must be an integer")
 			}
 		}
-		if version != 0 && version != 2 {
+		if version != 0 && version != 2 && version != 3 {
 			return out, fmt.Errorf("ozon platform_attributes version %d is unsupported", version)
+		}
+		out.Version = version
+		if rawDimensions, exists := probe["skuVariantAttributeIds"]; exists {
+			if err := json.Unmarshal(rawDimensions, &out.SKUVariantAttributeIDs); err != nil {
+				return out, fmt.Errorf("ozon platform_attributes.skuVariantAttributeIds must be a string array")
+			}
+			seen := map[string]struct{}{}
+			normalized := make([]string, 0, len(out.SKUVariantAttributeIDs))
+			for _, rawID := range out.SKUVariantAttributeIDs {
+				id := strings.TrimSpace(rawID)
+				if id == "" {
+					return out, fmt.Errorf("ozon platform_attributes.skuVariantAttributeIds contains an empty attribute id")
+				}
+				if _, duplicate := seen[id]; duplicate {
+					continue
+				}
+				seen[id] = struct{}{}
+				normalized = append(normalized, id)
+			}
+			out.SKUVariantAttributeIDs = normalized
 		}
 		var attrs map[string][]map[string]any
 		if err := json.Unmarshal(attributesRaw, &attrs); err != nil {
@@ -491,6 +606,36 @@ func parseExplicitOzonAttributeList(key string, values []map[string]any, strict 
 		out = append(out, spec)
 	}
 	return out, nil
+}
+
+func explicitOzonSKUVariantTuple(attributeIDs []string, attributes map[string][]explicitOzonAttribute) (string, error) {
+	parts := make([]string, 0, len(attributeIDs))
+	for _, attrID := range attributeIDs {
+		values := attributes[attrID]
+		if len(values) == 0 {
+			return "", fmt.Errorf("missing selected variant attribute %s", attrID)
+		}
+		encoded := make([]string, 0, len(values))
+		for _, value := range values {
+			text := strings.TrimSpace(value.Value)
+			if text == "" {
+				return "", fmt.Errorf("variant attribute %s contains an empty value", attrID)
+			}
+			encoded = append(encoded, strconv.FormatInt(value.DictionaryValueID, 10)+"\x00"+text)
+		}
+		sort.Strings(encoded)
+		parts = append(parts, attrID+"="+strings.Join(encoded, "\x01"))
+	}
+	return strings.Join(parts, "\x02"), nil
+}
+
+func skuDisplayNameForPublish(sku platformp.PlatformProductSKU) string {
+	for _, value := range []string{sku.SKUName, sku.SKUCode, sku.LocalSKUID.String()} {
+		if text := strings.TrimSpace(value); text != "" {
+			return text
+		}
+	}
+	return "unknown"
 }
 
 type importedRow struct {

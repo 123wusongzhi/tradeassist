@@ -38,9 +38,13 @@ type PlatformProductSKU struct {
 	SKUCode    string
 	SKUName    string
 	Attrs      map[string]any
-	Price      float64
-	Stock      int
-	ImageURL   string
+	// PlatformAttributes is an adapter-owned immutable item snapshot. The Ozon
+	// resolved draft builder stores its canonical v3 per-SKU payload here; other
+	// adapters must ignore it unless they define an equivalent contract.
+	PlatformAttributes map[string]any
+	Price              float64
+	Stock              int
+	ImageURL           string
 	// Images is the resolved, stable per-SKU listing order. Platform adapters
 	// must prefer it over the product-level gallery when it is present.
 	Images []PlatformProductImage

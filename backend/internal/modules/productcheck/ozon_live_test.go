@@ -16,10 +16,12 @@ import (
 )
 
 func TestValidateOzonDictionarySelectionsLiveRejectsWrongOwnership(t *testing.T) {
+	validationCalls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/description-category/attribute/values/search" {
 			t.Fatalf("unexpected Ozon path %s", r.URL.Path)
 		}
+		validationCalls++
 		_, _ = w.Write([]byte(`{"result":[{"id":999,"value":"Acme"}]}`))
 	}))
 	t.Cleanup(server.Close)
@@ -49,8 +51,17 @@ func TestValidateOzonDictionarySelectionsLiveRejectsWrongOwnership(t *testing.T)
 		t.Fatal(err)
 	}
 	config := product.ProductPlatformPublishConfig{
-		CategoryID:         "100:200",
-		PlatformAttributes: datatypes.JSON([]byte(`{"85":{"value":"Acme","dictionaryValueId":"123"}}`)),
+		CategoryID: "100:200",
+		PlatformAttributes: datatypes.JSON([]byte(`{
+			"version":3,
+			"attributes":{"85":[{"value":"Acme","dictionaryValueId":"123"}]},
+			"complexGroups":[],
+			"skuVariantAttributeIds":["85"],
+			"skuAttributeOverrides":{
+				"sku-one":{"85":[{"value":"Acme","dictionaryValueId":"123"}]},
+				"sku-two":{"85":[{"value":"Acme","dictionaryValueId":"123"}]}
+			}
+		}`)),
 	}
 	svc := &Service{DB: db, Shops: &shop.Service{
 		DB:        db,
@@ -63,8 +74,16 @@ func TestValidateOzonDictionarySelectionsLiveRejectsWrongOwnership(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(checks) != 1 || checks[0].Code != "OZON_DICTIONARY_VALUE_CHANGED" {
+	if len(checks) != 3 {
 		t.Fatalf("expected ownership check failure, got %+v", checks)
+	}
+	for _, check := range checks {
+		if check.Code != "OZON_DICTIONARY_VALUE_CHANGED" {
+			t.Fatalf("expected ownership check failure, got %+v", checks)
+		}
+	}
+	if validationCalls != 1 {
+		t.Fatalf("duplicate dictionary selections should be validated once, got %d calls", validationCalls)
 	}
 }
 

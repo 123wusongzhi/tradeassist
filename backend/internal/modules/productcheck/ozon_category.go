@@ -48,10 +48,15 @@ func (s *Service) checkOzonListingConfig(ctx context.Context, p product.Product,
 		out = append(out, CheckItem{Group: "platform", Code: "OZON_SCHEMA_CHANGED", Level: levelError, Message: "Ozon 类目属性模板已变化", Suggestion: "请重新确认 Ozon 类目属性后再提交。"})
 	}
 	payload, decodeErr := product.DecodeOzonPlatformAttributes(cfg.PlatformAttributes)
+	skuIDs := make([]uuid.UUID, 0, len(p.SKUs))
+	for _, sku := range p.SKUs {
+		skuIDs = append(skuIDs, sku.ID)
+	}
+	var attributeValidationErr error
 	if decodeErr != nil {
 		out = append(out, CheckItem{Group: "platform", Code: "OZON_ATTRIBUTE_PAYLOAD_INVALID", Level: levelError, Message: decodeErr.Error(), Suggestion: "请重新保存商品级 Ozon 属性。"})
-	} else if validateErr := product.ValidateOzonPlatformAttributePayload(attrs, payload, true); validateErr != nil {
-		out = append(out, CheckItem{Group: "platform", Code: "OZON_REQUIRED_ATTR_MISSING", Level: levelError, Message: validateErr.Error(), Suggestion: "请补全商品级 Ozon 属性；多值使用多选，组合属性使用可重复字段组。"})
+	} else {
+		attributeValidationErr = product.ValidateOzonPlatformAttributePayloadForSKUs(attrs, payload, skuIDs, true)
 	}
 	preset := map[string]string{}
 	if s.Settings != nil {
@@ -62,6 +67,32 @@ func (s *Service) checkOzonListingConfig(ctx context.Context, p product.Product,
 	resolved := product.ResolveOzonListing(p, cfg, preset, ozonPublishOptionString(publishOptions, "currency_code"))
 	for _, issue := range resolved.Issues {
 		out = append(out, CheckItem{Group: "platform", Code: issue.Code, Level: levelError, Message: issue.Message, Suggestion: issue.Suggestion})
+	}
+	hasDetailedVariantIssue := false
+	for _, sku := range resolved.SKUs {
+		for _, issue := range sku.Issues {
+			if !strings.HasPrefix(issue.Code, "OZON_SKU_VARIANT_") {
+				continue
+			}
+			hasDetailedVariantIssue = true
+			out = append(out, CheckItem{
+				Group: "platform", Code: issue.Code, Level: levelError, Message: issue.Message, Suggestion: issue.Suggestion,
+				RelatedResourceType: "product_sku", RelatedResourceID: sku.SKUID.String(),
+				TechnicalDetails: map[string]any{"field": issue.Field},
+			})
+		}
+	}
+	if attributeValidationErr != nil {
+		if product.IsOzonSKUVariantValidationError(attributeValidationErr) {
+			// Missing values and duplicate tuples already have field-addressable
+			// per-SKU checks above. Keep one correctly scoped fallback for stale
+			// or otherwise malformed mappings that cannot be attached to a row.
+			if !hasDetailedVariantIssue {
+				out = append(out, CheckItem{Group: "platform", Code: "OZON_SKU_VARIANT_CONFIG_INVALID", Level: levelError, Message: attributeValidationErr.Error(), Suggestion: "请重新检查每个 SKU 的 Ozon 变体维度和值，并移除已删除 SKU 的旧映射。"})
+			}
+		} else {
+			out = append(out, CheckItem{Group: "platform", Code: "OZON_REQUIRED_ATTR_MISSING", Level: levelError, Message: attributeValidationErr.Error(), Suggestion: "请补全商品级 Ozon 属性；多值使用多选，组合属性使用可重复字段组。"})
+		}
 	}
 	return out
 }
