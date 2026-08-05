@@ -1,6 +1,7 @@
 package productpublish
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -94,6 +95,17 @@ func BuildOzonPlatformDraftFromResolved(p product.Product, resolved product.Ozon
 		}
 		draft.SKUs[i].Price = value.Price.Value
 		draft.SKUs[i].Stock = value.LocalStock
+		rawAttributes, marshalErr := json.Marshal(value.PlatformAttributes)
+		if marshalErr != nil {
+			return platformp.PlatformProductDraft{}, fmt.Errorf("marshal Ozon resolved attributes for SKU %s: %w", draft.SKUs[i].LocalSKUID, marshalErr)
+		}
+		var platformAttributes map[string]any
+		decoder := json.NewDecoder(bytes.NewReader(rawAttributes))
+		decoder.UseNumber()
+		if unmarshalErr := decoder.Decode(&platformAttributes); unmarshalErr != nil {
+			return platformp.PlatformProductDraft{}, fmt.Errorf("decode Ozon resolved attributes for SKU %s: %w", draft.SKUs[i].LocalSKUID, unmarshalErr)
+		}
+		draft.SKUs[i].PlatformAttributes = platformAttributes
 		draft.SKUs[i].Images = make([]platformp.PlatformProductImage, 0, len(value.Images))
 		for _, image := range value.Images {
 			draft.SKUs[i].Images = append(draft.SKUs[i].Images, platformp.PlatformProductImage{

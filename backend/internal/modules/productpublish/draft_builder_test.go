@@ -1,6 +1,7 @@
 package productpublish
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -51,6 +52,7 @@ func TestBuildPlatformDraftForPlatformBlocksNamedOzonSKUWithoutMainImage(t *test
 
 func TestBuildOzonPlatformDraftFromResolvedUsesSameEffectiveSKUValues(t *testing.T) {
 	price, stock := 10.0, 6
+	const largeComplexID int64 = 9007199254740993
 	sku := product.ProductSKU{HardDeleteBase: model.HardDeleteBase{ID: uuid.New()}, SKUCode: "SKU-1", SKUName: "Blue", Price: &price, Stock: &stock, ImageURL: "https://img.example/blue.jpg"}
 	p := product.Product{Base: model.Base{ID: uuid.New()}, TenantID: 7, Title: "Local", Description: "Local description", Currency: "CNY", SKUs: []product.ProductSKU{sku}}
 	resolved := product.OzonResolvedListingDTO{
@@ -62,7 +64,13 @@ func TestBuildOzonPlatformDraftFromResolvedUsesSameEffectiveSKUValues(t *testing
 			SKUID: sku.ID, SKUCode: sku.SKUCode, SKUName: sku.SKUName,
 			Price:      product.OzonResolvedFloat{Value: 12.5, Source: product.OzonValueSourceShopConfig},
 			LocalStock: stock, StockSource: product.OzonValueSourceLocalStock,
-			Images:    []product.OzonResolvedImageDTO{{URL: sku.ImageURL, Source: product.OzonImageSourceSKUOriginal, ImageType: product.ImageTypeMain, Position: 1}},
+			Images: []product.OzonResolvedImageDTO{{URL: sku.ImageURL, Source: product.OzonImageSourceSKUOriginal, ImageType: product.ImageTypeMain, Position: 1}},
+			PlatformAttributes: product.OzonEffectiveAttributePayload{
+				Version:                product.OzonPlatformAttributesVersion,
+				Attributes:             map[string][]product.OzonAttributeSelection{"10096": {{Value: "Blue"}}},
+				ComplexGroups:          []product.OzonComplexAttributeGroup{{ComplexID: largeComplexID, Attributes: map[string][]product.OzonAttributeSelection{"200": {{Value: "Cotton"}}}}},
+				SKUVariantAttributeIDs: []string{"10096"},
+			},
 			CanSubmit: true,
 		}},
 		CanSubmit: true,
@@ -73,6 +81,21 @@ func TestBuildOzonPlatformDraftFromResolvedUsesSameEffectiveSKUValues(t *testing
 	}
 	if draft.Title != "Ozon title" || draft.Description != "Ozon description" || draft.Currency != "RUB" || len(draft.SKUs) != 1 || draft.SKUs[0].Price != 12.5 || draft.SKUs[0].Stock != stock || len(draft.SKUs[0].Images) != 1 {
 		t.Fatalf("draft diverged from resolved preview: %+v", draft)
+	}
+	if version, ok := draft.SKUs[0].PlatformAttributes["version"].(json.Number); !ok || version.String() != "3" {
+		t.Fatalf("resolved SKU attributes were not copied to immutable draft: %+v", draft.SKUs[0].PlatformAttributes)
+	}
+	groups, ok := draft.SKUs[0].PlatformAttributes["complexGroups"].([]any)
+	if !ok || len(groups) != 1 {
+		t.Fatalf("resolved complex groups were not copied: %+v", draft.SKUs[0].PlatformAttributes)
+	}
+	group, ok := groups[0].(map[string]any)
+	if !ok {
+		t.Fatalf("resolved complex group has unexpected type: %+v", groups[0])
+	}
+	complexID, ok := group["complexId"].(json.Number)
+	if !ok || complexID.String() != "9007199254740993" {
+		t.Fatalf("large Ozon complex ID lost precision: %#v", group["complexId"])
 	}
 }
 

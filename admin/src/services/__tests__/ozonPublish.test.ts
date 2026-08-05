@@ -2,11 +2,13 @@ import { request } from "@umijs/max";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildOzonPlatformAttributes,
-  buildOzonPlatformAttributesV2,
+  autoMatchOzonSKUAttributes,
+  buildOzonPlatformAttributesV3,
   buildOzonSKUImagePreview,
   confirmOzonCategoryGroup,
   getOzonProductConfig,
   normalizeOzonAttributeEditorValues,
+  ozonSKUVariantTuple,
   publishOzonProduct,
   saveOzonProductConfig,
   syncOzonCategoryFlow,
@@ -19,6 +21,14 @@ import {
 const requestMock = vi.mocked(request);
 
 describe("ozon publish services", () => {
+  it("tolerates temporarily undefined complex groups while the form switches contexts", () => {
+    expect(
+      normalizeOzonAttributeEditorValues([], {
+        complexGroups: { "501": undefined as never },
+      }),
+    ).toEqual({ attributes: {}, complexGroups: { "501": [] } });
+  });
+
   it("keeps dictionary text together with its Ozon dictionary value id", () => {
     const attributes = [
       {
@@ -60,7 +70,7 @@ describe("ozon publish services", () => {
       { attrId: "20", attributeComplexId: 7, complexIsCollection: true },
       { attrId: "21", attributeComplexId: 7, complexIsCollection: true },
     ];
-    const payload = buildOzonPlatformAttributesV2(attributes, {
+    const payload = buildOzonPlatformAttributesV3(attributes, {
       attributes: { "10": ["1", "2"] },
       complexGroups: {
         "7": [
@@ -68,9 +78,11 @@ describe("ozon publish services", () => {
           { "20": "200", "21": "ml" },
         ],
       },
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
     });
     expect(payload).toEqual({
-      version: 2,
+      version: 3,
       attributes: {
         "10": [
           { value: "Red", dictionaryValueId: "1" },
@@ -87,6 +99,8 @@ describe("ozon publish services", () => {
           attributes: { "20": [{ value: "200" }], "21": [{ value: "ml" }] },
         },
       ],
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
     });
     expect(
       toOzonAttributeEditorValues(
@@ -100,11 +114,139 @@ describe("ozon publish services", () => {
           { "20": "200", "21": "ml" },
         ],
       },
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
+    });
+  });
+
+  it("round-trips per-SKU variant values and only auto-matches exact dictionary options", () => {
+    const attributes = [
+      {
+        attrId: "10096",
+        name: "颜色",
+        dictionaryId: "colors",
+        options: [
+          { id: "red-id", value: "红色" },
+          { id: "blue-id", value: "蓝色" },
+        ],
+      },
+      { attrId: "4180", name: "尺码" },
+    ];
+    const matched = autoMatchOzonSKUAttributes(
+      attributes,
+      [
+        { id: "sku-red", attrs: { 颜色: "红色", 尺码: "M" } },
+        { id: "sku-blue", attrs: { color: "蓝色", size: "L" } },
+      ],
+      ["10096", "4180"],
+    );
+    expect(matched).toMatchObject({ matchedCount: 4, unresolved: [] });
+    expect(matched.values).toEqual({
+      "sku-red": { "10096": "red-id", "4180": "M" },
+      "sku-blue": { "10096": "blue-id", "4180": "L" },
+    });
+
+    const payload = buildOzonPlatformAttributesV3(attributes, {
+      skuVariantAttributeIds: ["4180", "10096"],
+      skuAttributeOverrides: matched.values,
+    });
+    expect(payload).toEqual({
+      version: 3,
+      attributes: {},
+      complexGroups: [],
+      skuVariantAttributeIds: ["10096", "4180"],
+      skuAttributeOverrides: {
+        "sku-red": {
+          "10096": [{ value: "红色", dictionaryValueId: "red-id" }],
+          "4180": [{ value: "M" }],
+        },
+        "sku-blue": {
+          "10096": [{ value: "蓝色", dictionaryValueId: "blue-id" }],
+          "4180": [{ value: "L" }],
+        },
+      },
+    });
+    expect(
+      toOzonAttributeEditorValues(
+        payload as unknown as Record<string, unknown>,
+      ),
+    ).toEqual({
+      attributes: {},
+      complexGroups: {},
+      skuVariantAttributeIds: ["10096", "4180"],
+      skuAttributeOverrides: matched.values,
+    });
+    expect(
+      ozonSKUVariantTuple(
+        payload.skuVariantAttributeIds,
+        matched.values["sku-red"],
+      ),
+    ).not.toBe(
+      ozonSKUVariantTuple(
+        payload.skuVariantAttributeIds,
+        matched.values["sku-blue"],
+      ),
+    );
+
+    const unresolved = autoMatchOzonSKUAttributes(
+      [{ ...attributes[0], options: [{ id: "red-id", value: "红色" }] }],
+      [{ id: "sku-blue", attrs: { 颜色: "蓝色" } }],
+      ["10096"],
+    );
+    expect(unresolved.matchedCount).toBe(0);
+    expect(unresolved.unresolved).toEqual([
+      { skuId: "sku-blue", attributeId: "10096" },
+    ]);
+  });
+
+  it("auto-matches nested local SKU value arrays without joining them", () => {
+    const matched = autoMatchOzonSKUAttributes(
+      [
+        {
+          attrId: "10096",
+          name: "颜色",
+          dictionaryId: "colors",
+          isCollection: true,
+          options: [
+            { id: "red-id", value: "红色" },
+            { id: "blue-id", value: "蓝色" },
+          ],
+        },
+      ],
+      [
+        {
+          id: "sku-colors",
+          attrs: { 颜色: { value: ["红色", "蓝色"] } },
+        },
+      ],
+      ["10096"],
+    );
+    expect(matched).toEqual({
+      values: { "sku-colors": { "10096": ["red-id", "blue-id"] } },
+      matchedCount: 1,
+      unresolved: [],
+    });
+  });
+
+  it("ignores malformed array-shaped SKU override objects", () => {
+    expect(
+      toOzonAttributeEditorValues({
+        version: 3,
+        attributes: {},
+        complexGroups: [],
+        skuVariantAttributeIds: [],
+        skuAttributeOverrides: [{ invalid: true }],
+      }),
+    ).toEqual({
+      attributes: {},
+      complexGroups: {},
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
     });
   });
 
   it("preserves excess editor values so the backend can reject them explicitly", () => {
-    const payload = buildOzonPlatformAttributesV2(
+    const payload = buildOzonPlatformAttributesV3(
       [{ attrId: "single", isCollection: false, maxValueCount: 1 }],
       { attributes: { single: ["first", "second"] } },
     );
@@ -127,8 +269,8 @@ describe("ozon publish services", () => {
       attributes: {},
       complexGroups: { "7": [{ "20": "100", "21": "ml" }] },
     });
-    expect(buildOzonPlatformAttributesV2(attributes, editor)).toEqual({
-      version: 2,
+    expect(buildOzonPlatformAttributesV3(attributes, editor)).toEqual({
+      version: 3,
       attributes: {},
       complexGroups: [
         {
@@ -139,6 +281,8 @@ describe("ozon publish services", () => {
           },
         },
       ],
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
     });
   });
 
@@ -164,7 +308,7 @@ describe("ozon publish services", () => {
   });
 
   it("keeps historical dictionary text as text when no option id is known", () => {
-    const payload = buildOzonPlatformAttributesV2(
+    const payload = buildOzonPlatformAttributesV3(
       [{ attrId: "brand", dictionaryId: "brands", options: [] }],
       { attributes: { brand: "Legacy brand" } },
     );

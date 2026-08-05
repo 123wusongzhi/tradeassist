@@ -57,7 +57,7 @@ export const e2eOzonConfig = {
   sourceCategoryKey: "e2e-source-table",
   sourceCategoryName: "E2E 本地桌子",
   platformAttributes: {
-    version: 2,
+    version: 3,
     attributes: {
       "85": [{ value: "E2E" }],
       "86": [
@@ -68,6 +68,8 @@ export const e2eOzonConfig = {
     complexGroups: [
       { complexId: 501, attributes: { "87": [{ value: "棉" }] } },
     ],
+    skuVariantAttributeIds: [],
+    skuAttributeOverrides: {},
   },
   schemaHash: "e2e-schema-v1",
   schemaConfirmedAt: "2026-08-03T00:00:00Z",
@@ -257,7 +259,10 @@ export function ozonPublishResponse(path: string) {
           maxValueCount: 2,
           attributeComplexId: 0,
           complexIsCollection: false,
-          options: [{ id: "1001", value: "白色" }],
+          options: [
+            { id: "1001", value: "白色" },
+            { id: "1002", value: "黑色" },
+          ],
         },
         {
           id: "e2e-attr-material",

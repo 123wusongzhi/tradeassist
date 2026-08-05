@@ -159,6 +159,8 @@ export type OzonResolvedSKUListing = {
   localStock: number;
   stockSource: OzonValueSource;
   images: OzonResolvedImage[];
+  platformAttributes: OzonEffectiveAttributePayload;
+  attributeSources: Record<string, OzonValueSource>;
   canSubmit: boolean;
   issues: OzonListingIssue[];
 };
@@ -198,14 +200,38 @@ export type OzonComplexAttributeGroup = {
 };
 
 export type OzonPlatformAttributePayload = {
-  version: 2;
+  version: 3;
   attributes: Record<string, OzonAttributeSelection[]>;
   complexGroups: OzonComplexAttributeGroup[];
+  skuVariantAttributeIds: string[];
+  skuAttributeOverrides: Record<
+    string,
+    Record<string, OzonAttributeSelection[]>
+  >;
+};
+
+export type OzonEffectiveAttributePayload = Pick<
+  OzonPlatformAttributePayload,
+  "version" | "attributes" | "complexGroups" | "skuVariantAttributeIds"
+>;
+
+export type OzonSKUAttributeEditorValues = Record<
+  string,
+  Record<string, string | string[]>
+>;
+
+export type OzonSKUAttributeSource = {
+  id: string;
+  skuCode?: string;
+  skuName?: string;
+  attrs?: Record<string, unknown>;
 };
 
 export type OzonAttributeEditorValues = {
   attributes?: Record<string, string | string[]>;
   complexGroups?: Record<string, Array<Record<string, string | string[]>>>;
+  skuVariantAttributeIds?: string[];
+  skuAttributeOverrides?: OzonSKUAttributeEditorValues;
 };
 
 export type OzonImageSource =
@@ -504,10 +530,27 @@ export function normalizeOzonAttributeEditorValues(
     complexGroups: Object.fromEntries(
       Object.entries(editor.complexGroups || {}).map(([key, groups]) => [
         key,
-        groups.map((group) => ({ ...group })),
+        (Array.isArray(groups) ? groups : []).map((group) => ({ ...group })),
       ]),
     ),
   };
+  if (
+    editor.skuVariantAttributeIds !== undefined ||
+    editor.skuAttributeOverrides !== undefined
+  ) {
+    normalized.skuVariantAttributeIds = Array.from(
+      new Set(
+        (editor.skuVariantAttributeIds || [])
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort();
+    normalized.skuAttributeOverrides = Object.fromEntries(
+      Object.entries(editor.skuAttributeOverrides || {}).map(
+        ([skuId, values]) => [skuId, { ...values }],
+      ),
+    );
+  }
   const byComplex = new Map<number, OzonRichAttributeShape[]>();
   attributes.forEach((attribute) => {
     const complexId = Number(attribute.attributeComplexId || 0);
@@ -539,8 +582,8 @@ export function normalizeOzonAttributeEditorValues(
   return normalized;
 }
 
-/** Builds the canonical payload that preserves Ozon multi-value and repeated complex groups. */
-export function buildOzonPlatformAttributesV2(
+/** Builds canonical v3 values, including explicit per-SKU variant mappings. */
+export function buildOzonPlatformAttributesV3(
   attributes: OzonRichAttributeShape[],
   editor: OzonAttributeEditorValues = {},
 ): OzonPlatformAttributePayload {
@@ -549,9 +592,13 @@ export function buildOzonPlatformAttributesV2(
     editor,
   );
   const result: OzonPlatformAttributePayload = {
-    version: 2,
+    version: 3,
     attributes: {},
     complexGroups: [],
+    skuVariantAttributeIds: [
+      ...(normalizedEditor.skuVariantAttributeIds || []),
+    ],
+    skuAttributeOverrides: {},
   };
   const byComplex = new Map<number, OzonRichAttributeShape[]>();
   attributes.forEach((attribute) => {
@@ -587,10 +634,26 @@ export function buildOzonPlatformAttributesV2(
         }
       });
     });
+  const byID = new Map(
+    attributes.map((attribute) => [attribute.attrId, attribute]),
+  );
+  Object.entries(normalizedEditor.skuAttributeOverrides || {}).forEach(
+    ([skuId, rawValues]) => {
+      const values: Record<string, OzonAttributeSelection[]> = {};
+      result.skuVariantAttributeIds.forEach((attrId) => {
+        const attribute = byID.get(attrId);
+        if (!attribute) return;
+        const selections = editorSelections(attribute, rawValues?.[attrId]);
+        if (selections.length > 0) values[attrId] = selections;
+      });
+      if (Object.keys(values).length > 0)
+        result.skuAttributeOverrides[skuId] = values;
+    },
+  );
   return result;
 }
 
-/** Restores canonical v2 or historical single-value payloads into editor values. */
+/** Restores canonical v2/v3 or historical single-value payloads into editor values. */
 export function toOzonAttributeEditorValues(
   raw?: Record<string, unknown>,
 ): OzonAttributeEditorValues {
@@ -599,13 +662,22 @@ export function toOzonAttributeEditorValues(
     complexGroups: {},
   };
   if (!raw) return editor;
-  const isV2 =
-    raw.version === 2 &&
+  const isCanonical =
+    (raw.version === 2 || raw.version === 3) &&
     ((raw.attributes && typeof raw.attributes === "object") ||
       Array.isArray(raw.complexGroups));
-  if (!isV2) {
+  if (!isCanonical) {
     Object.entries(raw).forEach(([attrId, value]) => {
-      if (["version", "attributes", "complexGroups"].includes(attrId)) return;
+      if (
+        [
+          "version",
+          "attributes",
+          "complexGroups",
+          "skuVariantAttributeIds",
+          "skuAttributeOverrides",
+        ].includes(attrId)
+      )
+        return;
       const values = (Array.isArray(value) ? value : [value])
         .map((item) => {
           if (typeof item === "string" || typeof item === "number")
@@ -651,7 +723,207 @@ export function toOzonAttributeEditorValues(
       values,
     ];
   });
+  const hasSKUMapping =
+    raw.version === 3 ||
+    Array.isArray(raw.skuVariantAttributeIds) ||
+    (raw.skuAttributeOverrides &&
+      typeof raw.skuAttributeOverrides === "object" &&
+      !Array.isArray(raw.skuAttributeOverrides));
+  if (hasSKUMapping) {
+    const rawVariantAttributeIds = Array.isArray(raw.skuVariantAttributeIds)
+      ? raw.skuVariantAttributeIds
+      : [];
+    editor.skuVariantAttributeIds = Array.from(
+      new Set(
+        rawVariantAttributeIds
+          .map((value) => String(value || "").trim())
+          .filter(Boolean),
+      ),
+    ).sort();
+    editor.skuAttributeOverrides = {};
+  }
+  const rawOverrides =
+    raw.skuAttributeOverrides &&
+    typeof raw.skuAttributeOverrides === "object" &&
+    !Array.isArray(raw.skuAttributeOverrides)
+      ? (raw.skuAttributeOverrides as Record<string, unknown>)
+      : {};
+  Object.entries(rawOverrides).forEach(([skuId, rawAttributes]) => {
+    if (
+      !rawAttributes ||
+      typeof rawAttributes !== "object" ||
+      Array.isArray(rawAttributes)
+    )
+      return;
+    const restored: Record<string, string | string[]> = {};
+    Object.entries(rawAttributes as Record<string, unknown>).forEach(
+      ([attrId, rawSelections]) => {
+        if (!Array.isArray(rawSelections)) return;
+        const values = rawSelections
+          .map((selection) => {
+            if (!selection || typeof selection !== "object") return "";
+            const typed = selection as OzonAttributeSelection;
+            return String(typed.dictionaryValueId ?? typed.value ?? "").trim();
+          })
+          .filter(Boolean);
+        if (values.length === 1) restored[attrId] = values[0];
+        else if (values.length > 1) restored[attrId] = values;
+      },
+    );
+    if (Object.keys(restored).length > 0)
+      editor.skuAttributeOverrides![skuId] = restored;
+  });
+  if (
+    (editor.skuVariantAttributeIds || []).length === 0 &&
+    Object.keys(editor.skuAttributeOverrides || {}).length > 0
+  ) {
+    editor.skuVariantAttributeIds = Array.from(
+      new Set(
+        Object.values(editor.skuAttributeOverrides || {}).flatMap((values) =>
+          Object.keys(values),
+        ),
+      ),
+    ).sort();
+  }
   return editor;
+}
+
+const skuAttributeAliases: Record<string, string[]> = {
+  // UI-only convenience for Ozon's stable Color/Size attribute IDs. The
+  // backend validates every selected dimension against the live schema, so
+  // these aliases can suggest an exact match but can never authorize one.
+  "10096": ["color", "colour", "цвет", "颜色", "颜色分类", "色彩"],
+  "4180": ["size", "размер", "尺码", "尺寸", "规格"],
+};
+
+function normalizeAttributeText(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s_\-:：/\\|（）()\[\]{}]+/g, "")
+    .trim();
+}
+
+function localAttributeValues(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  return values
+    .flatMap((item) => {
+      if (item && typeof item === "object") {
+        const typed = item as { value?: unknown; name?: unknown };
+        const nested = typed.value ?? typed.name;
+        return Array.isArray(nested) ? nested : [nested];
+      }
+      return [item];
+    })
+    .map((item) => String(item ?? "").trim())
+    .filter(Boolean);
+}
+
+function matchLocalSKUAttribute(
+  attribute: OzonRichAttributeShape & { name?: string },
+  attrs?: Record<string, unknown>,
+) {
+  const candidates = new Set(
+    [
+      attribute.attrId,
+      attribute.name,
+      ...(skuAttributeAliases[attribute.attrId] || []),
+    ]
+      .map(normalizeAttributeText)
+      .filter(Boolean),
+  );
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (candidates.has(normalizeAttributeText(key)))
+      return localAttributeValues(value);
+  }
+  return [];
+}
+
+export type OzonSKUAutoMatchResult = {
+  values: OzonSKUAttributeEditorValues;
+  matchedCount: number;
+  unresolved: Array<{ skuId: string; attributeId: string }>;
+};
+
+/** Fills only empty SKU fields from explicit local SKU attrs; dictionary text
+ * must match a cached Ozon option exactly and is never guessed. */
+export function autoMatchOzonSKUAttributes(
+  attributes: Array<OzonRichAttributeShape & { name?: string }>,
+  skus: OzonSKUAttributeSource[],
+  selectedAttributeIds: string[],
+  current: OzonSKUAttributeEditorValues = {},
+): OzonSKUAutoMatchResult {
+  const byID = new Map(
+    attributes.map((attribute) => [attribute.attrId, attribute]),
+  );
+  const values: OzonSKUAttributeEditorValues = Object.fromEntries(
+    Object.entries(current).map(([skuId, row]) => [skuId, { ...row }]),
+  );
+  const unresolved: OzonSKUAutoMatchResult["unresolved"] = [];
+  let matchedCount = 0;
+  skus.forEach((sku) => {
+    const row = { ...(values[sku.id] || {}) };
+    selectedAttributeIds.forEach((attributeId) => {
+      const existing = row[attributeId];
+      if (
+        (Array.isArray(existing) && existing.length > 0) ||
+        (!Array.isArray(existing) && String(existing ?? "").trim())
+      )
+        return;
+      const attribute = byID.get(attributeId);
+      if (!attribute) {
+        unresolved.push({ skuId: sku.id, attributeId });
+        return;
+      }
+      const localValues = matchLocalSKUAttribute(attribute, sku.attrs);
+      if (localValues.length === 0) {
+        unresolved.push({ skuId: sku.id, attributeId });
+        return;
+      }
+      let matched: string[];
+      if (attribute.dictionaryId) {
+        matched = localValues
+          .map((localValue) =>
+            attribute.options?.find(
+              (option) =>
+                option.id === localValue ||
+                normalizeAttributeText(option.value) ===
+                  normalizeAttributeText(localValue),
+            ),
+          )
+          .filter((option): option is { id: string; value: string } => !!option)
+          .map((option) => option.id);
+        if (matched.length !== localValues.length) matched = [];
+      } else {
+        matched = localValues;
+      }
+      if (matched.length === 0) {
+        unresolved.push({ skuId: sku.id, attributeId });
+        return;
+      }
+      row[attributeId] = attribute.isCollection ? matched : matched[0];
+      matchedCount++;
+    });
+    values[sku.id] = row;
+  });
+  return { values, matchedCount, unresolved };
+}
+
+export function ozonSKUVariantTuple(
+  attributeIds: string[],
+  values?: Record<string, string | string[]>,
+) {
+  const parts: string[] = [];
+  for (const attributeId of [...attributeIds].sort()) {
+    const raw = values?.[attributeId];
+    const normalized = (Array.isArray(raw) ? raw : [raw])
+      .map((value) => String(value ?? "").trim())
+      .filter(Boolean)
+      .sort();
+    if (normalized.length === 0) return undefined;
+    parts.push(`${attributeId}=${normalized.join("\u0001")}`);
+  }
+  return parts.join("\u0002");
 }
 
 const enc = encodeURIComponent;

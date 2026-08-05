@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { expect, test } from "../fixtures/admin.fixture";
 import { e2eUser } from "../mocks/auth";
 import { fail, ok } from "../mocks/envelope";
-import { E2E_PRODUCT_ID } from "../mocks/product.fixture";
+import { e2eProduct, E2E_PRODUCT_ID } from "../mocks/product.fixture";
 import {
   E2E_OZON_CATEGORY_ID,
   E2E_OZON_SHOP_ID,
@@ -168,6 +168,8 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
           complexId: number;
           attributes: Record<string, unknown[]>;
         }>;
+        skuVariantAttributeIds: string[];
+        skuAttributeOverrides: Record<string, Record<string, unknown[]>>;
       };
       ozonListing: {
         titleOverride?: string;
@@ -180,7 +182,9 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     expect(body.ozonListing.skuPriceOverrides).toEqual({ "e2e-sku-1": 2099 });
     expect(body.ozonListing).not.toHaveProperty("stock");
     expect(body).not.toHaveProperty("stock");
-    expect(body.platformAttributes.version).toBe(2);
+    expect(body.platformAttributes.version).toBe(3);
+    expect(body.platformAttributes.skuVariantAttributeIds).toEqual([]);
+    expect(body.platformAttributes.skuAttributeOverrides).toEqual({});
     expect(body.platformAttributes.attributes["86"]).toHaveLength(2);
     expect(body.platformAttributes.complexGroups).toEqual([
       {
@@ -200,6 +204,121 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     ).toHaveValue("2099.00");
     expect(readShops.length).toBeGreaterThanOrEqual(2);
     expect(readShops.every((value) => value === E2E_OZON_SHOP_ID)).toBe(true);
+  });
+
+  test("maps local multi-SKU values to distinct Ozon variant attributes and persists them", async ({
+    admin,
+    page,
+  }) => {
+    const secondSKU = {
+      ...e2eProduct.skus[0],
+      id: "e2e-sku-2",
+      skuCode: "E2E-SKU-2",
+      skuName: "黑色 / L",
+      attrs: { 颜色: "黑色", 尺码: "L" },
+      price: 139.9,
+      stock: 33,
+      imageUrl: "https://example.test/e2e-black.jpg",
+    };
+    const multiProduct = {
+      ...e2eProduct,
+      skus: [
+        { ...e2eProduct.skus[0], attrs: { 颜色: "白色", 尺码: "M" } },
+        secondSKU,
+      ],
+    };
+    const multiConfig = cloneConfig();
+    multiConfig.platformAttributes = {
+      ...multiConfig.platformAttributes,
+      skuVariantAttributeIds: [],
+      skuAttributeOverrides: {},
+    };
+    multiConfig.ozonImages.skus.push({
+      ...multiConfig.ozonImages.skus[0],
+      skuId: secondSKU.id,
+      skuCode: secondSKU.skuCode,
+      skuName: secondSKU.skuName,
+      attrs: secondSKU.attrs,
+      originalMainImageUrl: secondSKU.imageUrl,
+      additionalImageIds: [],
+      finalImages: [
+        {
+          url: secondSKU.imageUrl,
+          source: "sku_original",
+          position: 1,
+          imageType: "main",
+        },
+      ],
+    });
+    multiConfig.ozonPreview.skus.push({
+      ...multiConfig.ozonPreview.skus[0],
+      skuId: secondSKU.id,
+      skuCode: secondSKU.skuCode,
+      skuName: secondSKU.skuName,
+      price: { value: secondSKU.price, source: "product" },
+      localStock: secondSKU.stock,
+      images: multiConfig.ozonImages.skus[1].finalImages,
+    });
+    await page.route(
+      new RegExp(`/api/v1/products/${E2E_PRODUCT_ID}$`),
+      async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(ok(multiProduct)),
+        });
+      },
+    );
+    await routeConfigReads(page, () => multiConfig);
+    admin.writeGuard.allow({
+      operation: "save-ozon-sku-variants",
+      method: "PUT",
+      path: new RegExp(`${configPath}$`),
+      response: (record) => ok({ ...multiConfig, ...record.postDataJSON }),
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await expect(
+      page.getByText("多 SKU 商品尚未选择 Ozon 变体属性", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByLabel("用于区分 SKU 的 Ozon 属性").click();
+    await page.getByText("颜色（必填）", { exact: true }).last().click();
+    await page.getByRole("button", { name: "从本地 SKU 属性自动匹配" }).click();
+    await expect(page.getByText("本地属性候选").first()).toBeVisible();
+    await page.getByRole("button", { name: "保存当前编辑（不提交）" }).click();
+
+    await admin.writeGuard.expectRequestCount("save-ozon-sku-variants", 1);
+    const body = admin.writeGuard.calls("save-ozon-sku-variants")[0]
+      .postDataJSON as {
+      platformAttributes: {
+        version: number;
+        attributes: Record<string, unknown>;
+        skuVariantAttributeIds: string[];
+        skuAttributeOverrides: Record<
+          string,
+          Record<string, Array<{ value: string; dictionaryValueId: string }>>
+        >;
+      };
+    };
+    expect(body.platformAttributes.version).toBe(3);
+    expect(body.platformAttributes.skuVariantAttributeIds).toEqual(["86"]);
+    expect(body.platformAttributes.attributes).not.toHaveProperty("86");
+    expect(body.platformAttributes.skuAttributeOverrides).toEqual({
+      "e2e-sku-1": {
+        "86": [{ value: "白色", dictionaryValueId: "1001" }],
+      },
+      "e2e-sku-2": {
+        "86": [{ value: "黑色", dictionaryValueId: "1002" }],
+      },
+    });
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
   });
 
   test("requires confirmation before switching away from unsaved store edits", async ({

@@ -143,7 +143,7 @@ func (s *Service) PutPlatformPublishConfig(c *gin.Context, productID uuid.UUID, 
 		attrs = datatypes.JSON(body.PlatformAttributes)
 	}
 	if plat == "ozon" {
-		canonical, err := s.canonicalizeOzonPlatformAttributes(c.Request.Context(), cid, attrs, false)
+		canonical, err := s.canonicalizeOzonPlatformAttributes(c.Request.Context(), cid, attrs, productRow.SKUs, false)
 		if err != nil {
 			return nil, err
 		}
@@ -271,7 +271,7 @@ func (s *Service) requirePlatformShopOperate(c *gin.Context, shopID uuid.UUID, p
 	return adminperm.EnsureStoreOperate(c, s.DB, shopID)
 }
 
-func (s *Service) canonicalizeOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON, requireComplete bool) (datatypes.JSON, error) {
+func (s *Service) canonicalizeOzonPlatformAttributes(ctx context.Context, categoryID string, raw datatypes.JSON, skus []ProductSKU, requireComplete bool) (datatypes.JSON, error) {
 	var schema []shop.PlatformCategoryAttribute
 	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ?", "ozon", categoryID).Find(&schema).Error; err != nil {
 		return nil, err
@@ -279,7 +279,11 @@ func (s *Service) canonicalizeOzonPlatformAttributes(ctx context.Context, catego
 	if len(schema) == 0 {
 		return nil, newOzonPlatformConfigError("Ozon 类目属性模板尚未同步")
 	}
-	canonical, err := CanonicalOzonPlatformAttributes(schema, raw, requireComplete)
+	skuIDs := make([]uuid.UUID, 0, len(skus))
+	for _, sku := range skus {
+		skuIDs = append(skuIDs, sku.ID)
+	}
+	canonical, err := CanonicalOzonPlatformAttributesForSKUs(schema, raw, skuIDs, requireComplete)
 	if err != nil {
 		return nil, newOzonPlatformConfigError(err.Error())
 	}

@@ -134,6 +134,10 @@ func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tena
 		return []CheckItem{ozonLiveAttributeError("OZON_ATTRIBUTE_PAYLOAD_INVALID", "Ozon 商品属性配置不是有效对象", "请重新保存商品级 Ozon 属性。")}, nil
 	}
 	out := make([]CheckItem, 0)
+	type dictionarySelectionKey struct {
+		attrID, valueID, text string
+	}
+	validatedDictionarySelections := make(map[dictionarySelectionKey]bool)
 	validateSelections := func(attrID string, selections []product.OzonAttributeSelection) error {
 		attr, exists := byID[attrID]
 		if !exists {
@@ -156,9 +160,18 @@ func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tena
 				out = append(out, ozonLiveAttributeError("OZON_DICTIONARY_ID_MISSING", "Ozon 词典属性缺少有效值 ID："+attr.Name, "请重新选择该属性值。"))
 				continue
 			}
-			matched, matchErr := client.ValidateDictionaryValue(ctx, parts[0], parts[1], attr.AttrID, selectedID, text)
-			if matchErr != nil {
-				return mapOzonProviderError(matchErr)
+			key := dictionarySelectionKey{attrID: attr.AttrID, valueID: selectedID, text: text}
+			matched, alreadyValidated := validatedDictionarySelections[key]
+			if !alreadyValidated {
+				var matchErr error
+				matched, matchErr = client.ValidateDictionaryValue(ctx, parts[0], parts[1], attr.AttrID, selectedID, text)
+				if matchErr != nil {
+					// A live provider/auth failure invalidates the whole readiness
+					// result; partial dictionary checks must not be presented as a
+					// trustworthy publish decision.
+					return mapOzonProviderError(matchErr)
+				}
+				validatedDictionarySelections[key] = matched
 			}
 			if !matched {
 				out = append(out, ozonLiveAttributeError("OZON_DICTIONARY_VALUE_CHANGED", "Ozon 词典值已变化或不属于该属性："+attr.Name, "请重新选择该属性值。"))
@@ -175,6 +188,18 @@ func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tena
 		for attrID, selections := range group.Attributes {
 			if err := validateSelections(attrID, selections); err != nil {
 				return nil, err
+			}
+		}
+	}
+	for skuID, attributes := range payload.SKUAttributeOverrides {
+		for attrID, selections := range attributes {
+			before := len(out)
+			if err := validateSelections(attrID, selections); err != nil {
+				return nil, err
+			}
+			for index := before; index < len(out); index++ {
+				out[index].RelatedResourceType = "product_sku"
+				out[index].RelatedResourceID = skuID
 			}
 		}
 	}
