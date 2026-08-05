@@ -54,10 +54,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Workflow trigger check
-        run: pnpm workflow:check
+      - name: Agent context check
+        run: pnpm agent:check
 
-      - name: Workflow trigger tests
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Workflow routing tests
         run: pnpm workflow:test
 
       - name: Resolve architecture diff base

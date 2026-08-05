@@ -37,20 +37,11 @@ TradeMind is an open-source platform for cross-border commerce sellers and devel
 
 The project currently serves two priorities: `AI product operations` and a `lightweight cross-platform ERP MVP`. Rather than trying to become a heavy all-in-one ERP, TradeMind focuses on a self-hosted, extensible foundation that teams can adapt to their own workflows.
 
-## Release Status
+## Project maturity
 
-| Item | Status |
-| --- | --- |
-| Phase | Production Capability Development In Progress |
-| Demo | MVP Demo Ready |
-| Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
-| Backup / Release / DR | P6 fully closed; real production verification deferred |
-| Performance / Capacity | P7 Conditionally Closed; functional/development scope completed; capacity and repeatability deferred to P10 |
-| Tag | Tag deferred |
-| Production | Not Production Ready |
-| Douyin | Douyin Release Candidate |
-| Final acceptance | Final Production Acceptance Deferred to P10 |
+TradeMind is evolving quickly. Self-hosting, secondary development, and test-environment use are the primary scenarios today.
 
+Before connecting real shops or performing publishing, inventory sync, or other external write operations, validate on isolated shops with small batches. See current capabilities and limits in [`docs/status/current.md`](docs/status/current.md).
 
 ## Positioning
 

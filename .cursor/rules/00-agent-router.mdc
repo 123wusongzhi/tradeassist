@@ -1,0 +1,9 @@
+---
+description: TradeAssist cross-tool agent router
+alwaysApply: true
+---
+
+Read `AGENTS.md` first.
+Use `pnpm agent:context -- --files-from-git` or an explicit intent.
+Load only required contexts; do not load archive, history, or artifacts by default.
+Do not duplicate global rules in Cursor-specific files.

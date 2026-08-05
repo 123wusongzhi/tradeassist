@@ -37,20 +37,11 @@ TradeMind 是一个面向跨境卖家与开发团队的开源 AI 运营平台，
 
 与传统重型 ERP 不同，TradeMind 当前不追求多仓、采购、财务、WMS / OMS 或复杂 BI 的一次性全量覆盖，而是提供一个可私有化部署、可二次开发、可通过 Provider 扩展的平台底座。
 
-## Release Status
+## 项目成熟度
 
-| Item | Status |
-| --- | --- |
-| Phase | Production Capability Development In Progress |
-| Demo | MVP Demo Ready |
-| Observability | Standard OTLP/HTTP Export Code Ready; P5 Closure Verification Incomplete |
-| Backup / Release / DR | P6 fully closed; real production verification deferred |
-| Performance / Capacity | P7 Conditionally Closed; functional/development scope completed; capacity and repeatability deferred to P10 |
-| Tag | Tag deferred |
-| Production | Not Production Ready |
-| Douyin | Douyin Release Candidate |
-| Final acceptance | Final Production Acceptance Deferred to P10 |
+TradeMind 仍处于快速演进阶段。自托管、二次开发和测试环境使用是当前主要场景。
 
+连接真实店铺、执行商品刊登、库存同步或其他外部写操作前，请在隔离店铺和小批量数据上完成受控验证。详细的当前能力与已知限制见 [`docs/status/current.md`](docs/status/current.md)。
 
 ## 项目定位
 

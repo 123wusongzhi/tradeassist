@@ -1,0 +1,7 @@
+---
+description: Route collector and browser-extension changes
+globs: collector/**/*.{ts,tsx,js,json},browser-extension/**/*.{ts,tsx,js,json}
+alwaysApply: false
+---
+
+Use context id `collector-development` from `config/agent/context-map.json`.

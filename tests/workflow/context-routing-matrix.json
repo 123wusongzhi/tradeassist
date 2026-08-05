@@ -1,0 +1,154 @@
+{
+  "version": 2,
+  "scenarios": [
+    {
+      "id": "documentation-only",
+      "description": "仅更新 README、docs 或说明文本。",
+      "intent": "documentation-only",
+      "files": ["docs/README.md", "README.md"],
+      "expectedRequiredContexts": ["docs-maintenance"],
+      "forbiddenRequiredContexts": ["admin-ui", "backend-development", "admin-e2e", "architecture-change", "deep-code-review"],
+      "expectedChecks": ["docs:check", "quality:sensitive"],
+      "depth": "light",
+      "reason": "纯文档只加载 docs-maintenance，不加载代码 Skill。"
+    },
+    {
+      "id": "small-admin-ui",
+      "description": "局部 Admin UI 调整，例如按钮间距或局部状态展示。",
+      "files": ["admin/src/pages/Products/DraftDetail/index.tsx"],
+      "riskFlags": [],
+      "expectedRequiredContexts": ["admin-ui"],
+      "forbiddenRequiredContexts": ["admin-e2e", "architecture-change", "backend-development", "api-contract"],
+      "expectedChecks": ["test:frontend", "quality:affected", "test:affected"],
+      "depth": "light",
+      "reason": "小 UI 默认只加载 admin-ui。"
+    },
+    {
+      "id": "admin-interaction-bug",
+      "description": "Admin 交互、路由或写流程风险。",
+      "intent": "admin-interaction-or-write",
+      "files": ["admin/src/pages/Products/DraftDetail/index.tsx", "admin/e2e/specs/product-draft.spec.ts"],
+      "riskFlags": ["write-flow", "modal-drawer"],
+      "expectedRequiredContexts": ["admin-ui", "admin-e2e"],
+      "forbiddenRequiredContexts": ["architecture-change", "backend-development"],
+      "expectedChecks": ["test:frontend", "test:e2e:smoke", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "交互/写操作升级 E2E，不自动加载架构。"
+    },
+    {
+      "id": "collector-pure-function",
+      "description": "Collector 纯函数或归一化逻辑。",
+      "files": ["collector/src/normalizer/price.ts"],
+      "expectedRequiredContexts": ["collector-development"],
+      "forbiddenRequiredContexts": ["admin-ui", "admin-e2e", "backend-development", "api-contract"],
+      "expectedChecks": ["test:collector", "quality:affected", "test:affected"],
+      "depth": "light",
+      "reason": "采集纯函数只需要 collector-development。"
+    },
+    {
+      "id": "backend-service",
+      "description": "Go service 业务逻辑变更。",
+      "files": ["backend/internal/modules/productpublish/service.go"],
+      "riskFlags": [],
+      "expectedRequiredContexts": ["backend-development"],
+      "forbiddenRequiredContexts": ["admin-ui", "admin-e2e", "architecture-change"],
+      "expectedChecks": ["test:backend", "quality:affected", "test:affected"],
+      "depth": "light",
+      "reason": "默认一个主上下文。"
+    },
+    {
+      "id": "backend-repository",
+      "description": "Repository / DB 边界变更。",
+      "files": ["backend/internal/modules/productpublish/repository.go"],
+      "riskFlags": ["db-schema", "shared-boundary"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development"],
+      "forbiddenRequiredContexts": ["admin-ui", "admin-e2e"],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "DB 风险升级架构上下文。"
+    },
+    {
+      "id": "migration-change",
+      "description": "数据库 migration 变更。",
+      "files": ["backend/migrations/202607260001_add_publication_retry.sql"],
+      "riskFlags": ["migration", "db-schema"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development"],
+      "forbiddenRequiredContexts": ["admin-ui"],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "migration 必须架构审查。"
+    },
+    {
+      "id": "shared-type-change",
+      "description": "公共 type / contract 变更。",
+      "files": ["admin/src/types/publication.ts", "tests/contracts/api-contracts.test.ts"],
+      "riskFlags": ["shared-boundary", "api-contract", "dto"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development", "api-contract"],
+      "forbiddenRequiredContexts": [],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected", "test:contracts", "test:backend"],
+      "depth": "deep",
+      "reason": "共享类型与契约需要架构与 API 上下文，不强制 7 个 Skill。"
+    },
+    {
+      "id": "new-platform-adapter",
+      "description": "新增平台 adapter。",
+      "files": ["backend/internal/providers/platform/tiktok/adapter.go"],
+      "riskFlags": ["platform-adapter"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development"],
+      "forbiddenRequiredContexts": ["admin-ui"],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "平台 adapter 限制第三方结构扩散。"
+    },
+    {
+      "id": "cross-module-feature",
+      "description": "跨模块功能，合并多项风险。",
+      "files": [
+        "admin/src/pages/Products/DraftDetail/index.tsx",
+        "backend/internal/modules/productpublish/service.go",
+        "backend/internal/queue/publication_retry_worker.go",
+        "backend/internal/providers/platform/douyin/adapter.go"
+      ],
+      "riskFlags": ["write-flow", "queue-worker", "platform-adapter", "api-contract", "shared-boundary"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development"],
+      "forbiddenRequiredContexts": [],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "跨模块最多 4 个 required context，其余 optional。"
+    },
+    {
+      "id": "test-only-change",
+      "description": "仅修改测试基础设施。",
+      "intent": "test-only-change",
+      "files": ["admin/e2e/utils/consoleGuard.ts", "tests/contracts/api-contracts.test.ts"],
+      "expectedRequiredContexts": ["project-testing"],
+      "forbiddenRequiredContexts": ["admin-ui", "frontend-design-deep"],
+      "expectedChecks": ["quality:affected", "test:affected"],
+      "depth": "light",
+      "reason": "测试变更只加载测试总控。"
+    },
+    {
+      "id": "architecture-config-change",
+      "description": "架构边界配置或 checker 变更。",
+      "files": ["tests/architecture/module-boundaries.json", "scripts/architecture/check-boundaries.mjs"],
+      "riskFlags": ["shared-boundary"],
+      "expectedRequiredContexts": ["architecture-change", "backend-development"],
+      "forbiddenRequiredContexts": ["admin-ui", "admin-e2e"],
+      "expectedChecks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "架构门禁变化验证 checker 自身。"
+    },
+    {
+      "id": "api-contract-change",
+      "description": "API envelope / DTO 变更。",
+      "intent": "api-contract-change",
+      "files": ["backend/internal/api/router.go", "tests/contracts/api-contracts.test.ts"],
+      "riskFlags": ["api-contract", "envelope"],
+      "expectedRequiredContexts": ["backend-development", "api-contract"],
+      "forbiddenRequiredContexts": ["collector-development"],
+      "expectedChecks": ["test:contracts", "test:backend", "quality:affected", "test:affected"],
+      "depth": "deep",
+      "reason": "契约变更需要 backend + api-contract。"
+    }
+  ]
+}
