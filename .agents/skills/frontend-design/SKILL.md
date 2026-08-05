@@ -1,12 +1,16 @@
 ---
 name: frontend-design
-description: TradeMind Admin UI 设计规范、共享组件规范、布局规范、响应式验收和 AI 实施流程的唯一完整来源
+description: TradeMind Admin UI 深度设计参考（项目 vendor fork；日常任务优先 trademind-admin-ui）
 license: Complete terms in LICENSE.txt
+provenance: project-vendor-fork of anthropics/skills frontend-design; see skills-lock.json and NOTICE
 ---
 
 # TradeMind Admin UI 设计与 AI 实施规范
 
-本文件是 TradeMind Admin UI 设计与实施规范的唯一完整来源。任何 AI 工具（Cursor、Claude Code、Codex、Copilot、Continue、Windsurf、Trae 或其他 Agent）处理 Admin 前端任务时，必须以本规范为准；其他入口只应引用本文件，不应复制另一套完整 UI 规范。Admin UI 实施除 UI 和 E2E 验收外，还必须遵循 `.agents/skills/code-quality/SKILL.md`。
+> **Provenance**：本文件是基于 anthropics/skills `frontend-design` 的 **TradeMind 项目 vendor 副本**（已本地修改，不再保证与上游 bit-for-bit 一致）。元数据与内容哈希见根目录 `skills-lock.json`；许可证见同目录 `LICENSE.txt`；署名见根目录 `NOTICE`。  
+> **默认用法**：普通 Admin UI 任务优先加载 `trademind-admin-ui`。仅在深度视觉/信息架构设计时按需阅读本文件（context id: `frontend-design-deep`）。
+
+本文件是 TradeMind Admin UI **深度设计与详细验收**参考。日常项目不变量以 `trademind-admin-ui` 为准；组合加载由 `config/agent/context-map.json` 决定，不要在正文里强制级联其他 Skill。
 
 大型页面拆分、共享 UI 边界、跨页面模块设计、公共 type/service 和 DraftDetail 演进遵循 `.agents/skills/modular-architecture/SKILL.md`；本规范只定义 UI 视觉、布局、响应式和交互验收。
 

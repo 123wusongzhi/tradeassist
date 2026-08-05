@@ -2,10 +2,21 @@
   "version": 1,
   "skills": {
     "frontend-design": {
-      "source": "anthropics/skills",
-      "sourceType": "github",
-      "skillPath": "skills/frontend-design/SKILL.md",
-      "computedHash": "93f53fd1c0352d3d7ec17b8f73d7351bf76f4821e55d123c9d2abc2c53ba48e4"
+      "source": "trademind/vendor",
+      "sourceType": "project-vendor",
+      "skillPath": ".agents/skills/frontend-design/SKILL.md",
+      "computedHash": "9ec1f6a4281015f96ea37e0ae9498092c21bbdbf27111153c1d826151d0fe398",
+      "upstream": {
+        "source": "anthropics/skills",
+        "sourceType": "github",
+        "skillPath": "skills/frontend-design/SKILL.md",
+        "originalComputedHash": "93f53fd1c0352d3d7ec17b8f73d7351bf76f4821e55d123c9d2abc2c53ba48e4",
+        "note": "Originally imported from anthropics/skills; maintained as a TradeMind project fork with local modifications. Do not treat as bit-for-bit upstream."
+      },
+      "role": "optional-reference",
+      "projectOverlay": ".agents/skills/trademind-admin-ui/SKILL.md",
+      "vendoredAt": "2026-08-05",
+      "licenseFile": ".agents/skills/frontend-design/LICENSE.txt"
     }
   }
 }

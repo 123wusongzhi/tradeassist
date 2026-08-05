@@ -36,11 +36,10 @@ last_verified_commit: b453069b9e98b76823eefdc45385a5ba2c63bdb2
 - 连接真实店铺、执行刊登、库存同步或其他外部写操作前，必须在隔离环境验证。
 - 测试与 Agent 不得连接生产 DB/Redis，不得执行未拦截的第三方写请求。
 - 对外展示不要用内部阶段编号代替成熟度说明；细节以本页与代码为准。
-- `frontend-design` Skill 哈希与 `skills-lock.json` 不一致（本地已修改过 upstream）；深度设计时按需参考，默认 Admin 使用 `trademind-admin-ui` overlay。状态：`unverified` 是否恢复上游，需维护者决策。
+- `frontend-design` 已正式 vendor 为项目 fork（见 `skills-lock.json`、`NOTICE`、ADR `docs/architecture/adr/0001-frontend-design-project-vendor.md`）。深度设计按需参考；默认 Admin 使用 `trademind-admin-ui`。
 
 ## 下一步决策（文档/工程）
 
-- 是否正式 vendor/fork `frontend-design` 并更新 lock/NOTICE。
 - 是否引入完整 OpenAPI 作为 API 真源（当前为 Go 路由静态扫描快照）。
 - 阶段报告批量归档策略的持续清理（`docs/archive/phases`）。
 

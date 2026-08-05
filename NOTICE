@@ -11,6 +11,17 @@ Gin, GORM, PostgreSQL, Redis, React, Ant Design Pro, TypeScript, pnpm,
 Docker, and Playwright. Each third-party dependency remains under its own
 license terms.
 
+Agent skill provenance
+----------------------
+The file `.agents/skills/frontend-design/SKILL.md` was originally based on the
+`frontend-design` skill from the anthropics/skills project
+(https://github.com/anthropics/skills). TradeMind maintains a modified,
+project-specific vendor copy under the same path. The original work is
+distributed under the Apache License, Version 2.0; see
+`.agents/skills/frontend-design/LICENSE.txt`. The project overlay for routine
+Admin UI work is `.agents/skills/trademind-admin-ui/SKILL.md`. Source metadata
+and content hashes are recorded in `skills-lock.json`.
+
 The names of third-party platforms, services, and products mentioned in this
 project, such as TikTok Shop, Shopee, Lazada, Amazon, OpenAI, remove.bg,
 ComfyUI, Tencent COS, and Aliyun OSS, are trademarks or service marks of their
