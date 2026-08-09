@@ -4,6 +4,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { commandPrintableVersion, runCapture } from './utils/command.js';
+import { checkLocalDevMode } from './utils/dev-mode.js';
 import { resolveEffectiveEnvPath } from './utils/env-file.js';
 import {
   formatHostPort,
@@ -107,6 +108,26 @@ export async function runDevEnvChecks(
   }
 
   const effective = resolveEffectiveEnvPath(repoRoot);
+  const localMode = await checkLocalDevMode(repoRoot, effective);
+  if (localMode.runningFullStackServices.length > 0) {
+    fail(
+      `检测到 Docker 完整栈正在运行（${localMode.runningFullStackServices.join('、')}）。本地 \`pnpm dev\` 与 \`trademind-full\` 必须互斥；请先执行 \`docker compose -f docker-compose.full.yml down\`，或继续使用现有 Docker 栈。不会停止任何 Docker 容器。`,
+    );
+  }
+  if (localMode.dockerOnlyEnvIssues.length > 0) {
+    const keys = localMode.dockerOnlyEnvIssues.map((issue) => issue.key).join('、');
+    const fixes = localMode.dockerOnlyEnvIssues
+      .map((issue) => `${issue.key}=${issue.safeLocalValue}`)
+      .join('，');
+    fail(
+      `有效 .env 含 Docker 容器网络地址（仅列变量名，不显示原值）：${keys}。本地开发请从 \`.env.example\` 重新生成，或改为本机回环地址：${fixes}。`,
+    );
+  }
+  if (hadFailure) {
+    checkFail('本地开发模式检查未通过；未启动、未停止任何服务。');
+    return { ok: false, infraMode: null };
+  }
+
   const infra = await resolveInfra(effective);
 
   if (!(await isDockerCliAvailable()) && !infra.dockerAvailable) {

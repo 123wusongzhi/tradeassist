@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    "scripts/check-dev-env.ts",
+    "scripts/dev-*.ts",
+    "scripts/docker-full-up.ts",
+    "scripts/utils/**/*.ts",
+    "admin/config/devProxy.ts",
+    "admin/config/devProxy.test.ts",
+    "vitest.dev-scripts.config.ts"
+  ]
+}
