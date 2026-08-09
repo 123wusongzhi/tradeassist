@@ -1,0 +1,154 @@
+{
+  "version": 2,
+  "budgets": {
+    "alwaysLoadedMaxBytes": 12288,
+    "normalRequiredFilesMax": 3,
+    "normalRequiredBytesMax": 32768,
+    "deepRequiredFilesMax": 6,
+    "deepRequiredBytesMax": 71680
+  },
+  "contexts": {
+    "docs-maintenance": {
+      "path": ".agents/skills/docs-maintenance/SKILL.md",
+      "kind": "skill"
+    },
+    "admin-ui": {
+      "path": ".agents/skills/trademind-admin-ui/SKILL.md",
+      "kind": "skill"
+    },
+    "frontend-design-deep": {
+      "path": ".agents/skills/frontend-design/SKILL.md",
+      "kind": "optional-reference"
+    },
+    "frontend-unit": {
+      "path": ".agents/skills/frontend-unit-testing/SKILL.md",
+      "kind": "skill"
+    },
+    "admin-e2e": {
+      "path": ".agents/skills/admin-e2e-testing/SKILL.md",
+      "kind": "skill"
+    },
+    "backend-development": {
+      "path": ".agents/skills/backend-development/SKILL.md",
+      "kind": "skill"
+    },
+    "backend-testing": {
+      "path": ".agents/skills/backend-testing/SKILL.md",
+      "kind": "skill"
+    },
+    "api-contract": {
+      "path": ".agents/skills/api-contract-testing/SKILL.md",
+      "kind": "skill"
+    },
+    "architecture-change": {
+      "path": ".agents/skills/modular-architecture/SKILL.md",
+      "kind": "skill"
+    },
+    "collector-development": {
+      "path": ".agents/skills/collector-development/SKILL.md",
+      "kind": "skill"
+    },
+    "deep-code-review": {
+      "path": ".agents/skills/code-quality/SKILL.md",
+      "kind": "optional-reference"
+    },
+    "project-testing": {
+      "path": ".agents/skills/project-testing/SKILL.md",
+      "kind": "optional-reference"
+    }
+  },
+  "tasks": [
+    {
+      "id": "documentation-only",
+      "priority": 100,
+      "match": {
+        "include": ["**/*.md", "**/*.mdc", "config/agent/**", "docs/**"],
+        "exclude": ["package.json", ".github/workflows/**", "scripts/**", "admin/src/**", "backend/**", "collector/**"]
+      },
+      "requiredContexts": ["docs-maintenance"],
+      "optionalContexts": [],
+      "checks": ["docs:check", "quality:sensitive"],
+      "depth": "light"
+    },
+    {
+      "id": "small-admin-ui",
+      "priority": 80,
+      "match": {
+        "include": ["admin/src/pages/**", "admin/src/components/**", "admin/src/**/*.less", "admin/src/**/*.css", "admin/src/**/*.scss"],
+        "riskFlagsAbsent": ["api-contract", "shared-boundary", "write-flow", "route-change"]
+      },
+      "requiredContexts": ["admin-ui"],
+      "optionalContexts": ["frontend-unit"],
+      "checks": ["test:frontend", "quality:affected", "test:affected"],
+      "depth": "light"
+    },
+    {
+      "id": "admin-interaction-or-write",
+      "priority": 90,
+      "match": {
+        "include": ["admin/src/**", "admin/e2e/**"],
+        "riskFlagsAny": ["write-flow", "route-change", "deep-link", "modal-drawer", "responsive-layout"]
+      },
+      "requiredContexts": ["admin-ui", "admin-e2e"],
+      "optionalContexts": ["frontend-unit", "frontend-design-deep"],
+      "checks": ["test:frontend", "test:e2e:smoke", "quality:affected", "test:affected"],
+      "depth": "deep"
+    },
+    {
+      "id": "backend-service",
+      "priority": 70,
+      "match": {
+        "include": ["backend/**/*.go"],
+        "riskFlagsAbsent": ["db-schema", "api-contract", "queue-worker", "platform-adapter", "shared-boundary"]
+      },
+      "requiredContexts": ["backend-development"],
+      "optionalContexts": ["backend-testing"],
+      "checks": ["test:backend", "quality:affected", "test:affected"],
+      "depth": "light"
+    },
+    {
+      "id": "api-contract-change",
+      "priority": 95,
+      "match": {
+        "riskFlagsAny": ["api-contract", "dto", "envelope", "auth", "tenant-boundary"]
+      },
+      "requiredContexts": ["backend-development", "api-contract"],
+      "optionalContexts": ["backend-testing", "admin-e2e"],
+      "checks": ["test:contracts", "test:backend", "quality:affected", "test:affected"],
+      "depth": "deep"
+    },
+    {
+      "id": "architecture-change",
+      "priority": 100,
+      "match": {
+        "riskFlagsAny": ["shared-boundary", "new-module", "migration", "queue-worker", "platform-adapter", "db-schema"]
+      },
+      "requiredContexts": ["architecture-change", "backend-development"],
+      "optionalContexts": ["backend-testing", "api-contract", "deep-code-review"],
+      "checks": ["architecture:affected", "quality:affected", "test:affected"],
+      "depth": "deep"
+    },
+    {
+      "id": "collector-change",
+      "priority": 80,
+      "match": {
+        "include": ["collector/**", "browser-extension/**"]
+      },
+      "requiredContexts": ["collector-development"],
+      "optionalContexts": [],
+      "checks": ["test:collector", "quality:affected", "test:affected"],
+      "depth": "light"
+    },
+    {
+      "id": "test-only-change",
+      "priority": 60,
+      "match": {
+        "include": ["**/*.test.ts", "**/*.test.tsx", "**/*_test.go", "admin/e2e/**", "tests/**"]
+      },
+      "requiredContexts": ["project-testing"],
+      "optionalContexts": ["deep-code-review"],
+      "checks": ["quality:affected", "test:affected"],
+      "depth": "light"
+    }
+  ]
+}

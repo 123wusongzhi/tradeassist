@@ -1,0 +1,8 @@
+---
+description: Route Admin UI changes to the project UI context
+globs: admin/src/**/*.{ts,tsx,less,css,scss}
+alwaysApply: false
+---
+
+Use context id `admin-ui` from `config/agent/context-map.json`.
+Escalate to `admin-e2e` only for interaction, route, responsive-layout, or write-flow risk.

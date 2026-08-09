@@ -15,7 +15,7 @@ git pull --ff-only origin dev
 git switch -c feat/your-feature-name
 ```
 
-分支策略与 PR 合并规则见 [docs/branching.md](docs/branching.md)。
+分支策略与 PR 合并规则见 [docs/guides/contributing/branching.md](docs/guides/contributing/branching.md)。
 
 ## 本地启动
 
@@ -36,7 +36,7 @@ pnpm dev:collector
 pnpm dev:stop
 ```
 
-更多说明见 [docs/development.md](docs/development.md)。
+更多说明见 [docs/guides/development.md](docs/guides/development.md)。
 
 ## Commit Message 建议
 
@@ -63,15 +63,15 @@ chore: update issue templates
 提交 PR 前请确认：
 
 - 变更范围清晰，避免混入无关修改。
-- 目标分支符合 [docs/branching.md](docs/branching.md)：`feat/*` 与普通 `fix/*` 先合并到 `dev`，`release/*` 再合并到 `main`。
-- 使用 AI 工具协作时，已参考 [docs/ai-workflow.md](docs/ai-workflow.md) 控制上下文范围，并把可复用经验沉淀到合适文档。
-- 已阅读并遵守 [docs/ai-coding-rules.md](docs/ai-coding-rules.md) 与 [docs/module-map.md](docs/module-map.md)，代码、配置、示例和文档需要同步更新。
-- 已按 [docs/task-checklist.md](docs/task-checklist.md) 完成对应范围的收尾检查。
+- 目标分支符合 [docs/guides/contributing/branching.md](docs/guides/contributing/branching.md)：`feat/*` 与普通 `fix/*` 先合并到 `dev`，`release/*` 再合并到 `main`。
+- 使用 AI 工具时：先读 [AGENTS.md](AGENTS.md)，运行 `pnpm agent:context`，只加载 required contexts。
+- 文档影响运行 `pnpm docs:impact -- --files-from-git`，并更新对应真源或生成文档。
 - 涉及后端 Go 代码时已在 `backend` 目录执行 `go fmt ./...`。
-- 涉及前端或 Collector 时已执行相关构建或说明未执行原因。
-- 修改 CI 测试编排时，已区分普通回归测试与要求特定分支/干净工作树的基线证据生成；P9 PostgreSQL 普通 CI 应调用 `pnpm test:p9-postgres-ci`。
+- 涉及前端或 Collector 时已执行相关构建，或说明未执行原因。
+- 验证命令见 [docs/guides/contributing/verification.md](docs/guides/contributing/verification.md)。
 - 涉及接口、部署、环境变量、配置文件或 Provider 机制时同步更新文档。
 - 不提交 `.env`、密钥、Token、Cookie、真实平台凭证。
+- 不自动扩大测试/架构 baseline；不执行未拦截的真实第三方写请求。
 
 ## Issue 模板说明
 

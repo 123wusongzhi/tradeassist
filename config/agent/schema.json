@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/config/agent/schema.json",
+  "title": "TradeMind agent context map",
+  "type": "object",
+  "required": ["version", "budgets", "contexts", "tasks"],
+  "properties": {
+    "version": { "type": "integer", "const": 2 },
+    "budgets": {
+      "type": "object",
+      "required": [
+        "alwaysLoadedMaxBytes",
+        "normalRequiredFilesMax",
+        "normalRequiredBytesMax",
+        "deepRequiredFilesMax",
+        "deepRequiredBytesMax"
+      ],
+      "properties": {
+        "alwaysLoadedMaxBytes": { "type": "integer", "minimum": 1 },
+        "normalRequiredFilesMax": { "type": "integer", "minimum": 1 },
+        "normalRequiredBytesMax": { "type": "integer", "minimum": 1 },
+        "deepRequiredFilesMax": { "type": "integer", "minimum": 1 },
+        "deepRequiredBytesMax": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "contexts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["path", "kind"],
+        "properties": {
+          "path": { "type": "string" },
+          "kind": {
+            "type": "string",
+            "enum": ["skill", "optional-reference", "reference"]
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "priority", "match", "requiredContexts", "checks", "depth"],
+        "properties": {
+          "id": { "type": "string" },
+          "priority": { "type": "integer" },
+          "match": { "type": "object" },
+          "requiredContexts": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "optionalContexts": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "checks": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "depth": {
+            "type": "string",
+            "enum": ["light", "deep"]
+          }
+        }
+      }
+    }
+  }
+}

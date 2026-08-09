@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "id": "env-change",
+      "paths": [".env.example", ".env.docker.example", "backend/internal/config/**", "docs/reference/configuration/**"],
+      "requiredDocs": ["docs/reference/configuration/environment.md"],
+      "generator": "docs:generate:env"
+    },
+    {
+      "id": "package-script-change",
+      "paths": ["package.json", "admin/package.json", "collector/package.json"],
+      "requiredDocs": ["docs/reference/generated/commands.generated.md"],
+      "generator": "docs:generate:commands"
+    },
+    {
+      "id": "api-route-change",
+      "paths": ["backend/internal/api/**", "backend/internal/modules/**/handler*.go", "backend/internal/router/**"],
+      "requiredDocs": ["docs/reference/api/conventions.md", "docs/reference/api/routes.generated.md"],
+      "generator": "docs:generate:api"
+    },
+    {
+      "id": "provider-change",
+      "paths": ["backend/internal/providers/**"],
+      "requiredDocs": ["docs/reference/providers/overview.md"],
+      "check": "docs:check"
+    },
+    {
+      "id": "workflow-change",
+      "paths": [".github/workflows/**", "scripts/workflow/**", "config/agent/**"],
+      "requiredDocs": ["docs/guides/contributing/verification.md", "AGENTS.md"],
+      "check": "docs:check"
+    },
+    {
+      "id": "agent-skill-change",
+      "paths": [".agents/skills/**", "AGENTS.md", ".cursor/rules/**"],
+      "requiredDocs": ["AGENTS.md", "config/agent/context-map.json"],
+      "check": "agent:check"
+    },
+    {
+      "id": "architecture-boundary-change",
+      "paths": ["tests/architecture/**", "scripts/architecture/**"],
+      "requiredDocs": ["docs/architecture/overview.md"],
+      "check": "architecture:check"
+    },
+    {
+      "id": "status-capability-change",
+      "paths": ["docs/status/current.md", "README.md", "README.en.md"],
+      "requiredDocs": ["docs/status/current.md"],
+      "check": "docs:check"
+    }
+  ]
+}
