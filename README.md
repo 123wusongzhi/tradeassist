@@ -138,6 +138,7 @@ pnpm dev:admin
 pnpm dev:collector
 pnpm opencli:install-adapter
 pnpm dev:opencli-bridge
+pnpm docker:full:up
 pnpm opencli:doctor
 pnpm build:admin
 pnpm build:collector
@@ -170,15 +171,18 @@ Playwright Collector、OpenCLI Bridge 是三条互不强制、互不依赖的采
 
 ```bash
 cp .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
 
 Windows PowerShell：
 
 ```powershell
 Copy-Item .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
+
+`pnpm dev` 与完整 Docker 栈互斥；两者冲突时会 fail-fast，不会停止 Docker 或无关端口占用者。
+完整栈推荐通过 `pnpm docker:full:up` 启动，以获得发布端口归属预检。
 
 默认访问地址：
 

@@ -34,7 +34,11 @@ pnpm dev:backend
 pnpm dev:admin
 pnpm dev:collector
 pnpm dev:stop
+pnpm docker:full:up
 ```
+
+`pnpm dev` 会在启动前拒绝与 `trademind-full` 完整栈并行运行，并只清理身份可验证的本仓库
+开发进程。`pnpm dev:stop` 不会停止完整栈或无关端口占用者。
 
 更多说明见 [docs/guides/development.md](docs/guides/development.md)。
 

@@ -139,6 +139,7 @@ pnpm dev:admin
 pnpm dev:collector
 pnpm opencli:install-adapter
 pnpm dev:opencli-bridge
+pnpm docker:full:up
 pnpm opencli:doctor
 pnpm build:admin
 pnpm build:collector
@@ -179,15 +180,19 @@ the one that fits your scenario; none of them is required.
 
 ```bash
 cp .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
 
 Windows PowerShell:
 
 ```powershell
 Copy-Item .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
+
+`pnpm dev` and the full Docker stack are mutually exclusive. Conflicts fail fast without stopping
+Docker or unrelated port owners. Use `pnpm docker:full:up` for full-stack startup with port-owner
+preflight checks.
 
 Default URLs:
 

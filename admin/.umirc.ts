@@ -1,6 +1,7 @@
 import { defineConfig } from '@umijs/max';
 import { elevationTokens, layoutTokens, themeTokens } from './src/constants/layoutTokens';
 import routes from './config/routes';
+import { createAdminDevProxy } from './config/devProxy';
 
 export default defineConfig({
   title: '贸灵 TradeMind',
@@ -73,14 +74,5 @@ export default defineConfig({
   },
   routes,
   devtool: process.env.NODE_ENV === 'production' ? false : 'source-map',
-  proxy: {
-    '/api': {
-      target: 'http://127.0.0.1:8080',
-      changeOrigin: true,
-    },
-    '/static': {
-      target: 'http://127.0.0.1:8080',
-      changeOrigin: true,
-    },
-  },
+  proxy: createAdminDevProxy(),
 });

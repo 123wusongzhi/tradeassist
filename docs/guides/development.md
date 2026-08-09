@@ -33,6 +33,14 @@ pnpm dev
 - 可选 OpenCLI Bridge：仅在 `.env` 设置 `OPENCLI_BRIDGE_ENABLED=true` 时启动，
   启动失败不终止三个必需服务
 
+启动前会执行本地模式保护：
+
+- 如果 `trademind-full` 的 `admin`、`backend` 或 `collector` 容器正在运行，立即退出且不停止 Docker。
+- 如果有效 `.env` 含 `DB_HOST=postgres`、`REDIS_ADDR=redis:6379`、
+  `COLLECTOR_PLAYWRIGHT_BASE_URL=http://collector:3001` 等容器网络地址，按变量名给出脱敏提示并退出。
+- 只清理运行清单或命令行明确属于当前仓库的旧开发进程；未知程序占用端口时只报告 PID，绝不按端口误杀。
+- Backend、Admin、Collector 与可选 OpenCLI Bridge 的 PID、启动时间、命令行和端口记录在按仓库路径隔离的系统临时运行清单中。终止前会重新核对身份，防止 PID 复用。
+
 ## 常用命令
 
 ```bash
@@ -41,6 +49,7 @@ pnpm dev:infra
 pnpm dev:backend
 pnpm dev:admin
 pnpm dev:collector
+pnpm docker:full:up
 pnpm p7:dataset -- --profile small
 pnpm check:p7
 pnpm check:p7:regression
@@ -58,8 +67,9 @@ pnpm dev:reset
 - `pnpm p7-v2:r3b:lpf-comparability`：使用版本化 V2 sidecar 执行 Recovery3 comparability；V1 报告保持不变。
 - `pnpm p7-v2:r3b:regression`：仅在 Comparability V2 通过后评估冻结 Raw Artifact；不重新执行性能负载。
 - `pnpm p7-v2:r3b:lpf-gate`：执行 LPF-V2 scoped gate；Soak、Demo、最终 Gate 不属于该命令范围。
-- `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）/ collector 端口上残留的上一进程，避免端口占用导致 backend 启动失败。
-- `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
+- `pnpm dev`：启动前按运行清单或仓库进程签名清理上一轮本地进程树，并检查实际配置的 backend / admin / collector / OpenCLI 端口；无关占用者只报错。
+- `pnpm dev:stop`：验证 PID 启动时间与命令行后停止当前仓库的本地开发进程树，再停止默认 `docker-compose.yml` 基础设施；不停止 `trademind-full`，不删除 volume。
+- `pnpm docker:full:up`：预检完整栈发布端口，区分 TradeMind 本地进程与无关进程且不自动终止任何占用者，然后执行完整 Compose 构建启动。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。
 
 ## 默认端口
@@ -68,7 +78,7 @@ pnpm dev:reset
 | --- | --- |
 | backend | `http://127.0.0.1:8080` |
 | backend health | `http://127.0.0.1:8080/health` |
-| admin | 通常为 `http://127.0.0.1:8000`，以终端输出为准 |
+| admin | `http://127.0.0.1:8000`（可用 `ADMIN_DEV_PORT` 覆盖） |
 | Playwright Collector | `http://127.0.0.1:3001` |
 | Playwright Collector health | `http://127.0.0.1:3001/health` |
 | OpenCLI Bridge（可选） | `http://127.0.0.1:3100` |
@@ -96,6 +106,8 @@ Copy-Item .env.example .env
 - `DB_PORT=5432`
 - `REDIS_ADDR=127.0.0.1:6379`
 - `APP_HTTP_ADDR=:8080`
+- `ADMIN_DEV_PORT=8000`
+- `ADMIN_DEV_API_PROXY_TARGET=http://127.0.0.1:8080`
 - `COLLECTOR_HTTP_ADDR=127.0.0.1:3001`
 - `COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001`
 - `OPENCLI_BRIDGE_ENABLED=false`
@@ -128,6 +140,12 @@ pnpm dev:backend
 ```bash
 pnpm dev:admin
 ```
+
+根命令 `pnpm dev:admin` 会读取根 `.env`，把 `ADMIN_DEV_PORT` 传给 Umi，并使用
+`ADMIN_DEV_API_PROXY_TARGET` 代理 `/api` 与 `/static`。代理目标默认仍为
+`http://127.0.0.1:8080`；只允许带显式端口的本机回环 HTTP(S) URL，例如完整 Docker
+Backend 映射到 `8081` 时可设置 `http://127.0.0.1:8081`。该变量只影响 Umi 本地开发，
+Docker Admin 的 nginx 始终在容器网络内代理 `backend:8080`。
 
 采集服务：
 
@@ -193,7 +211,8 @@ SKU 价格/库存识别与风控说明见 [browser-extension-collector.md](../br
 ## 故障排查
 
 - Docker 未安装或未启动：可安装 Docker Desktop，或在本机启动 PostgreSQL / Redis（端口与 `.env` 中 `DB_HOST`/`DB_PORT`、`REDIS_ADDR` 一致）。
-- 端口冲突：修改 `.env` 或停止占用端口的进程。
+- 端口冲突：`pnpm dev` 会打印端口、PID 与“TradeMind local / unrelated”分类。无关程序不会被自动终止；请自行停止它，或修改 `APP_HTTP_ADDR`、`ADMIN_DEV_PORT`、`COLLECTOR_HTTP_ADDR` 等对应配置。
+- 登录返回 504：先确认没有同时运行 `pnpm dev` 与 `trademind-full`，再检查 `ADMIN_DEV_API_PROXY_TARGET` 是否指向真实宿主机 Backend 映射端口。Docker Admin 不读取此变量。
 - 后端连不上数据库：使用 Docker 时确认 `docker compose ps` 中 PostgreSQL 为 healthy；使用本机服务时确认对应端口可连接。
 - Collector 无法打开浏览器：重新执行 `pnpm install:collector:browsers`。
 - `host.docker.internal:3100 connection refused`：确认这是 OpenCLI 任务，并在宿主机执行

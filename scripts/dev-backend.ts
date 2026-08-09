@@ -2,8 +2,9 @@ import process from 'node:process';
 
 import { execa } from 'execa';
 
+import { inspectPortOwners, portOwnerLabel } from './utils/dev-runtime.js';
 import { addrToHttpUrl, readEnvKey, resolveEffectiveEnvPath } from './utils/env-file.js';
-import { freeDevPorts, parsePortFromAddr, sleep } from './utils/port-cleanup.js';
+import { parsePortFromAddr } from './utils/port-cleanup.js';
 import { backendDir, repoRoot } from './utils/paths.js';
 
 async function main(): Promise<void> {
@@ -15,10 +16,13 @@ async function main(): Promise<void> {
   }
 
   const port = parsePortFromAddr(httpAddr, 8080);
-  const freed = await freeDevPorts([port]);
-  if (freed.length > 0) {
-    console.log(`[backend] Freed port ${port} (stopped PID ${freed[0]?.killed.join(', ')})`);
-    await sleep(process.platform === 'win32' ? 800 : 300);
+  const owners = await inspectPortOwners(repoRoot, [port]);
+  if (owners.length > 0) {
+    console.error(`[backend] 端口 ${port} 已被占用；不会按端口终止任何进程。`);
+    for (const owner of owners) console.error(`  - ${portOwnerLabel(owner)}`);
+    console.error('请先运行 `pnpm dev:stop` 清理已登记的 TradeMind 本地进程，或停止/改端口后重试。');
+    process.exitCode = 1;
+    return;
   }
 
   const r = await execa('go', ['run', './cmd/server'], {
