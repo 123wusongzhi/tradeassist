@@ -158,7 +158,7 @@ export default function CollectBrowserExtensionPage() {
           showIcon
           icon={<CheckCircleOutlined />}
           message="本地部署与 Docker 使用同一条扩展链路"
-          description="扩展访问你当前打开的 TradeMind 地址并主动提交结果，不依赖 host.docker.internal:3100。Playwright Collector 仍保留为后台备用采集引擎。"
+          description="扩展访问你当前打开的 TradeMind 地址并主动提交结果，不依赖后台 Playwright Collector；Playwright 当前已停用。"
         />
         {!canManageExtension ? (
           <Alert

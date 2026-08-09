@@ -6,7 +6,12 @@ import { createCollectTask, fetchCollectEnginesStatus, type CollectEnginesStatus
 import { COLLECT_SUCCESS_SHOP_HINT } from '@/constants/copywriting';
 import { mapCollectErrorMessage } from '@/constants/collectErrors';
 import { classifyTaobaoTmallUrl, taobaoTmallUrlHint, validateTaobaoTmallUrl } from '@/utils/taobaoTmallUrl';
-import { collectEngineOptions, findCollectEngineStatus, type CollectEngine } from '@/utils/collectEngine';
+import {
+  collectEngineOptions,
+  collectEngineSelectable,
+  findCollectEngineStatus,
+  type CollectEngine,
+} from '@/utils/collectEngine';
 import { fetchDefaultCollectEngine } from '@/services/collectEngine';
 
 type Props = {
@@ -44,7 +49,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
         if (!cancelled) setEngine(value);
       })
       .catch(() => {
-        if (!cancelled) setEngine('playwright');
+        if (!cancelled) setEngine('opencli');
       })
       .finally(() => {
         if (!cancelled) setEngineResolving(false);
@@ -62,14 +67,17 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
 
   const urlType = url?.trim() ? classifyTaobaoTmallUrl(url.trim()) : null;
   const openCliStatus = findCollectEngineStatus(engineStatus, 'opencli');
-  const openCliSelectable = Boolean(openCliStatus?.enabled && openCliStatus.configured);
-  const canSubmit = urlType === 'product_detail' && (engine !== 'opencli' || openCliSelectable);
+  const canSubmit = urlType === 'product_detail' && collectEngineSelectable(engineStatus, engine);
 
   const handleSubmit = async () => {
     const vals = await form.validateFields();
     const raw = vals.url?.trim();
     if (!raw || !validateTaobaoTmallUrl(raw)) {
       message.warning('请输入有效的淘宝/天猫商品详情页链接');
+      return;
+    }
+    if (!collectEngineSelectable(engineStatus, engine)) {
+      message.warning('所选后台采集引擎已停用，请启用 OpenCLI Bridge 或使用浏览器扩展');
       return;
     }
     setSubmitting(true);
@@ -108,8 +116,8 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
     >
       <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
         {engine === 'opencli'
-          ? '默认使用宿主机 OpenCLI 和当前浏览器登录状态采集；如需使用采集服务内置浏览器，可切换到 Playwright 备用引擎。'
-          : 'Playwright 使用采集服务内置浏览器。部分商品需要先完成登录或安全验证，再重新采集。'}
+          ? '默认使用宿主机 OpenCLI 和当前浏览器登录状态采集；Playwright 当前已停用。'
+          : 'Playwright 当前仅保留为可恢复代码路径，运行时未启用。'}
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
         <Form.Item label="商品链接" name="url" rules={[{ required: true, message: '请填写淘宝/天猫商品链接' }]}>
@@ -141,8 +149,8 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
                 engineResolving
                   ? '检测完成后会按采集设置选择默认引擎。'
                   : openCliStatus?.ready
-                    ? '使用宿主机已登录浏览器采集；Playwright Collector 会继续独立运行，随时可切换。'
-                    : '请在宿主机启动 OpenCLI Bridge，或临时切换为 Playwright。系统不会自动切换引擎。'
+                    ? '使用宿主机已登录浏览器采集；Playwright 当前已停用。'
+                    : '请在宿主机启动 OpenCLI Bridge，或改用浏览器扩展。系统不会自动切换引擎。'
               }
             />
           ) : null}
@@ -156,7 +164,7 @@ export function TaobaoTmallCollectModal({ open, onClose, onSubmitted }: Props) {
           style={{ marginBottom: 12 }}
         />
       ) : null}
-      {!engineResolving && engine === 'playwright' ? (
+      {!engineResolving && engine === 'playwright' && collectEngineSelectable(engineStatus, 'playwright') ? (
         <TaobaoTmallLoginPanel loginUrl={url?.trim()} onAuthChange={setAuthStatus} />
       ) : null}
       {!engineResolving && engine === 'playwright' && authStatus && !authStatus.loggedIn ? (

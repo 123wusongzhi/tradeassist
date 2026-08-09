@@ -90,6 +90,10 @@ export function mapCollectorErrorCodeLabel(code?: string | null, engine?: string
       return 'OpenCLI 暂不可用';
     case 'COLLECT_ENGINE_INVALID':
       return '采集引擎配置无效';
+    case 'COLLECT_ENGINE_DISABLED':
+      return '采集引擎已停用';
+    case 'COLLECT_ENGINE_UNAVAILABLE':
+      return '采集引擎不可用';
     case 'COLLECT_ENGINE_SOURCE_UNSUPPORTED':
       return '当前来源不支持该引擎';
     default:
@@ -190,13 +194,17 @@ export function mapCollectorErrorCodeDetail(
     case 'APP_REDIRECT':
       return '当前为 App 引导页，请换用拼多多批发商品详情链接。';
     case 'OPENCLI_BRIDGE_DISABLED':
-      return 'OpenCLI Bridge 尚未启用。请启动宿主机 Bridge，或在提交前手动切换为 Playwright 备用引擎。';
+      return 'OpenCLI Bridge 尚未启用。请启动宿主机 Bridge，或改用浏览器扩展。Playwright 当前已停用。';
     case 'OPENCLI_BRIDGE_ERROR':
-      return 'OpenCLI Bridge 当前无法完成采集。请确认宿主机 Bridge 和 OpenCLI 浏览器扩展已就绪，或手动切换为 Playwright。';
+      return 'OpenCLI Bridge 当前无法完成采集。请确认宿主机 Bridge 和 OpenCLI 浏览器扩展已就绪。';
     case 'COLLECT_ENGINE_INVALID':
-      return '请选择 OpenCLI 或 Playwright 后重新提交。';
+      return '请选择后端当前已启用的采集引擎后重新提交。';
+    case 'COLLECT_ENGINE_DISABLED':
+      return '该后台采集引擎已停用。淘宝/天猫可启用 OpenCLI Bridge，其他来源请使用浏览器扩展。';
+    case 'COLLECT_ENGINE_UNAVAILABLE':
+      return '该后台采集引擎未配置或暂不可用，请检查引擎设置或改用浏览器扩展。';
     case 'COLLECT_ENGINE_SOURCE_UNSUPPORTED':
-      return 'OpenCLI 当前仅支持淘宝/天猫商品采集，请为其他来源使用 Playwright。';
+      return 'OpenCLI 当前仅支持淘宝/天猫商品采集；其他来源请使用浏览器扩展。';
     case 'PROFILE_NOT_FOUND':
       return '请重新选择登录状态，或新建一条适用于该网站的登录状态。';
     case 'PROFILE_LOGIN_REQUIRED':
@@ -222,6 +230,12 @@ export function mapCollectErrorMessage(err: unknown, source?: string | null, eng
   }
   if (upper.includes('COLLECT_ENGINE_SOURCE_UNSUPPORTED')) {
     return mapCollectorErrorCodeDetail('COLLECT_ENGINE_SOURCE_UNSUPPORTED', source);
+  }
+  if (upper.includes('COLLECT_ENGINE_DISABLED')) {
+    return mapCollectorErrorCodeDetail('COLLECT_ENGINE_DISABLED', source);
+  }
+  if (upper.includes('COLLECT_ENGINE_UNAVAILABLE')) {
+    return mapCollectorErrorCodeDetail('COLLECT_ENGINE_UNAVAILABLE', source);
   }
   if (upper.includes('COLLECT_ENGINE_INVALID')) {
     return mapCollectorErrorCodeDetail('COLLECT_ENGINE_INVALID', source);

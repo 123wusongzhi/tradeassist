@@ -40,6 +40,7 @@ func TestEngineRouterPlaywrightUnaffectedByOpenCLIDown(t *testing.T) {
 
 	router := NewCollectorEngineRouter(
 		NewCollectorClient(playwrightServer.URL, time.Second),
+		true,
 		NewOpenCLIBridgeClient("http://127.0.0.1:1", "", time.Second),
 		true,
 		CollectEngineOpenCLI,
@@ -82,6 +83,7 @@ func TestEngineRouterOpenCLIDoesNotFallBackToPlaywright(t *testing.T) {
 
 	router := NewCollectorEngineRouter(
 		NewCollectorClient(playwrightServer.URL, time.Second),
+		true,
 		NewOpenCLIBridgeClient(opencliServer.URL, "test-token", time.Second),
 		true,
 		CollectEngineOpenCLI,
@@ -109,7 +111,7 @@ func TestEngineRouterOpenCLIDoesNotFallBackToPlaywright(t *testing.T) {
 
 func TestEngineRouterResolution(t *testing.T) {
 	bridge := NewOpenCLIBridgeClient("http://127.0.0.1:3100", "", time.Second)
-	router := NewCollectorEngineRouter(nil, bridge, true, CollectEngineOpenCLI, time.Second)
+	router := NewCollectorEngineRouter(nil, false, bridge, true, CollectEngineOpenCLI, time.Second)
 
 	engine, err := router.ResolveEngine("taobao_tmall", "")
 	if err != nil || engine != CollectEngineOpenCLI {
@@ -119,12 +121,52 @@ func TestEngineRouterResolution(t *testing.T) {
 		t.Fatal("expected unsupported source error")
 	}
 
-	disabled := NewCollectorEngineRouter(nil, bridge, false, CollectEngineOpenCLI, time.Second)
-	engine, err = disabled.ResolveEngine("taobao_tmall", "")
-	if err != nil || engine != CollectEnginePlaywright {
-		t.Fatalf("disabled bridge should make omitted engine use playwright, engine=%q err=%v", engine, err)
+	disabled := NewCollectorEngineRouter(nil, false, bridge, false, CollectEngineOpenCLI, time.Second)
+	if _, err = disabled.ResolveEngine("taobao_tmall", ""); err == nil {
+		t.Fatal("disabled default engine should fail closed")
+	} else if routingErr, ok := err.(*CollectEngineRoutingError); !ok || routingErr.Code != "OPENCLI_BRIDGE_DISABLED" {
+		t.Fatalf("expected disabled OpenCLI routing error, got %#v", err)
 	}
 	if _, err := disabled.ResolveEngine("taobao_tmall", CollectEngineOpenCLI); err == nil {
 		t.Fatal("explicit OpenCLI should fail while bridge is disabled")
+	}
+	if _, err := disabled.ResolveEngine("1688", CollectEnginePlaywright); err == nil {
+		t.Fatal("explicit Playwright should fail while the engine is disabled")
+	} else if routingErr, ok := err.(*CollectEngineRoutingError); !ok || routingErr.Code != "COLLECT_ENGINE_DISABLED" {
+		t.Fatalf("expected Playwright disabled routing error, got %#v", err)
+	}
+}
+
+func TestEngineRouterStatusReportsPlaywrightDisabledWithoutProbe(t *testing.T) {
+	var probes atomic.Int32
+	playwrightServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		probes.Add(1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer playwrightServer.Close()
+
+	router := NewCollectorEngineRouter(
+		NewCollectorClient(playwrightServer.URL, time.Second),
+		false,
+		nil,
+		false,
+		CollectEnginePlaywright,
+		time.Second,
+	)
+	status := router.Status(context.Background(), "")
+	if status.DefaultEngine != CollectEngineOpenCLI {
+		t.Fatalf("expected fail-closed UI default, got %q", status.DefaultEngine)
+	}
+	var playwright CollectEngineStatusItem
+	for _, item := range status.Engines {
+		if item.Engine == CollectEnginePlaywright {
+			playwright = item
+		}
+	}
+	if playwright.Enabled || playwright.Status != "disabled" || playwright.Ready {
+		t.Fatalf("expected disabled Playwright status, got %#v", playwright)
+	}
+	if got := probes.Load(); got != 0 {
+		t.Fatalf("disabled Playwright must not be probed, probes=%d", got)
 	}
 }

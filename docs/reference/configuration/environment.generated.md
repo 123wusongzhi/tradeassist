@@ -94,7 +94,8 @@ Narrative guidance: `docs/reference/configuration/environment.md`.
 | `STORAGE_PROVIDER` | `.env.example` | no | ----------------------------------------------------------------------------- Storage fail-fast（与 settings.storage.kind 对齐；staging/production 禁止 local） ------------------------------------------------ |
 | `MIGRATION_RUN_ON_STARTUP` | `.env.example` | no | ----------------------------------------------------------------------------- CORS（development 未配置时自动放行 localhost；staging/production 必填） --------------------------------------------------------------- |
 | `MIGRATION_LOCK_TIMEOUT_SECONDS` | `.env.example` | no |  |
-| `COLLECTOR_PLAYWRIGHT_BASE_URL` | `.env.example` | no | ----------------------------------------------------------------------------- 对象存储说明（不写环境变量也可用：在管理端「存储设置」写入 settings.storage） -------------------------------------------------------------------------- |
+| `COLLECTOR_PLAYWRIGHT_ENABLED` | `.env.example` | no | ----------------------------------------------------------------------------- 对象存储说明（不写环境变量也可用：在管理端「存储设置」写入 settings.storage） -------------------------------------------------------------------------- |
+| `COLLECTOR_PLAYWRIGHT_BASE_URL` | `.env.example` | no | 仅显式恢复 Playwright 时使用（须与 COLLECTOR_HTTP_ADDR 端口一致）。 |
 | `COLLECTOR_INTERNAL_TOKEN` | `.env.example` | yes | Collector 仅监听回环地址时可留空；任何非回环监听/访问必须设置同一个随机长 Token。 |
 | `COLLECTOR_TIMEOUT_SECONDS` | `.env.example` | no | 兼容旧配置；新部署请使用 COLLECTOR_PLAYWRIGHT_BASE_URL。 COLLECTOR_BASE_URL=http://127.0.0.1:3001 后端调用 collector 的 HTTP 超时（秒）；淘宝/天猫会按页面打开超时自动放宽，建议 >= 120 |
 | `OPENCLI_BRIDGE_ENABLED` | `.env.example` | no | OpenCLI 使用独立的宿主机轻量 Bridge，不加载 Playwright。 普通安装保持 false；启用后，淘宝/天猫未显式指定引擎时优先 OpenCLI。 |
@@ -291,7 +292,8 @@ Narrative guidance: `docs/reference/configuration/environment.md`.
 | `REDIS_ADDR` | `.env.docker.example` | no | ----------------------------------------------------------------------------- Redis ----------------------------------------------------------------------------- |
 | `REDIS_PASSWORD` | `.env.docker.example` | yes |  |
 | `REDIS_DB` | `.env.docker.example` | no |  |
-| `COLLECTOR_PLAYWRIGHT_BASE_URL` | `.env.docker.example` | no | ----------------------------------------------------------------------------- Collector ↔ Backend（编排网络内服务名） ----------------------------------------------------------------------------- |
+| `COLLECTOR_PLAYWRIGHT_ENABLED` | `.env.docker.example` | no | ----------------------------------------------------------------------------- Playwright Collector 默认停用；恢复时同时设为 true 并启用 compose 的 playwright profile。 ------------------------------------------------- |
+| `COLLECTOR_PLAYWRIGHT_BASE_URL` | `.env.docker.example` | no |  |
 | `COLLECTOR_INTERNAL_TOKEN` | `.env.docker.example` | yes | 必填：backend 与 collector 共用的随机长 Bearer Token；禁止提交真实值。 |
 | `COLLECTOR_TIMEOUT_SECONDS` | `.env.docker.example` | no | 兼容旧配置；新部署请使用 COLLECTOR_PLAYWRIGHT_BASE_URL。 COLLECTOR_BASE_URL=http://collector:3001 |
 | `COLLECTOR_HTTP_ADDR` | `.env.docker.example` | no | 容器内监听端口由 compose 固定为 3001（宿主机映射见 COLLECTOR_PUBLISH_PORT） |

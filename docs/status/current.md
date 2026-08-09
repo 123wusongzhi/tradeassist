@@ -21,7 +21,7 @@ last_verified_commit: b453069b9e98b76823eefdc45385a5ba2c63bdb2
 
 | 领域 | 当前能力 | 主要限制 | 事实来源 |
 | --- | --- | --- | --- |
-| 商品采集 | 1688 / 拼多多 / 淘宝天猫 / 自定义规则；浏览器扩展辅助 | 平台页面结构变化会导致采集失败；真实站点依赖需隔离验证 | `collector/`、`browser-extension/`、`docs/collector-engines.md` |
+| 商品采集 | 浏览器扩展当前页采集；淘宝/天猫可选 OpenCLI；Playwright Collector 代码保留 | Playwright 默认停用，其他后台来源不可新建任务；平台页面结构变化仍需隔离验证 | `collector/`、`browser-extension/`、`docs/collector-engines.md` |
 | 商品草稿 | 草稿、SKU、图片、发布前检查 | 平台字段完整性因适配进度而异 | `backend/internal/modules/`、`admin/src/pages/Product/` |
 | AI 内容 | 标题/描述、Prompt、异步任务、应用与撤销 | 依赖外部 AI Provider 可用性与配额 | AI 设置页、backend AI task 模块 |
 | AI 图片 | 多 Provider 异步图片任务 | 第三方服务稳定性与费用不在仓库保证范围 | Image provider / 任务页 |

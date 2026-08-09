@@ -124,9 +124,12 @@ TradeMind 仍处于快速演进阶段。自托管、二次开发和测试环境�
 
 ```bash
 pnpm install
-pnpm install:collector:browsers
 pnpm dev
 ```
+
+默认不会安装 Playwright Collector 浏览器二进制，也不会启动 Collector；`.npmrc` 已阻止
+依赖安装生命周期下载 Playwright 浏览器。受支持的当前页采集优先使用浏览器扩展；
+淘宝/天猫后台采集可显式启用 OpenCLI。
 
 常用命令：
 
@@ -150,22 +153,22 @@ pnpm verify:demo-permissions
 pnpm check:p4-r
 ```
 
-Playwright Collector 固定监听 `3001`。OpenCLI 是可选的宿主机 Bridge，默认监听
+Playwright Collector 代码仍保留，但默认由 `COLLECTOR_PLAYWRIGHT_ENABLED=false`
+停用，`pnpm dev` 不启动它。OpenCLI 是可选的宿主机 Bridge，默认监听
 `127.0.0.1:3100`；在 `.env` 设置 `OPENCLI_BRIDGE_ENABLED=true` 后，`pnpm dev`
-会同时启动它。Bridge 启动失败只影响 OpenCLI，Playwright 采集仍可使用。
+会同时启动它。Bridge 启动失败只影响 OpenCLI，不会静默回退到 Playwright。
 TradeMind 的淘宝/天猫 OpenCLI 适配器随项目维护；Bridge 启动时会安全同步该适配器。
 也可先运行 `pnpm opencli:install-adapter`。已有非 TradeMind 同名适配器不会被覆盖。
-OpenCLI 当前只支持淘宝/天猫，且任务执行失败不会自动切换到 Playwright；完整路由、
+OpenCLI 当前只支持淘宝/天猫；其他后台来源在 Playwright 停用期间不可提交。完整路由、
 部署选择和排错说明见 [采集引擎与部署指南](docs/collector-engines.md)。
 
 ### 浏览器侧边栏扩展
 
-淘宝/天猫单商品采集还可直接使用随仓库维护的浏览器侧边栏扩展：在已登录的
+受支持网站的单商品采集可直接使用随仓库维护的浏览器侧边栏扩展：在已登录的
 Chrome / Edge 商品详情页点击一次即可采集标题、图片、属性与完整 SKU（券后价、
 原价、库存、发货时间），无需额外浏览器或 OpenCLI Bridge。构建、安装、配对与
 风控说明见 [浏览器侧边栏采集](docs/browser-extension-collector.md)。它与
-Playwright Collector、OpenCLI Bridge 是三条互不强制、互不依赖的采集入口，按场景
-三选一即可。
+Playwright Collector、OpenCLI Bridge 互相隔离；扩展不依赖后台浏览器引擎。
 
 ### Docker 部署
 
@@ -190,7 +193,10 @@ pnpm docker:full:up
 | --- | --- |
 | Admin | <http://127.0.0.1:8000> |
 | Backend Health | <http://127.0.0.1:8080/health> |
-| Playwright Collector Health | <http://127.0.0.1:3001/health> |
+
+默认 Compose 不启用 `collector` 服务，因此不会构建、拉取或启动 Playwright 镜像。
+如需恢复，在 `.env` 设置 `COLLECTOR_PLAYWRIGHT_ENABLED=true`，再使用
+`docker compose -f docker-compose.full.yml --profile playwright up -d --build`。
 
 更多说明：
 

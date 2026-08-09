@@ -25,13 +25,13 @@ export const COLLECT_ENGINE_SEGMENTED_OPTIONS: {
   value: CollectEngine;
 }[] = [
   { label: 'OpenCLI（主引擎）', value: 'opencli' },
-  { label: 'Playwright（备用）', value: 'playwright' },
+  { label: 'Playwright（已停用）', value: 'playwright' },
 ];
 
 /** opencli 引擎目前仅淘宝/天猫可用，其他采集服务不展示引擎选择。 */
 export const OPENCLI_SUPPORTED_SOURCE = 'taobao_tmall';
 
-export function normalizeCollectEngine(raw?: string | null, fallback: CollectEngine = 'playwright'): CollectEngine {
+export function normalizeCollectEngine(raw?: string | null, fallback: CollectEngine = 'opencli'): CollectEngine {
   const value = (raw ?? '').trim().toLowerCase();
   if (value === 'opencli' || value === 'playwright') return value;
   return fallback;
@@ -42,16 +42,55 @@ export function findCollectEngineStatus(status: CollectEnginesStatus | null | un
   return status?.engines.find((item) => item.engine === engine);
 }
 
-export function collectEngineOptions(status?: CollectEnginesStatus | null) {
-  const opencli = findCollectEngineStatus(status, 'opencli');
-  return COLLECT_ENGINE_SEGMENTED_OPTIONS.map((option) =>
-    option.value === 'opencli'
-      ? {
-          ...option,
-          disabled: Boolean(opencli && (!opencli.enabled || !opencli.configured)),
-        }
-      : option,
+/** 只有后端明确声明已启用且配置完整时，引擎才允许提交任务。 */
+export function collectEngineSelectable(
+  status: CollectEnginesStatus | null | undefined,
+  engine: CollectEngine,
+): boolean {
+  const item = findCollectEngineStatus(status, engine);
+  return Boolean(item?.enabled && item.configured);
+}
+
+/** 判断某来源是否至少有一个已启用、已配置且声明支持它的后台引擎。 */
+export function collectSourceHasEnabledEngine(
+  status: CollectEnginesStatus | null | undefined,
+  source?: string | null,
+): boolean {
+  const normalized = (source ?? '').trim().toLowerCase();
+  if (!normalized || !status) return false;
+  return status.engines.some(
+    (item) => item.enabled && item.configured && item.supportedSources.includes(normalized),
   );
+}
+
+/** 持久化设置只能作为偏好；后端运行时状态决定最终默认值。 */
+export function resolveDefaultCollectEngine(
+  status: CollectEnginesStatus | null | undefined,
+  preferred?: string | null,
+): CollectEngine {
+  const candidates: CollectEngine[] = [];
+  const add = (raw?: string | null) => {
+    const normalized = (raw ?? '').trim().toLowerCase();
+    if ((normalized === 'opencli' || normalized === 'playwright') && !candidates.includes(normalized)) {
+      candidates.push(normalized);
+    }
+  };
+  add(preferred);
+  add(status?.defaultEngine);
+  add('opencli');
+  add('playwright');
+  const selected = candidates.find((engine) => {
+    const item = findCollectEngineStatus(status, engine);
+    return collectEngineSelectable(status, engine) && item?.supportedSources.includes(OPENCLI_SUPPORTED_SOURCE);
+  });
+  return selected ?? 'opencli';
+}
+
+export function collectEngineOptions(status?: CollectEnginesStatus | null) {
+  return COLLECT_ENGINE_SEGMENTED_OPTIONS.map((option) => ({
+    ...option,
+    disabled: !collectEngineSelectable(status, option.value),
+  }));
 }
 
 export function collectEngineLabel(engine: CollectEngine): string {

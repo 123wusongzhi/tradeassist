@@ -22,10 +22,14 @@ export async function checkDockerFullPortConflicts(
   );
   const portMap = resolveDockerPublishPortMap(envPath);
   const conflicts: DockerFullPortConflict[] = [];
-  for (const service of ['admin', 'backend', 'collector'] as const) {
+  const services: Array<'admin' | 'backend' | 'collector'> = ['admin', 'backend'];
+  if (portMap.collector !== undefined) services.push('collector');
+  for (const service of services) {
     // Existing compose services already own their published port; `compose up` may update them safely.
     if (runningServices.has(service)) continue;
-    const owners = await inspectPortOwners(repoRoot, [portMap[service]], dependencies);
+    const port = portMap[service];
+    if (port === undefined) continue;
+    const owners = await inspectPortOwners(repoRoot, [port], dependencies);
     for (const owner of owners) conflicts.push({ ...owner, service });
   }
   return conflicts;

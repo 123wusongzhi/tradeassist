@@ -4,7 +4,7 @@ import { Alert, Badge, Button, Col, Form, Input, InputNumber, Row, Segmented, Sp
 import type { CollectProviderRow } from '@/services/collectProviders';
 import type { ProviderTaobaoTmallAuthStatus } from '@/services/collectAuth';
 import { fetchCollectEnginesStatus, type CollectEnginesStatus } from '@/services/collectTasks';
-import { collectEngineOptions, findCollectEngineStatus } from '@/utils/collectEngine';
+import { collectEngineOptions, collectEngineSelectable, findCollectEngineStatus } from '@/utils/collectEngine';
 import { useEffect, useState } from 'react';
 
 type AuthDisplayStatus = 'unchecked' | 'checking' | ProviderTaobaoTmallAuthStatus['status'];
@@ -68,6 +68,7 @@ export function CollectorTaobaoTmallSection({
   const [engineStatus, setEngineStatus] = useState<CollectEnginesStatus | null>(null);
   const [engineStatusLoading, setEngineStatusLoading] = useState(true);
   const openCliStatus = findCollectEngineStatus(engineStatus, 'opencli');
+  const playwrightSelectable = collectEngineSelectable(engineStatus, 'playwright');
 
   useEffect(() => {
     let cancelled = false;
@@ -93,10 +94,16 @@ export function CollectorTaobaoTmallSection({
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
-          <Button size="small" onClick={onRecheck} loading={authChecking}>
+          <Button size="small" onClick={onRecheck} loading={authChecking} disabled={!playwrightSelectable}>
             检测 Playwright 登录状态
           </Button>
-          <Button size="small" type="primary" onClick={onOpenLogin} loading={loginOpening}>
+          <Button
+            size="small"
+            type="primary"
+            onClick={onOpenLogin}
+            loading={loginOpening}
+            disabled={!playwrightSelectable}
+          >
             打开 Playwright 采集浏览器
           </Button>
         </Space>
@@ -123,15 +130,15 @@ export function CollectorTaobaoTmallSection({
           description={
             engineStatusLoading
               ? '检测完成后会显示主引擎可用状态。'
-              : 'OpenCLI 与 Playwright 使用独立地址；任一引擎异常都不会影响另一引擎。'
+              : 'OpenCLI 是当前后台采集入口；Playwright 已停用，但配置仍保留供显式恢复。'
           }
         />
 
         <Typography.Title level={5} style={{ marginTop: 8, marginBottom: 0 }}>
-          Playwright 备用引擎配置
+          Playwright 引擎配置（已停用）
         </Typography.Title>
         <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          以下登录状态、页面等待和规格点击参数仅用于 Playwright 备用引擎。OpenCLI 使用宿主机浏览器和登录状态。
+          以下登录状态、页面等待和规格点击参数仅为显式恢复 Playwright 保留。默认运行不会加载该引擎。
         </Typography.Paragraph>
 
         <div className="tm-collector-auth-panel">
@@ -151,8 +158,7 @@ export function CollectorTaobaoTmallSection({
               {authStatusBadge(authStatus, authChecking, authLoaded)}
             </Space>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              只有选择 Playwright 备用引擎时才需要检测该登录状态。如遇安全验证或滑块，请在 Playwright
-              采集浏览器中完成后重试。
+              Playwright 当前已停用，不能检测或打开采集浏览器；历史状态和配置仍会保留。
             </Typography.Paragraph>
             {authStatus?.message ? <Typography.Text type="secondary">{authStatus.message}</Typography.Text> : null}
             {authStatus?.lastCheckedAt ? (

@@ -191,7 +191,7 @@ func (s *Service) CreateBatchAsync(c *gin.Context, body CreateBatchBody, adminID
 	}
 	engineRouter := s.EngineRouter
 	if engineRouter == nil {
-		engineRouter = NewCollectorEngineRouter(s.Client, nil, false, CollectEnginePlaywright, 0)
+		engineRouter = NewCollectorEngineRouter(s.Client, s.Client != nil, nil, false, CollectEnginePlaywright, 0)
 	}
 	engine, err := engineRouter.ResolveEngine(source, body.Engine)
 	if err != nil {
