@@ -203,6 +203,29 @@ async function isDescendantOfManifest(
   return false;
 }
 
+async function belongsToRepositoryProcessTree(
+  identity: ProcessIdentity,
+  repoRoot: string,
+  controller: ProcessController,
+): Promise<boolean> {
+  if (processBelongsToRepo(identity, repoRoot, controller.platform)) return true;
+
+  // Win32_Process does not expose cwd. A listener such as a compiled `go run`
+  // child can therefore look unrelated even though a verified pnpm/tsx parent
+  // command contains the repository path. Walk the live ancestry without ever
+  // weakening the repository-path + known-dev-entrypoint signature.
+  let parentPid = identity.parentPid;
+  const visited = new Set<number>([identity.pid]);
+  for (let depth = 0; depth < 32 && parentPid > 4 && !visited.has(parentPid); depth += 1) {
+    visited.add(parentPid);
+    const parent = await controller.inspect(parentPid);
+    if (!parent) return false;
+    if (processBelongsToRepo(parent, repoRoot, controller.platform)) return true;
+    parentPid = parent.parentPid;
+  }
+  return false;
+}
+
 export async function inspectPortOwners(
   repoRoot: string,
   ports: number[],
@@ -217,12 +240,14 @@ export async function inspectPortOwners(
       const identity = await controller.inspect(pid);
       if (!identity) continue;
       const manifestOwned = await isDescendantOfManifest(identity, manifest, controller);
+      const repositoryOwned =
+        !manifestOwned && (await belongsToRepositoryProcessTree(identity, repoRoot, controller));
       owners.push({
         port,
         identity,
         relation: manifestOwned
           ? 'manifest'
-          : processBelongsToRepo(identity, repoRoot, controller.platform)
+          : repositoryOwned
             ? 'repository'
             : 'other',
       });

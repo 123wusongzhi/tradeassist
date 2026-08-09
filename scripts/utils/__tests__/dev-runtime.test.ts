@@ -138,4 +138,41 @@ describe('development runtime cleanup', () => {
     expect(result.conflicts[0]?.relation).toBe('other');
     expect(terminate).not.toHaveBeenCalled();
   });
+
+  it('recognizes a Windows listener through a repository-owned parent when cwd is unavailable', async () => {
+    const repoRoot = 'C:/repo/trademind';
+    const launcher = makeIdentity(310, 'scripts/dev-all.ts');
+    launcher.commandLine = 'node C:/repo/trademind/node_modules/tsx/dist/cli.mjs scripts/dev-all.ts';
+    launcher.workingDirectory = '';
+    const listener = makeIdentity(311, 'compiled-server', launcher.pid);
+    listener.commandLine = 'C:/Users/test/AppData/Local/Temp/go-build/server.exe';
+    listener.executablePath = listener.commandLine;
+    listener.workingDirectory = '';
+    const identities = new Map<number, ProcessIdentity>([
+      [launcher.pid, launcher],
+      [listener.pid, listener],
+    ]);
+    const terminate = vi.fn(async (expected: ProcessIdentity) => {
+      identities.delete(expected.pid);
+      return { pid: expected.pid, status: 'terminated' as const };
+    });
+    const controller: ProcessController = {
+      platform: 'win32',
+      inspect: async (pid) => identities.get(pid),
+      terminate,
+    };
+
+    const result = await prepareLocalDevPorts(repoRoot, [8080], {
+      controller,
+      manifestPath: manifestPath(),
+      listPids: async () => [listener.pid],
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.conflicts).toEqual([]);
+    expect(terminate).toHaveBeenCalledWith(listener, {
+      repoRoot,
+      provenance: 'repository',
+    });
+  });
 });

@@ -17,6 +17,8 @@ Narrative guidance: `docs/reference/configuration/environment.md`.
 | `APP_NAME` | `.env.example` | no |  |
 | `APP_VERSION` | `.env.example` | no |  |
 | `APP_HTTP_ADDR` | `.env.example` | no |  |
+| `ADMIN_DEV_PORT` | `.env.example` | no | Admin 本地开发端口固定来源；pnpm dev 不再扫描 8000-8010 自动换端口。 |
+| `ADMIN_DEV_API_PROXY_TARGET` | `.env.example` | no | 仅用于宿主机 Umi dev proxy；只接受显式端口的 localhost / 127.0.0.1 / ::1 HTTP(S) 地址。 |
 | `TRUSTED_PROXIES` | `.env.example` | no | 可信反向代理 IP/CIDR，逗号分隔；默认空（忽略 X-Forwarded-For/X-Real-IP），禁止配置 /0。 |
 | `ADMIN_PUBLIC_URL` | `.env.example` | no | P7-V2 local performance harness endpoint. Keep these unset for normal development. P7_V2_API_HOST=127.0.0.1 P7_V2_API_PORT=8080 P7_BASE_URL=http://127.0.0.1:8080 P7_DIAGNOSTICS_ENABLED=false P7_DIAGNO |
 | `API_PUBLIC_URL` | `.env.example` | no |  |
