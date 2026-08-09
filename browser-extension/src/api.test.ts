@@ -21,7 +21,7 @@ describe('TradeMind browser extension API', () => {
 
     const deviceAPI = new TradeMindAPI('http://127.0.0.1:8000', 'tmx_test_device_token');
     await deviceAPI.session();
-    await deviceAPI.createTask('https://detail.tmall.com/item.htm?id=1');
+    await deviceAPI.createTask('https://detail.tmall.com/item.htm?id=1', 'taobao_tmall');
     const product: NormalizedProduct = {
       source: 'taobao_tmall',
       sourceUrl: 'https://detail.tmall.com/item.htm?id=1',

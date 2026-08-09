@@ -27,6 +27,7 @@ review_cycle_days: 60
 - 分支与 PR：[guides/contributing/branching.md](guides/contributing/branching.md)
 - 验证与检查：[guides/contributing/verification.md](guides/contributing/verification.md)
 - AI 协作原理：[guides/ai-assisted-development.md](guides/ai-assisted-development.md)
+- Agent：1688/拼多多扩展采集迁移：[guides/browser-extension-migrate-1688-pinduoduo.md](guides/browser-extension-migrate-1688-pinduoduo.md)
 - Agent 入口：[../AGENTS.md](../AGENTS.md)
 
 ## 运维

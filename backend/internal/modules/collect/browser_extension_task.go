@@ -198,12 +198,12 @@ func (s *Service) CreateBrowserExtensionTask(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	source := strings.TrimSpace(in.Source)
-	url := strings.TrimSpace(in.URL)
-	if !isTaobaoTmallCollectSource(source) {
-		return zero, fmt.Errorf("browser extension only supports taobao_tmall source")
+	source, err := canonicalBrowserExtensionSource(in.Source)
+	if err != nil {
+		return zero, err
 	}
-	if err := validateTaobaoTmallCollectURL(url); err != nil {
+	url := strings.TrimSpace(in.URL)
+	if err := validateBrowserExtensionSourceAndURL(source, url); err != nil {
 		return zero, err
 	}
 	if in.DeviceID == uuid.Nil || in.AdminID == uuid.Nil || in.TenantID < 0 {
@@ -283,14 +283,37 @@ func (s *Service) CompleteBrowserExtensionTask(
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
 		return zero, fmt.Errorf("browser extension product title is empty")
 	}
-	if !isTaobaoTmallCollectSource(task.Source) {
+	if strings.TrimSpace(norm.Source) == "" {
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
-		return zero, fmt.Errorf("browser extension unsupported source %q", task.Source)
+		return zero, fmt.Errorf("browser extension product source is empty")
+	}
+	taskSource, taskSourceErr := canonicalBrowserExtensionSource(task.Source)
+	productSource, productSourceErr := canonicalBrowserExtensionSource(norm.Source)
+	if taskSourceErr != nil || productSourceErr != nil || productSource != taskSource {
+		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
+		return zero, fmt.Errorf("browser extension product source %q does not match task source %q",
+			norm.Source, task.Source)
 	}
 
 	params := norm.importParams(in.ProductJSON)
 	storedJSON := in.ProductJSON
-	params, storedJSON = normalizeTaobaoTmallImport(task.Source, norm, in.ProductJSON)
+	switch {
+	case isTaobaoTmallCollectSource(taskSource):
+		params, storedJSON = normalizeTaobaoTmallImport(taskSource, norm, in.ProductJSON)
+	case isBrowserExtension1688Source(taskSource):
+		// Align with worker path: 1688 drafts require at least one main image.
+		if len(norm.MainImages) == 0 {
+			s.releaseBrowserExtensionTaskLock(ctx, task.ID)
+			return zero, fmt.Errorf("missing main images")
+		}
+		// Keep generic importParams; full tiers/MOQ live in FullNormalizedJSON raw.
+	default:
+		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
+		return zero, fmt.Errorf("browser extension unsupported source %q", task.Source)
+	}
+	// The already-validated task identity is authoritative for persisted drafts.
+	params.Source = taskSource
+	params.SourceURL = task.SourceURL
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)

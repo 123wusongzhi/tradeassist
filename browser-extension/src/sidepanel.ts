@@ -1,5 +1,5 @@
 import { TradeMindAPI, TradeMindAPIError } from './api.js';
-import { isSupportedTaobaoTmallURL } from './adapters/taobao-tmall.js';
+import { adapterForURL } from './adapters/registry.js';
 import { normalizeAPIBase, parsePairingInput } from './pairing.js';
 import type { CollectTask, ExtensionDevice, NormalizedProduct, PageCollectResult } from './types.js';
 
@@ -266,7 +266,7 @@ async function refreshActivePage() {
       tabId: tab.id,
       title: tab.title ?? '',
       url: tab.url,
-      supported: isSupportedTaobaoTmallURL(tab.url),
+      supported: Boolean(adapterForURL(tab.url)),
     };
   } catch {
     activePage = null;
@@ -316,7 +316,11 @@ async function collectCurrentPage() {
   const api = connectionAPI();
   let task: CollectTask | null = null;
   try {
-    task = await api.createTask(activePage.url);
+    const adapter = adapterForURL(activePage.url);
+    if (!adapter) {
+      throw new Error('UNSUPPORTED_PAGE: 当前页面不在已支持的采集站点内（淘宝/天猫/1688）');
+    }
+    task = await api.createTask(activePage.url, adapter.id);
     setProgress('read', '正在读取当前页面的标题、图片、参数和规格…');
     const result = await chrome.runtime.sendMessage<PageCollectResult>({
       type: 'COLLECT_ACTIVE_TAB',

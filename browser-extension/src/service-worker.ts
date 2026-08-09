@@ -36,7 +36,7 @@ async function collect(message: CollectMessage): Promise<PageCollectResult> {
     return {
       ok: false,
       errorCode: 'UNSUPPORTED_PAGE',
-      message: '当前仅支持淘宝或天猫商品详情页',
+      message: '当前页面不在已支持的采集站点内（淘宝/天猫/1688）',
     };
   }
   try {
