@@ -110,13 +110,15 @@ docker compose -f docker-compose.full.yml up -d --build
 
 ## Collector
 
-本节中的 Playwright Collector 与 OpenCLI Bridge 是两个独立服务。完整端口、路由、
+本节中的 Playwright Collector 与 OpenCLI Bridge 是两个独立服务。Playwright 默认
+停用，只有显式开启运行时开关后 backend 才创建客户端。完整端口、路由、
 本地/Docker 取值和迁移说明见 [collector-engines.md](../../collector-engines.md)。
 `COLLECTOR_BASE_URL` 只兼容旧的 **Playwright 地址**，不得用它把全部采集任务切到
 OpenCLI。
 
 | 变量 | 示例 / 默认 | 服务 | 敏感 | 说明 |
 | --- | --- | --- | --- | --- |
+| `COLLECTOR_PLAYWRIGHT_ENABLED` | `false` | backend / dev launcher | 否 | Playwright Collector 显式恢复开关。关闭时不创建客户端、不探活、不路由任务，`pnpm dev` 也不启动 Collector。 |
 | `COLLECTOR_PLAYWRIGHT_BASE_URL` | 本地 `http://127.0.0.1:3001` / Docker `http://collector:3001` | backend | 否 | Go API 调用 Playwright Collector 的固定地址。 |
 | `COLLECTOR_BASE_URL` | 同上 | backend | 否 | 旧变量兼容入口；新部署使用 `COLLECTOR_PLAYWRIGHT_BASE_URL`，两者同时存在时新变量优先。 |
 | `COLLECTOR_INTERNAL_TOKEN` | 本地回环可空 / Docker 必填随机长值 | backend / collector | **是** | Collector `/v1/**` 的内部 Bearer Token。非回环监听或 backend 使用非回环 Collector 地址时缺失会拒绝启动；两端必须相同。 |
@@ -129,7 +131,7 @@ OpenCLI。
 | `COLLECTOR_STORAGE_STATE_DIR` | `data/storage-states` | collector | 否 | Playwright storageState 导出目录（预留）。 |
 | `COLLECTOR_1688_AUTH_PROBE_URL` | 注释示例 | collector | 否 | 登录态检测时用于探测的商品详情 URL。 |
 | `COLLECTOR_USER_AGENT` | 注释示例 | collector | 否 | 可选 UA 覆盖。 |
-| `OPENCLI_BRIDGE_ENABLED` | `false` | backend / dev launcher | 否 | 是否启用独立 OpenCLI 路由；关闭时不会影响 Playwright。 |
+| `OPENCLI_BRIDGE_ENABLED` | `false` | backend / dev launcher | 否 | 是否启用独立 OpenCLI 路由；关闭时不会自动回退到 Playwright。 |
 | `OPENCLI_BRIDGE_BASE_URL` | `http://127.0.0.1:3100` | 本地 backend | 否 | 本地后端访问宿主机 OpenCLI Bridge 的地址。 |
 | `OPENCLI_BRIDGE_DOCKER_BASE_URL` | `http://host.docker.internal:3100` | Docker Compose → backend | 否 | Compose 专用覆盖值；与本地地址分离，使同一份 `.env` 可在两种部署方式间切换。 |
 | `OPENCLI_BRIDGE_HTTP_ADDR` | 本地 `127.0.0.1:3100` / Docker 场景 `0.0.0.0:3100` | opencli bridge | 否 | Bridge 监听地址；非回环绑定必须配置 Token。 |

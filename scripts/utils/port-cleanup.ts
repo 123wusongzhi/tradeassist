@@ -85,6 +85,14 @@ export function resolveDevServicePorts(envPath: string | undefined): number[] {
     envPath ? readEnvKey(envPath, 'COLLECTOR_HTTP_ADDR') : undefined,
     3001,
   );
+  const collectorEnabled = ['1', 'true', 'yes', 'on'].includes(
+    (
+      process.env.COLLECTOR_PLAYWRIGHT_ENABLED ??
+      (envPath ? readEnvKey(envPath, 'COLLECTOR_PLAYWRIGHT_ENABLED') : '')
+    )
+      .trim()
+      .toLowerCase(),
+  );
   const openCliEnabled = ['1', 'true', 'yes', 'on'].includes(
     (envPath ? readEnvKey(envPath, 'OPENCLI_BRIDGE_ENABLED') : '').trim().toLowerCase(),
   );
@@ -93,9 +101,10 @@ export function resolveDevServicePorts(envPath: string | undefined): number[] {
     3100,
   );
   const adminPorts = Array.from({ length: 11 }, (_, i) => 8000 + i);
-  return openCliEnabled
-    ? [backend, collector, openCliBridge, ...adminPorts]
-    : [backend, collector, ...adminPorts];
+  const servicePorts = [backend];
+  if (collectorEnabled) servicePorts.push(collector);
+  if (openCliEnabled) servicePorts.push(openCliBridge);
+  return [...servicePorts, ...adminPorts];
 }
 
 export function sleep(ms: number): Promise<void> {

@@ -158,7 +158,7 @@ export default function CollectBrowserExtensionPage() {
           showIcon
           icon={<CheckCircleOutlined />}
           message="本地部署与 Docker 使用同一条扩展链路"
-          description="扩展访问你当前打开的 TradeMind 地址并主动提交结果，不依赖 host.docker.internal:3100。Playwright Collector 仍保留为后台备用采集引擎。"
+          description="扩展访问你当前打开的 TradeMind 地址并主动提交结果，不依赖后台 Playwright Collector；Playwright 当前已停用。"
         />
         {!canManageExtension ? (
           <Alert
@@ -268,8 +268,8 @@ export default function CollectBrowserExtensionPage() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="当前首版支持淘宝/天猫当前页"
-                  description="批量后台任务仍使用 Playwright 或现有 OpenCLI。后续平台通过扩展内置适配器逐步增加，不远程加载脚本。"
+                  message="当前页采集按扩展内置适配器支持范围提供"
+                  description="后台批量任务仅在对应后台引擎已启用时可用；Playwright 当前已停用。扩展适配器随项目版本发布，不远程加载脚本。"
                 />
               </Space>
             </SectionCard>

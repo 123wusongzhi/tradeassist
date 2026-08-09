@@ -10,7 +10,7 @@
 - Redis 7
 - backend：Go Gin API
 - admin：React 管理端，使用 nginx 托管并代理 `/api`
-- collector：Node.js + Playwright 采集服务
+- collector：Node.js + Playwright 采集服务（`playwright` profile，默认不启用）
 
 OpenCLI Bridge 不在 Compose 服务列表中；只有启用 OpenCLI 时才在宿主机单独启动。
 
@@ -34,7 +34,8 @@ docker compose -f docker-compose.full.yml up -d --build
 | --- | --- |
 | Admin | `http://127.0.0.1:8000` |
 | Backend Health | `http://127.0.0.1:8080/health` |
-| Playwright Collector Health | `http://127.0.0.1:3001/health` |
+
+默认没有 `3001` 健康检查；只有显式启用 `playwright` profile 后才提供 Collector Health。
 
 ## 端口配置
 
@@ -54,13 +55,14 @@ REDIS_PUBLISH_PORT=6379
 
 ## Playwright 与 OpenCLI 的部署边界
 
-完整 Compose 始终启动 Playwright Collector，并由 backend 通过
-`http://collector:3001` 访问。OpenCLI 不放进容器：它作为宿主机轻量 Bridge
+完整 Compose 默认不构建、不拉取、不启动 Playwright Collector。backend 在
+`COLLECTOR_PLAYWRIGHT_ENABLED=false` 时也不创建客户端或探活。OpenCLI 不放进容器：它作为宿主机轻量 Bridge
 监听 `3100`，backend 仅在任务选择 `engine=opencli` 时访问
-`http://host.docker.internal:3100`。因此宿主机 Bridge 停止只会让 OpenCLI
-任务失败，不会影响 Playwright、backend 健康检查或其他采集来源。
+`http://host.docker.internal:3100`。宿主机 Bridge 停止时任务明确失败，不会回退到 Playwright。
 
-Compose 中的 Playwright Collector 监听容器网络，因此 `.env` 必须设置同一个随机长
+显式恢复时，在 `.env` 设置 `COLLECTOR_PLAYWRIGHT_ENABLED=true`，并执行
+`docker compose -f docker-compose.full.yml --profile playwright up -d --build`。
+此时 Playwright Collector 监听容器网络，`.env` 必须设置同一个随机长
 `COLLECTOR_INTERNAL_TOKEN` 供 backend 和 collector 使用；缺失时两端都会 fail-fast。
 宿主机 `3001` 映射默认只绑定 `127.0.0.1`。Backend 默认不信任任何转发头；如需保留
 反向代理后的真实客户端 IP，仅把实际 nginx/网关的精确 IP 或最小 CIDR 写入
@@ -101,9 +103,8 @@ OpenCLI 的 `EMPTY_RESULT` 表示没有返回数据，可能由登录态、验�
 页面结构变化导致。它不会被直接解释为商品下架；只有明确的 `ITEM_NOT_FOUND`
 错误才使用不存在分类。
 
-Playwright 是淘宝/天猫可手动选择的备用引擎，不是 OpenCLI 失败后的自动回退。
-任务实际引擎已持久化并显示在任务列表；Bridge 停止后可明确改用 Playwright 新建或
-重试任务。详细行为见 [采集引擎与部署指南](collector-engines.md#任务如何选择引擎)。
+Playwright 默认显示为已停用，不是 OpenCLI 失败后的自动回退。只有运维显式恢复后，
+它才重新成为可选引擎。详细行为见 [采集引擎与部署指南](collector-engines.md#任务如何选择引擎)。
 
 P5-V 可观测性默认使用 `OTEL_EXPORTER_OTLP_PROTOCOL=http/json`。Docker 本地试用不配置真实 telemetry backend 时，`OTEL_EXPORTER_OTLP_ENDPOINT` 保持为空并视为 Deferred；不要把 Mock Collector 验证写成生产 collector 已上线。
 

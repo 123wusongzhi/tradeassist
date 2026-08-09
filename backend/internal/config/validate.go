@@ -100,7 +100,13 @@ func (c *Config) validateCollectEngines() error {
 			ErrCodeConfigInvalid,
 		)
 	}
-	if strings.TrimSpace(c.CollectorBaseURL) != "" {
+	if c.CollectorPlaywrightEnabled {
+		if strings.TrimSpace(c.CollectorBaseURL) == "" {
+			return fmt.Errorf(
+				"%s: COLLECTOR_PLAYWRIGHT_BASE_URL is required when COLLECTOR_PLAYWRIGHT_ENABLED=true",
+				ErrCodeConfigRequired,
+			)
+		}
 		if err := validateHTTPBaseURL("COLLECTOR_PLAYWRIGHT_BASE_URL", c.CollectorBaseURL); err != nil {
 			return err
 		}

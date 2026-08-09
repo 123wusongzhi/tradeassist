@@ -200,10 +200,7 @@ func (s *Service) CreateBrowserExtensionTask(
 	}
 	source := strings.TrimSpace(in.Source)
 	url := strings.TrimSpace(in.URL)
-	if !isTaobaoTmallCollectSource(source) {
-		return zero, fmt.Errorf("browser extension only supports taobao_tmall source")
-	}
-	if err := validateTaobaoTmallCollectURL(url); err != nil {
+	if err := validateBrowserExtensionSourceAndURL(source, url); err != nil {
 		return zero, err
 	}
 	if in.DeviceID == uuid.Nil || in.AdminID == uuid.Nil || in.TenantID < 0 {
@@ -283,14 +280,29 @@ func (s *Service) CompleteBrowserExtensionTask(
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
 		return zero, fmt.Errorf("browser extension product title is empty")
 	}
-	if !isTaobaoTmallCollectSource(task.Source) {
+	if strings.TrimSpace(norm.Source) != "" &&
+		!strings.EqualFold(strings.TrimSpace(norm.Source), strings.TrimSpace(task.Source)) {
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
-		return zero, fmt.Errorf("browser extension unsupported source %q", task.Source)
+		return zero, fmt.Errorf("browser extension product source %q does not match task source %q",
+			norm.Source, task.Source)
 	}
 
 	params := norm.importParams(in.ProductJSON)
 	storedJSON := in.ProductJSON
-	params, storedJSON = normalizeTaobaoTmallImport(task.Source, norm, in.ProductJSON)
+	switch {
+	case isTaobaoTmallCollectSource(task.Source):
+		params, storedJSON = normalizeTaobaoTmallImport(task.Source, norm, in.ProductJSON)
+	case isBrowserExtension1688Source(task.Source):
+		// Align with worker path: 1688 drafts require at least one main image.
+		if len(norm.MainImages) == 0 {
+			s.releaseBrowserExtensionTaskLock(ctx, task.ID)
+			return zero, fmt.Errorf("missing main images")
+		}
+		// Keep generic importParams; full tiers/MOQ live in FullNormalizedJSON raw.
+	default:
+		s.releaseBrowserExtensionTaskLock(ctx, task.ID)
+		return zero, fmt.Errorf("browser extension unsupported source %q", task.Source)
+	}
 	created, err := s.Products.ImportDraftWithContext(ctx, task.CreatedBy, params)
 	if err != nil {
 		s.releaseBrowserExtensionTaskLock(ctx, task.ID)

@@ -1,46 +1,46 @@
 # 采集引擎与部署指南
 
-> 状态：2026-07-31。本文是浏览器侧边栏扩展、Playwright Collector 与 OpenCLI
+> 状态：2026-08-09。本文是浏览器侧边栏扩展、Playwright Collector 与 OpenCLI
 > Bridge 三条采集入口的权威说明。端口、路由、启动方式或引擎支持范围发生变化时，
 > 应优先更新本文，再同步 `README`、开发、Docker、环境变量、Provider 与 API 文档。
 
 ## 先看结论
 
-- Playwright Collector 是基础采集服务，固定使用 `3001`。本地部署访问
-  `http://127.0.0.1:3001`，Docker backend 访问 `http://collector:3001`。
+- Playwright Collector 的代码、配置和显式恢复入口继续保留，但默认运行时已停用。
+  `COLLECTOR_PLAYWRIGHT_ENABLED=false` 时，backend 不创建客户端、不探活、不提交任务；
+  `pnpm dev` 不启动 Collector，默认 Compose 也不构建、不拉取、不启动其镜像。
 - OpenCLI 是可选的宿主机 Bridge，默认使用 `3100`。本地 backend 访问
   `http://127.0.0.1:3100`，Docker backend 访问
   `http://host.docker.internal:3100`。
 - backend 按每个任务已经持久化的 `engine` 路由，不再用一个
   `COLLECTOR_BASE_URL` 在 Playwright 与 OpenCLI 之间整体切换。
-- OpenCLI 当前只支持淘宝/天猫。Playwright 仍承载全部当前可用或 Beta 的既有来源，
-  也是淘宝/天猫的可选备用引擎。
-- “备用”表示用户可以重新选择 Playwright，并不表示 OpenCLI 运行失败后会自动切换。
-  已开始执行的任务禁止静默跨引擎回退，避免结果和排错信息失真。
-- 普通本地安装和完整 Docker Compose 都默认关闭 OpenCLI，只使用 Playwright 即可。
-  开启 OpenCLI 后，Docker 仍是“容器核心服务 + 宿主机 Bridge”的轻量混合部署。
+- OpenCLI 当前只支持淘宝/天猫；浏览器扩展负责其内置适配器支持的当前页采集。
+  其他后台采集来源在 Playwright 停用期间不可创建新任务，管理端会明确显示“已停用”。
+- 任一引擎不可用时均失败即止，不会静默回退到 Playwright，也不会先写任务或入队。
+- 普通本地安装和完整 Docker Compose 默认都不加载 Playwright。恢复时必须同时显式
+  开启运行时开关，并单独安装浏览器或启用 Compose profile。
 
-因此，本地与 Docker 的核心功能没有两套实现：两者使用同一个 backend、同一个任务
-模型和同一个 Playwright Collector。唯一部署差异是 OpenCLI 必须复用宿主机上的
-OpenCLI、Chrome 扩展连接和登录态，目前不放进 Compose。
+因此，默认形态是“backend + Admin + 浏览器扩展（可选 OpenCLI）”。Playwright 源码
+仍在仓库中，便于以后恢复；停用不等于删除，也不改变 Admin E2E 测试使用的
+`@playwright/test` 工具边界。
 
 ## 三条采集入口：都可选，用户按场景三选一
 
 | 入口 | 运行位置 | 适用场景 | 前置依赖 |
 | --- | --- | --- | --- |
-| 浏览器侧边栏扩展 | 用户当前 Chrome / Edge 标签页 | 淘宝/天猫单商品、当前页面即时采集 | 只需 TradeMind backend；不需要 Playwright Collector、OpenCLI Bridge 或第二套浏览器 |
-| Playwright Collector | 本地进程或 Compose `collector` 容器（`3001`） | 后台任务、批量采集、全平台来源 | backend 可达即可，不要求浏览器扩展或 OpenCLI |
+| 浏览器侧边栏扩展 | 用户当前 Chrome / Edge 标签页 | 淘宝/天猫/1688 单商品、当前页面即时采集 | 只需 TradeMind backend；不需要 Playwright Collector、OpenCLI Bridge 或第二套浏览器 |
+| Playwright Collector（默认停用） | 本地进程或 Compose `collector` 容器（`3001`） | 显式恢复后的后台任务与批量采集 | 开启 `COLLECTOR_PLAYWRIGHT_ENABLED`，并显式安装浏览器或启用 `playwright` profile |
 | OpenCLI Bridge | 宿主机可选进程（`3100`） | 复用宿主机 Chrome 登录态的淘宝/天猫采集 | 宿主机已装 `opencli` 并完成适配器同步 |
 
 三条入口互不强制、互不依赖，用户按场景选择其一或组合使用：
 
 - 只用扩展：不启动 Playwright Collector、不开启 OpenCLI Bridge，扩展即可在
   当前商品页采集并提交 backend 创建草稿。
-- 只用 Playwright：不安装浏览器扩展、不装 OpenCLI，后台任务与批量采集照常运行。
+- 恢复 Playwright：显式开启开关并安装浏览器后，原后台任务与批量能力恢复。
 - 只用 OpenCLI：Playwright 未启动时，淘宝/天猫显式选 `engine=opencli` 的任务
-  仍可执行；其他采集来源不受影响。
+  仍可执行；其他后台来源保持停用，不会回退到 Playwright。
 - 混合使用：三个入口共享同一个 backend 与任务模型，可同时存在；每个任务或场景
-  单独选择入口，没有全局强制启用项。
+  单独选择入口；Playwright 必须通过全局运行时开关显式启用。
 
 ## 运行结构
 
@@ -50,7 +50,7 @@ Admin
   ▼
 Go backend / collect worker
   │
-  ├─ engine=playwright
+  ├─ engine=playwright（默认停用）
   │    ├─ 本地：http://127.0.0.1:3001
   │    └─ Docker：http://collector:3001
   │
@@ -63,27 +63,27 @@ Go backend / collect worker
 
 | 服务 | 默认端口 | 运行位置 | 作用 |
 | --- | --- | --- | --- |
-| Playwright Collector | `3001` | 本地进程或 Compose `collector` 容器 | 全部既有采集来源 |
+| Playwright Collector | `3001` | 显式启用后的本地进程或 Compose `collector` 容器 | 保留的既有后台采集来源 |
 | OpenCLI Bridge | `3100` | 宿主机可选进程 | 当前仅淘宝/天猫 OpenCLI 采集 |
 
-OpenCLI Bridge 停止时，只有实际引擎为 `opencli` 的任务会失败；backend 健康检查、
-Playwright 任务和其他采集来源不应访问 `3100`。
+OpenCLI Bridge 停止时，只有实际引擎为 `opencli` 的任务会失败。Playwright 停用时，
+backend 不应访问 `3001`；状态读取也不得触发 Playwright 探活。
 
 ## 引擎支持范围
 
-| 采集来源 | Playwright | OpenCLI | 未显式选择时 |
-| --- | --- | --- | --- |
-| 淘宝/天猫 `taobao_tmall` | 支持 | 支持 | Bridge 已启用且默认值为 `opencli` 时使用 OpenCLI，否则使用 Playwright |
-| 1688 `1688` | 支持 | 不支持 | Playwright |
-| 拼多多 `pinduoduo` | 支持 | 不支持 | Playwright |
-| AliExpress `aliexpress` | 支持 | 不支持 | Playwright |
-| SHEIN / Temu `shein_temu` | 规划中，当前不可创建任务 | 不支持 | 当前不可用 |
-| 自定义规则 `custom` | 支持 | 不支持 | Playwright |
+| 采集来源 | Playwright | OpenCLI | 浏览器扩展（当前页单采） | 未显式选择后台引擎时 |
+| --- | --- | --- | --- | --- |
+| 淘宝/天猫 `taobao_tmall` | 代码支持，默认停用 | 支持 | 支持 | 按默认引擎解析；目标引擎停用则拒绝创建，不回退 |
+| 1688 `1688` | 代码支持，默认停用 | 不支持 | 支持 | 后台任务拒绝创建；使用浏览器扩展 |
+| 拼多多 `pinduoduo` | 代码支持，默认停用 | 不支持 | 不支持 | 后台任务拒绝创建 |
+| AliExpress `aliexpress` | 代码支持，默认停用 | 不支持 | 不支持 | 后台任务拒绝创建 |
+| SHEIN / Temu `shein_temu` | 规划中，当前不可创建任务 | 不支持 | 不支持 | 当前不可用 |
+| 自定义规则 `custom` | 代码支持，默认停用 | 不支持 | 不支持 | 后台任务拒绝创建 |
 
 浏览器侧边栏扩展是第三条独立入口，不走 backend 的 `engine` 路由：扩展任务由
 扩展直接创建/完成，不投递 Redis，也不经过 Playwright 或 OpenCLI，只用于用户
-当前打开的淘宝/天猫商品页。它与 Playwright / OpenCLI 互不依赖，选择扩展采集时
-无需为它准备任何采集服务。
+当前打开的淘宝/天猫/1688 商品页。它与 Playwright / OpenCLI 互不依赖，选择扩展采集时
+无需为它准备任何采集服务。1688 扩展采集不接入 engine router。
 
 对非淘宝/天猫来源显式传 `engine=opencli` 时，backend 会返回
 `COLLECT_ENGINE_SOURCE_UNSUPPORTED`，不会改走 Playwright。
@@ -92,37 +92,55 @@ Playwright 任务和其他采集来源不应访问 `3100`。
 
 | 场景 | Playwright | OpenCLI | 推荐用途 |
 | --- | --- | --- | --- |
-| 本地默认 | 本地 `3001` | 关闭 | 开发、普通使用、最少依赖 |
-| 本地双引擎 | 本地 `3001` | 宿主机 `127.0.0.1:3100` | 以 OpenCLI 采集淘宝/天猫，同时保留 Playwright |
-| Docker 默认 | Compose `collector:3001` | 关闭 | 最轻松的完整部署 |
-| Docker 双引擎 | Compose `collector:3001` | 宿主机 `0.0.0.0:3100` | Docker 核心栈 + OpenCLI 淘宝/天猫主引擎 |
+| 本地默认 | 停用 | 关闭 | backend + Admin；当前页使用浏览器扩展 |
+| 本地 + OpenCLI | 停用 | 宿主机 `127.0.0.1:3100` | 淘宝/天猫后台采集 + 浏览器扩展 |
+| Docker 默认 | profile 不启用 | 关闭 | 不构建、不拉取 Collector 镜像 |
+| 显式恢复 Playwright | 本地 `3001` 或 Compose `collector:3001` | 可选 | 兼容原后台任务与批量采集 |
 
-如果不采集淘宝/天猫，或暂时不需要 OpenCLI，保持
-`OPENCLI_BRIDGE_ENABLED=false` 即可；不要为了消除 OpenCLI 错误而修改
-Playwright 的地址。
+如果暂时不需要后台引擎，保持 `COLLECTOR_PLAYWRIGHT_ENABLED=false` 和
+`OPENCLI_BRIDGE_ENABLED=false` 即可；浏览器扩展仍可独立提交当前页结果。
 
 ## 本地部署
 
-### 仅使用 Playwright
+### 默认启动（不加载 Playwright）
 
 ```bash
 pnpm install
-pnpm install:collector:browsers
 pnpm dev
 ```
 
 `.env` 保持以下关键值：
 
 ```env
+COLLECTOR_PLAYWRIGHT_ENABLED=false
+OPENCLI_BRIDGE_ENABLED=false
+```
+
+此路径不会执行 `playwright install`，也不会启动 `dev:collector`。仓库仍保留 Collector
+源码；根目录 `.npmrc` 还设置了 `playwright_skip_browser_download=true`，防止依赖安装
+生命周期拉取浏览器。Admin E2E 的 `@playwright/test` 是测试工具，只有显式运行 E2E
+浏览器安装命令时才下载其浏览器二进制。
+
+### 显式恢复 Playwright
+
+在 `.env` 中设置：
+
+```env
+COLLECTOR_PLAYWRIGHT_ENABLED=true
 COLLECTOR_HTTP_ADDR=127.0.0.1:3001
 COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001
 # 回环本地开发可留空；非回环部署必须与 backend 配置相同的随机长值。
 COLLECTOR_INTERNAL_TOKEN=
-OPENCLI_BRIDGE_ENABLED=false
 ```
 
-这也是未安装 OpenCLI 时的正常模式。淘宝/天猫未显式选择引擎的任务会使用
-Playwright。
+然后显式安装浏览器并启动：
+
+```bash
+pnpm install:collector:browsers
+pnpm dev
+```
+
+也可单独运行 `pnpm dev:collector`。没有同时设置开关时，backend 仍会拒绝路由到它。
 
 ### 启用 OpenCLI
 
@@ -149,8 +167,8 @@ COLLECT_DEFAULT_ENGINE_TAOBAO_TMALL=opencli
 pnpm dev
 ```
 
-`pnpm dev` 会把 Bridge 作为可选子进程启动。Bridge 启动失败不会结束 backend、
-admin 或 Playwright Collector。
+`pnpm dev` 会把 Bridge 作为可选子进程启动。Bridge 启动失败不会结束 backend 或
+admin；Playwright 默认不会启动。
 
 需要分别调试进程时，可以单独运行：
 
@@ -167,7 +185,7 @@ Bridge 启动时会幂等同步仓库中的
 
 ## Docker 部署
 
-### 仅使用 Playwright
+### 默认 Compose（不构建或拉取 Playwright Collector）
 
 ```bash
 cp .env.docker.example .env
@@ -181,8 +199,26 @@ Copy-Item .env.docker.example .env
 docker compose -f docker-compose.full.yml up -d --build
 ```
 
-默认 `OPENCLI_BRIDGE_ENABLED=false`。Compose 会启动 Playwright Collector，
-backend 始终通过 `http://collector:3001` 访问它，不依赖宿主机 `3100`。
+默认 `COLLECTOR_PLAYWRIGHT_ENABLED=false`，且 `collector` 服务属于 `playwright`
+profile。以上命令只启动 PostgreSQL、Redis、backend 与 Admin，不会构建、拉取或启动
+Collector 镜像。
+
+### Docker 显式恢复 Playwright
+
+先在 `.env` 设置：
+
+```env
+COLLECTOR_PLAYWRIGHT_ENABLED=true
+```
+
+再启动 profile：
+
+```bash
+docker compose -f docker-compose.full.yml --profile playwright up -d --build
+```
+
+Windows PowerShell 使用同一条 `docker compose` 命令。关闭 profile 或把开关改回
+`false` 后，backend 不再创建 Playwright 客户端。
 
 ### Docker 同时启用 OpenCLI
 
@@ -218,13 +254,13 @@ docker compose -f docker-compose.full.yml up -d --build
 
 Compose 会把 `OPENCLI_BRIDGE_DOCKER_BASE_URL` 作为容器内的
 `OPENCLI_BRIDGE_BASE_URL` 注入 backend。Linux 原生 Docker 使用 Compose 中的
-`host-gateway` 映射，不需要把 Playwright 地址改成宿主机地址。
+`host-gateway` 映射，不需要启用 Playwright profile。
 
 ## 任务如何选择引擎
 
-管理端的单任务和批量采集页面会展示引擎状态，并在淘宝/天猫来源下允许选择
-OpenCLI 或 Playwright。任务创建后，实际引擎会写入任务快照并显示在任务列表中；
-重试和进程重启不会改变它。
+管理端的单任务和批量采集页面会展示引擎状态。Playwright 停用时显示
+“Playwright（已停用）”并禁用选择；没有可用后台引擎的来源也禁止提交。任务创建后，
+实际引擎会写入任务快照并显示在任务列表中；重试和进程重启不会改变它。
 
 单任务请求示例：
 
@@ -245,16 +281,17 @@ OpenCLI 或 Playwright。任务创建后，实际引擎会写入任务快照并�
     "https://detail.tmall.com/item.htm?id=123456",
     "https://item.taobao.com/item.htm?id=789012"
   ],
-  "engine": "playwright"
+  "engine": "opencli"
 }
 ```
 
 省略 `engine` 时：
 
-1. 淘宝/天猫在 `OPENCLI_BRIDGE_ENABLED=true` 且
-   `COLLECT_DEFAULT_ENGINE_TAOBAO_TMALL=opencli` 时使用 OpenCLI。
-2. OpenCLI 未启用时使用 Playwright。
-3. 其他来源始终使用 Playwright。
+1. 淘宝/天猫按 `COLLECT_DEFAULT_ENGINE_TAOBAO_TMALL` 选择目标引擎。
+2. 目标为 OpenCLI 但 Bridge 未启用时返回 `OPENCLI_BRIDGE_DISABLED`，不回退。
+3. 目标为 Playwright 或其他来源需要 Playwright，但运行时开关关闭时，返回 HTTP
+   `503` 与 `COLLECT_ENGINE_DISABLED`。
+4. 上述路由检查发生在任务/批次持久化和入队之前。
 
 显式选择 OpenCLI 但 Bridge 未启用时，创建任务返回 HTTP `503` 和
 `OPENCLI_BRIDGE_DISABLED`。Bridge 已启用但稍后离线时，已创建的 OpenCLI 任务会
@@ -267,11 +304,11 @@ OpenCLI 或 Playwright。任务创建后，实际引擎会写入任务快照并�
 本地或宿主机：
 
 ```bash
-curl http://127.0.0.1:3001/health
 curl http://127.0.0.1:3100/health
 ```
 
-第二条只在启用并启动 OpenCLI Bridge 后才应成功。Bridge 配置 Token 后，运行状态
+该命令只在启用并启动 OpenCLI Bridge 后才应成功。显式恢复 Playwright 后，才检查
+`curl http://127.0.0.1:3001/health`。Bridge 配置 Token 后，运行状态
 接口需要 Bearer Token：
 
 ```bash
@@ -291,12 +328,15 @@ OpenCLI 控制的 Chrome 窗口。
 
 ### 人工验收清单
 
-1. 提交一个淘宝/天猫 OpenCLI 任务，确认任务列表“实际引擎”为 OpenCLI。
-2. 提交一个淘宝/天猫 Playwright 任务，确认“实际引擎”为 Playwright。
-3. 停止 OpenCLI Bridge，再提交或重试 OpenCLI 任务，确认出现明确的 Bridge 错误。
-4. Bridge 停止期间执行 Playwright 或 1688 任务，确认仍能正常访问 `3001`。
-5. 重新启动 Bridge，检查引擎状态恢复，再使用一条真实商品链接验证标题、主图、
-   SKU、详情图与商品草稿。
+1. 默认环境执行 `pnpm dev`，确认没有 Collector 子进程和 `3001` 监听。
+2. 默认 Compose 启动后，确认 `collector` 未创建/未运行，backend 不依赖该服务。
+3. 查看引擎状态，确认 Playwright 为 `enabled=false`、`status=disabled`，且未探活。
+4. 在管理端确认显示“Playwright（已停用）”，无可用后台引擎的来源不能提交。
+5. 直接请求创建 Playwright 单任务和批次，确认在持久化/入队前返回
+   `COLLECT_ENGINE_DISABLED`，且没有静默回退。
+6. 使用浏览器扩展完成一条受支持当前页采集，确认不依赖 Playwright。
+7. 恢复验收：显式开启开关并安装浏览器（或启用 Compose profile），确认原
+   Playwright 路由可重新使用。
 
 淘宝/天猫真实链接的字段级验收见
 [collector-taobao-tmall-test-links.md](collector-taobao-tmall-test-links.md)。
@@ -375,13 +415,14 @@ OpenCLI 的 `EMPTY_RESULT` 统一视为可恢复的解析失败，不等同于�
 ### OpenCLI 不可用时为什么不自动用 Playwright
 
 自动回退会让同一个任务在不同引擎间产生不可解释的结果，也会掩盖登录态、扩展连接
-和适配器故障。当前策略是保留 Playwright 作为可见、可手动选择的备用方案，并让失败
-任务保留原始实际引擎和错误。
+和适配器故障。当前策略是失败即止；Playwright 默认显示为已停用，只有运维显式恢复
+后才重新成为可选项。失败任务保留原始实际引擎和错误。
 
 ### Docker 是否必须安装 OpenCLI
 
-不需要。默认 Compose 只用 Playwright，功能和此前的 Docker 主链路一致。只有要用
-OpenCLI 采集淘宝/天猫时，才需要在宿主机安装并启动 Bridge。
+不需要。默认 Compose 不启用任何后台浏览器引擎，可配合浏览器扩展使用。只有要用
+OpenCLI 采集淘宝/天猫时，才需要在宿主机安装并启动 Bridge；只有显式恢复 Playwright
+时，才启用 `playwright` profile。
 
 ### 管理端“采集服务监听地址”为什么可能仍显示 `:3100`
 
@@ -402,13 +443,15 @@ OpenCLI 采集淘宝/天猫时，才需要在宿主机安装并启动 Bridge。
 
 | 旧配置 | 新配置 |
 | --- | --- |
+| 未配置 Playwright 开关 | 默认视为 `COLLECTOR_PLAYWRIGHT_ENABLED=false` |
 | `COLLECTOR_BASE_URL=http://127.0.0.1:3100` | `COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001` |
 | Docker backend 指向宿主机通用 Collector | Playwright 固定为 `http://collector:3001` |
 | 用全局 URL 选择 OpenCLI | 使用任务 `engine=opencli` 与独立 `OPENCLI_BRIDGE_BASE_URL` |
 | 宿主机 Collector `3100` | Playwright 改为 `3001`；`3100` 只保留给 OpenCLI Bridge |
 
 `COLLECTOR_BASE_URL` 目前只作为 Playwright 地址的旧变量兼容入口；新部署应使用
-`COLLECTOR_PLAYWRIGHT_BASE_URL`。不要把兼容变量指向 OpenCLI Bridge。
+`COLLECTOR_PLAYWRIGHT_BASE_URL`。地址本身不会启用引擎，必须显式设置
+`COLLECTOR_PLAYWRIGHT_ENABLED=true`。不要把兼容变量指向 OpenCLI Bridge。
 
 ## 相关文档
 

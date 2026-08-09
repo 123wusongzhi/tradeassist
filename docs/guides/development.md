@@ -1,6 +1,6 @@
 # 本地开发说明
 
-本文说明贸灵 TradeMind 的本地开发启动方式。完整项目由 Go backend、React admin、Node collector、PostgreSQL 与 Redis 组成。
+本文说明贸灵 TradeMind 的本地开发启动方式。默认项目由 Go backend、React admin、PostgreSQL 与 Redis 组成；Node Playwright Collector 代码保留但默认停用。
 
 ## 环境要求
 
@@ -15,8 +15,9 @@
 
 ```bash
 pnpm install
-pnpm install:collector:browsers
 ```
+
+常规安装不会执行 Collector 的浏览器二进制下载命令。
 
 ## 一键开发启动
 
@@ -29,9 +30,9 @@ pnpm dev
 - PostgreSQL / Redis：优先使用 Docker Compose（`docker-compose.yml`）；若未检测到可用 Docker，则检测本机 `.env` 配置的 PostgreSQL / Redis 端口是否可连接，两者都可用则跳过 Compose
 - backend Go 服务
 - admin 管理端
-- Playwright Collector 采集服务
+- Playwright Collector：仅在 `.env` 设置 `COLLECTOR_PLAYWRIGHT_ENABLED=true` 时启动
 - 可选 OpenCLI Bridge：仅在 `.env` 设置 `OPENCLI_BRIDGE_ENABLED=true` 时启动，
-  启动失败不终止三个必需服务
+  启动失败不终止 backend 与 admin
 
 ## 常用命令
 
@@ -58,7 +59,7 @@ pnpm dev:reset
 - `pnpm p7-v2:r3b:lpf-comparability`：使用版本化 V2 sidecar 执行 Recovery3 comparability；V1 报告保持不变。
 - `pnpm p7-v2:r3b:regression`：仅在 Comparability V2 通过后评估冻结 Raw Artifact；不重新执行性能负载。
 - `pnpm p7-v2:r3b:lpf-gate`：执行 LPF-V2 scoped gate；Soak、Demo、最终 Gate 不属于该命令范围。
-- `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）/ collector 端口上残留的上一进程，避免端口占用导致 backend 启动失败。
+- `pnpm dev`：启动前会自动释放本机 backend / admin（8000–8010）端口；只有显式启用 Playwright 时才管理 collector 端口。
 - `pnpm dev:stop`：停止默认 `docker-compose.yml` 服务，不删除 volume。
 - `pnpm dev:reset`：重置默认 Compose 数据卷，可能清空本地数据库。
 
@@ -69,8 +70,8 @@ pnpm dev:reset
 | backend | `http://127.0.0.1:8080` |
 | backend health | `http://127.0.0.1:8080/health` |
 | admin | 通常为 `http://127.0.0.1:8000`，以终端输出为准 |
-| Playwright Collector | `http://127.0.0.1:3001` |
-| Playwright Collector health | `http://127.0.0.1:3001/health` |
+| Playwright Collector（显式启用后） | `http://127.0.0.1:3001` |
+| Playwright Collector health（显式启用后） | `http://127.0.0.1:3001/health` |
 | OpenCLI Bridge（可选） | `http://127.0.0.1:3100` |
 | OpenCLI Bridge health（启用后） | `http://127.0.0.1:3100/health` |
 | PostgreSQL | `127.0.0.1:5432` |
@@ -96,6 +97,7 @@ Copy-Item .env.example .env
 - `DB_PORT=5432`
 - `REDIS_ADDR=127.0.0.1:6379`
 - `APP_HTTP_ADDR=:8080`
+- `COLLECTOR_PLAYWRIGHT_ENABLED=false`
 - `COLLECTOR_HTTP_ADDR=127.0.0.1:3001`
 - `COLLECTOR_PLAYWRIGHT_BASE_URL=http://127.0.0.1:3001`
 - `OPENCLI_BRIDGE_ENABLED=false`
@@ -135,6 +137,10 @@ pnpm dev:admin
 pnpm dev:collector
 ```
 
+上面是显式调试入口；要让 backend 路由到它，还需设置
+`COLLECTOR_PLAYWRIGHT_ENABLED=true`。首次调试前显式运行
+`pnpm install:collector:browsers`。
+
 ## 后端格式化
 
 修改或新增 `backend/**/*.go` 后，在 `backend` 目录执行：
@@ -148,7 +154,8 @@ go fmt ./...
 Playwright Collector 与 OpenCLI Bridge 是两个独立进程：
 
 ```bash
-# Playwright（所有既有采集能力）
+# Playwright（保留的既有采集能力；默认停用）
+pnpm install:collector:browsers
 pnpm dev:collector
 
 # OpenCLI（当前仅淘宝/天猫）
@@ -158,17 +165,17 @@ pnpm dev:opencli-bridge
 ```
 
 本地需要 OpenCLI 时，在 `.env` 设置 `OPENCLI_BRIDGE_ENABLED=true`。`pnpm dev`
-会把 Bridge 作为可选子进程启动；Bridge 异常不会结束 backend、admin 或
-Playwright Collector。未启用 Bridge 时，后端会把未显式指定引擎的任务安全地
-解析为 Playwright；显式选择 OpenCLI 则返回清晰的不可用错误，不会静默回退。
+会把 Bridge 作为可选子进程启动；Bridge 异常不会结束 backend 或 admin。
+未启用 Bridge 时，OpenCLI 任务返回清晰的不可用错误；Playwright 停用时返回
+`COLLECT_ENGINE_DISABLED`，两者都不会静默回退。
 同一份 `.env` 切换 Docker 时无需改写本地地址：Compose 只读取
 `OPENCLI_BRIDGE_DOCKER_BASE_URL` 注入容器。
 Bridge 启动时会把仓库内 `collector/opencli-adapters/tmall/` 的受管适配器同步到
 `~/.opencli/clis/tmall/`。同步是幂等的，只更新带 TradeMind 标记的适配器；
 若检测到用户自己的同名适配器会停止并提示备份，不会直接覆盖。
 
-OpenCLI 当前只支持淘宝/天猫。Playwright 是可手动选择的备用引擎，但任务运行失败后
-不会自动跨引擎回退。支持范围、API 选择、Docker 混合部署和验收步骤统一见
+OpenCLI 当前只支持淘宝/天猫。Playwright 默认显示为已停用，只有显式恢复后才可选；
+任务运行失败后不会自动跨引擎回退。支持范围、API 选择、Docker 混合部署和验收步骤统一见
 [采集引擎与部署指南](../collector-engines.md)。
 
 ```bash
@@ -195,7 +202,7 @@ SKU 价格/库存识别与风控说明见 [browser-extension-collector.md](../br
 - Docker 未安装或未启动：可安装 Docker Desktop，或在本机启动 PostgreSQL / Redis（端口与 `.env` 中 `DB_HOST`/`DB_PORT`、`REDIS_ADDR` 一致）。
 - 端口冲突：修改 `.env` 或停止占用端口的进程。
 - 后端连不上数据库：使用 Docker 时确认 `docker compose ps` 中 PostgreSQL 为 healthy；使用本机服务时确认对应端口可连接。
-- Collector 无法打开浏览器：重新执行 `pnpm install:collector:browsers`。
+- 显式恢复的 Collector 无法打开浏览器：确认开关为 `true`，再执行 `pnpm install:collector:browsers`。
 - `host.docker.internal:3100 connection refused`：确认这是 OpenCLI 任务，并在宿主机执行
   `pnpm opencli:doctor`、`pnpm dev:opencli-bridge`；普通 Playwright 任务不应访问 3100。
 - OpenCLI 返回 `EMPTY_RESULT` 但浏览器能打开商品：这不代表商品已下架。先确认 OpenCLI

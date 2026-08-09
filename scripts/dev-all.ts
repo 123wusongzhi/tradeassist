@@ -80,6 +80,7 @@ function printServiceHints(): void {
   const envPath = path.join(repoRoot, '.env');
   const backendAddr = readEnvKey(envPath, 'APP_HTTP_ADDR') ?? ':8080';
   const collectorAddr = readEnvKey(envPath, 'COLLECTOR_HTTP_ADDR') ?? ':3001';
+  const collectorEnabled = envEnabled(readEnvKey(envPath, 'COLLECTOR_PLAYWRIGHT_ENABLED'));
   const bridgeEnabled = envEnabled(readEnvKey(envPath, 'OPENCLI_BRIDGE_ENABLED'));
   const bridgeAddr = readEnvKey(envPath, 'OPENCLI_BRIDGE_HTTP_ADDR') ?? '127.0.0.1:3100';
   const backendUrl = addrToHttpUrl(backendAddr);
@@ -87,7 +88,7 @@ function printServiceHints(): void {
   const bridgeUrl = addrToHttpUrl(bridgeAddr);
 
   if (backendUrl) console.log(pc.bold(pc.green(`[backend] ${backendUrl}`)));
-  if (collectorUrl) console.log(pc.bold(pc.green(`[playwright-collector] ${collectorUrl}`)));
+  if (collectorEnabled && collectorUrl) console.log(pc.bold(pc.green(`[playwright-collector] ${collectorUrl}`)));
   if (bridgeEnabled && bridgeUrl) {
     console.log(pc.bold(pc.green(`[opencli-bridge] ${bridgeUrl}`)));
   }
@@ -133,10 +134,13 @@ async function main(): Promise<void> {
 
   tagLine('backend', 'starting...', pc.blue);
   tagLine('admin', 'starting...', pc.blue);
-  tagLine('collector', 'starting...', pc.blue);
 
   printServiceHints();
   const envPath = resolveEffectiveEnvPath(repoRoot);
+  const playwrightCollectorEnabled = envEnabled(
+    process.env.COLLECTOR_PLAYWRIGHT_ENABLED ??
+      (envPath ? readEnvKey(envPath, 'COLLECTOR_PLAYWRIGHT_ENABLED') : undefined),
+  );
   const openCliBridgeEnabled = envEnabled(
     process.env.OPENCLI_BRIDGE_ENABLED ??
       (envPath ? readEnvKey(envPath, 'OPENCLI_BRIDGE_ENABLED') : undefined),
@@ -165,7 +169,10 @@ async function main(): Promise<void> {
         env: { ...process.env },
       }),
     },
-    {
+  ];
+  if (playwrightCollectorEnabled) {
+    tagLine('collector', 'starting (explicitly enabled)...', pc.blue);
+    managed.push({
       tag: 'collector',
       required: true,
       subprocess: execa('pnpm', ['run', 'dev:collector'], {
@@ -175,8 +182,10 @@ async function main(): Promise<void> {
         stderr: 'pipe',
         env: { ...process.env },
       }),
-    },
-  ];
+    });
+  } else {
+    tagLine('collector', 'Playwright collector disabled; use browser extension or OpenCLI', pc.yellow);
+  }
   if (openCliBridgeEnabled) {
     tagLine('opencli-bridge', 'starting...', pc.blue);
     managed.push({

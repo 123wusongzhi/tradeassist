@@ -103,7 +103,7 @@ func TestCreateBrowserExtensionTaskRejectsUnsupportedSourceOrURL(t *testing.T) {
 		TenantID: 11,
 		AdminID:  uuid.New(),
 		DeviceID: uuid.New(),
-		Source:   "1688",
+		Source:   "custom",
 		URL:      "https://detail.1688.com/offer/1.html",
 	})
 	require.Error(t, err)
@@ -116,6 +116,113 @@ func TestCreateBrowserExtensionTaskRejectsUnsupportedSourceOrURL(t *testing.T) {
 		URL:      "https://example.com/not-a-product",
 	})
 	require.Error(t, err)
+
+	_, err = svc.CreateBrowserExtensionTask(context.Background(), BrowserExtensionTaskInput{
+		TenantID: 11,
+		AdminID:  uuid.New(),
+		DeviceID: uuid.New(),
+		Source:   "1688",
+		URL:      "https://detail.tmall.com/item.htm?id=1",
+	})
+	require.Error(t, err)
+
+	_, err = svc.CreateBrowserExtensionTask(context.Background(), BrowserExtensionTaskInput{
+		TenantID: 11,
+		AdminID:  uuid.New(),
+		DeviceID: uuid.New(),
+		Source:   "1688",
+		URL:      "https://www.1688.com/",
+	})
+	require.Error(t, err)
+}
+
+func TestCreateBrowserExtensionTaskAccepts1688OfferURL(t *testing.T) {
+	svc := newBrowserExtensionService(t)
+	out, err := svc.CreateBrowserExtensionTask(context.Background(), BrowserExtensionTaskInput{
+		TenantID: 11,
+		AdminID:  uuid.New(),
+		DeviceID: uuid.New(),
+		Source:   "1688",
+		URL:      "https://detail.1688.com/offer/1054514049952.html",
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusRunning, out.Status)
+	require.Equal(t, "1688", out.Source)
+}
+
+func browserExtension1688ProductJSON(title string) json.RawMessage {
+	price := 12.5
+	stock := 99
+	payload := map[string]any{
+		"source":    "1688",
+		"sourceUrl": "https://detail.1688.com/offer/1054514049952.html",
+		"title":     title,
+		"currency":  "CNY",
+		"mainImages": []string{
+			"https://cbu01.alicdn.com/img/ibank/O1CN01test.jpg",
+		},
+		"descriptionImages": []string{},
+		"attributes": map[string]any{
+			"单位":    "个",
+			"最小起订量": 2,
+		},
+		"skus": []map[string]any{
+			{
+				"properties": map[string]string{"颜色": "黑色"},
+				"price":      price,
+				"stock":      stock,
+				"skuCode":    "sku-black",
+				"image":      "https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg",
+				"raw":        map[string]any{"source": "skuMap"},
+			},
+		},
+		"raw": map[string]any{
+			"provider":     "browser_extension",
+			"productPrice": 12.5,
+			"priceTiers": []map[string]any{
+				{"beginAmount": 2, "price": 12.5},
+				{"beginAmount": 100, "price": 11.8},
+			},
+			"priceTierWarning": "阶梯价已完整保存在 raw.priceTiers；SKU.price 为首档/SKU 单价，非唯一成交价",
+			"minOrderQuantity": 2,
+			"unit":             "个",
+			"qualityWarnings":  []string{},
+		},
+	}
+	b, _ := json.Marshal(payload)
+	return b
+}
+
+func TestCompleteBrowserExtensionTaskImports1688Draft(t *testing.T) {
+	svc := newBrowserExtensionService(t)
+	adminID := uuid.New()
+	deviceID := uuid.New()
+	created, err := svc.CreateBrowserExtensionTask(context.Background(), BrowserExtensionTaskInput{
+		TenantID: 11,
+		AdminID:  adminID,
+		DeviceID: deviceID,
+		Source:   "1688",
+		URL:      "https://detail.1688.com/offer/1054514049952.html",
+	})
+	require.NoError(t, err)
+
+	done, err := svc.CompleteBrowserExtensionTask(context.Background(), BrowserExtensionResultInput{
+		TenantID:    11,
+		AdminID:     adminID,
+		DeviceID:    deviceID,
+		TaskID:      created.ID,
+		ProductJSON: browserExtension1688ProductJSON("1688 扩展采集测试商品"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, StatusSuccess, done.Status)
+	require.NotNil(t, done.ResultProductID)
+
+	var draft product.Product
+	require.NoError(t, svc.Products.DB.First(&draft, "id = ?", done.ResultProductID).Error)
+	require.Equal(t, int64(11), draft.TenantID)
+	require.Equal(t, "1688", draft.Source)
+	require.Contains(t, string(draft.RawData), "priceTiers")
+	require.Contains(t, string(draft.RawData), "最小起订量")
 }
 
 func TestCompleteBrowserExtensionTaskImportsDraftAndSucceeds(t *testing.T) {
