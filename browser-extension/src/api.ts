@@ -64,10 +64,10 @@ export class TradeMindAPI {
     return this.request<ExtensionDevice>('/api/v1/collect/browser-extension/session');
   }
 
-  async createTask(url: string) {
+  async createTask(url: string, source: string) {
     return this.request<CollectTask>('/api/v1/collect/browser-extension/tasks', {
       method: 'POST',
-      body: JSON.stringify({ source: 'taobao_tmall', url }),
+      body: JSON.stringify({ source, url }),
     });
   }
 

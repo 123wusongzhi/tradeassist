@@ -41,7 +41,7 @@
             <button id="disconnectButton" class="button button--text" type="button">断开本机</button>
           </div>
           <div class="settings-row">
-            <label for="skuPriceProbeInput">SKU 价格探测上限（1–200）</label>
+            <label for="skuPriceProbeInput">SKU 价格探测上限（淘宝/天猫，1–200）</label>
             <input id="skuPriceProbeInput" type="number" min="1" max="200" step="1" />
             <p class="hint">新版天猫隐藏单个 SKU 价格，采集时会在当前标签页内串行探测，每条间隔 300–800ms 随机延迟，不新开窗口。默认 24；设为较大值可对全部 SKU 做完整价格分析，SKU 多时耗时更长且更易触发平台风控。</p>
           </div>
@@ -52,7 +52,7 @@
         <div class="card__head">
           <div>
             <span class="eyebrow">当前页面</span>
-            <h2 id="collectTitle">淘宝 / 天猫商品</h2>
+            <h2 id="collectTitle">当前商品页</h2>
           </div>
           <span id="pageBadge" class="badge badge--muted">检测中</span>
         </div>

@@ -85,6 +85,8 @@ __debug_bin*
 *.log
 /logs/
 /artifacts/
+/.reasonix/
+/midscene_run/
 
 # IDE / 编辑器
 .idea/

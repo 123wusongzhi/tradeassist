@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TradeMind 商品采集",
-  "description": "在当前淘宝/天猫商品页直接采集并创建 TradeMind 商品草稿。",
-  "version": "0.1.0",
+  "description": "在当前淘宝/天猫/1688 商品页直接采集并创建 TradeMind 商品草稿。",
+  "version": "0.2.0",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
   "host_permissions": [
@@ -12,6 +12,8 @@
     "https://item.taobao.com/*",
     "https://ju.taobao.com/*",
     "https://world.taobao.com/*",
+    "https://detail.1688.com/*",
+    "https://m.1688.com/*",
     "http://127.0.0.1/*",
     "http://localhost/*"
   ],

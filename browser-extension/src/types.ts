@@ -14,11 +14,13 @@ export type ProductSku = {
   raw?: Record<string, unknown>;
 };
 
+export type BrowserCollectSource = 'taobao_tmall' | '1688';
+
 export type NormalizedProduct = {
-  source: 'taobao_tmall';
+  source: BrowserCollectSource;
   sourceUrl: string;
   title: string;
-  currency: 'CNY';
+  currency: 'CNY' | string;
   mainDescription?: string;
   mainImages: string[];
   descriptionImages: string[];

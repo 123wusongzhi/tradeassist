@@ -1,6 +1,6 @@
 # 采集引擎与部署指南
 
-> 状态：2026-07-31。本文是浏览器侧边栏扩展、Playwright Collector 与 OpenCLI
+> 状态：2026-08-09。本文是浏览器侧边栏扩展、Playwright Collector 与 OpenCLI
 > Bridge 三条采集入口的权威说明。端口、路由、启动方式或引擎支持范围发生变化时，
 > 应优先更新本文，再同步 `README`、开发、Docker、环境变量、Provider 与 API 文档。
 
@@ -28,7 +28,7 @@ OpenCLI、Chrome 扩展连接和登录态，目前不放进 Compose。
 
 | 入口 | 运行位置 | 适用场景 | 前置依赖 |
 | --- | --- | --- | --- |
-| 浏览器侧边栏扩展 | 用户当前 Chrome / Edge 标签页 | 淘宝/天猫单商品、当前页面即时采集 | 只需 TradeMind backend；不需要 Playwright Collector、OpenCLI Bridge 或第二套浏览器 |
+| 浏览器侧边栏扩展 | 用户当前 Chrome / Edge 标签页 | 淘宝/天猫/1688 单商品、当前页面即时采集 | 只需 TradeMind backend；不需要 Playwright Collector、OpenCLI Bridge 或第二套浏览器 |
 | Playwright Collector | 本地进程或 Compose `collector` 容器（`3001`） | 后台任务、批量采集、全平台来源 | backend 可达即可，不要求浏览器扩展或 OpenCLI |
 | OpenCLI Bridge | 宿主机可选进程（`3100`） | 复用宿主机 Chrome 登录态的淘宝/天猫采集 | 宿主机已装 `opencli` 并完成适配器同步 |
 
@@ -71,19 +71,19 @@ Playwright 任务和其他采集来源不应访问 `3100`。
 
 ## 引擎支持范围
 
-| 采集来源 | Playwright | OpenCLI | 未显式选择时 |
-| --- | --- | --- | --- |
-| 淘宝/天猫 `taobao_tmall` | 支持 | 支持 | Bridge 已启用且默认值为 `opencli` 时使用 OpenCLI，否则使用 Playwright |
-| 1688 `1688` | 支持 | 不支持 | Playwright |
-| 拼多多 `pinduoduo` | 支持 | 不支持 | Playwright |
-| AliExpress `aliexpress` | 支持 | 不支持 | Playwright |
-| SHEIN / Temu `shein_temu` | 规划中，当前不可创建任务 | 不支持 | 当前不可用 |
-| 自定义规则 `custom` | 支持 | 不支持 | Playwright |
+| 采集来源 | Playwright | OpenCLI | 浏览器扩展（当前页单采） | 未显式选择后台引擎时 |
+| --- | --- | --- | --- | --- |
+| 淘宝/天猫 `taobao_tmall` | 支持 | 支持 | 支持 | Bridge 已启用且默认值为 `opencli` 时使用 OpenCLI，否则使用 Playwright |
+| 1688 `1688` | 支持 | 不支持 | 支持 | Playwright |
+| 拼多多 `pinduoduo` | 支持 | 不支持 | 不支持 | Playwright |
+| AliExpress `aliexpress` | 支持 | 不支持 | 不支持 | Playwright |
+| SHEIN / Temu `shein_temu` | 规划中，当前不可创建任务 | 不支持 | 不支持 | 当前不可用 |
+| 自定义规则 `custom` | 支持 | 不支持 | 不支持 | Playwright |
 
 浏览器侧边栏扩展是第三条独立入口，不走 backend 的 `engine` 路由：扩展任务由
 扩展直接创建/完成，不投递 Redis，也不经过 Playwright 或 OpenCLI，只用于用户
-当前打开的淘宝/天猫商品页。它与 Playwright / OpenCLI 互不依赖，选择扩展采集时
-无需为它准备任何采集服务。
+当前打开的淘宝/天猫/1688 商品页。它与 Playwright / OpenCLI 互不依赖，选择扩展采集时
+无需为它准备任何采集服务。1688 扩展采集不接入 engine router。
 
 对非淘宝/天猫来源显式传 `engine=opencli` 时，backend 会返回
 `COLLECT_ENGINE_SOURCE_UNSUPPORTED`，不会改走 Playwright。

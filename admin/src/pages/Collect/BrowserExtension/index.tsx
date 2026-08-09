@@ -145,7 +145,7 @@ export default function CollectBrowserExtensionPage() {
   return (
     <TmPageContainer
       title="浏览器扩展采集"
-      subTitle="在当前淘宝/天猫页面直接采集；无需 OpenCLI 宿主机进程，也不会额外弹出浏览器。"
+      subTitle="在当前淘宝/天猫/1688 商品页直接采集；无需 OpenCLI 宿主机进程，也不会额外弹出浏览器。"
       extra={
         <Button icon={<ReloadOutlined />} onClick={() => void loadDevices()} loading={devicesLoading}>
           刷新设备
@@ -268,7 +268,7 @@ export default function CollectBrowserExtensionPage() {
                 <Alert
                   type="warning"
                   showIcon
-                  message="当前首版支持淘宝/天猫当前页"
+                  message="当前支持淘宝/天猫/1688 商品页"
                   description="批量后台任务仍使用 Playwright 或现有 OpenCLI。后续平台通过扩展内置适配器逐步增加，不远程加载脚本。"
                 />
               </Space>
