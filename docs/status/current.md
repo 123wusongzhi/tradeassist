@@ -14,7 +14,7 @@ last_verified_commit: b453069b9e98b76823eefdc45385a5ba2c63bdb2
 
 # 当前能力与限制
 
-贸灵 TradeMind 是开源 AI 跨境电商运营平台，优先服务 **AI 商品运营** 与 **多平台跨境 ERP MVP**。  
+贸灵 TradeMind 是开源 AI 跨境电商运营平台，优先服务 **AI 商品运营** 与 **多平台跨境 ERP MVP**。
 详细产品叙事见根目录 `README.md`。本页只记录**当前能力与必须知情的限制**。
 
 ## 能力矩阵
@@ -45,5 +45,5 @@ last_verified_commit: b453069b9e98b76823eefdc45385a5ba2c63bdb2
 
 ## 历史进度
 
-旧逐日/阶段流水账已冻结：`docs/archive/progress/PROGRESS-legacy-2026-08-05.md`。  
+旧逐日/阶段流水账已冻结：`docs/archive/progress/PROGRESS-legacy-2026-08-05.md`。
 后续能力变化更新本页；过程记录优先用 PR / `CHANGELOG.md`。

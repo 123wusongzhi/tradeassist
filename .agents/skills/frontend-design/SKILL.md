@@ -7,7 +7,7 @@ provenance: project-vendor-fork of anthropics/skills frontend-design; see skills
 
 # TradeMind Admin UI 设计与 AI 实施规范
 
-> **Provenance**：本文件是基于 anthropics/skills `frontend-design` 的 **TradeMind 项目 vendor 副本**（已本地修改，不再保证与上游 bit-for-bit 一致）。元数据与内容哈希见根目录 `skills-lock.json`；许可证见同目录 `LICENSE.txt`；署名见根目录 `NOTICE`。  
+> **Provenance**：本文件是基于 anthropics/skills `frontend-design` 的 **TradeMind 项目 vendor 副本**（已本地修改，不再保证与上游 bit-for-bit 一致）。元数据与内容哈希见根目录 `skills-lock.json`；许可证见同目录 `LICENSE.txt`；署名见根目录 `NOTICE`。
 > **默认用法**：普通 Admin UI 任务优先加载 `trademind-admin-ui`。仅在深度视觉/信息架构设计时按需阅读本文件（context id: `frontend-design-deep`）。
 
 本文件是 TradeMind Admin UI **深度设计与详细验收**参考。日常项目不变量以 `trademind-admin-ui` 为准；组合加载由 `config/agent/context-map.json` 决定，不要在正文里强制级联其他 Skill。
