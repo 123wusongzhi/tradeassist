@@ -190,6 +190,8 @@ Playwright。显式选择 OpenCLI 但 Bridge 未启用时会返回错误，不�
 
 | 变量 | 示例 / 默认 | 服务 | 说明 |
 | --- | --- | --- | --- |
+| `ADMIN_DEV_PORT` | `8000` | admin / scripts | Umi 宿主机开发端口；`pnpm dev` 按此精确预检，不扫描 8000–8010。 |
+| `ADMIN_DEV_API_PROXY_TARGET` | `http://127.0.0.1:8080` | admin | 仅用于 Umi 本地 `/api`、`/static` 代理；必须是带显式端口的本机回环 HTTP(S) 源地址，不得含凭据、路径、查询或片段。Docker nginx 不读取此变量，仍代理 `backend:8080`。 |
 | `VITE_API_BASE` | `/api` | admin | 管理端 API 基础路径，当前在 `.env.example` 中为预留注释。 |
 
 ## 新增变量检查清单

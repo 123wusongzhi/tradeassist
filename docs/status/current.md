@@ -29,7 +29,7 @@ last_verified_commit: b453069b9e98b76823eefdc45385a5ba2c63bdb2
 | 商品刊登 | 统一刊登中心；Ozon 路径较完整 | **真实提交前必须在隔离店铺小批量验证**；其他平台以已接入能力为准 | PublishingCenter、platform adapters |
 | 订单 / 库存 | 同步、SKU 匹配、预警与同步任务等 MVP 能力 | 多仓/采购/财务等重型 ERP 不在当前范围 | orders / inventory 模块 |
 | 客服 AI | 建议回复；人工确认外发 | 不默认自动外发 | customer 模块 |
-| 工程地基 | Provider 抽象、租户、幂等、契约测试、架构 ratchet | 生产就绪取决于部署方受控验收 | `tests/`、`scripts/` |
+| 工程地基 | Provider 抽象、租户、幂等、契约测试、架构 ratchet；本地开发与完整 Docker 栈互斥，开发进程按身份验证后清理 | 生产就绪取决于部署方受控验收；未知端口占用者需人工处理 | `tests/`、`scripts/` |
 
 ## 当前高风险限制
 

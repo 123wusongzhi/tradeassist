@@ -18,15 +18,20 @@ OpenCLI Bridge 不在 Compose 服务列表中；只有启用 OpenCLI 时才在�
 
 ```bash
 cp .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
 
 Windows PowerShell：
 
 ```powershell
 Copy-Item .env.docker.example .env
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
+
+`pnpm docker:full:up` 会先检查 Admin、Backend 与 Collector 的实际发布端口。若占用者是
+当前仓库的本地开发进程，会提示先运行 `pnpm dev:stop`；若是无关程序，会提示修改对应
+`*_PUBLISH_PORT` 或由用户自行停止。预检不会按端口终止任何进程。直接执行原生
+`docker compose -f docker-compose.full.yml up -d --build` 仍可用，但不会获得这层归属提示。
 
 ## 默认访问地址
 
@@ -127,7 +132,7 @@ P7 性能数据集与负载测试只能在隔离 `APP_ENV=performance` 环境执
 启动：
 
 ```bash
-docker compose -f docker-compose.full.yml up -d --build
+pnpm docker:full:up
 ```
 
 查看状态：

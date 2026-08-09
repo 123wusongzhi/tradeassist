@@ -24,6 +24,7 @@ generator: pnpm docs:generate:commands
 | `build:browser-extension` | `trademind-monorepo` |
 | `build:collector` | `trademind-monorepo` |
 | `check:dev` | `trademind-monorepo` |
+| `check:dev-scripts` | `trademind-monorepo` |
 | `check:ui-copy` | `trademind-monorepo` |
 | `dev` | `trademind-monorepo` |
 | `dev:admin` | `trademind-monorepo` |
@@ -59,6 +60,7 @@ generator: pnpm docs:generate:commands
 | `test:collector` | `trademind-monorepo` |
 | `test:contracts` | `trademind-monorepo` |
 | `test:db` | `trademind-monorepo` |
+| `test:dev-scripts` | `trademind-monorepo` |
 | `test:e2e` | `trademind-monorepo` |
 | `test:e2e:contracts` | `trademind-monorepo` |
 | `test:e2e:headed` | `trademind-monorepo` |
