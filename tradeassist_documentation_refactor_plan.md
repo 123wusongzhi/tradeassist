@@ -1,8 +1,8 @@
 # TradeAssist / TradeMind 文档与 Agent 上下文重构执行手册
 
-> **审阅基线**：`main@b453069`，2026-08-05  
-> **仓库**：`123wusongzhi/tradeassist`  
-> **用途**：交给代码 Agent，按原子步骤重构“给 Agent 看的说明”和“给人看的说明”。  
+> **审阅基线**：`main@b453069`，2026-08-05
+> **仓库**：`123wusongzhi/tradeassist`
+> **用途**：交给代码 Agent，按原子步骤重构“给 Agent 看的说明”和“给人看的说明”。
 > **审阅方式**：基于 GitHub `main` 分支的静态代码与文档审阅；未运行本地服务、数据库、第三方平台或完整 CI。实施时必须以当前分支代码、测试和可执行配置再次校验事实。
 
 ---
@@ -30,16 +30,16 @@
 
 当前问题不是单纯的“文档旧”，而是四类问题叠加：
 
-1. **Agent 入口失去路由作用**  
+1. **Agent 入口失去路由作用**
    `AGENTS.md` 把 README、文档中心、工作流、多个 Skill、模块图、检查清单、API、环境、分支、进度、Cursor 规则等同时列为“必读”，然后又重复自动触发规则、命令、禁令和交付流程。结果是 Agent 在尚未判断任务类型前就加载大量上下文。
 
-2. **CI 正在主动维持上下文膨胀**  
+2. **CI 正在主动维持上下文膨胀**
    `scripts/workflow/check-skill-triggers.mjs` 要求 `AGENTS.md` 直接引用全部核心 Skill，并以矩阵强制小型 Admin UI 任务加载 5 个 Skill；纯文档任务也要求加载 `code-quality`。仅改 Markdown 会被现有门禁反向阻止。
 
-3. **长期规则混入了短期项目快照**  
+3. **长期规则混入了短期项目快照**
    多个 `alwaysApply: true` 的 Cursor 规则记录的是早期 MVP、旧 API 清单、旧路线图和“未来预留”，但代码与 README 已出现订单、库存、租户、Ozon 刊登、图片 Provider 等现行能力。过时内容会持续误导 Agent。
 
-4. **人类文档、开发日志、验收证据和历史报告没有分层**  
+4. **人类文档、开发日志、验收证据和历史报告没有分层**
    `docs/README.md`、`docs/PROGRESS.md`、`docs/api.md`、`docs/provider.md` 等混合当前说明、阶段编号、测试结果、工作树状态、实现历史与运行手册；`docs/` 根目录又堆积大量 P4–P9 报告、截图、基线和运行产物。
 
 ## 1.2 可量化现状
@@ -901,7 +901,7 @@ pnpm workflow:check
 5. 默认禁止读取 `docs/archive/**`、`docs/status/history/**` 和 `artifacts/**`。
 6. 不通过 Skill 正文继续级联加载其他 Skill。
 
-上下文路由真源：`config/agent/context-map.json`。  
+上下文路由真源：`config/agent/context-map.json`。
 文档影响真源：`config/agent/change-impact.json`。
 
 ## 3. 工作闭环

@@ -22,7 +22,7 @@
 5. 默认禁止读取 `docs/archive/**`、`docs/status/history/**` 和 `artifacts/**`。
 6. 不通过 Skill 正文继续级联加载其他 Skill。
 
-上下文路由真源：`config/agent/context-map.json`。  
+上下文路由真源：`config/agent/context-map.json`。
 文档影响真源：`config/agent/change-impact.json`。
 
 ## 3. 工作闭环
