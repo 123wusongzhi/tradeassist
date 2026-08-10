@@ -353,7 +353,8 @@ export function ozonPublishResponse(
           categoryId: E2E_OZON_CATEGORY_ID,
           attrId: "20001",
           name: "容量",
-          description: "仅接受整数",
+          description:
+            "仅接受整数；请按照当前叶子类目的 Ozon 说明填写，页面不会自行推断范围、单位或精度。",
           required: false,
           valueType: "Integer",
           skuVariantEligible: false,

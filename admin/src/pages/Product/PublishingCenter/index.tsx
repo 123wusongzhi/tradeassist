@@ -17,6 +17,7 @@ import {
   Input,
   InputNumber,
   Modal,
+  Segmented,
   Select,
   Space,
   Spin,
@@ -80,6 +81,12 @@ import OzonSKUImageConfigurator, {
 import OzonCategoryNavigator, {
   type OzonCategoryFocusTarget,
 } from "./OzonCategoryNavigator";
+import {
+  matchesOzonAttributeView,
+  ozonAttributeFormatHint,
+  summarizeOzonAttributes,
+  type OzonAttributeFilter,
+} from "./attributeUi";
 import "../OzonPublish/index.less";
 import "./index.less";
 
@@ -502,8 +509,17 @@ export default function PublishingCenterPage() {
   const [syncing, setSyncing] = useState(false);
   const [templateRefreshFeedback, setTemplateRefreshFeedback] =
     useState<TemplateRefreshFeedback>();
+  const [attributeTemplateError, setAttributeTemplateError] =
+    useState<string>();
+  const [attributeSearch, setAttributeSearch] = useState("");
+  const [attributeFilter, setAttributeFilter] =
+    useState<OzonAttributeFilter>("all");
+  const [optionalAttributesOpen, setOptionalAttributesOpen] = useState(true);
   const [lowFrequencyAttributesOpen, setLowFrequencyAttributesOpen] =
     useState(false);
+  const [formatRulesOpen, setFormatRulesOpen] = useState(false);
+  const [expandedAttributeDescriptions, setExpandedAttributeDescriptions] =
+    useState<Set<string>>(() => new Set());
   const [skuVariantDetailsOpen, setSKUVariantDetailsOpen] = useState(false);
   const [loadError, setLoadError] = useState<string>();
   const [searchingAttribute, setSearchingAttribute] = useState<string>();
@@ -515,6 +531,16 @@ export default function PublishingCenterPage() {
   // the watcher so hidden steps remain part of the safety gate and save DTO.
   const watched = (Form.useWatch([], { form, preserve: true }) ||
     {}) as PublishingFormValues;
+
+  const resetAttributeViewState = useCallback(() => {
+    setAttributeTemplateError(undefined);
+    setAttributeSearch("");
+    setAttributeFilter("all");
+    setOptionalAttributesOpen(true);
+    setLowFrequencyAttributesOpen(false);
+    setFormatRulesOpen(false);
+    setExpandedAttributeDescriptions(new Set());
+  }, []);
 
   useEffect(() => {
     setActiveStep(initialStep);
@@ -746,10 +772,10 @@ export default function PublishingCenterPage() {
       setDirty(false);
       setPreflight(undefined);
       setTemplateRefreshFeedback(undefined);
-      setLowFrequencyAttributesOpen(false);
+      resetAttributeViewState();
       setSKUVariantDetailsOpen(false);
     },
-    [form],
+    [form, resetAttributeViewState],
   );
 
   useEffect(() => {
@@ -759,6 +785,7 @@ export default function PublishingCenterPage() {
       setVariantPolicy(undefined);
       setSKUImages([]);
       setPreflight(undefined);
+      resetAttributeViewState();
       return;
     }
     let cancelled = false;
@@ -780,7 +807,7 @@ export default function PublishingCenterPage() {
     return () => {
       cancelled = true;
     };
-  }, [hydrateConfig, product, shopId]);
+  }, [hydrateConfig, product, resetAttributeViewState, shopId]);
 
   useEffect(() => {
     const sourceKey = String(config?.sourceCategoryKey || "").trim();
@@ -886,7 +913,7 @@ export default function PublishingCenterPage() {
     setSKUImages([]);
     form.resetFields();
     setTemplateRefreshFeedback(undefined);
-    setLowFrequencyAttributesOpen(false);
+    resetAttributeViewState();
     setSKUVariantDetailsOpen(false);
     setProductId(value);
     setPreflight(undefined);
@@ -905,7 +932,7 @@ export default function PublishingCenterPage() {
     setSKUImages([]);
     form.resetFields();
     setTemplateRefreshFeedback(undefined);
-    setLowFrequencyAttributesOpen(false);
+    resetAttributeViewState();
     setSKUVariantDetailsOpen(false);
     setShopId(value);
     setPreflight(undefined);
@@ -931,7 +958,7 @@ export default function PublishingCenterPage() {
       skuAttributeOverrides: {},
     });
     setTemplateRefreshFeedback(undefined);
-    setLowFrequencyAttributesOpen(false);
+    resetAttributeViewState();
     setSKUVariantDetailsOpen(false);
     markDirty();
     if (!categoryId) return;
@@ -956,7 +983,9 @@ export default function PublishingCenterPage() {
       form.setFieldsValue({ complexGroups: initialGroups });
     } catch (error) {
       if (attributeLoadSequence.current !== sequence) return;
-      message.error(errorMessage(error, "类目属性模板加载失败"));
+      const failure = errorMessage(error, "类目属性模板加载失败");
+      setAttributeTemplateError(failure);
+      message.error(failure);
     }
   };
 
@@ -1529,11 +1558,79 @@ export default function PublishingCenterPage() {
     warehouseOptions,
   ]);
 
-  const lowFrequencyAttributes = ordinaryAttributes.filter(
-    isLowFrequencyOzonAttribute,
+  const filledAttributeIDs = new Set<string>();
+  const completedRequiredAttributeIDs = new Set<string>();
+  attributes.forEach((attribute) => {
+    const complexId = Number(attribute.attributeComplexId || 0);
+    let filled = false;
+    let requiredComplete = false;
+    if (complexId > 0) {
+      const groups = watched.complexGroups?.[String(complexId)] || [];
+      filled = groups.some((group) => isFilled(group?.[attribute.attrId]));
+      requiredComplete =
+        groups.length > 0 &&
+        groups.every((group) => isFilled(group?.[attribute.attrId]));
+    } else if (selectedVariantAttributeSet.has(attribute.attrId)) {
+      const skuValues = (product?.skus || []).map(
+        (sku) => watched.skuAttributeOverrides?.[sku.id]?.[attribute.attrId],
+      );
+      filled = skuValues.some(isFilled);
+      requiredComplete =
+        skuValues.length > 0 && skuValues.every((value) => isFilled(value));
+    } else {
+      filled = isFilled(watched.attributes?.[attribute.attrId]);
+      requiredComplete = filled;
+    }
+    if (filled) filledAttributeIDs.add(attribute.attrId);
+    if (attribute.required && requiredComplete)
+      completedRequiredAttributeIDs.add(attribute.attrId);
+  });
+  const attributeProgress = summarizeOzonAttributes(
+    attributes,
+    filledAttributeIDs,
+    completedRequiredAttributeIDs,
   );
-  const routineAttributes = ordinaryAttributes.filter(
-    (attribute) => !isLowFrequencyOzonAttribute(attribute),
+  const attributeMatchesCurrentView = (attribute: OzonCategoryAttribute) =>
+    matchesOzonAttributeView(attribute, {
+      filter: attributeFilter,
+      query: attributeSearch,
+      filled: filledAttributeIDs.has(attribute.attrId),
+    });
+  const requiredAttributes = ordinaryAttributes.filter(
+    (attribute) => attribute.required,
+  );
+  const optionalAttributes = ordinaryAttributes.filter(
+    (attribute) =>
+      !attribute.required && !isLowFrequencyOzonAttribute(attribute),
+  );
+  const lowFrequencyAttributes = ordinaryAttributes.filter(
+    (attribute) =>
+      !attribute.required && isLowFrequencyOzonAttribute(attribute),
+  );
+  const visibleRequiredAttributes = requiredAttributes.filter(
+    attributeMatchesCurrentView,
+  );
+  const visibleOptionalAttributes = optionalAttributes.filter(
+    attributeMatchesCurrentView,
+  );
+  const visibleLowFrequencyAttributes = lowFrequencyAttributes.filter(
+    attributeMatchesCurrentView,
+  );
+  const visibleComplexGroups = complexGroups.filter(([, defs]) =>
+    defs.some(attributeMatchesCurrentView),
+  );
+  const hasVisibleAttributes =
+    visibleRequiredAttributes.length > 0 ||
+    visibleOptionalAttributes.length > 0 ||
+    visibleLowFrequencyAttributes.length > 0 ||
+    visibleComplexGroups.length > 0;
+  const hasActiveAttributeView =
+    attributeSearch.trim().length > 0 || attributeFilter !== "all";
+  const unsupportedAttributes = attributes.filter(
+    (attribute) => !supportsOzonAttributeInput(attribute),
+  );
+  const templateCacheStale = attributes.some(
+    (attribute) => attribute.cacheStale,
   );
   const lowFrequencyAttributeIDs = new Set(
     lowFrequencyAttributes.map((attribute) => attribute.attrId),
@@ -1999,6 +2096,7 @@ export default function PublishingCenterPage() {
     });
     setSyncing(true);
     setTemplateRefreshFeedback(undefined);
+    setAttributeTemplateError(undefined);
     try {
       const synced = await syncOzonCategoryAttributes(categoryId, shopId);
       const result = await queryOzonCategoryAttributes(categoryId, {
@@ -2051,6 +2149,7 @@ export default function PublishingCenterPage() {
       );
       setAttributes(nextAttributes);
       setVariantPolicy(result.variantPolicy);
+      resetAttributeViewState();
       setDirty(true);
       setPreflight(undefined);
       const latestSyncedAt = nextAttributes.reduce<string | undefined>(
@@ -2076,7 +2175,11 @@ export default function PublishingCenterPage() {
       );
     } catch (error) {
       if (attributeLoadSequence.current !== sequence) return;
-      message.error(errorMessage(error, "属性模板同步失败"));
+      const failure = errorMessage(error, "属性模板同步失败");
+      setAttributeTemplateError(
+        `${failure} 当前仍展示刷新前的模板与已填写内容。`,
+      );
+      message.error(failure);
     } finally {
       setSyncing(false);
     }
@@ -2130,11 +2233,16 @@ export default function PublishingCenterPage() {
     setActiveStep(stepForIssue(issue));
     const field = issue.field;
     if (!field) return;
-    if (
-      field.startsWith("attributes.") &&
-      lowFrequencyAttributeIDs.has(field.split(".")[1])
-    )
-      setLowFrequencyAttributesOpen(true);
+    if (field.startsWith("attributes.") || field.startsWith("complexGroups.")) {
+      setAttributeSearch("");
+      setAttributeFilter("all");
+      setOptionalAttributesOpen(true);
+      if (
+        field.startsWith("attributes.") &&
+        lowFrequencyAttributeIDs.has(field.split(".")[1])
+      )
+        setLowFrequencyAttributesOpen(true);
+    }
     if (field.startsWith("skuAttributeOverrides"))
       setSKUVariantDetailsOpen(true);
     globalThis.setTimeout(() => {
@@ -2177,6 +2285,75 @@ export default function PublishingCenterPage() {
     ? { ...config.ozonImages, skus: skuImages }
     : undefined;
   const finalPreview: OzonResolvedListing | undefined = preflight?.resolvedOzon;
+
+  const renderAttributeLabel = (attribute: OzonCategoryAttribute) => {
+    const formatHint = ozonAttributeFormatHint(attribute);
+    return (
+      <Space size={4} wrap>
+        <span>{attribute.name}</span>
+        {formatHint ? <Tag>{formatHint}</Tag> : null}
+      </Space>
+    );
+  };
+
+  const renderAttributeHelp = (
+    attribute: OzonCategoryAttribute,
+    instanceKey: string,
+  ) => {
+    const description = String(attribute.description || "").trim();
+    const maximum =
+      attribute.isCollection && attribute.maxValueCount
+        ? `最多 ${attribute.maxValueCount} 个值`
+        : "";
+    if (!description && !maximum) return undefined;
+
+    const expandable = description.length > 16;
+    const expanded = expandedAttributeDescriptions.has(instanceKey);
+    const descriptionID = `ozon-attribute-description-${instanceKey.replace(
+      /[^a-zA-Z0-9_-]/g,
+      "-",
+    )}`;
+    return (
+      <div className="publishing-center__attribute-help">
+        {description ? (
+          <div className="publishing-center__attribute-description-row">
+            <span
+              id={descriptionID}
+              className={
+                expanded
+                  ? "publishing-center__attribute-description publishing-center__attribute-description--expanded"
+                  : "publishing-center__attribute-description"
+              }
+            >
+              {description}
+            </span>
+            {expandable ? (
+              <button
+                type="button"
+                className="publishing-center__attribute-description-toggle"
+                aria-controls={descriptionID}
+                aria-expanded={expanded}
+                aria-label={`${expanded ? "收起" : "展开"}${attribute.name}说明`}
+                onClick={() =>
+                  setExpandedAttributeDescriptions((current) => {
+                    const next = new Set(current);
+                    if (next.has(instanceKey)) next.delete(instanceKey);
+                    else next.add(instanceKey);
+                    return next;
+                  })
+                }
+              >
+                {expanded ? "收起" : "展开全文"}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {maximum ? (
+          <Typography.Text type="secondary">{maximum}</Typography.Text>
+        ) : null}
+      </div>
+    );
+  };
 
   const renderAttributeInput = (attribute: OzonCategoryAttribute) => {
     if (attribute.dictionaryId) {
@@ -2321,24 +2498,10 @@ export default function PublishingCenterPage() {
     <Form.Item
       key={attribute.attrId}
       name={["attributes", attribute.attrId]}
-      label={
-        <Space size={4}>
-          {attribute.name}
-          {attribute.required ? <Tag color="red">必填</Tag> : null}
-          {attribute.isCollection ? <Tag color="blue">多值</Tag> : null}
-          {attribute.valueType ? <Tag>{attribute.valueType}</Tag> : null}
-        </Space>
-      }
-      extra={
-        [
-          attribute.description,
-          attribute.maxValueCount
-            ? `最多 ${attribute.maxValueCount} 个值`
-            : undefined,
-        ]
-          .filter(Boolean)
-          .join("；") || undefined
-      }
+      label={renderAttributeLabel(attribute)}
+      required={attribute.required}
+      preserve
+      extra={renderAttributeHelp(attribute, `ordinary-${attribute.attrId}`)}
     >
       {renderAttributeInput(attribute)}
     </Form.Item>
@@ -3063,6 +3226,13 @@ export default function PublishingCenterPage() {
                         showIcon
                         message="选择类目后显示属性"
                       />
+                    ) : attributeTemplateError && attributes.length === 0 ? (
+                      <Alert
+                        type="error"
+                        showIcon
+                        message="当前类目属性模板加载失败"
+                        description={attributeTemplateError}
+                      />
                     ) : attributes.length === 0 ? (
                       <Alert
                         type="warning"
@@ -3076,20 +3246,180 @@ export default function PublishingCenterPage() {
                         size={20}
                         style={{ width: "100%" }}
                       >
-                        <Alert
-                          type="info"
-                          showIcon
-                          message="属性类型会在页面、保存校验和最终 Ozon 写入前重复核对"
-                          description="Integer、Decimal、Boolean、URL 和日期使用专用格式；Ozon 当前属性接口未返回结构化范围、精度、长度或单位字段时，页面会展示 description 原文，不会臆造平台规则。"
-                        />
-                        <div className="publishing-center__attribute-grid">
-                          {routineAttributes.map(renderOrdinaryAttribute)}
+                        {attributeTemplateError ? (
+                          <Alert
+                            type="error"
+                            showIcon
+                            message="类目属性模板刷新失败"
+                            description={attributeTemplateError}
+                            closable
+                            onClose={() => setAttributeTemplateError(undefined)}
+                          />
+                        ) : null}
+                        {templateCacheStale ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            message="当前类目属性模板可能已过期"
+                            description="页面保留现有字段和值；请在高级类目维护中刷新模板，确认成功后再保存。"
+                          />
+                        ) : null}
+                        {unsupportedAttributes.length > 0 ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            message={`${unsupportedAttributes.length} 个属性类型暂不支持编辑`}
+                            description={`${unsupportedAttributes
+                              .slice(0, 3)
+                              .map(
+                                (attribute) =>
+                                  `${attribute.name}（${attribute.valueType || "未知类型"}）`,
+                              )
+                              .join(
+                                "、",
+                              )}${unsupportedAttributes.length > 3 ? "等" : ""}。这些字段仍参与既有保存前校验，不会被静默忽略。`}
+                          />
+                        ) : null}
+                        <div
+                          className="publishing-center__attribute-summary"
+                          aria-label="属性填写摘要"
+                          aria-live="polite"
+                        >
+                          <div className="publishing-center__attribute-metric">
+                            <span>属性总数</span>
+                            <strong>{attributeProgress.total}</strong>
+                          </div>
+                          <div className="publishing-center__attribute-metric">
+                            <span>必填完成</span>
+                            <strong>
+                              {attributeProgress.requiredCompleted} /{" "}
+                              {attributeProgress.requiredTotal}
+                            </strong>
+                          </div>
+                          <div className="publishing-center__attribute-metric">
+                            <span>已填写</span>
+                            <strong>
+                              {attributeProgress.filled} /{" "}
+                              {attributeProgress.total}
+                            </strong>
+                          </div>
                         </div>
-                        {lowFrequencyAttributes.length > 0 ? (
+                        <div className="publishing-center__attribute-toolbar">
+                          <Input.Search
+                            allowClear
+                            value={attributeSearch}
+                            aria-label="搜索 Ozon 属性"
+                            placeholder="搜索属性名称或说明"
+                            disabled={loadingConfig}
+                            onChange={(event) =>
+                              setAttributeSearch(event.target.value)
+                            }
+                          />
+                          <div className="publishing-center__attribute-filters">
+                            <Segmented
+                              aria-label="筛选 Ozon 属性"
+                              value={attributeFilter}
+                              disabled={loadingConfig}
+                              options={[
+                                { label: "全部", value: "all" },
+                                { label: "必填", value: "required" },
+                                { label: "未填写", value: "unfilled" },
+                              ]}
+                              onChange={(value) =>
+                                setAttributeFilter(value as OzonAttributeFilter)
+                              }
+                            />
+                            {!canEdit ? <Tag>只读</Tag> : null}
+                          </div>
+                        </div>
+                        <Collapse
+                          className="publishing-center__attribute-rules"
+                          size="small"
+                          activeKey={formatRulesOpen ? ["format-rules"] : []}
+                          onChange={(keys) => {
+                            const activeKeys = Array.isArray(keys)
+                              ? keys
+                              : [keys];
+                            setFormatRulesOpen(
+                              activeKeys.includes("format-rules"),
+                            );
+                          }}
+                          items={[
+                            {
+                              key: "format-rules",
+                              label: "格式与校验规则",
+                              children: (
+                                <Typography.Text type="secondary">
+                                  输入控件与格式提示来自当前 Ozon
+                                  模板的字段类型；整数、数值、是/否、链接和日期会使用对应校验。模板未提供的范围、精度、长度或单位不会由页面臆造，隐藏字段仍参与保存与发布前检查。
+                                </Typography.Text>
+                              ),
+                            },
+                          ]}
+                        />
+                        {visibleRequiredAttributes.length > 0 ? (
+                          <section className="publishing-center__attribute-section">
+                            <div className="publishing-center__attribute-section-heading">
+                              <div>
+                                <Typography.Text strong>
+                                  必填属性（{visibleRequiredAttributes.length}
+                                  {hasActiveAttributeView
+                                    ? ` / ${requiredAttributes.length}`
+                                    : ""}
+                                  项）
+                                </Typography.Text>
+                                <Typography.Text type="secondary">
+                                  由当前叶子类目模板标记为必填
+                                </Typography.Text>
+                              </div>
+                            </div>
+                            <div className="publishing-center__attribute-grid">
+                              {visibleRequiredAttributes.map(
+                                renderOrdinaryAttribute,
+                              )}
+                            </div>
+                          </section>
+                        ) : null}
+                        {visibleOptionalAttributes.length > 0 ? (
+                          <Collapse
+                            activeKey={
+                              optionalAttributesOpen || hasActiveAttributeView
+                                ? ["optional-attributes"]
+                                : []
+                            }
+                            onChange={(keys) => {
+                              const activeKeys = Array.isArray(keys)
+                                ? keys
+                                : [keys];
+                              setOptionalAttributesOpen(
+                                activeKeys.includes("optional-attributes"),
+                              );
+                            }}
+                            items={[
+                              {
+                                key: "optional-attributes",
+                                label: `可选属性（${visibleOptionalAttributes.length}${
+                                  hasActiveAttributeView
+                                    ? ` / ${optionalAttributes.length}`
+                                    : ""
+                                } 项）`,
+                                children: (
+                                  <div className="publishing-center__attribute-grid">
+                                    {visibleOptionalAttributes.map(
+                                      renderOrdinaryAttribute,
+                                    )}
+                                  </div>
+                                ),
+                              },
+                            ]}
+                          />
+                        ) : null}
+                        {visibleLowFrequencyAttributes.length > 0 ? (
                           <Collapse
                             activeKey={
                               lowFrequencyAttributesOpen ||
-                              lowFrequencyAttributeIssueCount > 0
+                              lowFrequencyAttributeIssueCount > 0 ||
+                              hasActiveAttributeView
                                 ? ["low-frequency-attributes"]
                                 : []
                             }
@@ -3108,7 +3438,11 @@ export default function PublishingCenterPage() {
                                   <Space wrap>
                                     <span>
                                       低频与技术属性（
-                                      {lowFrequencyAttributes.length} 项）
+                                      {visibleLowFrequencyAttributes.length}
+                                      {hasActiveAttributeView
+                                        ? ` / ${lowFrequencyAttributes.length}`
+                                        : ""}{" "}
+                                      项）
                                     </span>
                                     {lowFrequencyAttributeIssueCount > 0 ? (
                                       <Tag color="red">
@@ -3126,14 +3460,12 @@ export default function PublishingCenterPage() {
                                     size={12}
                                     style={{ width: "100%" }}
                                   >
-                                    <Alert
-                                      type="info"
-                                      showIcon
-                                      message="低频字段仅在确有素材或平台要求时填写"
-                                      description="JSON 富内容、PDF、调试或诊断字段默认收起；展开和编辑不会绕过既有格式校验。"
-                                    />
+                                    <Typography.Text type="secondary">
+                                      JSON
+                                      富内容、PDF、调试或诊断字段默认收起，仅在确有素材或平台要求时填写；展开和编辑不会绕过既有格式校验。
+                                    </Typography.Text>
                                     <div className="publishing-center__attribute-grid">
-                                      {lowFrequencyAttributes.map(
+                                      {visibleLowFrequencyAttributes.map(
                                         renderOrdinaryAttribute,
                                       )}
                                     </div>
@@ -3143,7 +3475,7 @@ export default function PublishingCenterPage() {
                             ]}
                           />
                         ) : null}
-                        {complexGroups.map(([complexId, defs]) => {
+                        {visibleComplexGroups.map(([complexId, defs]) => {
                           const repeatable = defs.some(
                             (attribute) => attribute.complexIsCollection,
                           );
@@ -3205,32 +3537,15 @@ export default function PublishingCenterPage() {
                                                 field.name,
                                                 attribute.attrId,
                                               ]}
-                                              label={
-                                                <Space size={4}>
-                                                  {attribute.name}
-                                                  {attribute.required ? (
-                                                    <Tag color="red">必填</Tag>
-                                                  ) : null}
-                                                  {attribute.isCollection ? (
-                                                    <Tag color="blue">多值</Tag>
-                                                  ) : null}
-                                                  {attribute.valueType ? (
-                                                    <Tag>
-                                                      {attribute.valueType}
-                                                    </Tag>
-                                                  ) : null}
-                                                </Space>
-                                              }
-                                              extra={
-                                                [
-                                                  attribute.description,
-                                                  attribute.maxValueCount
-                                                    ? `最多 ${attribute.maxValueCount} 个值`
-                                                    : undefined,
-                                                ]
-                                                  .filter(Boolean)
-                                                  .join("；") || undefined
-                                              }
+                                              label={renderAttributeLabel(
+                                                attribute,
+                                              )}
+                                              required={attribute.required}
+                                              preserve
+                                              extra={renderAttributeHelp(
+                                                attribute,
+                                                `complex-${complexId}-${field.key}-${attribute.attrId}`,
+                                              )}
                                             >
                                               {renderAttributeInput(attribute)}
                                             </Form.Item>
@@ -3255,6 +3570,12 @@ export default function PublishingCenterPage() {
                             </section>
                           );
                         })}
+                        {!hasVisibleAttributes ? (
+                          <EmptyState
+                            title="没有匹配的 Ozon 属性"
+                            description="调整搜索词或筛选条件；已填写的隐藏字段和值仍会保留并参与保存校验。"
+                          />
+                        ) : null}
                       </Space>
                     )}
                   </SectionCard>
@@ -3496,31 +3817,28 @@ export default function PublishingCenterPage() {
                                               sku.id,
                                               attribute.attrId,
                                             ]}
-                                            label={
-                                              <Space size={4}>
-                                                {attribute.name}
-                                                <Tag color="red">
-                                                  每个 SKU 必填
-                                                </Tag>
-                                                {attribute.isCollection ? (
-                                                  <Tag color="blue">多值</Tag>
-                                                ) : null}
-                                                {attribute.valueType ? (
-                                                  <Tag>
-                                                    {attribute.valueType}
-                                                  </Tag>
-                                                ) : null}
-                                              </Space>
-                                            }
+                                            label={renderAttributeLabel(
+                                              attribute,
+                                            )}
+                                            required
+                                            preserve
                                             extra={
-                                              [
-                                                attribute.dictionaryId
-                                                  ? "必须选择 Ozon 词典值；自动匹配失败时请手动搜索。"
-                                                  : undefined,
-                                                attribute.description,
-                                              ]
-                                                .filter(Boolean)
-                                                .join("；") || undefined
+                                              <Space
+                                                direction="vertical"
+                                                size={2}
+                                                style={{ width: "100%" }}
+                                              >
+                                                {attribute.dictionaryId ? (
+                                                  <Typography.Text type="secondary">
+                                                    必须选择 Ozon
+                                                    词典值；自动匹配失败时请手动搜索。
+                                                  </Typography.Text>
+                                                ) : null}
+                                                {renderAttributeHelp(
+                                                  attribute,
+                                                  `variant-${sku.id}-${attribute.attrId}`,
+                                                )}
+                                              </Space>
                                             }
                                           >
                                             {renderAttributeInput(attribute)}

@@ -210,11 +210,64 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByText("来源类目映射证据完整", { exact: true }),
     ).toBeVisible();
+    const attributeSummary = page.getByLabel("属性填写摘要");
+    await expect(attributeSummary).toContainText("属性总数11");
+    await expect(attributeSummary).toContainText("必填完成3 / 3");
+    await expect(attributeSummary).toContainText("已填写3 / 11");
+    await expect(
+      page.getByText("必填属性（2项）", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.locator(".ant-form-item-required").filter({ hasText: "品牌" }),
+    ).toBeVisible();
+    await expect(page.getByText("String", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("整数", { exact: true })).toBeVisible();
+    await expect(page.getByText("是/否", { exact: true })).toBeVisible();
+    await expect(page.getByText("链接", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(/输入控件与格式提示来自当前 Ozon 模板/),
+    ).toBeHidden();
+    await page.getByText("格式与校验规则", { exact: true }).click();
+    await expect(
+      page.getByText(/输入控件与格式提示来自当前 Ozon 模板/),
+    ).toBeVisible();
+    const descriptionToggle = page.getByRole("button", {
+      name: "展开容量说明",
+    });
+    await descriptionToggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("button", { name: "收起容量说明" }),
+    ).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("spinbutton", { name: "容量" })).toBeVisible();
     await expect(page.getByLabel("是否偏光")).toBeVisible();
     await expect(
       page.getByRole("textbox", { name: "商品链接" }),
     ).toHaveAttribute("type", "url");
+    const capacityInput = page.getByRole("spinbutton", { name: "容量" });
+    const complexMaterialInput = page.getByRole("textbox", {
+      name: "材质组合",
+    });
+    await expect(complexMaterialInput).toHaveValue("棉");
+    await capacityInput.fill("12");
+    await expect(attributeSummary).toContainText("已填写4 / 11");
+    const attributeFilters = page.locator(
+      ".publishing-center__attribute-filters",
+    );
+    await attributeFilters.getByText("必填", { exact: true }).click();
+    await expect(capacityInput).toBeHidden();
+    await attributeFilters.getByText("全部", { exact: true }).click();
+    await expect(capacityInput).toHaveValue("12");
+    await attributeFilters.getByText("未填写", { exact: true }).click();
+    await expect(capacityInput).toBeHidden();
+    await expect(complexMaterialInput).toBeHidden();
+    await attributeFilters.getByText("全部", { exact: true }).click();
+    await expect(complexMaterialInput).toHaveValue("棉");
+    const attributeSearch = page.getByLabel("搜索 Ozon 属性");
+    await attributeSearch.fill("商品链接");
+    await expect(page.getByRole("textbox", { name: "品牌" })).toBeHidden();
+    await expect(page.getByRole("textbox", { name: "商品链接" })).toBeVisible();
+    await attributeSearch.fill("");
     const mappingEvidence = page.locator(
       ".publishing-center__mapping-evidence",
     );
@@ -263,6 +316,7 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByText("SKU 原始主图", { exact: true }).last(),
     ).toBeVisible();
+    expect(admin.writeGuard.allCalls()).toHaveLength(0);
   });
 
   test("summarizes a large public-image pool before the operator expands its 43 choices", async ({
@@ -1294,6 +1348,16 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByRole("textbox", { name: "刷新前模板字段" }),
     ).toBeVisible();
+    const attributeSearch = page.getByLabel("搜索 Ozon 属性");
+    await attributeSearch.fill("不会匹配任何字段");
+    await page
+      .locator(".publishing-center__attribute-filters")
+      .getByText("必填", { exact: true })
+      .click();
+    await page.getByText("格式与校验规则", { exact: true }).click();
+    await expect(
+      page.getByText(/输入控件与格式提示来自当前 Ozon 模板/),
+    ).toBeVisible();
     await page.getByText("高级类目维护", { exact: true }).click();
     await page.getByRole("button", { name: "刷新当前类目属性模板" }).click();
 
@@ -1312,6 +1376,13 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByRole("textbox", { name: "刷新前模板字段" }),
     ).toBeHidden();
+    await expect(attributeSearch).toHaveValue("");
+    await expect(
+      page.getByRole("radio", { name: "全部", exact: true }),
+    ).toBeChecked();
+    await expect(
+      page.getByText(/输入控件与格式提示来自当前 Ozon 模板/),
+    ).toBeHidden();
     expect(refreshKeys.some(Boolean)).toBe(true);
 
     await page.getByRole("button", { name: "刷新当前类目属性模板" }).click();
@@ -1320,7 +1391,9 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
       2,
     );
     await expect(
-      page.getByText(/Ozon 返回的最新类目属性模板为空/),
+      page
+        .locator(".ant-alert-error")
+        .filter({ hasText: /Ozon 返回的最新类目属性模板为空/ }),
     ).toBeVisible();
     await expect(
       page.getByRole("textbox", { name: "刷新后的模板字段" }),
@@ -1369,6 +1442,10 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByRole("button", { name: "保存当前编辑（不提交）" }),
     ).toBeDisabled();
+    await goPublishingStep(page, "Ozon 类目与属性");
+    await expect(page.getByLabel("搜索 Ozon 属性")).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: "品牌" })).toBeDisabled();
+    await expect(page.getByText("只读", { exact: true })).toBeVisible();
 
     await page.route(new RegExp(`${configPath}(?:\\?.*)?$`), async (route) => {
       if (route.request().method() === "GET") {
@@ -1410,19 +1487,32 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
   });
 
   for (const viewport of fiveViewports) {
-    test(`has no root overflow and keeps the check panel first at ${viewport.width}x${viewport.height}`, async ({
+    test(`keeps attribute fields responsive and has no root overflow at ${viewport.width}x${viewport.height}`, async ({
       admin,
       page,
     }) => {
       await page.setViewportSize(viewport);
       await admin.goto(centerPath);
       await expectCenterReady(page);
+      await goPublishingStep(page, "Ozon 类目与属性");
+      await expectNoRootOverflow(page);
+      const attributeGrid = page
+        .locator(".publishing-center__attribute-grid:visible")
+        .first();
+      await expect(attributeGrid).toBeVisible();
+      const attributeColumnCount = await attributeGrid.evaluate(
+        (element) =>
+          getComputedStyle(element)
+            .gridTemplateColumns.split(/\s+/)
+            .filter(Boolean).length,
+      );
+      expect(attributeColumnCount).toBe(viewport.width <= 1024 ? 1 : 2);
+      await page.getByText("格式与校验规则", { exact: true }).click();
+      await expectNoRootOverflow(page);
       await goPublishingStep(page, "发布前检查与提交");
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
-      await page
-        .getByText("查看全部规格明细（1 个）", { exact: true })
-        .click();
+      await page.getByText("查看全部规格明细（1 个）", { exact: true }).click();
       await expectNoRootOverflow(page);
       if (viewport.width <= 1024) {
         const positions = await page.evaluate(() => {
