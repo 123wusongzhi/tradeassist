@@ -38,6 +38,8 @@ type Service struct {
 	Idempotency *idempotency.Service
 
 	Shops               DouyinShopClientFactory
+	OzonCategories      OzonCategoryRecommendationCatalog
+	OzonCategoryAI      AIChatClient
 	DouyinImageUploader DouyinImageUploader
 	Readiness           func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
 }

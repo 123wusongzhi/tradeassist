@@ -474,6 +474,16 @@ func TestOzonCategoryListSearchesFullPathAndPaginatesMatches(t *testing.T) {
 		t.Fatalf("second page = %+v", second)
 	}
 
+	allMatches, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		Keyword: "收纳", OnlyLeaf: true, ActiveOnly: true, Limit: 1, Offset: 1, AllMatches: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allMatches.MatchedTotal != 2 || len(allMatches.List) != 2 || allMatches.Offset != 0 || allMatches.Limit != 2 {
+		t.Fatalf("all matches = %+v", allMatches)
+	}
+
 	byID, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
 		Keyword: "17027937:95482", OnlyLeaf: true, ActiveOnly: true, Limit: 20,
 	})

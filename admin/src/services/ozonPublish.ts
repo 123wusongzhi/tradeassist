@@ -93,6 +93,98 @@ export type OzonCategoryRecommendation = {
   confirmed?: boolean;
 };
 
+export type OzonProductCategoryRecommendationStatus =
+  | "ready"
+  | "partial"
+  | "no_match"
+  | "ai_unavailable"
+  | "category_cache_empty";
+
+export type OzonCategoryRecommendationEvidence = {
+  skuId: string;
+  skuCode?: string;
+  source: "sku.attrs" | string;
+  sourceKey: string;
+  rawValue: string;
+};
+
+export type OzonCategoryDifferenceDimension = {
+  key: string;
+  name: string;
+  semantic: string;
+  confidence: number;
+  evidence: OzonCategoryRecommendationEvidence[];
+};
+
+export type OzonCategoryRecommendationAnomaly = {
+  type: string;
+  message: string;
+  skuIds: string[];
+  confidence: number;
+  evidence?: OzonCategoryRecommendationEvidence[];
+};
+
+export type OzonCategoryRecommendationCoverage = {
+  matched: number;
+  total: number;
+  ratio: number;
+};
+
+export type OzonCategoryRecommendationMatchedDimension = {
+  sourceDimensionKey: string;
+  sourceDimensionName: string;
+  targetAttributeId: string;
+  targetAttributeName: string;
+  isAspect: boolean;
+  isAspectKnown: boolean;
+};
+
+export type OzonCategoryRecommendationUnmatchedDimension = {
+  sourceDimensionKey: string;
+  sourceDimensionName: string;
+  reason: string;
+};
+
+export type OzonProductCategoryRecommendationCandidate = {
+  categoryId: string;
+  categoryPath: string;
+  score: number;
+  confidence: number;
+  approximate: boolean;
+  variantCoverage: OzonCategoryRecommendationCoverage;
+  requiredCoverage: OzonCategoryRecommendationCoverage;
+  matchedDimensions: OzonCategoryRecommendationMatchedDimension[];
+  unmatchedDimensions: OzonCategoryRecommendationUnmatchedDimension[];
+  listingStrategy:
+    | "group_all"
+    | "group_subset"
+    | "split_single_sku"
+    | "manual_review"
+    | string;
+  reasons: string[];
+  warnings: string[];
+  schemaHash: string;
+  templateSyncedAt?: string;
+};
+
+export type OzonProductCategoryRecommendation = {
+  status: OzonProductCategoryRecommendationStatus;
+  taskId?: string;
+  sourceSummary: {
+    productTitle: string;
+    skuCount: number;
+    selectedSkuCount: number;
+    skuGroupNames: string[];
+    productAttributeCount: number;
+    primaryEvidence: string;
+  };
+  productType?: string;
+  differenceDimensions: OzonCategoryDifferenceDimension[];
+  anomalies: OzonCategoryRecommendationAnomaly[];
+  candidates: OzonProductCategoryRecommendationCandidate[];
+  warnings: string[];
+};
+
 export type OzonProductConfig = {
   id?: string;
   productId: string;
@@ -973,6 +1065,24 @@ export function recommendOzonCategory(body: {
   return postJSON<OzonCategoryRecommendation>(
     "/api/v1/platform/ozon/category-mappings/recommend",
     body,
+  );
+}
+
+export function recommendOzonProductCategories(
+  productId: string,
+  body: {
+    shopId: string;
+    skuIds?: string[];
+    refreshPolicy?: "if_missing_or_stale" | "cache_only";
+  },
+) {
+  return postJSON<OzonProductCategoryRecommendation>(
+    `/api/v1/products/${enc(productId)}/platform-configs/ozon/category-recommendations`,
+    {
+      shopId: body.shopId,
+      skuIds: body.skuIds ?? [],
+      refreshPolicy: body.refreshPolicy ?? "if_missing_or_stale",
+    },
   );
 }
 export function saveOzonCategoryMapping(body: OzonCategoryMappingInput) {

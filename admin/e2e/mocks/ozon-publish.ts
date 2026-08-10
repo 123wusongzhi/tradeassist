@@ -190,6 +190,99 @@ export const e2eOzonConfig = {
   legacyFallback: false,
 };
 
+export const e2eOzonCategoryRecommendation = {
+  status: "partial",
+  taskId: "e2e-ozon-category-recommendation",
+  sourceSummary: {
+    productTitle: "E2E 多规格固态继电器",
+    skuCount: 6,
+    selectedSkuCount: 6,
+    skuGroupNames: ["颜色分类"],
+    productAttributeCount: 2,
+    primaryEvidence: "sku.attrs",
+  },
+  productType: "固态继电器",
+  differenceDimensions: [
+    {
+      key: "model",
+      name: "型号",
+      semantic: "model",
+      confidence: 0.98,
+      evidence: [
+        {
+          skuId: "e2e-sku-1",
+          skuCode: "E2E-SKU-1",
+          source: "sku.attrs",
+          sourceKey: "颜色分类",
+          rawValue: "SSK4A 直流控交流 4A 带底座",
+        },
+      ],
+    },
+    {
+      key: "current",
+      name: "电流",
+      semantic: "current",
+      confidence: 0.96,
+      evidence: [
+        {
+          skuId: "e2e-sku-1",
+          skuCode: "E2E-SKU-1",
+          source: "sku.attrs",
+          sourceKey: "颜色分类",
+          rawValue: "SSK4A 直流控交流 4A 带底座",
+        },
+      ],
+    },
+  ],
+  anomalies: [
+    {
+      type: "different_product_subject",
+      message: "短接线与继电器不是同一商品主体，请拆分或人工复核",
+      skuIds: ["e2e-sku-short-wire"],
+      confidence: 0.99,
+      evidence: [
+        {
+          skuId: "e2e-sku-short-wire",
+          skuCode: "E2E-SKU-WIRE",
+          source: "sku.attrs",
+          sourceKey: "颜色分类",
+          rawValue: "【1只装】短接线",
+        },
+      ],
+    },
+  ],
+  candidates: [
+    {
+      categoryId: E2E_OZON_CATEGORY_ID,
+      categoryPath: "家具 / 桌子",
+      score: 61.5,
+      confidence: 0.71,
+      approximate: true,
+      variantCoverage: { matched: 0, total: 2, ratio: 0 },
+      requiredCoverage: { matched: 2, total: 3, ratio: 0.67 },
+      matchedDimensions: [],
+      unmatchedDimensions: [
+        {
+          sourceDimensionKey: "model",
+          sourceDimensionName: "型号",
+          reason: "模板没有语义相符且 is_aspect=true、资格已知的属性",
+        },
+        {
+          sourceDimensionKey: "current",
+          sourceDimensionName: "电流",
+          reason: "不能把电流映射到颜色或其他无关属性",
+        },
+      ],
+      listingStrategy: "split_single_sku",
+      reasons: ["商品语义近似，但模板无法承载全部 SKU 区别"],
+      warnings: ["请拆分为单 SKU 或人工复核后再保存"],
+      schemaHash: "e2e-schema-v1",
+      templateSyncedAt: "2026-08-10T00:00:00Z",
+    },
+  ],
+  warnings: ["部分模板未刷新，结果按已有缓存计算"],
+};
+
 export function ozonPublishResponse(
   path: string,
   searchParams?: URLSearchParams,

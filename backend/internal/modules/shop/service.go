@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -40,6 +41,9 @@ type Service struct {
 	OpLog     *operationlog.Service
 	Redis     *rdb.Client
 	Settings  *settings.Service
+
+	ozonCategorySearchMu    sync.RWMutex
+	ozonCategorySearchIndex *ozonCategorySearchIndex
 
 	// TrustedProviderRuntimeOverrides is process-owned test/integration wiring.
 	// Never populate it from tenant input or persisted shop auth_config.
