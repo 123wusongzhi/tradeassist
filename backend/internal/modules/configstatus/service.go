@@ -414,18 +414,23 @@ func (s *Service) collectorItem(ctx context.Context) Item {
 		Title:       "采集引擎",
 		SettingsURL: "/settings/collector",
 	}
-	enabled := s.Config != nil && s.Config.CollectorBaseURL != ""
-	if !enabled {
+	playwrightEnabled := s.Config != nil && s.Config.CollectorPlaywrightEnabled
+	opencliEnabled := s.Config != nil && s.Config.OpenCLIBridgeEnabled
+	if !playwrightEnabled && !opencliEnabled {
 		it.Status = StatusNotConfigured
-		it.Summary = "未配置采集服务地址"
-		it.NextAction = "启动 Playwright Collector 并配置 COLLECTOR_PLAYWRIGHT_BASE_URL"
+		it.Summary = "后台采集引擎已停用"
+		it.NextAction = "使用浏览器扩展；淘宝/天猫也可显式启用 OpenCLI Bridge"
 		return it
 	}
 	it.Status = StatusRunning
-	it.Summary = "Playwright Collector 已配置（健康检查见 /health）"
-	if s.Config.OpenCLIBridgeEnabled {
-		it.Summary += "；OpenCLI Bridge 已启用（独立故障域）"
+	parts := make([]string, 0, 2)
+	if opencliEnabled {
+		parts = append(parts, "OpenCLI Bridge 已启用")
 	}
+	if playwrightEnabled {
+		parts = append(parts, "Playwright Collector 已显式启用（健康检查见 /health）")
+	}
+	it.Summary = strings.Join(parts, "；")
 	return it
 }
 

@@ -37,6 +37,8 @@ import {
 import {
   collectEngineLabel,
   collectEngineOptions,
+  collectEngineSelectable,
+  collectSourceHasEnabledEngine,
   findCollectEngineStatus,
   normalizeCollectEngine,
   readCollectTaskEngine,
@@ -142,7 +144,7 @@ export default function CollectBatchesPage() {
         if (!cancelled) setDefaultEngine(engine);
       })
       .catch(() => {
-        if (!cancelled) setDefaultEngine('playwright');
+        if (!cancelled) setDefaultEngine('opencli');
       })
       .finally(() => {
         if (!cancelled) setEngineResolved(true);
@@ -210,9 +212,23 @@ export default function CollectBatchesPage() {
   }, [providers]);
 
   const batchSelectOpts = useMemo(
-    () => batchProviders.map((p) => ({ label: `${p.name}`, value: p.source })),
-    [batchProviders],
+    () =>
+      batchProviders.map((p) => {
+        const engineEnabled = engineResolved && collectSourceHasEnabledEngine(engineStatus, p.source);
+        return {
+          label: `${p.name}${engineResolved && !engineEnabled ? ' · 后台引擎已停用' : ''}`,
+          value: p.source,
+          disabled: !engineEnabled,
+        };
+      }),
+    [batchProviders, engineResolved, engineStatus],
   );
+  const selectedBatchEngineEnabled =
+    engineResolved &&
+    collectSourceHasEnabledEngine(engineStatus, formSourceWatch) &&
+    (!isTaobaoTmallSource(formSourceWatch) ||
+      collectEngineSelectable(engineStatus, normalizeCollectEngine(formEngineWatch)));
+  const hasRunnableBatchProvider = batchSelectOpts.some((option) => !option.disabled);
 
   const openDrawer = useCallback((row: CollectBatchRow) => {
     setActiveBatch(row);
@@ -520,8 +536,14 @@ export default function CollectBatchesPage() {
             message="所选采集服务暂不支持批量采集，已切换到当前可用的批量平台。"
           />
         ) : null}
-        {batchProviders.length === 0 && providers.length > 0 ? (
-          <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="当前没有支持批量采集的可用平台。" />
+        {engineResolved && !hasRunnableBatchProvider && providers.length > 0 ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="当前没有支持批量采集的可用后台引擎"
+            description="Playwright 已停用；淘宝/天猫可在启用 OpenCLI Bridge 后使用后台批量采集。"
+          />
         ) : null}
         <Form
           form={form}
@@ -537,6 +559,14 @@ export default function CollectBatchesPage() {
 
             let urls: string[] = [];
             const engine = isTaobaoTmallSource(src) ? normalizeCollectEngine(vals.engine) : undefined;
+            if (
+              !engineResolved ||
+              !collectSourceHasEnabledEngine(engineStatus, src) ||
+              (engine && !collectEngineSelectable(engineStatus, engine))
+            ) {
+              message.warning('该来源的后台采集引擎已停用，请使用浏览器扩展或先启用可用引擎');
+              return;
+            }
             if (isTaobaoTmallSource(src)) {
               const parsed = parseTaobaoTmallBatchUrls(vals.urls ?? '');
               urls = parsed.valid;
@@ -640,7 +670,7 @@ export default function CollectBatchesPage() {
                 message={
                   openCliStatus?.ready ? 'OpenCLI Bridge 已就绪' : openCliStatus?.message || 'OpenCLI Bridge 当前不可用'
                 }
-                description="本批次会固定使用 OpenCLI；失败时不会自动切换到 Playwright。"
+                description="本批次会固定使用 OpenCLI；Playwright 当前已停用。"
               />
             ) : null}
             <Form.Item
@@ -656,7 +686,7 @@ export default function CollectBatchesPage() {
               <Input.TextArea rows={12} placeholder={batchSourcePlaceholder} style={{ fontFamily: 'monospace' }} />
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit" loading={submitting} disabled={batchSelectOpts.length === 0}>
+              <Button type="primary" htmlType="submit" loading={submitting} disabled={!selectedBatchEngineEnabled}>
                 提交批量采集
               </Button>
             </Form.Item>

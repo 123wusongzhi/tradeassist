@@ -16,6 +16,19 @@ export type ProductSku = {
 
 export type BrowserCollectSource = 'taobao_tmall' | '1688';
 
+export type ProductPackagingRow = {
+  specification: string;
+  lengthCm: number | null;
+  widthCm: number | null;
+  heightCm: number | null;
+  volumeCm3: number | null;
+  weightG: number | null;
+};
+
+export type ProductPackagingInfo = {
+  rows: ProductPackagingRow[];
+};
+
 export type NormalizedProduct = {
   source: BrowserCollectSource;
   sourceUrl: string;
@@ -24,6 +37,8 @@ export type NormalizedProduct = {
   mainDescription?: string;
   mainImages: string[];
   descriptionImages: string[];
+  /** 1688 商品件重尺表；仅记录来源页明确给出的 cm / cm³ / g 值。 */
+  packaging?: ProductPackagingInfo;
   attributes: Record<string, string | number | boolean>;
   skus: ProductSku[];
   raw: Record<string, unknown>;

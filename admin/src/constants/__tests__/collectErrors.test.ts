@@ -9,8 +9,14 @@ describe('collect error copy', () => {
     const message = mapCollectErrorMessage(raw, 'taobao_tmall');
 
     expect(message).toContain('OpenCLI Bridge');
-    expect(message).toContain('Playwright');
+    expect(message).toContain('浏览器扩展');
+    expect(message).not.toContain('切换为 Playwright');
     expect(message).not.toContain('host.docker.internal');
+  });
+
+  it('explains that a disabled backend engine must not receive new tasks', () => {
+    expect(mapCollectorErrorCodeLabel('COLLECT_ENGINE_DISABLED')).toBe('采集引擎已停用');
+    expect(mapCollectorErrorCodeDetail('COLLECT_ENGINE_DISABLED', '1688')).toContain('浏览器扩展');
   });
 
   it('keeps a generic collector outage free of internal network details', () => {

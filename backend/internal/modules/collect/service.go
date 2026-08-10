@@ -411,7 +411,7 @@ func (s *Service) RunCollectJob(parent context.Context, taskID uuid.UUID, worker
 	engine := collectEngineFromRequestOptions(task.RequestOptions)
 	engineRouter := s.EngineRouter
 	if engineRouter == nil {
-		engineRouter = NewCollectorEngineRouter(s.Client, nil, false, CollectEnginePlaywright, 0)
+		engineRouter = NewCollectorEngineRouter(s.Client, s.Client != nil, nil, false, CollectEnginePlaywright, 0)
 	}
 	resolvedEngine, err := engineRouter.ResolveEngine(task.Source, engine)
 	if err != nil {
@@ -630,7 +630,7 @@ func (s *Service) CreateTaskAsync(c *gin.Context, body CreateTaskBody, adminID *
 
 	engineRouter := s.EngineRouter
 	if engineRouter == nil {
-		engineRouter = NewCollectorEngineRouter(s.Client, nil, false, CollectEnginePlaywright, 0)
+		engineRouter = NewCollectorEngineRouter(s.Client, s.Client != nil, nil, false, CollectEnginePlaywright, 0)
 	}
 	engine, err := engineRouter.ResolveEngine(source, body.Engine)
 	if err != nil {

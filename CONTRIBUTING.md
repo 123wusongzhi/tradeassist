@@ -21,9 +21,10 @@ git switch -c feat/your-feature-name
 
 ```bash
 pnpm install
-pnpm install:collector:browsers
 pnpm dev
 ```
+
+Playwright Collector 默认停用，常规开发不安装其浏览器二进制、不启动其进程。
 
 常用命令：
 
@@ -32,9 +33,15 @@ pnpm check:dev
 pnpm dev:infra
 pnpm dev:backend
 pnpm dev:admin
+# 仅在显式恢复 Playwright Collector 时使用
+pnpm install:collector:browsers
 pnpm dev:collector
 pnpm dev:stop
+pnpm docker:full:up
 ```
+
+`pnpm dev` 会在启动前拒绝与 `trademind-full` 完整栈并行运行，并只清理身份可验证的本仓库
+开发进程。`pnpm dev:stop` 不会停止完整栈或无关端口占用者。
 
 更多说明见 [docs/guides/development.md](docs/guides/development.md)。
 

@@ -37,6 +37,8 @@ import {
   OPENCLI_SUPPORTED_SOURCE,
   collectEngineLabel,
   collectEngineOptions,
+  collectEngineSelectable,
+  collectSourceHasEnabledEngine,
   findCollectEngineStatus,
   normalizeCollectEngine,
   readCollectTaskEngine,
@@ -121,7 +123,7 @@ export default function CollectTasksPage() {
         if (!cancelled) setDefaultEngine(eng);
       })
       .catch(() => {
-        if (!cancelled) setDefaultEngine('playwright');
+        if (!cancelled) setDefaultEngine('opencli');
       })
       .finally(() => {
         if (!cancelled) setEngineResolved(true);
@@ -244,11 +246,20 @@ export default function CollectTasksPage() {
     return pat && pat.length > 0 ? pat : 'https://detail.1688.com/offer/...';
   }, [providers, formSource]);
 
-  const providerSelectOptions = providers.map((p) => ({
-    label: `${p.name}（${p.source}）`,
-    value: p.source,
-    disabled: !providerAllowsSingleCollect(p.status),
-  }));
+  const providerSelectOptions = providers.map((p) => {
+    const providerEnabled = providerAllowsSingleCollect(p.status);
+    const engineEnabled = engineResolved && collectSourceHasEnabledEngine(engineStatus, p.source);
+    return {
+      label: `${p.name}（${p.source}）${providerEnabled && engineResolved && !engineEnabled ? ' · 后台引擎已停用' : ''}`,
+      value: p.source,
+      disabled: !providerEnabled || !engineEnabled,
+    };
+  });
+  const selectedEngineEnabled =
+    engineResolved &&
+    collectSourceHasEnabledEngine(engineStatus, formSource) &&
+    (!isTaobaoTmallSource || collectEngineSelectable(engineStatus, normalizeCollectEngine(formEngine)));
+  const hasRunnableProvider = providerSelectOptions.some((option) => !option.disabled);
 
   const tableSourceEnum = useMemo(() => {
     const rec: Record<string, { text: string }> = {};
@@ -510,6 +521,15 @@ export default function CollectTasksPage() {
             description="已支持专用采集服务的平台链接无法通过自定义采集提交，请在采集中心使用对应采集方式。"
           />
         ) : null}
+        {engineResolved && !hasRunnableProvider ? (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="当前没有可用的后台采集引擎"
+            description="Playwright 已停用；请使用浏览器扩展，或为淘宝/天猫启用 OpenCLI Bridge。"
+          />
+        ) : null}
         <Form
           form={form}
           layout="vertical"
@@ -521,6 +541,15 @@ export default function CollectTasksPage() {
             const p = providers.find((x) => x.source === src);
             if (!p || !providerAllowsSingleCollect(p.status)) {
               message.warning('请先选择一个可用的采集平台');
+              return;
+            }
+            const requestedEngine = src === OPENCLI_SUPPORTED_SOURCE ? normalizeCollectEngine(vals.engine) : undefined;
+            if (
+              !engineResolved ||
+              !collectSourceHasEnabledEngine(engineStatus, src) ||
+              (requestedEngine && !collectEngineSelectable(engineStatus, requestedEngine))
+            ) {
+              message.warning('该来源的后台采集引擎已停用，请使用浏览器扩展或先启用可用引擎');
               return;
             }
             if (!url) {
@@ -555,7 +584,7 @@ export default function CollectTasksPage() {
                 source: src,
                 url,
                 ...(src === 'custom' ? { ruleId: rid || undefined } : {}),
-                ...(src === OPENCLI_SUPPORTED_SOURCE ? { engine: normalizeCollectEngine(vals.engine) } : {}),
+                ...(requestedEngine ? { engine: requestedEngine } : {}),
                 ...(isPddSource
                   ? {
                       useBrowserProfile: pddUseBrowserProfile || pddUrlType === 'wholesale_detail',
@@ -569,7 +598,7 @@ export default function CollectTasksPage() {
                 mapCollectErrorMessage(
                   e,
                   vals.source,
-                  src === OPENCLI_SUPPORTED_SOURCE ? normalizeCollectEngine(vals.engine) : undefined,
+                  requestedEngine,
                 ),
               );
             } finally {
@@ -621,7 +650,7 @@ export default function CollectTasksPage() {
             </Col>
             <Col xs={24} sm="auto">
               <Form.Item label=" ">
-                <Button type="primary" htmlType="submit" loading={submitting}>
+                <Button type="primary" htmlType="submit" loading={submitting} disabled={!selectedEngineEnabled}>
                   提交
                 </Button>
               </Form.Item>
@@ -636,8 +665,8 @@ export default function CollectTasksPage() {
               }
               description={
                 openCliStatus?.ready
-                  ? '本任务会固定使用 OpenCLI；Playwright 保持可选备用。'
-                  : '请先启动宿主机 OpenCLI Bridge，或切换为 Playwright。失败时不会自动改用另一引擎。'
+                  ? '本任务会固定使用 OpenCLI；Playwright 当前已停用。'
+                  : '请先启动宿主机 OpenCLI Bridge，或改用浏览器扩展。Playwright 当前已停用。'
               }
               style={{ marginTop: 4, marginBottom: 12 }}
             />
@@ -650,7 +679,7 @@ export default function CollectTasksPage() {
               style={{ marginTop: 4, marginBottom: 0 }}
             />
           ) : null}
-          {isPddSource ? (
+          {isPddSource && selectedEngineEnabled ? (
             <div style={{ marginTop: 16, marginBottom: 12 }}>
               <PinduoduoLoginPanel loginUrl={formUrl?.trim() || undefined} compact />
               <Space style={{ marginTop: 16 }} wrap>

@@ -47,6 +47,9 @@ type Config struct {
 	// runtime compatibility field while COLLECTOR_PLAYWRIGHT_BASE_URL is the
 	// preferred environment variable.
 	CollectorBaseURL string
+	// CollectorPlaywrightEnabled explicitly opts the backend into the legacy
+	// Playwright collector. It defaults to false so normal installs do not load it.
+	CollectorPlaywrightEnabled bool
 	// CollectorToken authenticates backend calls to Collector /v1 endpoints.
 	CollectorToken string
 	// CollectorTimeoutSeconds caps outbound HTTP calls to the Playwright collector.
@@ -259,6 +262,7 @@ func Load() (*Config, error) {
 			os.Getenv("COLLECTOR_PLAYWRIGHT_BASE_URL"),
 			firstNonEmpty(os.Getenv("COLLECTOR_BASE_URL"), "http://127.0.0.1:3001"),
 		)), "/"),
+		CollectorPlaywrightEnabled:  envBool(os.Getenv("COLLECTOR_PLAYWRIGHT_ENABLED"), false),
 		CollectorToken:              strings.TrimSpace(os.Getenv("COLLECTOR_INTERNAL_TOKEN")),
 		CollectorTimeoutSeconds:     atoiOrDefault(os.Getenv("COLLECTOR_TIMEOUT_SECONDS"), 120),
 		OpenCLIBridgeEnabled:        envBool(os.Getenv("OPENCLI_BRIDGE_ENABLED"), false),

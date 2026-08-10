@@ -203,18 +203,35 @@ func browserExtension1688ProductJSON(title string) json.RawMessage {
 			"https://cbu01.alicdn.com/img/ibank/O1CN01test.jpg",
 		},
 		"descriptionImages": []string{},
+		"packaging": map[string]any{
+			"rows": []map[string]any{
+				{
+					"specification": "双孔8#橡胶塞",
+					"lengthCm":      nil,
+					"widthCm":       nil,
+					"heightCm":      nil,
+					"volumeCm3":     nil,
+					"weightG":       100,
+				},
+			},
+		},
 		"attributes": map[string]any{
 			"单位":    "个",
 			"最小起订量": 2,
 		},
 		"skus": []map[string]any{
 			{
-				"properties": map[string]string{"颜色": "黑色"},
-				"price":      price,
-				"stock":      stock,
-				"skuCode":    "sku-black",
-				"image":      "https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg",
-				"raw":        map[string]any{"source": "skuMap"},
+				"properties": map[string]string{
+					"产品规格":        "方8*40*100含挡板",
+					"螺纹公称(M)(mm)": "8",
+					"公称长度(mm)":    "100",
+					"产品尺寸":        "13×8×17",
+				},
+				"price":   price,
+				"stock":   stock,
+				"skuCode": "sku-black",
+				"image":   "https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg",
+				"raw":     map[string]any{"source": "skuMap"},
 			},
 		},
 		"raw": map[string]any{
@@ -264,6 +281,24 @@ func TestCompleteBrowserExtensionTaskImports1688Draft(t *testing.T) {
 	require.Equal(t, "1688", draft.Source)
 	require.Contains(t, string(draft.RawData), "priceTiers")
 	require.Contains(t, string(draft.RawData), "最小起订量")
+	var normalized map[string]any
+	require.NoError(t, json.Unmarshal(draft.RawData, &normalized))
+	packaging := normalized["packaging"].(map[string]any)
+	packagingRows := packaging["rows"].([]any)
+	require.Len(t, packagingRows, 1)
+	packagingRow := packagingRows[0].(map[string]any)
+	require.Equal(t, "双孔8#橡胶塞", packagingRow["specification"])
+	require.Nil(t, packagingRow["lengthCm"])
+	require.Equal(t, float64(100), packagingRow["weightG"])
+	var sku product.ProductSKU
+	require.NoError(t, svc.Products.DB.First(&sku, "product_id = ?", draft.ID).Error)
+	require.Equal(t, "https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg", sku.ImageURL)
+	var skuAttrs map[string]string
+	require.NoError(t, json.Unmarshal(sku.Attrs, &skuAttrs))
+	require.Equal(t, "方8*40*100含挡板", skuAttrs["产品规格"])
+	require.Equal(t, "8", skuAttrs["螺纹公称(M)(mm)"])
+	require.Equal(t, "100", skuAttrs["公称长度(mm)"])
+	require.Equal(t, "13×8×17", skuAttrs["产品尺寸"])
 }
 
 func TestCompleteBrowserExtensionTaskImportsDraftAndSucceeds(t *testing.T) {

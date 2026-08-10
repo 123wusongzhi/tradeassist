@@ -38,6 +38,7 @@ func TestValidateCollectEnginesRequiresBridgeURLWhenEnabled(t *testing.T) {
 func TestValidateCollectEnginesRejectsInvalidURLs(t *testing.T) {
 	cfg := &Config{
 		CollectorBaseURL:                "collector:3001",
+		CollectorPlaywrightEnabled:      true,
 		CollectDefaultEngineTaobaoTmall: "playwright",
 	}
 	if err := cfg.validateCollectEngines(); err == nil ||
@@ -57,6 +58,7 @@ func TestValidateCollectEnginesRejectsInvalidURLs(t *testing.T) {
 func TestValidateCollectEnginesRequiresTokenForRemoteCollector(t *testing.T) {
 	cfg := &Config{
 		CollectorBaseURL:                "http://collector:3001",
+		CollectorPlaywrightEnabled:      true,
 		CollectDefaultEngineTaobaoTmall: "playwright",
 	}
 	if err := cfg.validateCollectEngines(); err == nil ||
@@ -67,5 +69,27 @@ func TestValidateCollectEnginesRequiresTokenForRemoteCollector(t *testing.T) {
 	cfg.CollectorToken = "collector-test-token"
 	if err := cfg.validateCollectEngines(); err != nil {
 		t.Fatalf("expected authenticated remote collector config: %v", err)
+	}
+}
+
+func TestValidateCollectEnginesRequiresURLWhenPlaywrightEnabled(t *testing.T) {
+	cfg := &Config{
+		CollectorPlaywrightEnabled:      true,
+		CollectDefaultEngineTaobaoTmall: "playwright",
+	}
+	if err := cfg.validateCollectEngines(); err == nil ||
+		!strings.Contains(err.Error(), "COLLECTOR_PLAYWRIGHT_BASE_URL") {
+		t.Fatalf("expected Playwright URL error, got %v", err)
+	}
+}
+
+func TestValidateCollectEnginesIgnoresDisabledPlaywrightConfig(t *testing.T) {
+	cfg := &Config{
+		CollectorBaseURL:                "collector:3001",
+		CollectorPlaywrightEnabled:      false,
+		CollectDefaultEngineTaobaoTmall: "opencli",
+	}
+	if err := cfg.validateCollectEngines(); err != nil {
+		t.Fatalf("disabled Playwright config must not block startup: %v", err)
 	}
 }

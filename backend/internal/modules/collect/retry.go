@@ -78,6 +78,10 @@ func collectorErrorCode(err error) string {
 	if errors.As(err, &rej) && rej != nil {
 		return strings.ToUpper(strings.TrimSpace(rej.Code))
 	}
+	var routingErr *CollectEngineRoutingError
+	if errors.As(err, &routingErr) && routingErr != nil {
+		return strings.ToUpper(strings.TrimSpace(routingErr.Code))
+	}
 	return ""
 }
 
@@ -134,6 +138,17 @@ func collectorRejectExtras(err error) map[string]any {
 		}
 		if len(extras) > 0 {
 			return extras
+		}
+	}
+	var routingErr *CollectEngineRoutingError
+	if errors.As(err, &routingErr) && routingErr != nil {
+		code := strings.TrimSpace(routingErr.Code)
+		if code == "" {
+			return nil
+		}
+		return map[string]any{
+			"collectorCode": code,
+			"errorType":     strings.ToLower(code),
 		}
 	}
 	return nil

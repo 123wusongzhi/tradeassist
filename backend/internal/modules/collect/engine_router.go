@@ -48,6 +48,7 @@ type CollectEnginesStatus struct {
 // It never falls back to another engine after a task has started.
 type CollectorEngineRouter struct {
 	Playwright         *CollectorClient
+	PlaywrightEnabled  bool
 	OpenCLI            *OpenCLIBridgeClient
 	OpenCLIEnabled     bool
 	DefaultTaobaoTmall string
@@ -56,6 +57,7 @@ type CollectorEngineRouter struct {
 
 func NewCollectorEngineRouter(
 	playwright *CollectorClient,
+	playwrightEnabled bool,
 	opencli *OpenCLIBridgeClient,
 	opencliEnabled bool,
 	defaultTaobaoTmall string,
@@ -70,6 +72,7 @@ func NewCollectorEngineRouter(
 	}
 	return &CollectorEngineRouter{
 		Playwright:         playwright,
+		PlaywrightEnabled:  playwrightEnabled,
 		OpenCLI:            opencli,
 		OpenCLIEnabled:     opencliEnabled,
 		DefaultTaobaoTmall: defaultEngine,
@@ -130,12 +133,25 @@ func (r *CollectorEngineRouter) ResolveEngine(source, requested string) (string,
 	source = strings.ToLower(strings.TrimSpace(source))
 	if engine == "" {
 		engine = CollectEnginePlaywright
-		if isTaobaoTmallCollectSource(source) && r != nil &&
-			r.OpenCLIEnabled && r.DefaultTaobaoTmall == CollectEngineOpenCLI {
-			engine = CollectEngineOpenCLI
+		if isTaobaoTmallCollectSource(source) && r != nil {
+			engine = r.DefaultTaobaoTmall
 		}
 	}
-	if engine != CollectEngineOpenCLI {
+	if engine == CollectEnginePlaywright {
+		if r == nil || !r.PlaywrightEnabled {
+			return "", &CollectEngineRoutingError{
+				Code:       "COLLECT_ENGINE_DISABLED",
+				Message:    "playwright collect engine is disabled",
+				HTTPStatus: http.StatusServiceUnavailable,
+			}
+		}
+		if r.Playwright == nil || strings.TrimSpace(r.Playwright.BaseURL) == "" {
+			return "", &CollectEngineRoutingError{
+				Code:       "COLLECT_ENGINE_UNAVAILABLE",
+				Message:    "playwright collect engine is not configured",
+				HTTPStatus: http.StatusServiceUnavailable,
+			}
+		}
 		return CollectEnginePlaywright, nil
 	}
 	if !isTaobaoTmallCollectSource(source) {
@@ -148,7 +164,7 @@ func (r *CollectorEngineRouter) ResolveEngine(source, requested string) (string,
 	if r == nil || !r.OpenCLIEnabled || r.OpenCLI == nil || strings.TrimSpace(r.OpenCLI.BaseURL) == "" {
 		return "", &CollectEngineRoutingError{
 			Code:       "OPENCLI_BRIDGE_DISABLED",
-			Message:    "opencli bridge is not enabled; use playwright or enable OPENCLI_BRIDGE_ENABLED",
+			Message:    "opencli bridge is not enabled; enable OPENCLI_BRIDGE_ENABLED or use the browser extension",
 			HTTPStatus: http.StatusServiceUnavailable,
 		}
 	}
@@ -168,28 +184,37 @@ func (r *CollectorEngineRouter) Collect(
 	if resolved == CollectEngineOpenCLI {
 		return r.OpenCLI.CollectWithTimeout(ctx, source, rawURL, options, r.OpenCLITimeout)
 	}
-	if r == nil || r.Playwright == nil {
-		return nil, fmt.Errorf("playwright collector client unavailable")
-	}
 	return r.Playwright.CollectWithTimeout(ctx, source, rawURL, options, playwrightTimeout)
 }
 
 func (r *CollectorEngineRouter) Status(ctx context.Context, defaultEngine string) CollectEnginesStatus {
-	effectiveDefault := CollectEnginePlaywright
-	if resolved, err := r.ResolveEngine("taobao_tmall", defaultEngine); err == nil {
+	effectiveDefault := CollectEngineOpenCLI
+	requestedDefault := strings.TrimSpace(defaultEngine)
+	if requestedDefault == "" && r != nil {
+		requestedDefault = r.DefaultTaobaoTmall
+	}
+	if resolved, err := r.ResolveEngine("taobao_tmall", requestedDefault); err == nil {
+		effectiveDefault = resolved
+	} else if resolved, fallbackErr := r.ResolveEngine("taobao_tmall", CollectEngineOpenCLI); fallbackErr == nil {
+		effectiveDefault = resolved
+	} else if resolved, fallbackErr := r.ResolveEngine("taobao_tmall", CollectEnginePlaywright); fallbackErr == nil {
 		effectiveDefault = resolved
 	}
 
 	playwright := CollectEngineStatusItem{
 		Engine:           CollectEnginePlaywright,
-		Enabled:          true,
+		Enabled:          r != nil && r.PlaywrightEnabled,
 		Configured:       r != nil && r.Playwright != nil && strings.TrimSpace(r.Playwright.BaseURL) != "",
-		Status:           "unavailable",
-		Message:          "playwright collector is not configured",
+		Status:           "disabled",
+		Message:          "playwright collect engine is disabled",
 		SupportedSources: []string{"1688", "pinduoduo", "taobao_tmall", "aliexpress", "shein_temu", "custom"},
 	}
-	if playwright.Configured {
-		playwright.Message = "playwright collector is checking"
+	if playwright.Enabled {
+		playwright.Status = "unavailable"
+		playwright.Message = "playwright collector is not configured"
+		if playwright.Configured {
+			playwright.Message = "playwright collector is checking"
+		}
 	}
 
 	opencli := CollectEngineStatusItem{
@@ -209,7 +234,7 @@ func (r *CollectorEngineRouter) Status(ctx context.Context, defaultEngine string
 	}
 
 	var probes sync.WaitGroup
-	if playwright.Configured {
+	if playwright.Enabled && playwright.Configured {
 		probes.Add(1)
 		go func() {
 			defer probes.Done()
@@ -258,11 +283,11 @@ func (s *Service) GetCollectEnginesStatus(ctx context.Context) CollectEnginesSta
 	if s != nil {
 		router = s.EngineRouter
 		if router == nil {
-			router = NewCollectorEngineRouter(s.Client, nil, false, CollectEnginePlaywright, 0)
+			router = NewCollectorEngineRouter(s.Client, s.Client != nil, nil, false, CollectEnginePlaywright, 0)
 		}
 	}
 	if router == nil {
-		router = NewCollectorEngineRouter(nil, nil, false, CollectEnginePlaywright, 0)
+		router = NewCollectorEngineRouter(nil, false, nil, false, CollectEngineOpenCLI, 0)
 	}
 	return router.Status(ctx, "")
 }

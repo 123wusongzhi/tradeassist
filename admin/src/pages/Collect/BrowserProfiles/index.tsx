@@ -2,8 +2,8 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormText } from '@ant-design/pro-components';
-import { Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
-import { useRef, useState } from 'react';
+import { Alert, Button, Input, Popconfirm, Space, Tag, Typography, message } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 import {
   checkBrowserProfile,
   createBrowserProfile,
@@ -14,7 +14,9 @@ import {
   queryBrowserProfiles,
   type BrowserProfileRow,
 } from '@/services/collectBrowserProfiles';
+import { fetchCollectEnginesStatus } from '@/services/collectTasks';
 import { accessStatusLabel } from '@/constants/collectAccess';
+import { collectEngineSelectable } from '@/utils/collectEngine';
 
 
 const CHECK_STATUS: Record<string, { text: string; color: string }> = {
@@ -31,8 +33,27 @@ export default function CollectBrowserProfilesPage() {
   const [checkUrl, setCheckUrl] = useState('');
   const [checkingId, setCheckingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [playwrightSelectable, setPlaywrightSelectable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchCollectEnginesStatus()
+      .then((status) => {
+        if (!cancelled) setPlaywrightSelectable(collectEngineSelectable(status, 'playwright'));
+      })
+      .catch(() => {
+        if (!cancelled) setPlaywrightSelectable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleOpenLogin = async (row: BrowserProfileRow) => {
+    if (playwrightSelectable !== true) {
+      message.info('Playwright 后台采集引擎已停用');
+      return;
+    }
     const u = checkUrl.trim() || row.lastCheckUrl || `https://${row.domain}/`;
     setOpeningId(row.id);
     try {
@@ -51,6 +72,10 @@ export default function CollectBrowserProfilesPage() {
   };
 
   const handleCheckStatus = async (row: BrowserProfileRow) => {
+    if (playwrightSelectable !== true) {
+      message.info('Playwright 后台采集引擎已停用');
+      return;
+    }
     const u = checkUrl.trim() || row.lastCheckUrl;
     if (!u) {
       message.warning('请在页顶填写用于检测的商品链接');
@@ -115,7 +140,7 @@ export default function CollectBrowserProfilesPage() {
                 type="link"
                 size="small"
                 loading={openingId === row.id}
-                disabled={checkingId === row.id}
+                disabled={playwrightSelectable !== true || checkingId === row.id}
                 onClick={() => void handleOpenLogin(row)}
               >
                 打开登录
@@ -124,7 +149,7 @@ export default function CollectBrowserProfilesPage() {
                 type="link"
                 size="small"
                 loading={checkingId === row.id}
-                disabled={openingId === row.id}
+                disabled={playwrightSelectable !== true || openingId === row.id}
                 onClick={() => void handleCheckStatus(row)}
               >
                 检测状态
@@ -179,9 +204,18 @@ export default function CollectBrowserProfilesPage() {
 
   return (
     <TmPageContainer
-      title="采集浏览器登录状态"
-      subTitle="用于需要登录才能查看的商品页；系统不保存账号密码。"
+      title="采集浏览器登录状态（Playwright 已停用）"
+      subTitle="历史配置仍可查看和维护；默认运行不会打开或检测采集浏览器。"
     >
+      {playwrightSelectable === false ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Playwright 后台采集引擎已停用"
+          description="不能新建、打开或检测登录状态；已有记录保留供以后显式恢复。"
+        />
+      ) : null}
       <Typography.Paragraph type="secondary">
         登录信息保存在本机采集浏览器中，请勿在公共电脑保留。验证码需自行完成，系统不会自动破解。
       </Typography.Paragraph>
@@ -192,7 +226,7 @@ export default function CollectBrowserProfilesPage() {
           value={checkUrl}
           onChange={(e) => setCheckUrl(e.target.value)}
         />
-        <Button type="primary" onClick={() => setCreateOpen(true)}>
+        <Button type="primary" disabled={playwrightSelectable !== true} onClick={() => setCreateOpen(true)}>
           新建登录状态
         </Button>
       </Space>
@@ -216,6 +250,10 @@ export default function CollectBrowserProfilesPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onFinish={async (vals) => {
+          if (playwrightSelectable !== true) {
+            message.info('Playwright 后台采集引擎已停用');
+            return false;
+          }
           try {
             await createBrowserProfile({
               name: vals.name.trim(),
