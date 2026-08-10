@@ -96,7 +96,9 @@ function printServiceHints(envPath: string | undefined): void {
   const bridgeUrl = addrToHttpUrl(bridgeAddr ?? '127.0.0.1:3100');
 
   if (backendUrl) console.log(pc.bold(pc.green(`[backend] ${backendUrl}`)));
-  if (collectorUrl) console.log(pc.bold(pc.green(`[playwright-collector] ${collectorUrl}`)));
+  if (ports.collector !== undefined && collectorUrl) {
+    console.log(pc.bold(pc.green(`[playwright-collector] ${collectorUrl}`)));
+  }
   if (bridgeEnabled && bridgeUrl) console.log(pc.bold(pc.green(`[opencli-bridge] ${bridgeUrl}`)));
   console.log(pc.bold(pc.green('[admin]')), pc.green(`http://127.0.0.1:${ports.admin}`));
 }
@@ -121,7 +123,7 @@ async function preparePorts(envPath: string | undefined): Promise<number[]> {
     }
     throw new Error('本地开发端口预检失败。请按上方 PID/端口信息处理，或修改对应端口配置后重试。');
   }
-  tagLine('dev', 'Configured backend / admin / collector ports are available', pc.green);
+  tagLine('dev', 'Configured enabled service ports are available', pc.green);
   return ports;
 }
 
@@ -191,8 +193,12 @@ async function main(): Promise<number> {
     const specs: Array<{ tag: string; required: boolean; ports: number[] }> = [
       { tag: 'backend', required: true, ports: [portMap.backend] },
       { tag: 'admin', required: true, ports: [portMap.admin] },
-      { tag: 'collector', required: true, ports: [portMap.collector] },
     ];
+    if (portMap.collector !== undefined) {
+      specs.push({ tag: 'collector', required: true, ports: [portMap.collector] });
+    } else {
+      tagLine('collector', 'Playwright collector disabled; use browser extension or OpenCLI', pc.yellow);
+    }
     if (openCliBridgeEnabled && portMap.openCliBridge) {
       specs.push({ tag: 'opencli-bridge', required: false, ports: [portMap.openCliBridge] });
     }

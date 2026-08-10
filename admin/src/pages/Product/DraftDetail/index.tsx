@@ -80,6 +80,7 @@ import {
 import { ProductCollectQualityAlert } from '@/components/ProductCollectQualityAlert';
 import { isPinduoduoSource } from '@/utils/pinduoduoCollectAlerts';
 import { isTaobaoTmallSource } from '@/utils/taobaoTmallCollectAlerts';
+import { collectedPackagingRowsFromRaw } from '@/utils/productPackaging';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PRODUCT_STATUS, PLATFORM_PROVIDER_STATUS } from '@/constants/status';
 import {
@@ -302,6 +303,14 @@ function isTaobaoTmallProduct(data: ProductDetail | null): boolean {
   return !!data && isTaobaoTmallSource(data.source);
 }
 
+function is1688Product(data: ProductDetail | null): boolean {
+  return String(data?.source || '').trim().toLowerCase() === '1688';
+}
+
+function supportsCollectedImageSync(data: ProductDetail | null): boolean {
+  return isTaobaoTmallProduct(data) || is1688Product(data);
+}
+
 function formatInventorySyncTaskCreateError(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).trim() || '提交失败';
   const hints: string[] = [];
@@ -483,6 +492,10 @@ function ProductImagePreviewCell({ row }: { row: ProductImageRow }) {
   const [failed, setFailed] = useState(false);
   const url = productImageUrl(row);
 
+  useEffect(() => {
+    setFailed(false);
+  }, [url]);
+
   if (!url || failed) {
     return (
       <div className="product-draft-images__thumb product-draft-images__thumb--empty">
@@ -499,6 +512,7 @@ function ProductImagePreviewCell({ row }: { row: ProductImageRow }) {
         width={64}
         height={64}
         preview={{ src: url }}
+        referrerPolicy="no-referrer"
         className="product-draft-images__thumb-image"
         onError={() => setFailed(true)}
       />
@@ -1181,6 +1195,11 @@ export default function ProductDraftDetailPage() {
   const collectedAttrRows = useMemo(
     () => Object.entries(collectedAttrs).map(([key, value]) => ({ key, value })),
     [collectedAttrs],
+  );
+
+  const collectedPackagingRows = useMemo(
+    () => collectedPackagingRowsFromRaw(data?.rawData),
+    [data?.rawData],
   );
 
   const hasSourceCollectQualityPanel = useMemo(
@@ -2976,6 +2995,63 @@ export default function ProductDraftDetailPage() {
                       />
                     )}
                   </SectionCard>
+
+                  {is1688Product(data) || collectedPackagingRows.length > 0 ? (
+                    <SectionCard
+                      title="包装信息"
+                      description="从 1688 商品件重尺表采集，仅用于核对来源值；破折号表示来源页未提供，未做换算或推算。"
+                      className="product-draft-basic__section product-draft-basic__packaging"
+                    >
+                      {collectedPackagingRows.length > 0 ? (
+                        <Table
+                          size="small"
+                          rowKey={(row) => `${row.specification}-${row.lengthCm}-${row.widthCm}-${row.heightCm}-${row.volumeCm3}-${row.weightG}`}
+                          dataSource={collectedPackagingRows}
+                          pagination={collectedPackagingRows.length > 12 ? { pageSize: 12, size: 'small' } : false}
+                          scroll={{ x: 800 }}
+                          columns={[
+                            { title: '产品规格', dataIndex: 'specification', width: 220 },
+                            {
+                              title: '长(cm)',
+                              dataIndex: 'lengthCm',
+                              width: 110,
+                              render: (value) => value == null ? '—' : String(value),
+                            },
+                            {
+                              title: '宽(cm)',
+                              dataIndex: 'widthCm',
+                              width: 110,
+                              render: (value) => value == null ? '—' : String(value),
+                            },
+                            {
+                              title: '高(cm)',
+                              dataIndex: 'heightCm',
+                              width: 110,
+                              render: (value) => value == null ? '—' : String(value),
+                            },
+                            {
+                              title: '体积(cm³)',
+                              dataIndex: 'volumeCm3',
+                              width: 130,
+                              render: (value) => value == null ? '—' : String(value),
+                            },
+                            {
+                              title: '重量(g)',
+                              dataIndex: 'weightG',
+                              width: 110,
+                              render: (value) => value == null ? '—' : String(value),
+                            },
+                          ]}
+                        />
+                      ) : (
+                        <EmptyState
+                          compact
+                          title="暂无包装信息"
+                          description="当前采集结果没有返回可核对的商品件重尺表。"
+                        />
+                      )}
+                    </SectionCard>
+                  ) : null}
                 </Space>
               ),
             },
@@ -3354,6 +3430,13 @@ export default function ProductDraftDetailPage() {
                       message="淘宝/天猫采集图片默认为外链，发布前建议同步到平台存储，避免外链失效。"
                     />
                   ) : null}
+                  {is1688Product(data) ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="1688 采集图片默认为外链，发布前建议同步到平台存储，避免防盗链或外链失效。"
+                    />
+                  ) : null}
                   <SectionCard
                     title="图片概览"
                     description="基于当前商品详情已加载的图片数据展示，不额外请求接口。"
@@ -3457,22 +3540,25 @@ export default function ProductDraftDetailPage() {
                           <CloudUploadOutlined />
                           图片同步
                         </Typography.Text>
-                        {isTaobaoTmallProduct(data) ? (
+                        {supportsCollectedImageSync(data) ? (
                           <Space wrap size={[8, 8]}>
                             <Button
                               loading={imageSyncingScope === 'all'}
+                              disabled={!!imageSyncingScope}
                               onClick={() => void handleSyncProductImages('all')}
                             >
                               同步图片到平台存储
                             </Button>
                             <Button
                               loading={imageSyncingScope === 'main'}
+                              disabled={!!imageSyncingScope}
                               onClick={() => void handleSyncProductImages('main')}
                             >
                               批量同步主图
                             </Button>
                             <Button
                               loading={imageSyncingScope === 'detail'}
+                              disabled={!!imageSyncingScope}
                               onClick={() => void handleSyncProductImages('detail')}
                             >
                               批量同步详情图

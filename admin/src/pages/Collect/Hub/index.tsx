@@ -42,7 +42,12 @@ import {
   NO_COLLECT_RULE_MESSAGE,
 } from '@/utils/collectProviderStatus';
 import { collectSettingsConfigButtonLabel, collectSettingsPath } from '@/utils/collectSettingsProvider';
-import { collectEngineLabel, findCollectEngineStatus, readCollectTaskEngine } from '@/utils/collectEngine';
+import {
+  collectEngineLabel,
+  collectSourceHasEnabledEngine,
+  findCollectEngineStatus,
+  readCollectTaskEngine,
+} from '@/utils/collectEngine';
 import CollectSourceCard, {
   type CollectSourceCardCopy,
   type CollectSourceCardFeature,
@@ -176,7 +181,7 @@ function taskEngineTag(task: CollectTaskRow) {
 function loginRiskDescription(source: string) {
   const normalized = source.trim().toLowerCase();
   if (normalized === 'taobao_tmall' || normalized === 'taobao') {
-    return 'OpenCLI 使用宿主机登录状态；Playwright 备用引擎使用采集浏览器登录状态';
+    return 'OpenCLI 使用宿主机登录状态；Playwright 当前已停用';
   }
   return '可能需要采集浏览器登录或人工验证';
 }
@@ -294,7 +299,7 @@ function BrowserProfileSummary({
       <EmptyState
         compact
         title="暂无已保存登录状态"
-        description="Playwright 备用模式下的淘宝/天猫、拼多多或部分自定义网站可能需要登录后采集。"
+        description="Playwright 当前已停用；这里仅保留历史登录状态和显式恢复所需配置。"
         actionLabel="管理登录状态"
         actionPath="/collect/browser-profiles"
       />
@@ -467,9 +472,14 @@ export default function CollectHubPage() {
     [providerState.data],
   );
 
-  const runnableProviders = sortedProviders.filter((provider) => providerRunnableForSingleTask(provider.status));
+  const sourceEngineRunnable = (source: string) =>
+    !engineState.loading && !engineState.error && collectSourceHasEnabledEngine(engineState.data, source);
+  const runnableProviders = sortedProviders.filter(
+    (provider) => providerRunnableForSingleTask(provider.status) && sourceEngineRunnable(provider.source),
+  );
   const batchProviders = sortedProviders.filter(
-    (provider) => providerRunnableForSingleTask(provider.status) && provider.batchSupported,
+    (provider) =>
+      providerRunnableForSingleTask(provider.status) && provider.batchSupported && sourceEngineRunnable(provider.source),
   );
   const loginSensitiveProviders = sortedProviders.filter((provider) => isLoginSensitiveSource(provider.source));
   const primaryProvider = runnableProviders[0];
@@ -514,8 +524,8 @@ export default function CollectHubPage() {
               先选择来源，再把商品链接转成可运营草稿
             </Title>
             <Paragraph className="tm-collect-hub-hero__desc">
-              采集任务会进入队列处理。淘宝/天猫优先使用 OpenCLI 宿主机登录态，Playwright
-              作为备用；遇到登录或验证时，请按所选引擎完成对应浏览器验证。
+              后台采集任务会进入队列处理。淘宝/天猫使用 OpenCLI 宿主机登录态；Playwright 当前已停用，
+              其他来源请使用浏览器扩展。
             </Paragraph>
             <OperationToolbar>
               <Button
@@ -527,7 +537,12 @@ export default function CollectHubPage() {
               >
                 开始采集商品
               </Button>
-              <Button size="large" icon={<FileSearchOutlined />} onClick={() => history.push('/collect/batches')}>
+              <Button
+                size="large"
+                icon={<FileSearchOutlined />}
+                disabled={batchProviders.length === 0 || providerState.loading || engineState.loading}
+                onClick={() => history.push('/collect/batches')}
+              >
                 批量采集
               </Button>
               <Button size="large" type="link" onClick={() => history.push('/collect/rules')}>
@@ -585,17 +600,17 @@ export default function CollectHubPage() {
                 : defaultEngine === 'opencli'
                   ? openCliStatus?.ready
                     ? '淘宝/天猫主引擎 OpenCLI 已就绪'
-                    : 'OpenCLI 当前不可用，Playwright 备用引擎不受影响'
-                  : '淘宝/天猫当前默认使用 Playwright'
+                    : 'OpenCLI 当前不可用；Playwright 已停用'
+                  : 'Playwright 已停用，请启用 OpenCLI 或使用浏览器扩展'
           }
           description={
             engineState.loading
-              ? '检测完成后会显示主引擎和备用引擎状态。'
+                ? '检测完成后会显示可用后台引擎状态。'
               : engineState.error
-                ? '可以进入采集设置重新查看；已有 Playwright 采集任务不会受 OpenCLI 状态影响。'
+                ? '状态未知时禁止新建后台采集任务；可以进入采集设置重新查看。'
                 : openCliStatus?.ready
                   ? '单条和批量任务会记录实际执行引擎，失败时不会静默切换。'
-                  : '启动宿主机 OpenCLI Bridge 后可继续使用 OpenCLI，或在提交前手动选择 Playwright。'
+                  : '启动宿主机 OpenCLI Bridge 后可继续使用 OpenCLI；其他来源请使用浏览器扩展。'
           }
           action={
             <Button size="small" onClick={() => history.push(collectSettingsPath('taobao_tmall'))}>
@@ -651,6 +666,8 @@ export default function CollectHubPage() {
                   {sortedProviders.map((provider) => {
                     const statusTag = collectProviderStatusPresentation(provider.source, provider.status);
                     const copy = providerCardCopy(provider);
+                    const providerRunnable = providerRunnableForSingleTask(provider.status);
+                    const engineRunnable = sourceEngineRunnable(provider.source);
                     const features: CollectSourceCardFeature[] = providerCardFeatures(provider).map((feature) => ({
                       key: feature,
                       label: featureLabelForProvider(provider, feature),
@@ -662,12 +679,18 @@ export default function CollectHubPage() {
                           copy={copy}
                           statusTag={statusTag}
                           features={features}
-                          singleDisabled={!providerRunnableForSingleTask(provider.status)}
+                          singleDisabled={!providerRunnable || !engineRunnable}
                           singleTooltip={
-                            providerRunnableForSingleTask(provider.status) ? undefined : '当前版本暂未开放'
+                            !providerRunnable
+                              ? '当前版本暂未开放'
+                              : !engineRunnable
+                                ? '后台采集引擎已停用，请使用浏览器扩展'
+                                : undefined
                           }
-                          batchDisabled={batchRowDisabledForProvider(provider)}
-                          batchTooltip={batchButtonTooltipForProvider(provider)}
+                          batchDisabled={batchRowDisabledForProvider(provider) || !engineRunnable}
+                          batchTooltip={
+                            !engineRunnable ? '后台采集引擎已停用，请使用浏览器扩展' : batchButtonTooltipForProvider(provider)
+                          }
                           onSingleCollect={() => openSingleCollect(provider)}
                           onBatchCollect={() =>
                             history.push(`/collect/batches?source=${encodeURIComponent(provider.source)}`)
@@ -706,8 +729,8 @@ export default function CollectHubPage() {
               </SectionCard>
 
               <SectionCard
-                title="Playwright 浏览器登录状态"
-                description="仅用于 Playwright 采集及其他需要采集浏览器的来源。"
+                title="Playwright 浏览器登录状态（已停用）"
+                description="仅保留历史状态与显式恢复入口；默认运行不会加载 Playwright。"
                 headerExtra={
                   <Button type="link" onClick={() => history.push('/collect/browser-profiles')}>
                     管理

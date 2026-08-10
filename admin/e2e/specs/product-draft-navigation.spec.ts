@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/admin.fixture';
 import { ProductDraftDetailPage } from '../pages/product-draft-detail.page';
-import { E2E_PRODUCT_ID } from '../mocks/product.fixture';
+import { e2eProduct, E2E_PRODUCT_ID } from '../mocks/product.fixture';
+import { ok } from '../mocks/envelope';
 import { expectActiveTab, expectSectionVisible } from '../utils/assertions';
 
 const tabs = [
@@ -26,6 +27,52 @@ test.describe('@product-draft 商品详情导航', () => {
   test('falls back from invalid tab to basic', async ({ page }) => {
     await page.goto(`/product/drafts/${E2E_PRODUCT_ID}?tab=unknown-tab`);
     await expectActiveTab(page, '基础信息');
+  });
+
+  test('shows collected packaging rows without inferring missing measurements', async ({ page }) => {
+    await page.route(`**/api/v1/products/${E2E_PRODUCT_ID}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(ok({
+          ...e2eProduct,
+          source: '1688',
+          rawData: {
+            raw: e2eProduct.rawData.raw,
+            packaging: {
+              rows: [
+                { specification: '22#橡胶塞', lengthCm: 1, widthCm: 1, heightCm: 1, volumeCm3: 1, weightG: 2000 },
+                { specification: '双孔8#橡胶塞', lengthCm: null, widthCm: null, heightCm: null, volumeCm3: null, weightG: 100 },
+              ],
+            },
+          },
+        })),
+      });
+    });
+    const detail = new ProductDraftDetailPage(page);
+    await detail.goto('basic');
+
+    await expect(page.getByText('包装信息', { exact: true })).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: '体积(cm³)', exact: true })).toBeVisible();
+    const missingRow = page.getByRole('row').filter({ hasText: '双孔8#橡胶塞' });
+    await expect(missingRow).toContainText('100');
+    await expect(missingRow.getByRole('cell').nth(1)).toHaveText('—');
+    await expect(page.getByRole('row').filter({ hasText: '22#橡胶塞' })).toContainText('2000');
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 768, height: 900 },
+      { width: 390, height: 844 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await expect(page.getByText('包装信息', { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    }
+  });
+
+  test('hides packaging section for non-1688 products without packaging rows', async ({ page }) => {
+    const detail = new ProductDraftDetailPage(page);
+    await detail.goto('basic');
+    await expect(page.getByText('包装信息', { exact: true })).toHaveCount(0);
   });
 
   test('restores readiness publish-check after refresh', async ({ page }) => {

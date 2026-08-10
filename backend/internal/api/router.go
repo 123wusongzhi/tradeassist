@@ -239,13 +239,18 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	}
 	collectorBase := "http://127.0.0.1:3001"
 	collectorToken := ""
+	collectorPlaywrightEnabled := false
 	if dep.Config != nil {
 		if dep.Config.CollectorBaseURL != "" {
 			collectorBase = dep.Config.CollectorBaseURL
 		}
 		collectorToken = dep.Config.CollectorToken
+		collectorPlaywrightEnabled = dep.Config.CollectorPlaywrightEnabled
 	}
-	collectorClient := collect.NewCollectorClient(collectorBase, collectorTimeout, collectorToken)
+	var collectorClient *collect.CollectorClient
+	if collectorPlaywrightEnabled {
+		collectorClient = collect.NewCollectorClient(collectorBase, collectorTimeout, collectorToken)
+	}
 	opencliBridgeEnabled := false
 	opencliBridgeBase := "http://127.0.0.1:3100"
 	opencliBridgeToken := ""
@@ -271,6 +276,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 	)
 	engineRouter := collect.NewCollectorEngineRouter(
 		collectorClient,
+		collectorPlaywrightEnabled,
 		opencliBridgeClient,
 		opencliBridgeEnabled,
 		defaultTaobaoTmallEngine,

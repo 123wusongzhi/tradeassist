@@ -11,14 +11,14 @@ export type CaptureCommand = (
 export type DevServicePortMap = {
   backend: number;
   admin: number;
-  collector: number;
+  collector?: number;
   openCliBridge?: number;
 };
 
 export type DockerPublishPortMap = {
   backend: number;
   admin: number;
-  collector: number;
+  collector?: number;
 };
 
 export function parsePortFromAddr(addr: string | undefined, defaultPort: number): number {
@@ -48,6 +48,10 @@ export function parsePort(value: string | undefined, defaultPort: number): numbe
 
 function validPort(port: number): boolean {
   return Number.isSafeInteger(port) && port > 0 && port < 65_536;
+}
+
+function envEnabled(value: string | undefined): boolean {
+  return ['1', 'true', 'yes', 'on'].includes((value ?? '').trim().toLowerCase());
 }
 
 function lineHasListeningPort(line: string, port: number): boolean {
@@ -95,14 +99,15 @@ export function resolveDevServicePortMap(
 ): DevServicePortMap {
   const fileEnv = readEnvFile(envPath);
   const value = (key: string): string | undefined => overrides[key] ?? fileEnv[key];
-  const openCliEnabled = ['1', 'true', 'yes', 'on'].includes(
-    (value('OPENCLI_BRIDGE_ENABLED') ?? '').trim().toLowerCase(),
-  );
+  const collectorEnabled = envEnabled(value('COLLECTOR_PLAYWRIGHT_ENABLED'));
+  const openCliEnabled = envEnabled(value('OPENCLI_BRIDGE_ENABLED'));
   const ports: DevServicePortMap = {
     backend: parsePortFromAddr(value('APP_HTTP_ADDR'), 8080),
     admin: parsePort(value('ADMIN_DEV_PORT'), 8000),
-    collector: parsePortFromAddr(value('COLLECTOR_HTTP_ADDR'), 3001),
   };
+  if (collectorEnabled) {
+    ports.collector = parsePortFromAddr(value('COLLECTOR_HTTP_ADDR'), 3001);
+  }
   if (openCliEnabled) {
     ports.openCliBridge = parsePortFromAddr(value('OPENCLI_BRIDGE_HTTP_ADDR'), 3100);
   }
@@ -123,11 +128,14 @@ export function resolveDockerPublishPortMap(
 ): DockerPublishPortMap {
   const fileEnv = readEnvFile(envPath);
   const value = (key: string): string | undefined => overrides[key] ?? fileEnv[key];
-  return {
+  const ports: DockerPublishPortMap = {
     backend: parsePort(value('BACKEND_PUBLISH_PORT'), 8080),
     admin: parsePort(value('ADMIN_PUBLISH_PORT'), 8000),
-    collector: parsePort(value('COLLECTOR_PUBLISH_PORT'), 3001),
   };
+  if (envEnabled(value('COLLECTOR_PLAYWRIGHT_ENABLED'))) {
+    ports.collector = parsePort(value('COLLECTOR_PUBLISH_PORT'), 3001);
+  }
+  return ports;
 }
 
 export function sleep(ms: number): Promise<void> {

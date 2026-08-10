@@ -37,4 +37,29 @@ describe('Docker full-stack port preflight', () => {
     ]);
     expect(terminate).not.toHaveBeenCalled();
   });
+
+  it('checks the collector port only when Playwright is explicitly enabled', async () => {
+    const listPids = vi.fn(async () => [] as number[]);
+    const previous = process.env.COLLECTOR_PLAYWRIGHT_ENABLED;
+    delete process.env.COLLECTOR_PLAYWRIGHT_ENABLED;
+
+    try {
+      await checkDockerFullPortConflicts('C:/repo/trademind', undefined, {
+        runningServices: async () => [],
+        listPids,
+      });
+      expect(listPids.mock.calls.map(([port]) => port)).toEqual([8000, 8080]);
+
+      listPids.mockClear();
+      process.env.COLLECTOR_PLAYWRIGHT_ENABLED = 'true';
+      await checkDockerFullPortConflicts('C:/repo/trademind', undefined, {
+        runningServices: async () => [],
+        listPids,
+      });
+      expect(listPids.mock.calls.map(([port]) => port)).toEqual([8000, 8080, 3001]);
+    } finally {
+      if (previous === undefined) delete process.env.COLLECTOR_PLAYWRIGHT_ENABLED;
+      else process.env.COLLECTOR_PLAYWRIGHT_ENABLED = previous;
+    }
+  });
 });

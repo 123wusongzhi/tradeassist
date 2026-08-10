@@ -29,6 +29,18 @@ describe('TradeMind browser extension API', () => {
       currency: 'CNY',
       mainImages: [],
       descriptionImages: [],
+      packaging: {
+        rows: [
+          {
+            specification: '双孔8#橡胶塞',
+            lengthCm: null,
+            widthCm: null,
+            heightCm: null,
+            volumeCm3: null,
+            weightG: 100,
+          },
+        ],
+      },
       attributes: {},
       skus: [],
       raw: {},
@@ -41,5 +53,13 @@ describe('TradeMind browser extension API', () => {
       expect(init).toEqual(expect.objectContaining({ credentials: 'omit' }));
       expect(new Headers(init?.headers).has('Cookie')).toBe(false);
     }
+    const resultRequest = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/tasks/task-id/result'));
+    expect(JSON.parse(String(resultRequest?.[1]?.body))).toMatchObject({
+      product: {
+        packaging: {
+          rows: [{ specification: '双孔8#橡胶塞', lengthCm: null, weightG: 100 }],
+        },
+      },
+    });
   });
 });

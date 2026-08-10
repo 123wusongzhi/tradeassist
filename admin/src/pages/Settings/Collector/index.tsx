@@ -24,7 +24,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CollectProviderRow } from '@/services/collectProviders';
 import { queryCollectProviders } from '@/services/collectProviders';
 import { collectProviderStatusPresentation } from '@/utils/collectProviderStatus';
-import { normalizeCollectEngine } from '@/utils/collectEngine';
+import { collectEngineSelectable, normalizeCollectEngine } from '@/utils/collectEngine';
+import { fetchCollectEnginesStatus } from '@/services/collectTasks';
 import {
   checkPinduoduoLogin,
   checkTaobaoTmallLogin,
@@ -249,12 +250,14 @@ function Collector1688Section({
   loginOpening,
   onRecheck,
   onOpenLogin,
+  playwrightSelectable,
 }: {
   authStatus: Provider1688AuthStatus | null;
   authChecking: boolean;
   loginOpening: boolean;
   onRecheck: () => void;
   onOpenLogin: () => void;
+  playwrightSelectable: boolean;
 }) {
   const authKey = resolveDisplayStatus(authStatus, authChecking);
 
@@ -265,10 +268,16 @@ function Collector1688Section({
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
-          <Button size="small" onClick={onRecheck} loading={authChecking}>
+          <Button size="small" onClick={onRecheck} loading={authChecking} disabled={!playwrightSelectable}>
             重新检测
           </Button>
-          <Button size="small" type="primary" onClick={onOpenLogin} loading={loginOpening}>
+          <Button
+            size="small"
+            type="primary"
+            onClick={onOpenLogin}
+            loading={loginOpening}
+            disabled={!playwrightSelectable}
+          >
             打开采集浏览器登录
           </Button>
         </Space>
@@ -354,7 +363,13 @@ function Collector1688Section({
   );
 }
 
-function CollectorCustomSection({ providerRow }: { providerRow?: CollectProviderRow }) {
+function CollectorCustomSection({
+  providerRow,
+  playwrightSelectable,
+}: {
+  providerRow?: CollectProviderRow;
+  playwrightSelectable: boolean;
+}) {
   const statusTag = providerRow ? collectProviderStatusPresentation(providerRow.source, providerRow.status) : null;
 
   return (
@@ -372,10 +387,18 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
           type="info"
           showIcon
           message="用于采集没有专用采集器的网站商品页"
-          description="请先创建采集规则，再开始采集。需要登录的网站，可管理登录状态并在采集浏览器中自行登录后再测试与采集。"
+          description={
+            playwrightSelectable
+              ? '请先创建采集规则，再开始采集。需要登录的网站，可管理登录状态并在采集浏览器中自行登录后再测试与采集。'
+              : 'Playwright 后台采集已停用。可继续维护采集规则，并通过浏览器扩展采集。'
+          }
         />
         <Space wrap className="tm-action-space">
-          <Button type="primary" onClick={() => history.push('/collect/browser-profiles')}>
+          <Button
+            type="primary"
+            disabled={!playwrightSelectable}
+            onClick={() => history.push('/collect/browser-profiles')}
+          >
             管理登录状态
           </Button>
           <Button onClick={() => history.push('/collect/rules')}>采集规则</Button>
@@ -389,7 +412,7 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
               valuePropName="checked"
               tooltip="提交前检测商品页能否打开、是否需要登录或验证。"
             >
-              <Switch />
+              <Switch disabled={!playwrightSelectable} />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
@@ -399,7 +422,7 @@ function CollectorCustomSection({ providerRow }: { providerRow?: CollectProvider
               valuePropName="checked"
               tooltip="开启后，采集与规则测试可使用你在采集浏览器中保存的登录状态。"
             >
-              <Switch />
+              <Switch disabled={!playwrightSelectable} />
             </Form.Item>
           </Col>
         </Row>
@@ -511,6 +534,7 @@ function CollectorPinduoduoSection({
   loginOpening,
   onRecheck,
   onOpenLogin,
+  playwrightSelectable,
 }: {
   providerRow?: CollectProviderRow;
   authStatus: ProviderPinduoduoAuthStatus | null;
@@ -519,6 +543,7 @@ function CollectorPinduoduoSection({
   loginOpening: boolean;
   onRecheck: () => void;
   onOpenLogin: () => void;
+  playwrightSelectable: boolean;
 }) {
   const isBeta = providerRow?.status === 'beta';
   const authKey = resolvePddDisplayStatus(authStatus, authChecking, authLoaded);
@@ -530,10 +555,16 @@ function CollectorPinduoduoSection({
       className="tm-collector-settings__panel"
       extra={
         <Space wrap size="small" className="tm-action-space">
-          <Button size="small" onClick={onRecheck} loading={authChecking}>
+          <Button size="small" onClick={onRecheck} loading={authChecking} disabled={!playwrightSelectable}>
             重新检测
           </Button>
-          <Button size="small" type="primary" onClick={onOpenLogin} loading={loginOpening}>
+          <Button
+            size="small"
+            type="primary"
+            onClick={onOpenLogin}
+            loading={loginOpening}
+            disabled={!playwrightSelectable}
+          >
             打开拼多多采集浏览器登录
           </Button>
         </Space>
@@ -739,6 +770,7 @@ export default function CollectorSettingsPage() {
   const [tbAuthChecking, setTbAuthChecking] = useState(false);
   const [tbAuthLoaded, setTbAuthLoaded] = useState(false);
   const [tbLoginOpening, setTbLoginOpening] = useState(false);
+  const [playwrightSelectable, setPlaywrightSelectable] = useState<boolean | null>(null);
 
   const providerKey = useMemo(
     () => resolveCollectSettingsProvider(new URLSearchParams(location.search || '').get('provider')),
@@ -902,22 +934,30 @@ export default function CollectorSettingsPage() {
     void queryCollectProviders()
       .then((rows) => setProviders(Array.isArray(rows) ? rows : []))
       .catch(() => setProviders([]));
+    void fetchCollectEnginesStatus()
+      .then((status) => setPlaywrightSelectable(collectEngineSelectable(status, 'playwright')))
+      .catch(() => setPlaywrightSelectable(false));
   }, [load]);
 
   useEffect(() => {
+    if (playwrightSelectable !== true) return;
     if (providerKey === '1688') {
       void loadAuthStatus();
     }
     if (providerKey === 'pinduoduo') {
       void loadPddAuthStatus();
     }
-  }, [providerKey, loadAuthStatus, loadPddAuthStatus]);
+  }, [playwrightSelectable, providerKey, loadAuthStatus, loadPddAuthStatus]);
 
   const handleProviderChange = (key: CollectSettingsProviderKey) => {
     history.replace(`/settings/collector?provider=${encodeURIComponent(key)}`);
   };
 
   const handleOpenLoginBrowser = async () => {
+    if (playwrightSelectable !== true) {
+      message.info('Playwright 后台采集引擎已停用');
+      return;
+    }
     setLoginOpening(true);
     try {
       const result = await open1688LoginBrowser();
@@ -931,6 +971,10 @@ export default function CollectorSettingsPage() {
   };
 
   const handleOpenPddLoginBrowser = async () => {
+    if (playwrightSelectable !== true) {
+      message.info('Playwright 后台采集引擎已停用');
+      return;
+    }
     setPddLoginOpening(true);
     try {
       const testUrl = String(form.getFieldValue('collect_pinduoduo_auth_check_url') ?? '').trim();
@@ -946,6 +990,10 @@ export default function CollectorSettingsPage() {
   };
 
   const handleOpenTbLoginBrowser = async () => {
+    if (playwrightSelectable !== true) {
+      message.info('Playwright 后台采集引擎已停用');
+      return;
+    }
     setTbLoginOpening(true);
     try {
       const testUrl = String(form.getFieldValue('collect_taobao_tmall_auth_check_url') ?? '').trim();
@@ -1035,9 +1083,10 @@ export default function CollectorSettingsPage() {
       loginOpening={loginOpening}
       onRecheck={loadAuthStatus}
       onOpenLogin={handleOpenLoginBrowser}
+      playwrightSelectable={playwrightSelectable === true}
     />
   ) : providerKey === 'custom' ? (
-    <CollectorCustomSection providerRow={providerRow} />
+    <CollectorCustomSection providerRow={providerRow} playwrightSelectable={playwrightSelectable === true} />
   ) : providerKey === 'aliexpress' ? (
     <CollectorAliExpressSection providerRow={providerRow} />
   ) : providerKey === 'pinduoduo' ? (
@@ -1049,6 +1098,7 @@ export default function CollectorSettingsPage() {
       loginOpening={pddLoginOpening}
       onRecheck={loadPddAuthStatus}
       onOpenLogin={handleOpenPddLoginBrowser}
+      playwrightSelectable={playwrightSelectable === true}
     />
   ) : providerKey === 'taobao_tmall' ? (
     <CollectorTaobaoTmallSection
@@ -1065,6 +1115,14 @@ export default function CollectorSettingsPage() {
   return (
     <TmPageContainer title="采集设置" subTitle={PAGE_COPY.collectorSettings.description}>
       <div className="tm-collector-settings">
+        {playwrightSelectable === false ? (
+          <Alert
+            type="info"
+            showIcon
+            message="Playwright 后台采集引擎已停用"
+            description="配置与代码仍保留，但默认运行不会加载或启动 Playwright。其他来源请使用浏览器扩展；淘宝/天猫可使用 OpenCLI。"
+          />
+        ) : null}
         <ProCard variant="outlined" className="tm-collector-settings__selector" title="采集器类型">
           <CollectorProviderSelector activeKey={providerKey} providers={providers} onChange={handleProviderChange} />
         </ProCard>

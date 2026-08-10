@@ -1,6 +1,8 @@
-# TradeMind — Docker 部署启动（PostgreSQL + Redis + backend + admin + collector）
+# TradeMind — Docker 部署启动（PostgreSQL + Redis + backend + admin）
 # 使用方式：复制 .env.docker.example 为 .env 后执行
 #   docker compose -f docker-compose.full.yml up --build
+# Playwright Collector 仅在显式恢复时启动：先在 .env 设置
+# COLLECTOR_PLAYWRIGHT_ENABLED=true，再添加 --profile playwright。
 # 请勿与本仓库 docker-compose.yml（仅 infra）混淆；本文件不会删除或修改原有 compose。
 
 name: trademind-full
@@ -43,6 +45,7 @@ services:
       retries: 10
 
   collector:
+    profiles: ["playwright"]
     build:
       context: .
       dockerfile: collector/Dockerfile
@@ -84,7 +87,8 @@ services:
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       DB_HOST: postgres
       REDIS_ADDR: redis:6379
-      # Playwright 固定走 Compose 内 Collector；OpenCLI 固定走宿主机 Bridge。
+      # Playwright 默认停用；OpenCLI 固定走宿主机 Bridge。
+      COLLECTOR_PLAYWRIGHT_ENABLED: ${COLLECTOR_PLAYWRIGHT_ENABLED:-false}
       COLLECTOR_PLAYWRIGHT_BASE_URL: http://collector:3001
       COLLECTOR_INTERNAL_TOKEN: ${COLLECTOR_INTERNAL_TOKEN:-}
       OPENCLI_BRIDGE_ENABLED: ${OPENCLI_BRIDGE_ENABLED:-false}
@@ -112,8 +116,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      collector:
-        condition: service_started
     healthcheck:
       test:
         ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
