@@ -11,7 +11,7 @@ generator: pnpm docs:generate:api
 >
 > This is a static scan of Go `.METHOD("path")` registrations. Prefer OpenAPI if introduced later.
 
-Total matched registrations: 421
+Total matched registrations: 422
 
 | Method | Path | Source file |
 | --- | --- | --- |
@@ -343,6 +343,7 @@ Total matched registrations: 421
 | PUT | `/products/:id/platform-configs/douyin_shop/mapping` | `backend/internal/modules/product/router.go` |
 | GET | `/products/:id/platform-configs/douyin_shop/publish-tasks` | `backend/internal/modules/productpublish/handler.go` |
 | POST | `/products/:id/platform-configs/douyin_shop/validate` | `backend/internal/modules/product/router.go` |
+| POST | `/products/:id/platform-configs/ozon/category-recommendations` | `backend/internal/modules/product/router.go` |
 | POST | `/products/:id/pricing/apply` | `backend/internal/modules/pricing/router.go` |
 | GET | `/products/:id/publication-skus` | `backend/internal/modules/inventory/router.go` |
 | GET | `/products/:id/publications` | `backend/internal/modules/productpublish/handler.go` |

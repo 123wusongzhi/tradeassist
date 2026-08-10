@@ -36,6 +36,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/products/:id/platform-configs/douyin_shop/images/status", read, h.GetDouyinImageStatus)
 	g.GET("/products/:id/platform-configs/:platform", read, h.GetPlatformPublishConfig)
 	g.PUT("/products/:id/platform-configs/:platform", h.PutPlatformPublishConfig)
+	g.POST("/products/:id/platform-configs/ozon/category-recommendations", h.RecommendOzonCategories)
 
 	g.GET("/product-skus/search", read, h.SearchSKUs)
 

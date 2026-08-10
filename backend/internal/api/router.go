@@ -409,6 +409,7 @@ func Register(r gin.IRouter, dep *Deps) (*collect.Service, *imagetask.Service, *
 		Settings:  settingsSvc,
 	}
 	productSvc.Shops = shopSvc
+	productSvc.OzonCategories = shopSvc
 	platformtiktok.BindShops(shopSvc.TikTokShopsBridge())
 	platformtiktok.BindPublishImages(newTikTokListingImageFetcher(dep.DB, settingsSvc))
 	platformdouyin.BindShops(shopSvc.DouyinShopsBridge())
