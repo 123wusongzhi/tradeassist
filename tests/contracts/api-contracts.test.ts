@@ -48,6 +48,7 @@ describe("TradeMind API contract registry", () => {
         "PUT /api/v1/platform/ozon/category-mappings",
         "GET /api/v1/products/:id/platform-configs/ozon",
         "PUT /api/v1/products/:id/platform-configs/ozon",
+        "POST /api/v1/products/:id/platform-configs/ozon/category-recommendations",
         "POST /api/v1/products/:id/readiness/validate",
         "POST /api/v1/product-publish/ozon/category-groups/check",
         "POST /api/v1/product-publish/ozon/category-groups/confirm",
@@ -93,6 +94,11 @@ describe("TradeMind API contract registry", () => {
     const ozonConfigRead = contracts.endpoints.find(
       (item) =>
         routeKey(item) === "GET /api/v1/products/:id/platform-configs/ozon",
+    );
+    const ozonCategoryRecommendations = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "POST /api/v1/products/:id/platform-configs/ozon/category-recommendations",
     );
     const ozonReadiness = contracts.endpoints.find(
       (item) =>
@@ -148,6 +154,32 @@ describe("TradeMind API contract registry", () => {
       "ozonListing",
     ]);
     expect(ozonConfigRead?.query).toEqual(["shopId"]);
+    expect(ozonCategoryRecommendations?.requestBody).toEqual([
+      "shopId",
+      "skuIds",
+      "refreshPolicy",
+    ]);
+    expect(ozonCategoryRecommendations?.businessStatuses).toEqual([
+      "ready",
+      "partial",
+      "no_match",
+      "ai_unavailable",
+      "category_cache_empty",
+    ]);
+    expect(ozonCategoryRecommendations?.responseFields).toEqual(
+      expect.arrayContaining([
+        "differenceDimensions[].evidence[].rawValue",
+        "candidates[].categoryId",
+        "candidates[].variantCoverage",
+        "candidates[].matchedDimensions",
+        "candidates[].listingStrategy",
+        "candidates[].schemaHash",
+      ]),
+    );
+    expect(ozonCategoryRecommendations?.errorStatuses).toEqual([
+      400, 403, 404, 503,
+    ]);
+    expect(ozonCategoryRecommendations?.errorDataFields).toEqual(["errorCode"]);
     expect(ozonConfig?.responseFields).toEqual(
       expect.arrayContaining([
         "id",
@@ -221,7 +253,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(35);
+    expect(contracts.endpoints).toHaveLength(36);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

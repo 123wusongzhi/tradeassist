@@ -229,6 +229,17 @@ func (s *Service) ensureOzonMappingShop(ctx context.Context, tenantID int64, raw
 	}
 	return id, nil
 }
+
+// EnsureAuthorizedOzonShop validates a tenant-owned, active and authorized
+// Ozon shop without invoking any marketplace endpoint. Product recommendation
+// orchestration uses this read-only boundary before reading the shared cache.
+func (s *Service) EnsureAuthorizedOzonShop(ctx context.Context, tenantID int64, shopID uuid.UUID) error {
+	if shopID == uuid.Nil {
+		return fmt.Errorf("invalid shopId")
+	}
+	_, err := s.ensureOzonMappingShop(ctx, tenantID, shopID.String())
+	return err
+}
 func ozonMappingDTO(row OzonCategoryMapping) OzonCategoryMappingDTO {
 	descriptionCategoryID, typeID := splitOzonLeafCategoryID(row.CategoryID)
 	scope := "tenant"

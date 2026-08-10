@@ -221,6 +221,22 @@ func OzonCategorySchemaHash(attrs []PlatformCategoryAttribute) string {
 	return platformozon.CategorySchemaHash(rows)
 }
 
+// OzonCategoryAttributeSchemaHash exposes the same stable template hash for
+// read-only DTO consumers without leaking persistence models across modules.
+func OzonCategoryAttributeSchemaHash(attrs []OzonAttributeDTO) string {
+	rows := make([]platformozon.CategoryAttr, 0, len(attrs))
+	for _, a := range attrs {
+		rows = append(rows, platformozon.CategoryAttr{
+			ID: a.AttrID, Name: a.Name, Description: a.Description,
+			ValueType: a.ValueType, DictionaryID: a.DictionaryID, Required: a.Required,
+			SKUVariantEligible: a.SKUVariantEligible, SKUVariantEligibilityKnown: a.SKUVariantEligibilityKnown,
+			IsCollection: a.IsCollection, AttributeComplexID: a.AttributeComplexID, MaxValueCount: a.MaxValueCount,
+			ComplexIsCollection: a.ComplexIsCollection, CategoryDependent: a.CategoryDependent,
+		})
+	}
+	return platformozon.CategorySchemaHash(rows)
+}
+
 type PutOzonAttributeMappingsBody struct {
 	Items []OzonAttributeMappingDTO `json:"items"`
 }
@@ -424,6 +440,11 @@ func (s *Service) syncOzonCategoriesRun(ctx context.Context, auth platformp.Test
 	}); err != nil {
 		return nil, ozonCategoryErr(OzonCategorySyncFailed, err)
 	}
+	s.invalidateOzonCategorySearchIndex()
+	// Pre-warm the complete local leaf-path index after a successful taxonomy
+	// sync. Failure is non-fatal because recommendation can rebuild lazily and
+	// the manual category navigator continues to use the database cache.
+	_, _ = s.ozonLeafSearchIndex(ctx)
 	if run != nil {
 		stats, err := s.OzonCategoryStats(ctx, run.TenantID)
 		if err != nil {
@@ -525,6 +546,10 @@ type OzonCategoryListQuery struct {
 	ActiveOnly bool
 	Limit      int
 	Offset     int
+	// AllMatches is an internal-only escape hatch for bounded service-side
+	// ranking. HTTP handlers never set it; callers must still reduce the pool
+	// before loading category templates or invoking providers.
+	AllMatches bool
 }
 
 func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuery) (*OzonCategoryListResult, error) {
@@ -607,6 +632,10 @@ func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuer
 	})
 
 	matchedTotal := len(matches)
+	if q.AllMatches {
+		offset = 0
+		limit = matchedTotal
+	}
 	if offset > matchedTotal {
 		offset = matchedTotal
 	}

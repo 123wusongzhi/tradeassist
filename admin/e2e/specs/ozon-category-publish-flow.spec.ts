@@ -6,6 +6,7 @@ import { e2eProduct, E2E_PRODUCT_ID } from "../mocks/product.fixture";
 import {
   E2E_OZON_CATEGORY_ID,
   E2E_OZON_SHOP_ID,
+  e2eOzonCategoryRecommendation,
   e2eOzonConfig,
   ozonPublishResponse,
 } from "../mocks/ozon-publish";
@@ -68,9 +69,9 @@ async function routeConfigReads(
 }
 
 async function expectCenterReady(page: Page) {
-  await expect(
-    page.getByText("刊登中心", { exact: true }).first(),
-  ).toBeVisible();
+  await expect(page.getByText("刊登中心", { exact: true }).first()).toBeVisible(
+    { timeout: 30_000 },
+  );
   await expect(
     page.getByText("发布前检查与提交", { exact: true }),
   ).toBeVisible();
@@ -349,6 +350,111 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
       page.getByText("当前叶子类目已经应用", { exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("spinbutton", { name: "容量" })).toBeVisible();
+  });
+
+  test("applies an AI category only to the unsaved form and performs no Ozon write", async ({
+    admin,
+    page,
+  }) => {
+    admin.writeGuard.allow({
+      operation: "recommend-ozon-category",
+      method: "POST",
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon/category-recommendations$`,
+      ),
+      response: ok(e2eOzonCategoryRecommendation),
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await goPublishingStep(page, "Ozon 类目与属性");
+    const panel = page.getByRole("region", {
+      name: "AI 辅助选择 Ozon 类目",
+    });
+    await panel.getByRole("button", { name: "AI 分析 SKU 并推荐类目" }).click();
+
+    await expect(panel.getByText("已返回部分可核对结果")).toBeVisible();
+    await expect(panel.getByText("近似类目", { exact: true })).toBeVisible();
+    await expect(
+      panel.getByText("建议拆分为单 SKU", { exact: true }),
+    ).toBeVisible();
+    await panel.getByText("规格区别证据（2 个维度）", { exact: true }).click();
+    await expect(
+      panel
+        .getByText(/E2E-SKU-1：颜色分类 =\s*SSK4A 直流控交流 4A 带底座/)
+        .first(),
+    ).toBeVisible();
+    await expect(
+      panel.getByText("短接线与继电器不是同一商品主体，请拆分或人工复核"),
+    ).toBeVisible();
+
+    await panel.getByRole("button", { name: "应用此类目" }).click();
+    await expect(
+      page.getByText(
+        "候选类目已应用到当前未保存表单；请人工核对属性后明确保存",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText("当前叶子类目已经应用", { exact: true }),
+    ).toBeVisible();
+
+    await admin.writeGuard.expectRequestCount("recommend-ozon-category", 1);
+    expect(
+      admin.writeGuard.calls("recommend-ozon-category")[0].postDataJSON,
+    ).toEqual({
+      shopId: E2E_OZON_SHOP_ID,
+      skuIds: [],
+      refreshPolicy: "if_missing_or_stale",
+    });
+    expect(admin.writeGuard.allCalls().map((call) => call.operation)).toEqual([
+      "recommend-ozon-category",
+    ]);
+  });
+
+  test("keeps manual category navigation available when AI analysis is unavailable", async ({
+    admin,
+    page,
+  }) => {
+    admin.writeGuard.allow({
+      operation: "recommend-ozon-category-unavailable",
+      method: "POST",
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon/category-recommendations$`,
+      ),
+      response: ok({
+        ...e2eOzonCategoryRecommendation,
+        status: "ai_unavailable",
+        productType: undefined,
+        differenceDimensions: [],
+        anomalies: [],
+        candidates: [],
+        warnings: ["AI 服务暂不可用，请继续人工选择类目"],
+      }),
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await goPublishingStep(page, "Ozon 类目与属性");
+    const panel = page.getByRole("region", {
+      name: "AI 辅助选择 Ozon 类目",
+    });
+    await panel.getByRole("button", { name: "AI 分析 SKU 并推荐类目" }).click();
+
+    await expect(
+      panel.getByText("AI 分析暂不可用", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel.getByText("没有可应用的 AI 候选；人工类目导航仍可继续使用"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Ozon 一级类目" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Ozon 第 2 级类目" }),
+    ).toBeVisible();
+    expect(admin.writeGuard.allCalls().map((call) => call.operation)).toEqual([
+      "recommend-ozon-category-unavailable",
+    ]);
   });
 
   test("keeps the full-path keyword while locating a search result through its ancestors", async ({
@@ -1445,6 +1551,52 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
           .click();
         await expectNoRootOverflow(page);
       }
+    });
+  }
+
+  for (const viewport of [
+    fiveViewports[0],
+    fiveViewports[3],
+    fiveViewports[4],
+  ]) {
+    test(`keeps populated AI candidate cards within the viewport at ${viewport.width}x${viewport.height}`, async ({
+      admin,
+      page,
+    }) => {
+      admin.writeGuard.allow({
+        operation: `recommend-ozon-category-${viewport.width}`,
+        method: "POST",
+        path: new RegExp(
+          `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon/category-recommendations$`,
+        ),
+        response: ok(e2eOzonCategoryRecommendation),
+      });
+      await page.setViewportSize(viewport);
+      await admin.goto(centerPath);
+      await expectCenterReady(page);
+      await goPublishingStep(page, "Ozon 类目与属性");
+      const panel = page.getByRole("region", {
+        name: "AI 辅助选择 Ozon 类目",
+      });
+      await panel
+        .getByRole("button", { name: "AI 分析 SKU 并推荐类目" })
+        .click();
+      await expect(panel.getByText("已返回部分可核对结果")).toBeVisible();
+
+      await expectNoRootOverflow(page);
+      const bounds = await panel
+        .locator(".ai-category-recommendation__candidate")
+        .first()
+        .boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds?.x ?? -1).toBeGreaterThanOrEqual(0);
+      expect((bounds?.x ?? 0) + (bounds?.width ?? 0)).toBeLessThanOrEqual(
+        viewport.width + 1,
+      );
+      await admin.writeGuard.expectRequestCount(
+        `recommend-ozon-category-${viewport.width}`,
+        1,
+      );
     });
   }
 });

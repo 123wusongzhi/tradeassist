@@ -11,6 +11,7 @@ import {
   normalizeOzonAttributeEditorValues,
   ozonSKUVariantTuple,
   publishOzonProduct,
+  recommendOzonProductCategories,
   saveOzonProductConfig,
   searchOzonLeafCategories,
   syncOzonCategoryFlow,
@@ -423,6 +424,42 @@ describe("ozon publish services", () => {
     expect(requestMock).toHaveBeenCalledWith(
       "/api/v1/products/p1/platform-configs/ozon",
       { method: "GET", params: { shopId: "shop-2" } },
+    );
+  });
+
+  it("requests product-level AI category recommendations without saving or publishing", async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: {
+        status: "no_match",
+        sourceSummary: {
+          productTitle: "继电器",
+          skuCount: 2,
+          selectedSkuCount: 2,
+          skuGroupNames: ["颜色分类"],
+          productAttributeCount: 1,
+          primaryEvidence: "persisted_sku_classification_attributes",
+        },
+        differenceDimensions: [],
+        anomalies: [],
+        candidates: [],
+        warnings: [],
+      },
+    });
+    await recommendOzonProductCategories("product/1", {
+      shopId: "shop-1",
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/products/product%2F1/platform-configs/ozon/category-recommendations",
+      {
+        method: "POST",
+        data: {
+          shopId: "shop-1",
+          skuIds: [],
+          refreshPolicy: "if_missing_or_stale",
+        },
+      },
     );
   });
 

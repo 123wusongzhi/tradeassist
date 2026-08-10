@@ -46,7 +46,6 @@ import {
   normalizeOzonAttributeEditorValues,
   ozonSKUVariantTuple,
   publishOzonProduct,
-  recommendOzonCategory,
   saveOzonCategoryMapping,
   saveOzonProductConfig,
   syncOzonCategoryFlow,
@@ -56,7 +55,7 @@ import {
   type OzonAttributeEditorValues,
   type OzonImageConfigView,
   type OzonCategoryMapping,
-  type OzonCategoryRecommendation,
+  type OzonProductCategoryRecommendationCandidate,
   type OzonProductConfig,
   type OzonReadinessResult,
   type OzonResolvedListing,
@@ -80,6 +79,7 @@ import OzonSKUImageConfigurator, {
 import OzonCategoryNavigator, {
   type OzonCategoryFocusTarget,
 } from "./OzonCategoryNavigator";
+import AICategoryRecommendationPanel from "./AICategoryRecommendationPanel";
 import "../OzonPublish/index.less";
 import "./index.less";
 
@@ -482,9 +482,8 @@ export default function PublishingCenterPage() {
   const [categoryMappingError, setCategoryMappingError] = useState<string>();
   const [confirmingCategoryMapping, setConfirmingCategoryMapping] =
     useState(false);
-  const [categoryRecommendation, setCategoryRecommendation] =
-    useState<OzonCategoryRecommendation>();
-  const [recommendingCategory, setRecommendingCategory] = useState(false);
+  const [appliedRecommendationCategoryID, setAppliedRecommendationCategoryID] =
+    useState<string>();
   const [warehouseOptions, setWarehouseOptions] = useState<
     OzonWarehouseOption[]
   >([]);
@@ -519,6 +518,11 @@ export default function PublishingCenterPage() {
   useEffect(() => {
     setActiveStep(initialStep);
   }, [initialStep]);
+
+  useEffect(() => {
+    setAppliedRecommendationCategoryID(undefined);
+    attributeLoadSequence.current += 1;
+  }, [productId, shopId]);
 
   const canEdit =
     !readonly &&
@@ -1757,7 +1761,7 @@ export default function PublishingCenterPage() {
     if (!shopId || !sourceCategoryKey || !categoryId) return;
     const path = categoryPath || categoryId;
     const selectionMethod =
-      categoryRecommendation?.candidate?.categoryId === categoryId
+      appliedRecommendationCategoryID === categoryId
         ? "recommended_then_manual"
         : "manual";
     let confirmationReason = "";
@@ -2093,36 +2097,6 @@ export default function PublishingCenterPage() {
       message.error(errorMessage(error, "类目缓存同步失败"));
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const recommendCurrentCategory = async () => {
-    const sourceCategoryKey = String(config?.sourceCategoryKey || "").trim();
-    if (!shopId || !sourceCategoryKey) return;
-    setRecommendingCategory(true);
-    try {
-      const result = await recommendOzonCategory({
-        shopId,
-        sourceCategoryKey,
-        sourceCategoryName: config?.sourceCategoryName,
-      });
-      setCategoryRecommendation(result);
-      if (!result.candidate?.categoryId) {
-        message.info("没有找到足够可靠的类目候选，请人工搜索完整路径");
-        return;
-      }
-      const candidate = result.candidate;
-      setCategoryFocusTarget({
-        categoryId: candidate.categoryId,
-        requestId: Date.now(),
-      });
-      message.info(
-        "已定位智能推荐候选的完整父级路径；仍需逐级核对并确认叶子类目",
-      );
-    } catch (error) {
-      message.error(errorMessage(error, "类目智能推荐失败"));
-    } finally {
-      setRecommendingCategory(false);
     }
   };
 
@@ -2546,18 +2520,41 @@ export default function PublishingCenterPage() {
                   <Form.Item name="categoryId" hidden>
                     <Input />
                   </Form.Item>
+                  <AICategoryRecommendationPanel
+                    productId={productId}
+                    shopId={shopId}
+                    disabled={loadingConfig}
+                    readOnly={!canEdit}
+                    onApply={async (
+                      candidate: OzonProductCategoryRecommendationCandidate,
+                    ) => {
+                      setCategoryFocusTarget({
+                        categoryId: candidate.categoryId,
+                        requestId: Date.now(),
+                      });
+                      await onCategoryChange(
+                        candidate.categoryId,
+                        candidate.categoryPath || candidate.categoryId,
+                      );
+                      setAppliedRecommendationCategoryID(candidate.categoryId);
+                      message.success(
+                        "候选类目已应用到当前未保存表单；请人工核对属性后明确保存",
+                      );
+                    }}
+                  />
                   <OzonCategoryNavigator
                     value={selectedCategoryId}
                     valuePath={categoryPath}
                     disabled={!canEdit || loadingConfig}
                     refreshToken={categoryNavigatorRefreshToken}
                     focusTarget={categoryFocusTarget}
-                    onConfirmLeaf={(category) =>
-                      onCategoryChange(
+                    onConfirmLeaf={(category) => {
+                      setAppliedRecommendationCategoryID(undefined);
+                      return onCategoryChange(
                         category.categoryId,
                         category.path || category.name || category.categoryId,
-                      )
-                    }
+                      );
+                    }}
                   />
                 </>
               ) : null}
@@ -2579,15 +2576,6 @@ export default function PublishingCenterPage() {
                       </Typography.Paragraph>
                     </div>
                     <Space wrap>
-                      <Button
-                        size="small"
-                        icon={<ThunderboltOutlined />}
-                        loading={recommendingCategory}
-                        disabled={!shopId || categoryMappingLoading}
-                        onClick={() => void recommendCurrentCategory()}
-                      >
-                        智能推荐候选
-                      </Button>
                       <Button
                         type="primary"
                         size="small"
@@ -2728,14 +2716,6 @@ export default function PublishingCenterPage() {
                   showIcon
                   message="当前商品没有可用的来源类目"
                   description="服务端仍会要求当前叶子类目路径和属性模板已明确保存确认。"
-                />
-              ) : null}
-              {activeStep === 2 && categoryRecommendation?.candidate ? (
-                <Alert
-                  type="info"
-                  showIcon
-                  message="系统推荐类目已优先展示，仍需人工核对"
-                  description={`推荐完整路径：${categoryRecommendation.candidate.categoryPath || categoryRecommendation.candidate.categoryId}；系统不会自动确认或提交。技术 ID 可在叶子类目的“技术信息”中查看。`}
                 />
               ) : null}
               {activeStep === 2 ? (
