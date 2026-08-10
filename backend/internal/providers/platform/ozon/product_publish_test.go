@@ -3,6 +3,7 @@ package ozon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,8 +30,8 @@ func TestPublishProductHappyPath(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"result":[
-			{"id":10096,"name":"Color","type":"String","dictionary_id":0,"is_required":true,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false},
-			{"id":85,"name":"Brand","type":"String","dictionary_id":0,"is_required":false,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false}
+			{"id":10096,"name":"Color","type":"String","dictionary_id":0,"is_required":true,"is_aspect":true,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false},
+			{"id":85,"name":"Brand","type":"String","dictionary_id":0,"is_required":false,"is_aspect":false,"is_collection":false,"attribute_complex_id":0,"max_value_count":1,"complex_is_collection":false}
 		]}`))
 	})
 	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, r *http.Request) {
@@ -122,8 +123,17 @@ func TestPublishProductHappyPath(t *testing.T) {
 	if res.ExternalProductID != "137285792" {
 		t.Fatalf("unexpected external product id: %s", res.ExternalProductID)
 	}
-	if res.Status != "published" {
+	if res.Status != platformp.PublishStatusImported {
 		t.Fatalf("unexpected status: %s", res.Status)
+	}
+	if len(res.Warnings) != 0 {
+		t.Fatalf("unexpected warnings: %+v", res.Warnings)
+	}
+	if res.RawSummary["platformStatus"] != importStatusImported || res.RawSummary["verificationStatus"] != platformp.PublishStatusImported {
+		t.Fatalf("unexpected verification summary: %+v", res.RawSummary)
+	}
+	if res.RawSummary["sellableVerified"] != false || res.RawSummary["needsAction"] != false {
+		t.Fatalf("imported result must not claim sellability: %+v", res.RawSummary)
 	}
 	if len(res.SKUMappings) != 2 {
 		t.Fatalf("expected 2 sku mappings, got %d", len(res.SKUMappings))
@@ -168,6 +178,183 @@ func TestPublishProductHappyPath(t *testing.T) {
 	stock0 := stocks[0]
 	if stock0.WarehouseID != 22142605386000 || stock0.Stock != 10 {
 		t.Fatalf("unexpected stock row: %+v", stock0)
+	}
+}
+
+func TestPublishProductImportedWithErrorNeedsAction(t *testing.T) {
+	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"task_id":11}}`))
+	})
+	mux.HandleFunc(pathImportInfo, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"items":[{
+			"offer_id":"SKU-STATUS","product_id":201,"status":"imported",
+			"errors":[{"code":"invalid_dimensions","field":"depth","level":"error","message":"invalid package dimensions"}]
+		}]}}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	res, err := (ozonProvider{}).PublishProduct(context.Background(), statusTestPublishRequest(srv.URL, ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != platformp.PublishStatusNeedsAction {
+		t.Fatalf("status = %q, want %q", res.Status, platformp.PublishStatusNeedsAction)
+	}
+	if res.ExternalProductID != "201" {
+		t.Fatalf("external product id = %q", res.ExternalProductID)
+	}
+	if len(res.Warnings) != 1 {
+		t.Fatalf("warnings = %+v", res.Warnings)
+	}
+	warning := res.Warnings[0]
+	if warning.Stage != "import" || warning.Severity != "error" || warning.Code != "invalid_dimensions" || warning.Field != "depth" || warning.OfferID != "SKU-STATUS" || warning.Message != "invalid package dimensions" {
+		t.Fatalf("unexpected warning: %+v", warning)
+	}
+	if res.RawSummary["platformStatus"] != importStatusImported || res.RawSummary["verificationStatus"] != platformp.PublishStatusNeedsAction || res.RawSummary["needsAction"] != true || res.RawSummary["sellableVerified"] != false {
+		t.Fatalf("unexpected verification summary: %+v", res.RawSummary)
+	}
+}
+
+func TestPublishProductMissingImportResultNeedsAction(t *testing.T) {
+	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"task_id":13}}`))
+	})
+	mux.HandleFunc(pathImportInfo, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"items":[{"offer_id":"UNEXPECTED-OFFER","product_id":203,"status":"imported","errors":[]}]}}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	res, err := (ozonProvider{}).PublishProduct(context.Background(), statusTestPublishRequest(srv.URL, ""))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != platformp.PublishStatusNeedsAction {
+		t.Fatalf("status = %q, want %q", res.Status, platformp.PublishStatusNeedsAction)
+	}
+	if len(res.Warnings) != 1 {
+		t.Fatalf("warnings = %+v", res.Warnings)
+	}
+	warning := res.Warnings[0]
+	if warning.Stage != "import" || warning.Code != "import_result_missing" || warning.OfferID != "SKU-STATUS" {
+		t.Fatalf("unexpected warning: %+v", warning)
+	}
+}
+
+func TestPublishProductStockFailureNeedsAction(t *testing.T) {
+	var stockCalls int
+	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"task_id":12}}`))
+	})
+	mux.HandleFunc(pathImportInfo, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"items":[{"offer_id":"SKU-STATUS","product_id":202,"status":"imported","errors":[]}]}}`))
+	})
+	mux.HandleFunc(pathStocks, func(w http.ResponseWriter, _ *http.Request) {
+		stockCalls++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"warehouse unavailable"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	res, err := (ozonProvider{}).PublishProduct(context.Background(), statusTestPublishRequest(srv.URL, "123"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stockCalls != 1 {
+		t.Fatalf("stock calls = %d, want 1", stockCalls)
+	}
+	if res.Status != platformp.PublishStatusNeedsAction {
+		t.Fatalf("status = %q, want %q", res.Status, platformp.PublishStatusNeedsAction)
+	}
+	if len(res.Warnings) != 1 {
+		t.Fatalf("warnings = %+v", res.Warnings)
+	}
+	warning := res.Warnings[0]
+	if warning.Stage != "stock" || warning.Severity != "error" || warning.Code != "stock_sync_request_failed" {
+		t.Fatalf("unexpected warning: %+v", warning)
+	}
+	if res.RawSummary["stockSyncStatus"] != "failed" || res.RawSummary["needsAction"] != true || res.RawSummary["sellableVerified"] != false {
+		t.Fatalf("unexpected stock verification summary: %+v", res.RawSummary)
+	}
+}
+
+func TestPublishProductExplicitZeroStockSkipsStockMutation(t *testing.T) {
+	var stockCalls int
+	mux := http.NewServeMux()
+	handleEmptyCategoryAttributes(mux)
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"task_id":14}}`))
+	})
+	mux.HandleFunc(pathImportInfo, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":{"items":[{"offer_id":"SKU-STATUS","product_id":204,"status":"imported","errors":[]}]}}`))
+	})
+	mux.HandleFunc(pathStocks, func(w http.ResponseWriter, _ *http.Request) {
+		stockCalls++
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"message":"Product is not created"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	req := statusTestPublishRequest(srv.URL, "123")
+	req.Product.SKUs[0].Stock = 0
+	res, err := (ozonProvider{}).PublishProduct(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stockCalls != 0 {
+		t.Fatalf("zero stock must not call Ozon stocks API, calls=%d", stockCalls)
+	}
+	if res.Status != platformp.PublishStatusImported || len(res.Warnings) != 0 {
+		t.Fatalf("zero stock import must remain imported without warnings: status=%s warnings=%+v", res.Status, res.Warnings)
+	}
+	if res.RawSummary["stockSyncStatus"] != "zero_stock_not_required" || res.RawSummary["needsAction"] != false || res.RawSummary["sellableVerified"] != false {
+		t.Fatalf("unexpected zero-stock summary: %+v", res.RawSummary)
+	}
+	for _, warning := range res.Warnings {
+		if strings.Contains(strings.ToLower(warning.Message), "product is not created") {
+			t.Fatalf("skipped stock mutation produced a synthetic platform warning: %+v", warning)
+		}
+	}
+}
+
+func TestAllImportedSKUsHaveExplicitZeroStock(t *testing.T) {
+	draft := func(stocks ...int) platformp.PlatformProductDraft {
+		skus := make([]platformp.PlatformProductSKU, 0, len(stocks))
+		for i, stock := range stocks {
+			skus = append(skus, platformp.PlatformProductSKU{SKUCode: fmt.Sprintf("SKU-%d", i+1), Stock: stock})
+		}
+		return platformp.PlatformProductDraft{SKUs: skus}
+	}
+	tests := []struct {
+		name     string
+		draft    platformp.PlatformProductDraft
+		imported []importedRow
+		want     bool
+	}{
+		{name: "one explicit zero", draft: draft(0), imported: []importedRow{{OfferID: "SKU-1", ProductID: 1}}, want: true},
+		{name: "all imported are explicit zero", draft: draft(0, 0), imported: []importedRow{{OfferID: "SKU-1", ProductID: 1}, {OfferID: "SKU-2", ProductID: 2}}, want: true},
+		{name: "positive stock is not zero", draft: draft(1), imported: []importedRow{{OfferID: "SKU-1", ProductID: 1}}},
+		{name: "negative stock is not zero", draft: draft(-1), imported: []importedRow{{OfferID: "SKU-1", ProductID: 1}}},
+		{name: "unknown imported offer is not zero", draft: draft(0), imported: []importedRow{{OfferID: "UNKNOWN", ProductID: 1}}},
+		{name: "missing platform product id is not trusted", draft: draft(0), imported: []importedRow{{OfferID: "SKU-1"}}},
+		{name: "empty imported result is not zero", draft: draft(0)},
+		{name: "duplicate imported offer is not trusted", draft: draft(0), imported: []importedRow{{OfferID: "SKU-1", ProductID: 1}, {OfferID: "SKU-1", ProductID: 1}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := allImportedSKUsHaveExplicitZeroStock(tt.draft, tt.imported); got != tt.want {
+				t.Fatalf("allImportedSKUsHaveExplicitZeroStock() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -216,6 +403,71 @@ func TestPublishProductBlocksLegacyMultiSKUBeforeOzonWrite(t *testing.T) {
 	}
 	if importCalls != 0 {
 		t.Fatalf("expected no Ozon product import write, got %d", importCalls)
+	}
+}
+
+func TestPublishProductBlocksNonAspectVariantBeforeOzonWrite(t *testing.T) {
+	tests := []struct {
+		name       string
+		aspectJSON string
+		want       string
+	}{
+		{name: "brand explicitly not aspect", aspectJSON: `,"is_aspect":false`, want: "not eligible"},
+		{name: "missing aspect evidence", aspectJSON: ``, want: "no live is_aspect eligibility evidence"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var importCalls int
+			mux := http.NewServeMux()
+			mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = fmt.Fprintf(w, `{"result":[{"id":85,"name":"Brand","type":"String","is_required":true%s}]}`, tt.aspectJSON)
+			})
+			mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+				importCalls++
+				_, _ = w.Write([]byte(`{"result":{"task_id":1}}`))
+			})
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			req := statusTestPublishRequest(srv.URL, "")
+			req.Product.SKUs = []platformp.PlatformProductSKU{
+				{LocalSKUID: uuid.New(), SKUCode: "BRAND-A", Price: 10, Stock: 1, ImageURL: "https://example.com/a.jpg", PlatformAttributes: map[string]any{"version": 3, "attributes": map[string]any{"85": []map[string]any{{"value": "A"}}}, "complexGroups": []any{}, "skuVariantAttributeIds": []string{"85"}}},
+				{LocalSKUID: uuid.New(), SKUCode: "BRAND-B", Price: 11, Stock: 1, ImageURL: "https://example.com/b.jpg", PlatformAttributes: map[string]any{"version": 3, "attributes": map[string]any{"85": []map[string]any{{"value": "B"}}}, "complexGroups": []any{}, "skuVariantAttributeIds": []string{"85"}}},
+			}
+			_, err := (ozonProvider{}).PublishProduct(context.Background(), req)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error=%v want %q", err, tt.want)
+			}
+			if importCalls != 0 {
+				t.Fatalf("product/import must not be called, calls=%d", importCalls)
+			}
+		})
+	}
+}
+
+func TestPublishProductBlocksInvalidValueTypeBeforeOzonWrite(t *testing.T) {
+	var importCalls int
+	mux := http.NewServeMux()
+	mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"result":[{"id":20001,"name":"Capacity","type":"Integer","is_aspect":false,"is_required":true}]}`))
+	})
+	mux.HandleFunc(pathProductImport, func(w http.ResponseWriter, _ *http.Request) {
+		importCalls++
+		_, _ = w.Write([]byte(`{"result":{"task_id":1}}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	req := statusTestPublishRequest(srv.URL, "")
+	req.Product.SKUs[0].PlatformAttributes = map[string]any{
+		"version": 3, "attributes": map[string]any{"20001": []map[string]any{{"value": "twelve"}}}, "complexGroups": []any{}, "skuVariantAttributeIds": []string{},
+	}
+	_, err := (ozonProvider{}).PublishProduct(context.Background(), req)
+	if err == nil || !strings.Contains(err.Error(), "signed 64-bit integer") {
+		t.Fatalf("error=%v", err)
+	}
+	if importCalls != 0 {
+		t.Fatalf("product/import must not be called, calls=%d", importCalls)
 	}
 }
 
@@ -470,4 +722,37 @@ func handleEmptyCategoryAttributes(mux *http.ServeMux) {
 	mux.HandleFunc(pathCategoryAttributes, func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"result":[]}`))
 	})
+}
+
+func statusTestPublishRequest(baseURL, warehouseID string) platformp.PublishProductRequest {
+	publishConfig := map[string]any{
+		"description_category_id": "200001240",
+		"type_id":                 "93488",
+		"default_weight":          "100",
+		"default_width":           "100",
+		"default_height":          "100",
+		"default_depth":           "100",
+		"currency_code":           "RUB",
+		"vat":                     "0",
+		"auto_fill_attributes":    "false",
+	}
+	if warehouseID != "" {
+		publishConfig["warehouse_id"] = warehouseID
+	}
+	return platformp.PublishProductRequest{
+		ShopID:   uuid.New(),
+		Platform: PlatformID,
+		Auth: platformp.TestConnectionRequest{
+			AppKey:      "client-id",
+			AccessToken: "test-api-key",
+			Extra:       map[string]string{"api_base_url": baseURL},
+		},
+		PublishConfig: publishConfig,
+		Product: platformp.PlatformProductDraft{
+			ProductID: uuid.New(),
+			Title:     "Status test product",
+			Images:    []platformp.PlatformProductImage{{URL: "https://example.com/status.jpg", Type: "main"}},
+			SKUs:      []platformp.PlatformProductSKU{{LocalSKUID: uuid.New(), SKUCode: "SKU-STATUS", Price: 10, Stock: 1, ImageURL: "https://example.com/status.jpg"}},
+		},
+	}
 }

@@ -3,9 +3,12 @@ package ozon
 import (
 	"context"
 	"fmt"
+	"math"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	platformp "github.com/trademind-ai/trademind/backend/internal/providers/platform"
@@ -22,9 +25,11 @@ const (
 type ozonAttribute struct {
 	ID                  int64  `json:"id"`
 	Name                string `json:"name"`
+	Description         string `json:"description"`
 	Type                string `json:"type"`
 	DictionaryID        int64  `json:"dictionary_id"`
 	IsRequired          bool   `json:"is_required"`
+	IsAspect            *bool  `json:"is_aspect"`
 	IsCollection        bool   `json:"is_collection"`
 	AttributeComplexID  int64  `json:"attribute_complex_id"`
 	MaxValueCount       int64  `json:"max_value_count"`
@@ -267,6 +272,11 @@ func (c *ozonClient) buildCategoryAttributesForPublish(
 			}
 			continue
 		}
+		if a.DictionaryID == 0 {
+			if typeErr := validateOzonAttributeValueType(a, value); typeErr != nil {
+				return nil, nil, nil, typeErr
+			}
+		}
 		seen[a.ID] = true
 		added++
 		vals := []ozonAttrValue{{Value: value}}
@@ -355,6 +365,9 @@ func (c *ozonClient) resolveExplicitOzonSelections(
 		}
 		if selected.DictionaryValueID > 0 {
 			return ozonAttributeValue{}, false, fmt.Errorf("ozon non-dictionary attribute %s cannot use dictionaryValueId", attributeDisplayName(attr))
+		}
+		if err := validateOzonAttributeValueType(attr, value); err != nil {
+			return ozonAttributeValue{}, false, err
 		}
 		values = append(values, ozonAttrValue{Value: value})
 	}
@@ -459,6 +472,46 @@ func attributeDisplayName(a ozonAttribute) string {
 	return strconv.FormatInt(a.ID, 10)
 }
 
+func validateOzonAttributeValueType(attr ozonAttribute, raw string) error {
+	value := strings.TrimSpace(raw)
+	valueType := strings.ToLower(strings.TrimSpace(attr.Type))
+	switch valueType {
+	case "":
+		return fmt.Errorf("ozon attribute %s has no value type in the live category template", attributeDisplayName(attr))
+	case "string", "text":
+		return nil
+	case "integer", "int", "int64":
+		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return fmt.Errorf("ozon attribute %s must be a signed 64-bit integer", attributeDisplayName(attr))
+		}
+	case "decimal", "float", "double", "number":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsInf(parsed, 0) || math.IsNaN(parsed) || strings.ContainsAny(value, "eE") {
+			return fmt.Errorf("ozon attribute %s must be a finite decimal without scientific notation", attributeDisplayName(attr))
+		}
+	case "boolean", "bool":
+		if !strings.EqualFold(value, "true") && !strings.EqualFold(value, "false") {
+			return fmt.Errorf("ozon attribute %s must be true or false", attributeDisplayName(attr))
+		}
+	case "url", "uri", "image":
+		parsed, err := url.ParseRequestURI(value)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return fmt.Errorf("ozon attribute %s must be an absolute http/https URL", attributeDisplayName(attr))
+		}
+	case "date":
+		if _, err := time.Parse("2006-01-02", value); err != nil {
+			return fmt.Errorf("ozon attribute %s must use YYYY-MM-DD", attributeDisplayName(attr))
+		}
+	case "datetime", "date_time", "timestamp":
+		if _, err := time.Parse(time.RFC3339, value); err != nil {
+			return fmt.Errorf("ozon attribute %s must use RFC3339", attributeDisplayName(attr))
+		}
+	default:
+		return fmt.Errorf("ozon attribute %s uses unsupported value type %q", attributeDisplayName(attr), attr.Type)
+	}
+	return nil
+}
+
 // applySuggestedAttributes maps LLM-suggested values for missing required
 // attributes. Dictionary attributes only keep values that matched a dictionary
 // entry; unmatched ones stay missing instead of failing the whole import.
@@ -483,6 +536,10 @@ func (c *ozonClient) applySuggestedAttributes(
 				continue
 			}
 			out = append(out, ozonAttributeValue{ComplexID: a.AttributeComplexID, ID: a.ID, Values: []ozonAttrValue{{DictionaryValueID: dv.ID, Value: dv.Value}}})
+			continue
+		}
+		if err := validateOzonAttributeValueType(a, v); err != nil {
+			missing = append(missing, a.Name)
 			continue
 		}
 		out = append(out, ozonAttributeValue{ComplexID: a.AttributeComplexID, ID: a.ID, Values: []ozonAttrValue{{Value: v}}})

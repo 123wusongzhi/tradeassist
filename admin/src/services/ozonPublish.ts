@@ -55,9 +55,17 @@ export type OzonCategoryMapping = {
   sourceCategoryKey: string;
   sourceCategoryName?: string;
   categoryId: string;
+  descriptionCategoryId?: string;
+  typeId?: string;
   categoryPath?: string;
   schemaHash?: string;
   status?: string;
+  selectionMethod?: "manual" | "recommended_then_manual";
+  confirmationReason?: string;
+  scope?: "shop" | "tenant";
+  templateSyncedAt?: string;
+  confirmedAt?: string;
+  confirmedBy?: string;
   updatedAt?: string;
 };
 
@@ -69,6 +77,8 @@ export type OzonCategoryMappingInput = Pick<
   | "categoryId"
   | "categoryPath"
   | "status"
+  | "selectionMethod"
+  | "confirmationReason"
 >;
 
 export type OzonCategoryRecommendation = {
@@ -1032,20 +1042,56 @@ export async function publishOzonProduct(
   );
 }
 
-export function searchOzonLeafCategories(keyword?: string) {
+export type OzonLeafCategorySearchParams = {
+  keyword?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export function searchOzonLeafCategories(
+  keywordOrParams?: string | OzonLeafCategorySearchParams,
+) {
+  const params =
+    typeof keywordOrParams === "string"
+      ? { keyword: keywordOrParams }
+      : keywordOrParams || {};
   return getWithParams<{
     list: Array<{
       id: string;
       categoryId: string;
       name: string;
+      path?: string;
       descriptionCategoryId?: string;
       typeId?: string;
     }>;
     total: number;
+    leafCount: number;
+    matchedTotal: number;
+    offset: number;
+    limit: number;
+    lastSyncedAt?: string;
+    cacheStale: boolean;
   }>("/api/v1/platform/ozon/categories", {
-    keyword,
+    keyword: params.keyword,
     onlyLeaf: "1",
     activeOnly: "1",
-    limit: "100",
+    limit: String(params.limit || 100),
+    offset:
+      typeof params.offset === "number" ? String(params.offset) : undefined,
   });
+}
+
+export type OzonWarehouseOption = {
+  id: string;
+  name: string;
+  isRfbs: boolean;
+  isKgt: boolean;
+  economy: boolean;
+};
+
+export function listOzonWarehouses(shopId: string) {
+  return getWithParams<{ list: OzonWarehouseOption[] }>(
+    "/api/v1/platform/ozon/warehouses",
+    { shopId },
+  );
 }

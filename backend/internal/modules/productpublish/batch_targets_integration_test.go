@@ -304,8 +304,8 @@ func TestRetryFailedRejectsOzonTaskUntilExternalResultIsReconciled(t *testing.T)
 	if err := db.First(&reloaded, "id = ?", retryableTask.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.Retryable {
-		t.Fatal("claimed Ozon retry must clear retryable until the next provider result")
+	if !reloaded.Retryable || reloaded.ErrorCode != ErrorPublishNotSent {
+		t.Fatalf("a retry that fails before mutation must remain safely retryable: %+v", reloaded)
 	}
 }
 

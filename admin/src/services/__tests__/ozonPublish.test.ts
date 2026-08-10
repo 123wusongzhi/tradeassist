@@ -7,10 +7,12 @@ import {
   buildOzonSKUImagePreview,
   confirmOzonCategoryGroup,
   getOzonProductConfig,
+  listOzonWarehouses,
   normalizeOzonAttributeEditorValues,
   ozonSKUVariantTuple,
   publishOzonProduct,
   saveOzonProductConfig,
+  searchOzonLeafCategories,
   syncOzonCategoryFlow,
   toOzonImageConfigInput,
   toOzonAttributeFormValues,
@@ -21,6 +23,56 @@ import {
 const requestMock = vi.mocked(request);
 
 describe("ozon publish services", () => {
+  it("searches Ozon leaf categories with pagination while preserving string callers", async () => {
+    requestMock.mockResolvedValue({
+      code: 0,
+      message: "ok",
+      data: {
+        list: [],
+        total: 20000,
+        leafCount: 18000,
+        matchedTotal: 135,
+        offset: 50,
+        limit: 50,
+        cacheStale: false,
+      },
+    });
+    const result = await searchOzonLeafCategories({
+      keyword: "住宅和花园 / 收纳",
+      limit: 50,
+      offset: 50,
+    });
+    expect(result.matchedTotal).toBe(135);
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/platform/ozon/categories",
+      {
+        method: "GET",
+        params: {
+          keyword: "住宅和花园 / 收纳",
+          onlyLeaf: "1",
+          activeOnly: "1",
+          limit: "50",
+          offset: "50",
+        },
+      },
+    );
+
+    await searchOzonLeafCategories("储物箱");
+    expect(requestMock).toHaveBeenLastCalledWith(
+      "/api/v1/platform/ozon/categories",
+      {
+        method: "GET",
+        params: {
+          keyword: "储物箱",
+          onlyLeaf: "1",
+          activeOnly: "1",
+          limit: "100",
+          offset: undefined,
+        },
+      },
+    );
+  });
+
   it("tolerates temporarily undefined complex groups while the form switches contexts", () => {
     expect(
       normalizeOzonAttributeEditorValues([], {
@@ -511,6 +563,30 @@ describe("ozon publish services", () => {
         method: "POST",
         data: { platform: "ozon", shopId: "shop-1" },
       },
+    );
+  });
+
+  it("loads warehouses for the selected authorized Ozon shop", async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: {
+        list: [
+          {
+            id: "5278166",
+            name: "测试 FBS 仓",
+            isRfbs: false,
+            isKgt: false,
+            economy: false,
+          },
+        ],
+      },
+    });
+    const result = await listOzonWarehouses("shop-1");
+    expect(result.list[0]?.id).toBe("5278166");
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/platform/ozon/warehouses",
+      { method: "GET", params: { shopId: "shop-1" } },
     );
   });
 

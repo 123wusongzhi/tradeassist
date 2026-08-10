@@ -17,6 +17,11 @@ const (
 	pathProductImport = "/v3/product/import"
 	pathImportInfo    = "/v1/product/import/info"
 	pathStocks        = "/v2/products/stocks"
+
+	// MaxProductImportItemsPerRequest is TradeMind's conservative safety
+	// ceiling for one synchronous Ozon import. It is an adapter guardrail, not
+	// category metadata: the category APIs do not expose a per-category SKU cap.
+	MaxProductImportItemsPerRequest = 100
 )
 
 type ozonPublishMerged struct {
@@ -167,6 +172,9 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	if len(d.SKUs) == 0 {
 		return nil, fmt.Errorf("product SKU is required for publish")
 	}
+	if len(d.SKUs) > MaxProductImportItemsPerRequest {
+		return nil, fmt.Errorf("ozon publish contains %d SKUs; TradeMind allows at most %d items in one import request", len(d.SKUs), MaxProductImportItemsPerRequest)
+	}
 	skuImagePlans := make([]ozonSKUImagePlan, len(d.SKUs))
 	for i, sku := range d.SKUs {
 		plan, imageErr := resolveOzonSKUImagePlan(sku)
@@ -237,6 +245,9 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			}
 			dimensions := append([]string(nil), resolvedAttrs.SKUVariantAttributeIDs...)
 			sort.Strings(dimensions)
+			if dimensionErr := validateLiveOzonVariantDimensions(dimensions, liveAttrs); dimensionErr != nil {
+				return nil, fmt.Errorf("ozon SKU %s: %w; no Ozon write was sent", skuDisplayNameForPublish(sku), dimensionErr)
+			}
 			joinedDimensions := strings.Join(dimensions, "\x00")
 			if i == 0 {
 				variantDimensions = joinedDimensions
@@ -383,7 +394,7 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 		return nil, fmt.Errorf("ozon product publish: platform did not return task_id")
 	}
 
-	imported, failed, warnings, err := pollImportInfo(cctx, client, importResp.Result.TaskID)
+	imported, failed, importWarnings, err := pollImportInfo(cctx, client, importResp.Result.TaskID)
 	if err != nil {
 		return nil, mapOzonPublishError(err)
 	}
@@ -393,11 +404,23 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 	if len(imported) == 0 {
 		return nil, fmt.Errorf("ozon product publish: no products imported")
 	}
+	importWarnings = append(importWarnings, missingImportResultWarnings(d, imported)...)
 
 	// Optional per-SKU stock sync (Ozon stock is per product + warehouse).
-	stockWarnings := []string(nil)
-	if merged.WarehouseID > 0 {
+	stockWarnings := []platformp.PublishWarning(nil)
+	stockSyncStatus := "not_requested"
+	if allImportedSKUsHaveExplicitZeroStock(d, imported) {
+		// A newly imported offer already has no sellable stock. Sending an
+		// immediate zero-stock mutation is unnecessary and can race Ozon's
+		// product materialization, producing a misleading "Product is not
+		// created" response. Only exact imported-offer/SKU matches qualify.
+		stockSyncStatus = "zero_stock_not_required"
+	} else if merged.WarehouseID > 0 {
 		stockWarnings = applyStocks(cctx, client, merged.WarehouseID, d, imported)
+		stockSyncStatus = "synced"
+		if len(stockWarnings) > 0 {
+			stockSyncStatus = "failed"
+		}
 	}
 
 	mappings := buildSKUMappings(d, imported)
@@ -409,26 +432,38 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 			firstOfferID = row.OfferID
 		}
 	}
-	status := "published"
+	warnings := make([]platformp.PublishWarning, 0, len(importWarnings)+len(stockWarnings))
+	warnings = append(warnings, importWarnings...)
+	warnings = append(warnings, stockWarnings...)
+	status := platformp.PublishStatusImported
+	if len(warnings) > 0 {
+		status = platformp.PublishStatusNeedsAction
+	}
 	summary := map[string]any{
-		"provider":         "ozon",
-		"taskId":           importResp.Result.TaskID,
-		"imported":         len(imported),
-		"skuMappings":      len(mappings),
-		"categoryId":       merged.DescriptionCategoryID,
-		"typeId":           merged.TypeID,
-		"currencyCode":     merged.CurrencyCode,
-		"resolvedCurrency": currencyCode,
-		"resolvedAttrs":    resolvedAttributeCount,
-		"resolvedSKUCount": len(d.SKUs),
+		"provider":           "ozon",
+		"taskId":             importResp.Result.TaskID,
+		"imported":           len(imported),
+		"platformStatus":     importStatusImported,
+		"verificationStatus": status,
+		"sellableVerified":   false,
+		"needsAction":        status == platformp.PublishStatusNeedsAction,
+		"warningCount":       len(warnings),
+		"stockSyncStatus":    stockSyncStatus,
+		"skuMappings":        len(mappings),
+		"categoryId":         merged.DescriptionCategoryID,
+		"typeId":             merged.TypeID,
+		"currencyCode":       merged.CurrencyCode,
+		"resolvedCurrency":   currencyCode,
+		"resolvedAttrs":      resolvedAttributeCount,
+		"resolvedSKUCount":   len(d.SKUs),
 		// Kept for task-summary compatibility; resolvedAttrs is the precise
 		// name for canonical multi-SKU snapshots.
 		"autoFillAttrs":  resolvedAttributeCount,
 		"aiFillUsed":     aiFillUsed,
 		"aiFillFailed":   aiFillFailed,
 		"missingAttrs":   missingAttrs,
-		"importWarnings": warnings,
-		"stockWarnings":  stockWarnings,
+		"importWarnings": publishWarningMessages(importWarnings),
+		"stockWarnings":  publishWarningMessages(stockWarnings),
 		"warehouseId":    merged.WarehouseID,
 	}
 	return &platformp.PublishProductResult{
@@ -436,8 +471,49 @@ func (ozonProvider) PublishProduct(ctx context.Context, req platformp.PublishPro
 		ExternalSPUID:     firstOfferID,
 		Status:            status,
 		SKUMappings:       mappings,
-		RawSummary:        platformp.TrimRawMap(summary, 24, 240),
+		Warnings:          warnings,
+		RawSummary:        platformp.TrimRawMap(summary, 28, 240),
 	}, nil
+}
+
+func validateLiveOzonVariantDimensions(dimensions []string, schema []ozonAttribute) error {
+	byID := make(map[string]ozonAttribute, len(schema))
+	eligibleCount := 0
+	for _, attr := range schema {
+		id := strconv.FormatInt(attr.ID, 10)
+		byID[id] = attr
+		if attr.AttributeComplexID <= 0 && attr.IsAspect != nil && *attr.IsAspect {
+			eligibleCount++
+		}
+	}
+	seen := make(map[string]struct{}, len(dimensions))
+	for _, rawID := range dimensions {
+		id := strings.TrimSpace(rawID)
+		if id == "" {
+			return fmt.Errorf("variant dimension contains an empty attribute id")
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return fmt.Errorf("variant dimension attribute %s is duplicated", id)
+		}
+		seen[id] = struct{}{}
+		attr, exists := byID[id]
+		if !exists {
+			return fmt.Errorf("live category template no longer contains variant attribute %s", id)
+		}
+		if attr.AttributeComplexID > 0 {
+			return fmt.Errorf("complex attribute %s cannot be a SKU variant dimension", attributeDisplayName(attr))
+		}
+		if attr.IsAspect == nil {
+			return fmt.Errorf("attribute %s has no live is_aspect eligibility evidence", attributeDisplayName(attr))
+		}
+		if !*attr.IsAspect {
+			return fmt.Errorf("attribute %s is not eligible as a SKU variant dimension", attributeDisplayName(attr))
+		}
+	}
+	if len(dimensions) > eligibleCount {
+		return fmt.Errorf("variant dimension count %d exceeds the %d dimensions confirmed by the live category template", len(dimensions), eligibleCount)
+	}
+	return nil
 }
 
 type explicitOzonComplexGroup struct {
@@ -651,7 +727,7 @@ type importInfoItemError struct {
 	Description string `json:"description"`
 }
 
-func pollImportInfo(ctx context.Context, client *ozonClient, taskID int64) ([]importedRow, []string, []string, error) {
+func pollImportInfo(ctx context.Context, client *ozonClient, taskID int64) ([]importedRow, []string, []platformp.PublishWarning, error) {
 	var lastErr error
 	for attempt := 0; attempt < maxPollAttempts; attempt++ {
 		if attempt > 0 {
@@ -682,7 +758,7 @@ func pollImportInfo(ctx context.Context, client *ozonClient, taskID int64) ([]im
 		}
 		imported := make([]importedRow, 0, len(rows))
 		failed := make([]string, 0, len(rows))
-		warnings := make([]string, 0, len(rows))
+		warnings := make([]platformp.PublishWarning, 0, len(rows))
 		pending := false
 		for _, it := range rows {
 			switch strings.ToLower(strings.TrimSpace(it.Status)) {
@@ -697,10 +773,22 @@ func pollImportInfo(ctx context.Context, client *ozonClient, taskID int64) ([]im
 				}
 				for _, e := range it.Errors {
 					// error-level items on an imported product mean "cannot sell yet"
-					// (missing required attributes) — report as warnings, not failure.
-					if strings.EqualFold(strings.TrimSpace(e.Level), "warning") ||
-						strings.EqualFold(strings.TrimSpace(e.Level), "error") {
-						warnings = append(warnings, fmt.Sprintf("offer_id=%s %s", it.OfferID, firstNonEmptyErrorMsg(e)))
+					// (missing required attributes). Preserve the platform-created product,
+					// but mark the result as needs_action instead of published/sellable.
+					severity := strings.ToLower(strings.TrimSpace(e.Level))
+					if severity == "warning" || severity == "error" {
+						msg := firstNonEmptyErrorMsg(e)
+						if strings.TrimSpace(msg) == "" {
+							msg = "unknown import warning"
+						}
+						warnings = append(warnings, platformp.PublishWarning{
+							Stage:    "import",
+							Severity: severity,
+							Code:     strings.TrimSpace(e.Code),
+							Field:    strings.TrimSpace(e.Field),
+							OfferID:  strings.TrimSpace(it.OfferID),
+							Message:  msg,
+						})
 					}
 				}
 			case importStatusFailed:
@@ -749,8 +837,9 @@ func firstNonEmptyMsg(code, message, description string) string {
 	return msg
 }
 
-func applyStocks(ctx context.Context, client *ozonClient, warehouseID int64, d platformp.PlatformProductDraft, imported []importedRow) []string {
+func applyStocks(ctx context.Context, client *ozonClient, warehouseID int64, d platformp.PlatformProductDraft, imported []importedRow) []platformp.PublishWarning {
 	rows := make([]map[string]any, 0, len(imported))
+	requestedOffers := make([]string, 0, len(imported))
 	for i, s := range d.SKUs {
 		offerID := buildOfferID(d, s, i)
 		var productID int64
@@ -773,9 +862,15 @@ func applyStocks(ctx context.Context, client *ozonClient, warehouseID int64, d p
 			"stock":        stock,
 			"warehouse_id": warehouseID,
 		})
+		requestedOffers = append(requestedOffers, offerID)
 	}
 	if len(rows) == 0 {
-		return nil
+		return []platformp.PublishWarning{{
+			Stage:    "stock",
+			Severity: "error",
+			Code:     "stock_sync_no_matching_skus",
+			Message:  "stock sync could not match any imported offer to a local SKU",
+		}}
 	}
 	var resp struct {
 		Result []struct {
@@ -785,19 +880,134 @@ func applyStocks(ctx context.Context, client *ozonClient, warehouseID int64, d p
 		} `json:"result"`
 	}
 	if err := client.postJSONNoRetry(ctx, pathStocks, map[string]any{"stocks": rows}, &resp); err != nil {
-		return []string{fmt.Sprintf("stock sync failed: %v", err)}
+		return []platformp.PublishWarning{{
+			Stage:    "stock",
+			Severity: "error",
+			Code:     "stock_sync_request_failed",
+			Message:  fmt.Sprintf("stock sync failed: %v", err),
+		}}
 	}
-	var warns []string
+	warns := make([]platformp.PublishWarning, 0, len(resp.Result))
+	returnedOffers := make(map[string]struct{}, len(resp.Result))
 	for _, r := range resp.Result {
+		offerID := strings.TrimSpace(r.OfferID)
+		returnedOffers[offerID] = struct{}{}
 		if !r.Updated || len(r.Errors) > 0 {
-			msgs := make([]string, 0, len(r.Errors))
-			for _, e := range r.Errors {
-				msgs = append(msgs, firstNonEmptyMsg(e.Code, e.Message, ""))
+			if len(r.Errors) == 0 {
+				warns = append(warns, platformp.PublishWarning{
+					Stage:    "stock",
+					Severity: "error",
+					Code:     "stock_not_updated",
+					OfferID:  offerID,
+					Message:  "stock was not updated",
+				})
+				continue
 			}
-			warns = append(warns, fmt.Sprintf("offer_id=%s %s", r.OfferID, strings.Join(msgs, "; ")))
+			for _, e := range r.Errors {
+				msg := firstNonEmptyMsg(e.Code, e.Message, "")
+				if strings.TrimSpace(msg) == "" {
+					msg = "stock update rejected"
+				}
+				warns = append(warns, platformp.PublishWarning{
+					Stage:    "stock",
+					Severity: "error",
+					Code:     strings.TrimSpace(e.Code),
+					OfferID:  offerID,
+					Message:  msg,
+				})
+			}
 		}
 	}
+	for _, offerID := range requestedOffers {
+		if _, ok := returnedOffers[offerID]; ok {
+			continue
+		}
+		warns = append(warns, platformp.PublishWarning{
+			Stage:    "stock",
+			Severity: "error",
+			Code:     "stock_result_missing",
+			OfferID:  offerID,
+			Message:  "stock sync response did not include this offer",
+		})
+	}
 	return warns
+}
+
+func allImportedSKUsHaveExplicitZeroStock(d platformp.PlatformProductDraft, imported []importedRow) bool {
+	if len(imported) == 0 || len(d.SKUs) == 0 {
+		return false
+	}
+	stockByOffer := make(map[string]int, len(d.SKUs))
+	for i, sku := range d.SKUs {
+		offerID := strings.TrimSpace(buildOfferID(d, sku, i))
+		if offerID == "" {
+			return false
+		}
+		if _, duplicate := stockByOffer[offerID]; duplicate {
+			return false
+		}
+		stockByOffer[offerID] = sku.Stock
+	}
+	seenImported := make(map[string]struct{}, len(imported))
+	for _, row := range imported {
+		offerID := strings.TrimSpace(row.OfferID)
+		if offerID == "" || row.ProductID <= 0 {
+			return false
+		}
+		if _, duplicate := seenImported[offerID]; duplicate {
+			return false
+		}
+		seenImported[offerID] = struct{}{}
+		stock, matched := stockByOffer[offerID]
+		if !matched || stock != 0 {
+			// Positive, negative, or unmatched/unknown stock must follow the
+			// existing stock-sync/error path; none is a safe explicit zero.
+			return false
+		}
+	}
+	return true
+}
+
+func publishWarningMessages(warnings []platformp.PublishWarning) []string {
+	if len(warnings) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(warnings))
+	for _, warning := range warnings {
+		prefix := ""
+		if offerID := strings.TrimSpace(warning.OfferID); offerID != "" {
+			prefix = "offer_id=" + offerID + " "
+		}
+		out = append(out, prefix+strings.TrimSpace(warning.Message))
+	}
+	return out
+}
+
+func missingImportResultWarnings(d platformp.PlatformProductDraft, imported []importedRow) []platformp.PublishWarning {
+	seen := make(map[string]struct{}, len(imported))
+	for _, row := range imported {
+		if offerID := strings.TrimSpace(row.OfferID); offerID != "" {
+			seen[offerID] = struct{}{}
+		}
+	}
+	warnings := make([]platformp.PublishWarning, 0)
+	for i, sku := range d.SKUs {
+		offerID := strings.TrimSpace(buildOfferID(d, sku, i))
+		if offerID == "" {
+			continue
+		}
+		if _, ok := seen[offerID]; ok {
+			continue
+		}
+		warnings = append(warnings, platformp.PublishWarning{
+			Stage:    "import",
+			Severity: "error",
+			Code:     "import_result_missing",
+			OfferID:  offerID,
+			Message:  "product import response did not include this offer",
+		})
+	}
+	return warnings
 }
 
 type stockError struct {

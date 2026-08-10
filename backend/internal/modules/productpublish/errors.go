@@ -9,14 +9,18 @@ import (
 var ErrRedisQueueUnavailable = errors.New("Redis queue unavailable")
 
 const (
-	ErrorPublishCheckFailed   = "PUBLISH_CHECK_FAILED"
-	ErrorPriceInvalid         = "PRICE_INVALID"
-	ErrorImageMissing         = "IMAGE_MISSING"
-	ErrorSKUInvalid           = "SKU_INVALID"
-	ErrorStoreNotConfigured   = "STORE_NOT_CONFIGURED"
-	ErrorPlatformAuthRequired = "PLATFORM_AUTH_REQUIRED"
-	ErrorPlatformAPI          = "PLATFORM_API_ERROR"
-	ErrorUnknownPublish       = "UNKNOWN_PUBLISH_ERROR"
+	ErrorPublishCheckFailed          = "PUBLISH_CHECK_FAILED"
+	ErrorPriceInvalid                = "PRICE_INVALID"
+	ErrorImageMissing                = "IMAGE_MISSING"
+	ErrorSKUInvalid                  = "SKU_INVALID"
+	ErrorStoreNotConfigured          = "STORE_NOT_CONFIGURED"
+	ErrorPlatformAuthRequired        = "PLATFORM_AUTH_REQUIRED"
+	ErrorPlatformAPI                 = "PLATFORM_API_ERROR"
+	ErrorUnknownPublish              = "UNKNOWN_PUBLISH_ERROR"
+	ErrorPublishNotSent              = "PUBLISH_MUTATION_NOT_SENT"
+	ErrorPublishResultUnknown        = "PUBLISH_RESULT_UNKNOWN"
+	ErrorPublishNeedsAction          = "PUBLISH_NEEDS_ACTION"
+	ErrorPublishReconciledNotCreated = "PUBLISH_RECONCILED_NOT_CREATED"
 
 	ErrorDouyinCreateProductFailed   = "DOUYIN_CREATE_PRODUCT_FAILED"
 	ErrorDouyinProductPayloadInvalid = "DOUYIN_PRODUCT_PAYLOAD_INVALID"

@@ -129,9 +129,7 @@ export async function updateShopAuth(id: string, payload: Record<string, unknown
   return putJSON(`/api/v1/shops/${id}/auth`, payload);
 }
 
-export async function testShopConnection(
-  id: string,
-): Promise<{
+export type ShopConnectionResult = {
   ok: boolean;
   message?: string;
   shopName?: string;
@@ -139,8 +137,18 @@ export async function testShopConnection(
   region?: string;
   currency?: string;
   sellerMerchantId?: string;
-}> {
-  return postJSON(`/api/v1/shops/${id}/test-connection`, {});
+};
+
+export function requireSuccessfulShopConnection<T extends ShopConnectionResult>(result: T): T {
+  if (!result?.ok) {
+    throw new Error(result?.message?.trim() || '店铺连接测试失败');
+  }
+  return result;
+}
+
+export async function testShopConnection(id: string): Promise<ShopConnectionResult> {
+  const result = await postJSON<ShopConnectionResult>(`/api/v1/shops/${id}/test-connection`, {});
+  return requireSuccessfulShopConnection(result);
 }
 
 export async function getDouyinOAuthAuthorizeUrl(shopId: string): Promise<{ redirectUrl: string; authorizeUrl: string; state: string }> {

@@ -267,7 +267,7 @@ func (s *Service) CreatePublishTask(c *gin.Context, productID uuid.UUID, body Pu
 		if platKey == "ozon" {
 			var uncertainTask ProductPublishTask
 			if err := tx.
-				Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND task_type = ? AND status = ?", tenantID, productID, sid, platKey, TaskTypeProductPublish, TaskFailed).
+				Where("tenant_id = ? AND product_id = ? AND shop_id = ? AND platform = ? AND task_type = ? AND status = ? AND (retryable = ? OR platform_product_id <> '')", tenantID, productID, sid, platKey, TaskTypeProductPublish, TaskFailed, false).
 				Order("updated_at DESC").First(&uncertainTask).Error; err == nil {
 				return fmt.Errorf("存在 Ozon 失败任务，需先人工核对或恢复外部刊登结果，不能创建新任务")
 			} else if !errors.Is(err, gorm.ErrRecordNotFound) {

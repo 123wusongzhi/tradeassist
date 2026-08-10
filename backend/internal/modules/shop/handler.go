@@ -385,6 +385,14 @@ func (h *Handler) TestConnection(c *gin.Context) {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
 		return
 	}
+	if res == nil || !res.OK {
+		msg := "店铺连接测试失败"
+		if res != nil && strings.TrimSpace(res.Message) != "" {
+			msg = strings.TrimSpace(res.Message)
+		}
+		response.JSON(c, http.StatusBadRequest, response.CodeBadRequest, msg, res)
+		return
+	}
 	response.OK(c, res)
 }
 
@@ -513,17 +521,55 @@ func (h *Handler) ListOzonCategories(c *gin.Context) {
 	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
 		return
 	}
+	var parentID *string
+	if raw, ok := c.GetQuery("parentId"); ok {
+		value := strings.TrimSpace(raw)
+		parentID = &value
+	}
 	out, err := h.Svc.ListOzonCategories(c.Request.Context(), OzonCategoryListQuery{
 		Keyword:    c.Query("keyword"),
+		ParentID:   parentID,
+		RootOnly:   queryBoolShop(c, "rootOnly"),
 		OnlyLeaf:   queryBoolShop(c, "onlyLeaf"),
 		ActiveOnly: queryBoolShop(c, "activeOnly"),
 		Limit:      atoiQ(c, "limit", 500),
+		Offset:     atoiQ(c, "offset", 0),
 	})
 	if err != nil {
 		failOzon(c, err)
 		return
 	}
 	response.OK(c, out)
+}
+
+// ListOzonWarehouses GET /api/v1/platform/ozon/warehouses
+func (h *Handler) ListOzonWarehouses(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "shop service unavailable")
+		return
+	}
+	if !adminperm.RequirePermission(c, h.Svc.DB, adminperm.PermProductView) {
+		return
+	}
+	shopID, err := uuid.Parse(strings.TrimSpace(c.Query("shopId")))
+	if err != nil || shopID == uuid.Nil {
+		response.Fail(c, http.StatusBadRequest, response.CodeBadRequest, "invalid shopId")
+		return
+	}
+	if !h.requireShopOperate(c, shopID) {
+		return
+	}
+	tenantID, err := adminperm.TenantIDFromGin(c)
+	if err != nil {
+		response.HandleError(c, err)
+		return
+	}
+	rows, err := h.Svc.ListOzonWarehouses(c.Request.Context(), tenantID, shopID)
+	if err != nil {
+		failOzon(c, err)
+		return
+	}
+	response.OK(c, gin.H{"list": rows})
 }
 
 // SyncOzonCategories POST /api/v1/platform/ozon/categories/sync
@@ -810,7 +856,7 @@ func (h *Handler) ListOzonCategoryAttributes(c *gin.Context) {
 		failOzon(c, err)
 		return
 	}
-	response.OK(c, gin.H{"list": out})
+	response.OK(c, gin.H{"list": out, "variantPolicy": OzonVariantPolicy(out)})
 }
 
 // SearchOzonDictionaryValues GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values

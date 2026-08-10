@@ -15,6 +15,8 @@ import (
 const (
 	pathCategoryTree     = "/v1/description-category/tree"
 	pathDictionaryValues = "/v1/description-category/attribute/values"
+	pathWarehouseList    = "/v2/warehouse/list"
+	ozonCatalogLanguage  = "ZH_HANS"
 )
 
 // Client is the exported, credential-scoped Ozon Seller API client used by
@@ -89,7 +91,7 @@ func (c *Client) FetchCategoryTree(ctx context.Context) ([]CatalogNode, error) {
 		return nil, fmt.Errorf("ozon client not configured")
 	}
 	var resp treeResponse
-	if err := c.inner.postJSON(ctx, pathCategoryTree, map[string]any{"language": "DEFAULT"}, &resp); err != nil {
+	if err := c.inner.postJSON(ctx, pathCategoryTree, map[string]any{"language": ozonCatalogLanguage}, &resp); err != nil {
 		return nil, err
 	}
 	out := make([]CatalogNode, 0, 4096)
@@ -146,16 +148,19 @@ func (c *Client) FetchCategoryTree(ctx context.Context) ([]CatalogNode, error) {
 
 // CategoryAttr mirrors one Ozon category attribute (normalized, export-safe).
 type CategoryAttr struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	ValueType           string `json:"valueType,omitempty"`
-	DictionaryID        string `json:"dictionaryId,omitempty"`
-	Required            bool   `json:"required"`
-	IsCollection        bool   `json:"isCollection,omitempty"`
-	AttributeComplexID  int64  `json:"attributeComplexId,omitempty"`
-	MaxValueCount       int64  `json:"maxValueCount,omitempty"`
-	ComplexIsCollection bool   `json:"complexIsCollection,omitempty"`
-	CategoryDependent   bool   `json:"categoryDependent,omitempty"`
+	ID                         string `json:"id"`
+	Name                       string `json:"name"`
+	Description                string `json:"description,omitempty"`
+	ValueType                  string `json:"valueType,omitempty"`
+	DictionaryID               string `json:"dictionaryId,omitempty"`
+	Required                   bool   `json:"required"`
+	SKUVariantEligible         bool   `json:"skuVariantEligible"`
+	SKUVariantEligibilityKnown bool   `json:"skuVariantEligibilityKnown"`
+	IsCollection               bool   `json:"isCollection,omitempty"`
+	AttributeComplexID         int64  `json:"attributeComplexId,omitempty"`
+	MaxValueCount              int64  `json:"maxValueCount,omitempty"`
+	ComplexIsCollection        bool   `json:"complexIsCollection,omitempty"`
+	CategoryDependent          bool   `json:"categoryDependent,omitempty"`
 }
 
 // CategorySchemaHash is the canonical template fingerprint shared by the
@@ -163,15 +168,18 @@ type CategoryAttr struct {
 // database IDs and prefetched dictionary options.
 func CategorySchemaHash(attrs []CategoryAttr) string {
 	type field struct {
-		ID, Name, ValueType, DictionaryID                              string
-		Required, IsCollection, ComplexIsCollection, CategoryDependent bool
-		AttributeComplexID, MaxValueCount                              int64
+		ID, ValueType, DictionaryID                                                                                    string
+		Required, SKUVariantEligible, SKUVariantEligibilityKnown, IsCollection, ComplexIsCollection, CategoryDependent bool
+		AttributeComplexID, MaxValueCount                                                                              int64
 	}
 	rows := make([]field, 0, len(attrs))
 	for _, attr := range attrs {
 		rows = append(rows, field{
-			ID: attr.ID, Name: attr.Name, ValueType: attr.ValueType, DictionaryID: attr.DictionaryID,
-			Required: attr.Required, IsCollection: attr.IsCollection, ComplexIsCollection: attr.ComplexIsCollection,
+			// Name is deliberately excluded: Ozon returns it in the requested
+			// locale, while IDs and validation metadata define the schema.
+			ID: attr.ID, ValueType: attr.ValueType, DictionaryID: attr.DictionaryID,
+			Required: attr.Required, SKUVariantEligible: attr.SKUVariantEligible, SKUVariantEligibilityKnown: attr.SKUVariantEligibilityKnown,
+			IsCollection: attr.IsCollection, ComplexIsCollection: attr.ComplexIsCollection,
 			CategoryDependent: attr.CategoryDependent, AttributeComplexID: attr.AttributeComplexID, MaxValueCount: attr.MaxValueCount,
 		})
 	}
@@ -195,11 +203,17 @@ func (c *Client) FetchCategoryAttributes(ctx context.Context, descriptionCategor
 	if err != nil || tid <= 0 {
 		return nil, fmt.Errorf("ozon: invalid type_id %q", typeID)
 	}
-	attrs, err := c.inner.getCategoryAttributes(ctx, catID, tid)
-	if err != nil {
+	var resp struct {
+		Result []ozonAttribute `json:"result"`
+	}
+	if err := c.inner.postJSON(ctx, pathCategoryAttributes, map[string]any{
+		"description_category_id": catID,
+		"type_id":                 tid,
+		"language":                ozonCatalogLanguage,
+	}, &resp); err != nil {
 		return nil, err
 	}
-	out := categoryAttrsForHash(attrs)
+	out := categoryAttrsForHash(resp.Result)
 	return out, nil
 }
 
@@ -211,8 +225,9 @@ func categoryAttrsForHash(attrs []ozonAttribute) []CategoryAttr {
 			dictionaryID = strconv.FormatInt(attr.DictionaryID, 10)
 		}
 		out = append(out, CategoryAttr{
-			ID: strconv.FormatInt(attr.ID, 10), Name: attr.Name, ValueType: attr.Type, DictionaryID: dictionaryID,
-			Required: attr.IsRequired, IsCollection: attr.IsCollection, AttributeComplexID: attr.AttributeComplexID,
+			ID: strconv.FormatInt(attr.ID, 10), Name: attr.Name, Description: attr.Description, ValueType: attr.Type, DictionaryID: dictionaryID,
+			Required: attr.IsRequired, SKUVariantEligible: attr.IsAspect != nil && *attr.IsAspect, SKUVariantEligibilityKnown: attr.IsAspect != nil,
+			IsCollection: attr.IsCollection, AttributeComplexID: attr.AttributeComplexID,
 			MaxValueCount: attr.MaxValueCount, ComplexIsCollection: attr.ComplexIsCollection, CategoryDependent: attr.CategoryDependent,
 		})
 	}
@@ -267,7 +282,7 @@ func (c *Client) fetchDictionaryValues(ctx context.Context, descriptionCategoryI
 			"description_category_id": catID,
 			"type_id":                 tid,
 			"attribute_id":            aid,
-			"language":                "DEFAULT",
+			"language":                ozonCatalogLanguage,
 			"limit":                   100,
 			"last_value_id":           lastID,
 		}
@@ -297,6 +312,76 @@ func (c *Client) fetchDictionaryValues(ctx context.Context, descriptionCategoryI
 		}
 	}
 	return nil, fmt.Errorf("ozon dictionary pagination exceeded safety limit")
+}
+
+// Warehouse is one warehouse returned by the credential-scoped Ozon Seller
+// API. The list endpoint only returns warehouses available to the seller, so
+// callers must not accept arbitrary IDs as an equivalent source of truth.
+type Warehouse struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	IsRFBS  bool   `json:"isRfbs"`
+	IsKGT   bool   `json:"isKgt"`
+	Economy bool   `json:"economy"`
+}
+
+// FetchWarehouses reads warehouses available to the authorized Ozon seller.
+func (c *Client) FetchWarehouses(ctx context.Context) ([]Warehouse, error) {
+	if c == nil || c.inner == nil {
+		return nil, fmt.Errorf("ozon client not configured")
+	}
+	type warehouseListResponse struct {
+		Warehouses []struct {
+			WarehouseID int64  `json:"warehouse_id"`
+			Name        string `json:"name"`
+			IsRFBS      bool   `json:"is_rfbs"`
+			IsKGT       bool   `json:"is_kgt"`
+			Economy     bool   `json:"is_economy"`
+		} `json:"warehouses"`
+		HasNext bool   `json:"has_next"`
+		Cursor  string `json:"cursor"`
+	}
+
+	const maxWarehousePages = 100
+	out := make([]Warehouse, 0)
+	seen := make(map[int64]struct{})
+	cursor := ""
+	for page := 0; page < maxWarehousePages; page++ {
+		body := map[string]any{}
+		if cursor != "" {
+			body["cursor"] = cursor
+		}
+		var resp warehouseListResponse
+		if err := c.inner.postJSON(ctx, pathWarehouseList, body, &resp); err != nil {
+			return nil, err
+		}
+		for _, row := range resp.Warehouses {
+			if row.WarehouseID <= 0 || strings.TrimSpace(row.Name) == "" {
+				continue
+			}
+			if _, exists := seen[row.WarehouseID]; exists {
+				continue
+			}
+			seen[row.WarehouseID] = struct{}{}
+			out = append(out, Warehouse{
+				ID: strconv.FormatInt(row.WarehouseID, 10), Name: strings.TrimSpace(row.Name),
+				IsRFBS: row.IsRFBS, IsKGT: row.IsKGT, Economy: row.Economy,
+			})
+		}
+		if !resp.HasNext {
+			break
+		}
+		nextCursor := strings.TrimSpace(resp.Cursor)
+		if nextCursor == "" || nextCursor == cursor {
+			return nil, fmt.Errorf("ozon warehouse list returned an invalid pagination cursor")
+		}
+		cursor = nextCursor
+		if page == maxWarehousePages-1 {
+			return nil, fmt.Errorf("ozon warehouse list exceeded safe pagination limit")
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }
 
 // SearchDictionaryValues returns user-reviewable Ozon candidates. It never

@@ -71,6 +71,27 @@ type PlatformSKUMapping struct {
 	RawData       map[string]any // trimmed subset for product_publication_skus.raw_data (no secrets)
 }
 
+// Publish result statuses describe facts verified by the provider. Adapters must
+// not promote an accepted/imported listing to sellable without a platform
+// read-back that explicitly proves it can be sold.
+const (
+	PublishStatusImported      = "imported"
+	PublishStatusPendingReview = "pending_review"
+	PublishStatusNeedsAction   = "needs_action"
+	PublishStatusSellable      = "sellable"
+)
+
+// PublishWarning preserves actionable provider diagnostics without requiring
+// callers to parse human-readable RawSummary strings.
+type PublishWarning struct {
+	Stage    string `json:"stage"`
+	Severity string `json:"severity"`
+	Code     string `json:"code,omitempty"`
+	Field    string `json:"field,omitempty"`
+	OfferID  string `json:"offerId,omitempty"`
+	Message  string `json:"message"`
+}
+
 // PublishProductResult is persisted as a trimmed summary in task output / publication rows (no secrets).
 type PublishProductResult struct {
 	ExternalProductID string
@@ -78,6 +99,7 @@ type PublishProductResult struct {
 	ExternalURL       string
 	Status            string
 	SKUMappings       []PlatformSKUMapping
+	Warnings          []PublishWarning
 	RawSummary        map[string]any
 }
 

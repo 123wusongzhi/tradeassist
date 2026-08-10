@@ -17,21 +17,24 @@ export const PUBLISH_TARGET_STATUS_LABEL: Record<string, string> = {
 export const PUBLISH_BATCH_STATUS_LABEL: Record<string, string> = {
   pending: '等待处理',
   running: '处理中',
-  success: '全部成功',
-  partial_success: '部分成功',
-  failed: '失败',
+  success: '草稿全部创建',
+  partial_success: '部分草稿已创建',
+  failed: '草稿创建失败',
   cancelled: '已取消',
 };
 
 export const PUBLISH_BATCH_STATUS: Record<
   string,
-  { text: string; color: 'default' | 'processing' | 'success' | 'warning' | 'error' }
+  {
+    text: string;
+    color: 'default' | 'processing' | 'success' | 'warning' | 'error';
+  }
 > = {
   pending: { text: '等待处理', color: 'default' },
   running: { text: '处理中', color: 'processing' },
-  success: { text: '全部成功', color: 'success' },
-  partial_success: { text: '部分成功', color: 'warning' },
-  failed: { text: '失败', color: 'error' },
+  success: { text: '草稿全部创建', color: 'success' },
+  partial_success: { text: '部分草稿已创建', color: 'warning' },
+  failed: { text: '草稿创建失败', color: 'error' },
   cancelled: { text: '已取消', color: 'default' },
 };
 

@@ -27,6 +27,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	g.GET("/platform/ozon/category-mappings", h.ListOzonCategoryMappings)
 	g.POST("/platform/ozon/category-mappings/recommend", h.RecommendOzonCategoryMapping)
 	g.PUT("/platform/ozon/category-mappings", h.PutOzonCategoryMapping)
+	g.GET("/platform/ozon/warehouses", h.ListOzonWarehouses)
 	g.GET("/platform/ozon/categories/:id/attributes", h.ListOzonCategoryAttributes)
 	g.GET("/platform/ozon/categories/:id/attributes/:attrId/values", h.SearchOzonDictionaryValues)
 	g.POST("/platform/ozon/categories/:id/attributes/sync", h.SyncOzonCategoryAttributes)

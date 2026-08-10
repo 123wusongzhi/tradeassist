@@ -1,5 +1,5 @@
-import { ReloadOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
-import { history, Link, useLocation } from '@umijs/max';
+import { ReloadOutlined, SaveOutlined, SyncOutlined } from "@ant-design/icons";
+import { history, Link, useLocation } from "@umijs/max";
 import {
   Alert,
   Button,
@@ -15,32 +15,32 @@ import {
   Tag,
   Typography,
   message,
-} from 'antd';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import PermissionGuard from '@/components/PermissionGuard';
+} from "antd";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import PermissionGuard from "@/components/PermissionGuard";
 import {
   EmptyState,
   OperationToolbar,
   SectionCard,
   TmPageContainer,
   TmProTable,
-} from '@/components/ui';
-import { formatUserErrorMessage } from '@/constants/errorMessages';
-import { usePermission } from '@/hooks/usePermission';
+} from "@/components/ui";
+import { formatUserErrorMessage } from "@/constants/errorMessages";
+import { usePermission } from "@/hooks/usePermission";
 import {
   queryOzonCategoryAttributes,
   searchOzonDictionaryValues,
   syncOzonCategoryAttributes,
   type OzonCategoryAttribute,
-} from '@/services/ozonCategories';
-import { fetchProducts, type ProductListRow } from '@/services/products';
-import { ApiRequestError } from '@/services/request';
+} from "@/services/ozonCategories";
+import { fetchProducts, type ProductListRow } from "@/services/products";
+import { ApiRequestError } from "@/services/request";
 import {
   createPublishTargetDrafts,
   getProductPublishTask,
   type ProductPublishTaskDTO,
-} from '@/services/productPublish';
-import { queryShops, type ShopListRow } from '@/services/shops';
+} from "@/services/productPublish";
+import { queryShops, type ShopListRow } from "@/services/shops";
 import {
   buildOzonPlatformAttributes,
   buildOzonSKUImagePreview,
@@ -67,40 +67,40 @@ import {
   type OzonProductConfig,
   type OzonSKUImageConfig,
   type OzonReadinessResult,
-} from '@/services/ozonPublish';
-import { PERMISSIONS } from '@/utils/permission';
-import OzonSKUImageConfigurator from './OzonSKUImageConfigurator';
-import './index.less';
+} from "@/services/ozonPublish";
+import { PERMISSIONS } from "@/utils/permission";
+import OzonSKUImageConfigurator from "./OzonSKUImageConfigurator";
+import "./index.less";
 
-type Stage = 'sync' | 'mapping' | 'config' | 'preflight' | 'submit';
+type Stage = "sync" | "mapping" | "config" | "preflight" | "submit";
 type OzonProductConfigForm = Omit<
   OzonProductConfig,
-  'platformAttributes' | 'ozonImages'
+  "platformAttributes" | "ozonImages"
 > & {
   platformAttributes?: Record<string, string>;
 };
 const stages: Array<{ key: Stage; title: string }> = [
-  { key: 'sync', title: '同步状态' },
-  { key: 'mapping', title: '类目映射库' },
-  { key: 'config', title: '商品配置' },
-  { key: 'preflight', title: '发布前检查' },
-  { key: 'submit', title: '快照与提交' },
+  { key: "sync", title: "同步状态" },
+  { key: "mapping", title: "类目映射库" },
+  { key: "config", title: "商品配置" },
+  { key: "preflight", title: "发布前检查" },
+  { key: "submit", title: "快照与提交" },
 ];
 
 function stageFromSearch(search: string): Stage {
-  const candidate = new URLSearchParams(search).get('stage') as Stage | null;
-  return stages.some((item) => item.key === candidate) ? candidate! : 'sync';
+  const candidate = new URLSearchParams(search).get("stage") as Stage | null;
+  return stages.some((item) => item.key === candidate) ? candidate! : "sync";
 }
 function idempotencyKey() {
   return `ozon-submit:${crypto.randomUUID()}`;
 }
 function statusColor(status?: string) {
-  if (status === 'succeeded' || status === 'ready' || status === 'success')
-    return 'green';
-  if (status === 'partial' || status === 'running' || status === 'needs_work')
-    return 'orange';
-  if (status === 'failed' || status === 'stale') return 'red';
-  return 'default';
+  if (status === "succeeded" || status === "ready" || status === "success")
+    return "green";
+  if (status === "partial" || status === "running" || status === "needs_work")
+    return "orange";
+  if (status === "failed" || status === "stale") return "red";
+  return "default";
 }
 
 function includeConfiguredDictionaryOptions(
@@ -112,10 +112,10 @@ function includeConfiguredDictionaryOptions(
     const saved = raw?.[attribute.attrId];
     if (!saved) return attribute;
     const typed =
-      typeof saved === 'object'
+      typeof saved === "object"
         ? (saved as { value?: unknown; dictionaryValueId?: unknown })
         : { value: saved };
-    const value = String(typed.value ?? '').trim();
+    const value = String(typed.value ?? "").trim();
     const id = String(typed.dictionaryValueId ?? `legacy:${value}`).trim();
     if (!id || !value || attribute.options?.some((option) => option.id === id))
       return attribute;
@@ -130,7 +130,7 @@ function ozonActionErrorMessage(error: unknown, fallback: string) {
   if (error instanceof ApiRequestError) {
     const data = error.data as { errorCode?: unknown } | null;
     const errorCode =
-      typeof data?.errorCode === 'string' ? data.errorCode : undefined;
+      typeof data?.errorCode === "string" ? data.errorCode : undefined;
     return formatUserErrorMessage(errorCode, error.message || fallback);
   }
   return (error as Error)?.message || fallback;
@@ -150,7 +150,7 @@ function OzonPublishPageContent() {
   const [products, setProducts] = useState<ProductListRow[]>([]);
   const [shopId, setShopId] = useState<string>();
   const [productId, setProductId] = useState<string | undefined>(
-    () => params.get('productId') || undefined,
+    () => params.get("productId") || undefined,
   );
   const [stats, setStats] =
     useState<Awaited<ReturnType<typeof getOzonCategoryFlowStats>>>();
@@ -160,9 +160,9 @@ function OzonPublishPageContent() {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [config, setConfig] = useState<OzonProductConfig>();
-  const [skuImageConfigs, setSKUImageConfigs] = useState<
-    OzonSKUImageConfig[]
-  >([]);
+  const [skuImageConfigs, setSKUImageConfigs] = useState<OzonSKUImageConfig[]>(
+    [],
+  );
   const [bulkSharedImageIds, setBulkSharedImageIds] = useState<string[]>([]);
   const [configDirty, setConfigDirty] = useState(false);
   const [attributes, setAttributes] = useState<OzonCategoryAttribute[]>([]);
@@ -191,12 +191,12 @@ function OzonPublishPageContent() {
   const [groups, setGroups] = useState<OzonCategoryGroup[]>([]);
   const [groupProductIds, setGroupProductIds] = useState<string[]>([]);
   const [form] = Form.useForm<OzonProductConfigForm>();
-  const selectedCategoryId = Form.useWatch('categoryId', form);
+  const selectedCategoryId = Form.useWatch("categoryId", form);
 
   const selectedShop = shops.find((item) => item.id === shopId);
   const selectedProduct = products.find((item) => item.id === productId);
   const crossTenantGlobalView = Boolean(
-    role === 'admin' &&
+    role === "admin" &&
     Number(selectedProduct?.tenantId || selectedShop?.tenantId || 0) > 0,
   );
   const canProductWrite =
@@ -261,10 +261,10 @@ function OzonPublishPageContent() {
           queryShops({
             page: 1,
             pageSize: 100,
-            platform: 'ozon',
-            authStatus: 'authorized',
+            platform: "ozon",
+            authStatus: "authorized",
           }),
-          fetchProducts({ page: 1, pageSize: 100, keyword: '' }),
+          fetchProducts({ page: 1, pageSize: 100, keyword: "" }),
           getOzonCategoryFlowStats(),
           listOzonCategorySyncRuns(),
           listOzonCategoryChanges(),
@@ -272,9 +272,9 @@ function OzonPublishPageContent() {
         ]);
       const authorized = (shopRes.list ?? []).filter(
         (item) =>
-          item.platform === 'ozon' &&
-          item.authStatus === 'authorized' &&
-          item.status === 'active',
+          item.platform === "ozon" &&
+          item.authStatus === "authorized" &&
+          item.status === "active",
       );
       setShops(authorized);
       setProducts(productRes.list ?? []);
@@ -283,7 +283,7 @@ function OzonPublishPageContent() {
       setChanges(changeRes.list ?? []);
       setMappings(mappingRes.list ?? []);
     } catch (error) {
-      message.error((error as Error).message || '加载 Ozon 刊登流程失败');
+      message.error((error as Error).message || "加载 Ozon 刊登流程失败");
     } finally {
       setLoading(false);
     }
@@ -293,7 +293,7 @@ function OzonPublishPageContent() {
     void loadPage();
   }, [loadPage]);
   useEffect(() => {
-    setProductId(params.get('productId') || undefined);
+    setProductId(params.get("productId") || undefined);
   }, [params]);
   useEffect(() => {
     setStage(stageFromSearch(location.search));
@@ -343,11 +343,11 @@ function OzonPublishPageContent() {
           } else {
             setAttributeTemplateCategoryId(undefined);
             setAttributeTemplateError(
-              '当前 Ozon 类目没有可用的属性模板，请重新选择类目并同步；若持续失败，请检查店铺凭证。',
+              "当前 Ozon 类目没有可用的属性模板，请重新选择类目并同步；若持续失败，请检查店铺凭证。",
             );
           }
           form.setFieldValue(
-            'platformAttributes',
+            "platformAttributes",
             toOzonAttributeFormValues(displayAttrs, next.platformAttributes),
           );
         } else {
@@ -356,7 +356,7 @@ function OzonPublishPageContent() {
         }
       } catch (error) {
         if (configLoadSeq.current === sequence) {
-          const detail = (error as Error).message || '加载商品级 Ozon 配置失败';
+          const detail = (error as Error).message || "加载商品级 Ozon 配置失败";
           setAttributeTemplateCategoryId(undefined);
           setAttributeTemplateError(detail);
           message.error(detail);
@@ -391,20 +391,20 @@ function OzonPublishPageContent() {
       const result = await searchOzonLeafCategories(keyword);
       setCategoryOptions(
         (result.list ?? []).map((item) => ({
-          label: `${item.name}（${item.descriptionCategoryId || item.categoryId}）`,
+          label: `${item.path || item.name}（${item.categoryId}）`,
           value: item.categoryId,
-          categoryPath: item.name,
+          categoryPath: item.path || item.name,
           cacheId: item.id,
         })),
       );
     } catch (error) {
-      message.error((error as Error).message || '搜索 Ozon 类目失败');
+      message.error((error as Error).message || "搜索 Ozon 类目失败");
     }
   }, []);
   const onCategoryChange = useCallback(
     async (categoryId: string) => {
       if (!shopId || !canOperateShop || !canProductWrite) {
-        message.warning('当前账号不能同步并修改该商品的 Ozon 类目配置。');
+        message.warning("当前账号不能同步并修改该商品的 Ozon 类目配置。");
         return;
       }
       const categoryPath = (
@@ -413,9 +413,9 @@ function OzonPublishPageContent() {
           | undefined
       )?.categoryPath;
       const previousCategoryId = attributeTemplateCategoryId;
-      const previousCategoryPath = form.getFieldValue('categoryPath');
+      const previousCategoryPath = form.getFieldValue("categoryPath");
       const previousPlatformAttributes =
-        form.getFieldValue('platformAttributes');
+        form.getFieldValue("platformAttributes");
       const previousAttributes = attributes;
       const previousDirty = configDirty;
       const sequence = attributeSyncSeq.current + 1;
@@ -429,7 +429,7 @@ function OzonPublishPageContent() {
         const nextAttributes = result.list ?? [];
         if (nextAttributes.length === 0)
           throw new Error(
-            'Ozon 返回的类目属性模板为空，请重新同步类目或检查店铺凭证。',
+            "Ozon 返回的类目属性模板为空，请重新同步类目或检查店铺凭证。",
           );
         setAttributes(nextAttributes);
         setAttributeTemplateCategoryId(categoryId);
@@ -444,7 +444,7 @@ function OzonPublishPageContent() {
         if (attributeSyncSeq.current !== sequence) return;
         const detail =
           (error as Error).message ||
-          '同步或加载 Ozon 属性模板失败；商品配置尚未保存。';
+          "同步或加载 Ozon 属性模板失败；商品配置尚未保存。";
         form.setFieldsValue({
           categoryId: previousCategoryId,
           categoryPath: previousCategoryId ? previousCategoryPath : undefined,
@@ -457,7 +457,7 @@ function OzonPublishPageContent() {
         setConfigDirty(previousDirty);
         setAttributeTemplateError(
           `${detail}；新类目未应用，${
-            previousCategoryId ? '已恢复上一个可用类目。' : '已清除本次选择。'
+            previousCategoryId ? "已恢复上一个可用类目。" : "已清除本次选择。"
           }`,
         );
         message.error(detail);
@@ -481,7 +481,7 @@ function OzonPublishPageContent() {
   const searchDictionaryOptions = useCallback(
     async (attributeId: string, keyword: string) => {
       const value = keyword.trim();
-      const categoryId = String(form.getFieldValue('categoryId') || '').trim();
+      const categoryId = String(form.getFieldValue("categoryId") || "").trim();
       if (!shopId || !categoryId || Array.from(value).length < 2) return;
       const sequence = (dictionarySearchSeq.current[attributeId] || 0) + 1;
       dictionarySearchSeq.current[attributeId] = sequence;
@@ -495,7 +495,7 @@ function OzonPublishPageContent() {
         );
         if (dictionarySearchSeq.current[attributeId] !== sequence) return;
         const selectedID = String(
-          form.getFieldValue(['platformAttributes', attributeId]) || '',
+          form.getFieldValue(["platformAttributes", attributeId]) || "",
         );
         setAttributes((current) =>
           current.map((attribute) => {
@@ -513,7 +513,7 @@ function OzonPublishPageContent() {
           }),
         );
       } catch (error) {
-        message.error((error as Error).message || '搜索 Ozon 词典值失败');
+        message.error((error as Error).message || "搜索 Ozon 词典值失败");
       } finally {
         if (dictionarySearchSeq.current[attributeId] === sequence)
           setSearchingAttribute(undefined);
@@ -524,7 +524,7 @@ function OzonPublishPageContent() {
 
   const runSync = async () => {
     if (!shopId || !canOperateShop) {
-      message.warning('当前账号不能同步该 Ozon 店铺的类目。');
+      message.warning("当前账号不能同步该 Ozon 店铺的类目。");
       return;
     }
     setSyncing(true);
@@ -533,17 +533,17 @@ function OzonPublishPageContent() {
       if (next.stats) setStats(next.stats);
       const run = next.run;
       const runID = next.runId || run?.id;
-      if (run?.status === 'pending' || run?.status === 'running')
+      if (run?.status === "pending" || run?.status === "running")
         message.success(
-          `同步任务已创建/处理中；同步记录：${runID || '已受理'}。同步只更新 TradeMind 类目树缓存，不修改商品、不提交 Ozon。`,
+          `同步任务已创建/处理中；同步记录：${runID || "已受理"}。同步只更新 TradeMind 类目树缓存，不修改商品、不提交 Ozon。`,
         );
       else
         message.success(
-          `Ozon 类目同步已返回结果；同步记录：${runID || '已受理'}。同步只更新 TradeMind 类目树缓存，不修改商品、不提交 Ozon。`,
+          `Ozon 类目同步已返回结果；同步记录：${runID || "已受理"}。同步只更新 TradeMind 类目树缓存，不修改商品、不提交 Ozon。`,
         );
       await loadPage();
     } catch (error) {
-      message.error((error as Error).message || '创建类目同步任务失败');
+      message.error((error as Error).message || "创建类目同步任务失败");
     } finally {
       setSyncing(false);
     }
@@ -551,10 +551,7 @@ function OzonPublishPageContent() {
   const updateSKUImageSelection = (
     skuId: string,
     patch: Partial<
-      Pick<
-        OzonSKUImageConfig,
-        'fallbackMainImageId' | 'additionalImageIds'
-      >
+      Pick<OzonSKUImageConfig, "fallbackMainImageId" | "additionalImageIds">
     >,
   ) => {
     if (
@@ -601,11 +598,11 @@ function OzonPublishPageContent() {
   };
   const saveConfig = async () => {
     if (!productId || !canProductWrite || !canOperateShop) {
-      message.warning('当前账号不能修改该商品的 Ozon 配置。');
+      message.warning("当前账号不能修改该商品的 Ozon 配置。");
       return;
     }
     if (!selectedAttributeTemplateReady) {
-      message.warning('请先成功同步所选 Ozon 叶类目的属性模板。');
+      message.warning("请先成功同步所选 Ozon 叶类目的属性模板。");
       return;
     }
     try {
@@ -646,10 +643,10 @@ function OzonPublishPageContent() {
       });
       invalidatePreflight();
       if (saveAsMapping && canManageConfig) {
-        const sourceCategoryKey = String(saved.sourceCategoryKey || '').trim();
+        const sourceCategoryKey = String(saved.sourceCategoryKey || "").trim();
         if (!sourceCategoryKey || !saved.categoryId) {
           message.warning(
-            '商品级 Ozon 配置已保存，但商品没有稳定的本地类目标识，未保存类目映射。',
+            "商品级 Ozon 配置已保存，但商品没有稳定的本地类目标识，未保存类目映射。",
           );
           return;
         }
@@ -660,32 +657,32 @@ function OzonPublishPageContent() {
             sourceCategoryName: saved.sourceCategoryName,
             categoryId: saved.categoryId,
             categoryPath: saved.categoryPath,
-            status: 'active',
+            status: "active",
           });
         } catch (mappingError) {
           message.warning(
-            `商品级 Ozon 配置已保存，但类目映射保存失败：${(mappingError as Error).message || '请稍后重试'}`,
+            `商品级 Ozon 配置已保存，但类目映射保存失败：${(mappingError as Error).message || "请稍后重试"}`,
           );
           return;
         }
-        message.success('商品级 Ozon 配置和类目映射已保存，尚未提交到 Ozon。');
+        message.success("商品级 Ozon 配置和类目映射已保存，尚未提交到 Ozon。");
         return;
       }
-      message.success('商品级 Ozon 配置已保存，尚未提交到 Ozon。');
+      message.success("商品级 Ozon 配置已保存，尚未提交到 Ozon。");
     } catch (error) {
       if ((error as { errorFields?: unknown }).errorFields) return;
-      message.error(ozonActionErrorMessage(error, '保存商品级 Ozon 配置失败'));
+      message.error(ozonActionErrorMessage(error, "保存商品级 Ozon 配置失败"));
     } finally {
       setSaving(false);
     }
   };
   const runPreflight = async () => {
     if (configDirty) {
-      message.warning('请先保存商品级 Ozon 配置，再运行发布前检查。');
+      message.warning("请先保存商品级 Ozon 配置，再运行发布前检查。");
       return;
     }
     if (!productId || !shopId || !canRunPublishFlow || !configReady) {
-      message.warning('请先选择商品和店铺，并保存完整的 Ozon 配置。');
+      message.warning("请先选择商品和店铺，并保存完整的 Ozon 配置。");
       return;
     }
     setChecking(true);
@@ -694,36 +691,36 @@ function OzonPublishPageContent() {
       setPreflight(result);
       message.success(
         result.canPublish
-          ? '发布前检查通过；仍需确认真实提交。'
-          : '发布前检查发现需要处理的项目。',
+          ? "发布前检查通过；仍需确认真实提交。"
+          : "发布前检查发现需要处理的项目。",
       );
     } catch (error) {
-      message.error(ozonActionErrorMessage(error, '发布前检查失败'));
+      message.error(ozonActionErrorMessage(error, "发布前检查失败"));
     } finally {
       setChecking(false);
     }
   };
   const createLocalDraft = async () => {
     if (!productId || !shopId || !canRunPublishFlow) {
-      message.warning('当前账号不能创建该商品的本地刊登快照。');
+      message.warning("当前账号不能创建该商品的本地刊登快照。");
       return;
     }
     setCreatingDraft(true);
     try {
       await createPublishTargetDrafts(productId, {
-        targets: [{ platform: 'ozon', shopId }],
+        targets: [{ platform: "ozon", shopId }],
         onlyReady: false,
       });
-      message.success('本地快照已保存，未调用 Ozon。');
+      message.success("本地快照已保存，未调用 Ozon。");
     } catch (error) {
-      message.error((error as Error).message || '保存本地快照失败');
+      message.error((error as Error).message || "保存本地快照失败");
     } finally {
       setCreatingDraft(false);
     }
   };
   const submitReal = () => {
     if (configDirty) {
-      message.warning('请先保存商品级 Ozon 配置并重新运行发布前检查。');
+      message.warning("请先保存商品级 Ozon 配置并重新运行发布前检查。");
       return;
     }
     if (
@@ -739,10 +736,10 @@ function OzonPublishPageContent() {
     submitLockRef.current = true;
     setConfirmingSubmission(true);
     Modal.confirm({
-      title: '确认提交到 Ozon？',
+      title: "确认提交到 Ozon？",
       width: 520,
-      okText: '创建 Ozon 提交任务',
-      cancelText: '取消',
+      okText: "创建 Ozon 提交任务",
+      cancelText: "取消",
       content: (
         <Descriptions size="small" column={1}>
           <Descriptions.Item label="店铺">
@@ -752,7 +749,7 @@ function OzonPublishPageContent() {
             {selectedProduct?.title || productId}
           </Descriptions.Item>
           <Descriptions.Item label="Ozon 类目">
-            {config?.categoryPath || config?.categoryId || '未选择'}
+            {config?.categoryPath || config?.categoryId || "未选择"}
           </Descriptions.Item>
         </Descriptions>
       ),
@@ -766,11 +763,11 @@ function OzonPublishPageContent() {
         try {
           const result = await publishOzonProduct(productId, shopId, key);
           setTask(result);
-          message.success('已创建提交任务，等待处理。');
+          message.success("已创建提交任务，等待处理。");
         } catch (error) {
           submitLockRef.current = false;
           setConfirmingSubmission(false);
-          message.error((error as Error).message || '创建 Ozon 提交任务失败');
+          message.error((error as Error).message || "创建 Ozon 提交任务失败");
           throw error;
         } finally {
           setSubmitting(false);
@@ -783,12 +780,12 @@ function OzonPublishPageContent() {
     try {
       setTask(await getProductPublishTask(task.id));
     } catch (error) {
-      message.error((error as Error).message || '刷新任务失败');
+      message.error((error as Error).message || "刷新任务失败");
     }
   };
   const requestRecommendation = async (mapping: OzonCategoryMapping) => {
     if (!canOperateShop) {
-      message.warning('当前账号不能读取该 Ozon 店铺的类目推荐。');
+      message.warning("当前账号不能读取该 Ozon 店铺的类目推荐。");
       return;
     }
     try {
@@ -799,30 +796,30 @@ function OzonPublishPageContent() {
       });
       const candidate = result.candidate;
       if (!candidate) {
-        message.info('暂无推荐候选，请手动选择 Ozon 叶类目。');
+        message.info("暂无推荐候选，请手动选择 Ozon 叶类目。");
         return;
       }
       message.info(
         `推荐候选，尚未确认：${candidate.categoryPath || candidate.categoryId}`,
       );
     } catch (error) {
-      message.error((error as Error).message || '获取类目推荐失败');
+      message.error((error as Error).message || "获取类目推荐失败");
     }
   };
   const applyMapping = async (mapping: OzonCategoryMapping) => {
     if (!canManageConfig) return;
     try {
       await saveOzonCategoryMapping(mapping);
-      message.success('类目映射已保存；不会自动修改其他商品。');
+      message.success("类目映射已保存；不会自动修改其他商品。");
       await loadPage();
     } catch (error) {
-      message.error((error as Error).message || '保存类目映射失败');
+      message.error((error as Error).message || "保存类目映射失败");
     }
   };
   const checkGroups = async () => {
     if (!groupProductIds.length || !shopId || !canPublish || !canOperateShop) {
       message.warning(
-        '请先选择已授权 Ozon 店铺和批量商品，并确认当前账号有刊登权限。',
+        "请先选择已授权 Ozon 店铺和批量商品，并确认当前账号有刊登权限。",
       );
       return;
     }
@@ -833,12 +830,12 @@ function OzonPublishPageContent() {
       });
       setGroups(result.groups ?? []);
     } catch (error) {
-      message.error((error as Error).message || '批量类目分组检查失败');
+      message.error((error as Error).message || "批量类目分组检查失败");
     }
   };
   const confirmGroup = async (group: OzonCategoryGroup) => {
     if (!group.recommendedCategoryId || !shopId || !canRunPublishFlow) {
-      message.warning('当前账号不能确认该组 Ozon 类目配置。');
+      message.warning("当前账号不能确认该组 Ozon 类目配置。");
       return;
     }
     try {
@@ -856,20 +853,20 @@ function OzonPublishPageContent() {
         saveMappings: false,
       });
       message.success(
-        '该组类目配置已确认，仅更新商品本地配置，未保存共享类目映射、未提交 Ozon。',
+        "该组类目配置已确认，仅更新商品本地配置，未保存共享类目映射、未提交 Ozon。",
       );
       await checkGroups();
     } catch (error) {
-      message.error((error as Error).message || '确认类目分组失败');
+      message.error((error as Error).message || "确认类目分组失败");
     }
   };
 
   const activeIndex = stages.findIndex((item) => item.key === stage);
   const taskCreated =
-    (task?.status === 'success' || task?.publishStatus === 'success') &&
-    Boolean(String(task?.platformProductId || '').trim());
-  const taskTerminalFailure = ['failed', 'cancelled', 'canceled'].includes(
-    String(task?.status || task?.publishStatus || '').toLowerCase(),
+    (task?.status === "success" || task?.publishStatus === "success") &&
+    Boolean(String(task?.platformProductId || "").trim());
+  const taskTerminalFailure = ["failed", "cancelled", "canceled"].includes(
+    String(task?.status || task?.publishStatus || "").toLowerCase(),
   );
   return (
     <TmPageContainer
@@ -933,7 +930,7 @@ function OzonPublishPageContent() {
             {stages.map((item) => (
               <Button
                 key={item.key}
-                type={stage === item.key ? 'primary' : 'text'}
+                type={stage === item.key ? "primary" : "text"}
                 role="tab"
                 aria-selected={stage === item.key}
                 onClick={() => setStageInUrl(item.key)}
@@ -965,7 +962,7 @@ function OzonPublishPageContent() {
               description="请先保存配置；在保存前，发布前检查、本地快照和真实提交均不可用。"
             />
           ) : null}
-          {stage === 'sync' && (
+          {stage === "sync" && (
             <SectionCard
               title="同步状态"
               description="此处全量同步只更新 TradeMind 的 Ozon 类目树缓存；选定叶类目时再按需刷新属性模板。两者都不修改商品、不提交 Ozon。"
@@ -982,19 +979,19 @@ function OzonPublishPageContent() {
             >
               <Descriptions size="small" column={{ xs: 1, sm: 2, lg: 4 }}>
                 <Descriptions.Item label="有效类目">
-                  {stats?.activeCount ?? '—'}
+                  {stats?.activeCount ?? "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="已停用类目">
-                  {stats?.inactiveCount ?? '—'}
+                  {stats?.inactiveCount ?? "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="最近同步">
-                  {stats?.lastSyncedAt || '从未同步'}
+                  {stats?.lastSyncedAt || "从未同步"}
                 </Descriptions.Item>
                 <Descriptions.Item label="当前状态">
                   <Tag color={statusColor(stats?.lastRun?.status)}>
                     {stats?.lastRun?.statusLabel ||
                       stats?.lastRun?.status ||
-                      '未同步'}
+                      "未同步"}
                   </Tag>
                 </Descriptions.Item>
               </Descriptions>
@@ -1016,14 +1013,14 @@ function OzonPublishPageContent() {
                 }}
                 columns={[
                   {
-                    title: '变更',
-                    dataIndex: 'changeType',
+                    title: "变更",
+                    dataIndex: "changeType",
                     render: (value) => {
-                      const text = String(value || '');
+                      const text = String(value || "");
                       return (
                         <Tag
                           color={statusColor(
-                            text === 'deactivated' ? 'failed' : text,
+                            text === "deactivated" ? "failed" : text,
                           )}
                         >
                           {text}
@@ -1031,37 +1028,37 @@ function OzonPublishPageContent() {
                       );
                     },
                   },
-                  { title: '类目', dataIndex: 'categoryName', ellipsis: true },
-                  { title: '时间', dataIndex: 'occurredAt', width: 180 },
-                  { title: '说明', dataIndex: 'detail', ellipsis: true },
+                  { title: "类目", dataIndex: "categoryName", ellipsis: true },
+                  { title: "时间", dataIndex: "occurredAt", width: 180 },
+                  { title: "说明", dataIndex: "detail", ellipsis: true },
                 ]}
               />
               <Typography.Text type="secondary">
-                最近同步记录：{runs[0]?.id || stats?.lastRun?.id || '暂无'} ·{' '}
+                最近同步记录：{runs[0]?.id || stats?.lastRun?.id || "暂无"} ·{" "}
                 {runs[0]?.statusLabel ||
                   runs[0]?.status ||
                   stats?.lastRun?.status ||
-                  '未同步'}
-                ；新增{' '}
+                  "未同步"}
+                ；新增{" "}
                 {stats?.diffCounts?.added ??
                   stats?.lastRun?.summary?.added ??
-                  0}{' '}
-                · 变更{' '}
+                  0}{" "}
+                · 变更{" "}
                 {stats?.diffCounts?.changed ??
                   stats?.lastRun?.summary?.changed ??
-                  0}{' '}
-                · 停用{' '}
+                  0}{" "}
+                · 停用{" "}
                 {stats?.diffCounts?.deactivated ??
                   stats?.lastRun?.summary?.deactivated ??
-                  0}{' '}
-                · 恢复{' '}
+                  0}{" "}
+                · 恢复{" "}
                 {stats?.diffCounts?.reactivated ??
                   stats?.lastRun?.summary?.reactivated ??
                   0}
               </Typography.Text>
             </SectionCard>
           )}
-          {stage === 'mapping' && (
+          {stage === "mapping" && (
             <SectionCard
               title="类目映射库"
               description="推荐只是一项候选，必须由你确认；保存映射不会静默批量修改商品。"
@@ -1083,7 +1080,7 @@ function OzonPublishPageContent() {
                     label: item.title,
                     value: item.id,
                   }))}
-                  style={{ minWidth: 300, maxWidth: '100%' }}
+                  style={{ minWidth: 300, maxWidth: "100%" }}
                 />
               </OperationToolbar>
               <TmProTable<OzonCategoryMapping>
@@ -1095,22 +1092,22 @@ function OzonPublishPageContent() {
                 scroll={{ x: 760 }}
                 columns={[
                   {
-                    title: '本地类目',
-                    dataIndex: 'sourceCategoryName',
+                    title: "本地类目",
+                    dataIndex: "sourceCategoryName",
                     ellipsis: true,
                   },
                   {
-                    title: 'Ozon 类目',
-                    dataIndex: 'categoryPath',
+                    title: "Ozon 类目",
+                    dataIndex: "categoryPath",
                     ellipsis: true,
                   },
                   {
-                    title: '状态',
-                    dataIndex: 'status',
-                    render: (value) => <Tag>{value || '已保存'}</Tag>,
+                    title: "状态",
+                    dataIndex: "status",
+                    render: (value) => <Tag>{value || "已保存"}</Tag>,
                   },
                   {
-                    title: '操作',
+                    title: "操作",
                     width: 220,
                     render: (_, row) => (
                       <Space wrap>
@@ -1138,21 +1135,21 @@ function OzonPublishPageContent() {
                 <Alert
                   key={group.key}
                   type={
-                    group.status === 'ready'
-                      ? 'success'
-                      : group.status === 'skipped'
-                        ? 'info'
-                        : 'warning'
+                    group.status === "ready"
+                      ? "success"
+                      : group.status === "skipped"
+                        ? "info"
+                        : "warning"
                   }
                   showIcon
-                  message={`${group.sourceCategoryName || group.sourceCategoryKey || '未分类'} · ${group.statusLabel || group.status}`}
+                  message={`${group.sourceCategoryName || group.sourceCategoryKey || "未分类"} · ${group.statusLabel || group.status}`}
                   description={
                     <Space wrap>
                       <span>
                         {group.productIds.length} 个商品；推荐候选，尚未确认：
                         {group.recommendedCategoryPath ||
                           group.recommendedCategoryId ||
-                          '无'}
+                          "无"}
                       </span>
                       {group.issues?.[0]?.message ? (
                         <span>{group.issues[0].message}</span>
@@ -1162,7 +1159,7 @@ function OzonPublishPageContent() {
                         disabled={
                           !canRunPublishFlow ||
                           !group.recommendedCategoryId ||
-                          group.status === 'skipped'
+                          group.status === "skipped"
                         }
                         onClick={() => void confirmGroup(group)}
                       >
@@ -1174,7 +1171,7 @@ function OzonPublishPageContent() {
               ))}
             </SectionCard>
           )}
-          {stage === 'config' && (
+          {stage === "config" && (
             <SectionCard
               title="商品级 Ozon 配置"
               description="商品配置优先于全局刊登预设。保存只写入 TradeMind，不会创建 Ozon 商品。"
@@ -1207,7 +1204,7 @@ function OzonPublishPageContent() {
                 <Form.Item
                   name="categoryId"
                   label="Ozon 叶类目"
-                  rules={[{ required: true, message: '请选择 Ozon 叶类目' }]}
+                  rules={[{ required: true, message: "请选择 Ozon 叶类目" }]}
                 >
                   <Select
                     showSearch
@@ -1224,8 +1221,8 @@ function OzonPublishPageContent() {
                     options={categoryOptions}
                     placeholder={
                       shopId
-                        ? '搜索并选择 Ozon 叶类目；不会自动选择第一项'
-                        : '请先选择已授权 Ozon 店铺'
+                        ? "搜索并选择 Ozon 叶类目；不会自动选择第一项"
+                        : "请先选择已授权 Ozon 店铺"
                     }
                   />
                 </Form.Item>
@@ -1235,8 +1232,8 @@ function OzonPublishPageContent() {
                 {attributes.map((attr) => (
                   <Form.Item
                     key={attr.attrId}
-                    name={['platformAttributes', attr.attrId]}
-                    label={`${attr.name}${attr.required ? '（必填）' : ''}`}
+                    name={["platformAttributes", attr.attrId]}
+                    label={`${attr.name}${attr.required ? "（必填）" : ""}`}
                     rules={
                       attr.required
                         ? [{ required: true, message: `请填写 ${attr.name}` }]
@@ -1305,7 +1302,7 @@ function OzonPublishPageContent() {
               </OperationToolbar>
             </SectionCard>
           )}
-          {stage === 'preflight' && (
+          {stage === "preflight" && (
             <SectionCard
               title="发布前检查"
               description="检查会实时验证已保存的当前店铺、类目和动态属性；修改任何配置后需要重新保存并检查。"
@@ -1334,16 +1331,16 @@ function OzonPublishPageContent() {
               ) : (
                 <>
                   <Alert
-                    type={preflight.canPublish ? 'success' : 'error'}
+                    type={preflight.canPublish ? "success" : "error"}
                     showIcon
                     message={
                       preflight.canPublish
-                        ? '检查通过，仍需确认真实提交'
-                        : '检查未通过，不能提交到 Ozon'
+                        ? "检查通过，仍需确认真实提交"
+                        : "检查未通过，不能提交到 Ozon"
                     }
                     description={
                       preflight.schemaChanged
-                        ? 'Ozon 属性模板已变化，请重新确认类目和属性。'
+                        ? "Ozon 属性模板已变化，请重新确认类目和属性。"
                         : undefined
                     }
                   />
@@ -1358,18 +1355,18 @@ function OzonPublishPageContent() {
                         <Alert
                           key={`${item.code}-${index}`}
                           type={
-                            (meta.level || meta.severity) === 'error'
-                              ? 'error'
-                              : 'warning'
+                            (meta.level || meta.severity) === "error"
+                              ? "error"
+                              : "warning"
                           }
                           showIcon
-                          message={item.title || item.code || '检查项'}
+                          message={item.title || item.code || "检查项"}
                           description={
                             <>
                               {item.message}
                               {meta.suggestion
                                 ? ` 建议：${meta.suggestion}`
-                                : ''}
+                                : ""}
                             </>
                           }
                         />
@@ -1380,7 +1377,7 @@ function OzonPublishPageContent() {
               )}
             </SectionCard>
           )}
-          {stage === 'submit' && (
+          {stage === "submit" && (
             <SectionCard
               title="高级操作与真实提交"
               description="本地快照与 Ozon 提交是两个不同动作。真实提交仅在已保存配置的最新检查通过后开放，并需要二次确认。"
@@ -1418,7 +1415,7 @@ function OzonPublishPageContent() {
                   </Button>
                 ) : null}
                 {taskTerminalFailure ? (
-                  <Button onClick={() => setStageInUrl('preflight')}>
+                  <Button onClick={() => setStageInUrl("preflight")}>
                     查看发布前检查
                   </Button>
                 ) : null}
@@ -1427,34 +1424,34 @@ function OzonPublishPageContent() {
                 <Alert
                   type={
                     taskCreated
-                      ? 'success'
+                      ? "success"
                       : taskTerminalFailure
-                        ? 'error'
-                        : 'info'
+                        ? "error"
+                        : "info"
                   }
                   showIcon
                   message={
                     taskCreated
-                      ? 'Ozon 商品已创建，等待平台审核'
+                      ? "Ozon 商品已创建，等待平台审核"
                       : taskTerminalFailure
                         ? String(
                             task.status || task.publishStatus,
-                          ).toLowerCase() === 'cancelled'
-                          ? 'Ozon 提交任务已取消'
-                          : 'Ozon 提交任务失败'
-                        : '已创建提交任务，等待处理'
+                          ).toLowerCase() === "cancelled"
+                          ? "Ozon 提交任务已取消"
+                          : "Ozon 提交任务失败"
+                        : "已创建提交任务，等待处理"
                   }
                   description={
                     taskCreated ? (
                       `平台商品 ID：${task.platformProductId}`
                     ) : taskTerminalFailure ? (
                       <>
-                        {task.errorMessage ? `${task.errorMessage}。` : ''}
+                        {task.errorMessage ? `${task.errorMessage}。` : ""}
                         提交结果不确定/失败，请先在 Ozon
                         后台或任务中心核对，系统不会自动重提。
                       </>
                     ) : (
-                      '请手动刷新任务状态；本页不会自动轮询。'
+                      "请手动刷新任务状态；本页不会自动轮询。"
                     )
                   }
                 />

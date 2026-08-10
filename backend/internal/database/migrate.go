@@ -123,6 +123,9 @@ func AutoMigrate(db *gorm.DB) error {
 	if db == nil {
 		return fmt.Errorf("auto migrate: db is nil")
 	}
+	if err := migrateLegacyPublicationSPUColumn(db); err != nil {
+		return err
+	}
 	if err := migrateLegacyPublicationSKUColumns(db); err != nil {
 		return err
 	}
@@ -211,6 +214,9 @@ func AutoMigrate(db *gorm.DB) error {
 		&performance.RateLimitPolicy{},
 		&performance.QuotaPolicy{},
 	); err != nil {
+		return err
+	}
+	if err := verifyProductPublishWorkerColumns(db); err != nil {
 		return err
 	}
 	if err := migrateOzonCategoryMappingScope(db); err != nil {

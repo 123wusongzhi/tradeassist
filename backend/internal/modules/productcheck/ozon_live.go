@@ -102,10 +102,29 @@ func (s *Service) ValidateOzonReadiness(ctx context.Context, tenantID int64, pro
 			}
 		}
 		resolved := product.ResolveOzonListing(prod, cfg, preset, contractCurrency)
+		if currencyCheck := ozonContractCurrencyCheck(resolved, contractCurrency); currencyCheck != nil {
+			result.Checks = append(result.Checks, *currencyCheck)
+			recalculateOzonReadiness(result)
+		}
 		resolved.CanSubmit = result.CanPublish
 		result.ResolvedOzon = &resolved
 	}
 	return result, nil
+}
+
+func ozonContractCurrencyCheck(resolved product.OzonResolvedListingDTO, contractCurrency string) *CheckItem {
+	contract := strings.ToUpper(strings.TrimSpace(contractCurrency))
+	configured := strings.ToUpper(strings.TrimSpace(resolved.Currency.Value))
+	if contract == "" || configured == "" || contract == configured {
+		return nil
+	}
+	return &CheckItem{
+		Group:      "pricing",
+		Code:       "OZON_CURRENCY_CONTRACT_MISMATCH",
+		Level:      levelError,
+		Message:    fmt.Sprintf("当前 Ozon 币种 %s 与店铺合同币种 %s 不一致", configured, contract),
+		Suggestion: fmt.Sprintf("请将币种改为 %s；Ozon 只接受合同或卖家后台配置的币种。", contract),
+	}
 }
 
 func (s *Service) validateOzonDictionarySelectionsLive(ctx context.Context, tenantID int64, shopID uuid.UUID, cfg product.ProductPlatformPublishConfig) ([]CheckItem, error) {

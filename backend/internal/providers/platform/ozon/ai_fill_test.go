@@ -64,7 +64,7 @@ func TestApplySuggestedAttributes(t *testing.T) {
 
 	defs := []ozonAttribute{
 		{ID: 85, Name: "Бренд", DictionaryID: 28732849, IsRequired: true},
-		{ID: 23487, Name: "Производитель", IsRequired: true},
+		{ID: 23487, Name: "Производитель", Type: "String", IsRequired: true},
 	}
 	out, missing := client.applySuggestedAttributes(
 		context.Background(), 200001240, 93488, defs,

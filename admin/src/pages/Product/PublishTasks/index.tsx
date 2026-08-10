@@ -1,6 +1,6 @@
 import { TmPageContainer, TechnicalDetails, TaskJsonBlock, TmProTable as ProTable } from '@/components/ui';
 import { type ActionType, type ProColumns, type ProFormInstance } from '@ant-design/pro-components';
-import { Alert, Button, Drawer, Popconfirm, Space, Tabs, Tag, Typography, message } from 'antd';
+import { Alert, Button, Checkbox, Descriptions, Drawer, Form, Input, Modal, Popconfirm, Radio, Select, Space, Tabs, Tag, Typography, message } from 'antd';
 import { formatDateTime } from '@/utils/formatTime';
 import dayjs from 'dayjs';
 import { Link, useSearchParams } from '@umijs/max';
@@ -11,33 +11,10 @@ import { useUrlQueryState } from '@/hooks/useUrlState';
 import { publishBatchStatusTag } from '@/constants/publishLabels';
 import { platformLabel } from '@/constants/userFriendly';
 import { normalizeSource, parsePositiveInt, queryTimeRange } from '@/utils/urlState';
-import {
-  getProductPublishTask,
-  queryProductPublishTasks,
-  queryPublishBatches,
-  retryProductPublishTask,
-  type ProductPublishTaskDTO,
-  type PublishBatchListItem,
-} from '@/services/productPublish';
+import { canReconcileOzonPublishTask, extractOzonOfferIds, extractOzonWarnings, getProductPublishTask, productPublishBusinessStatus, queryProductPublishTasks, queryPublishBatches, reconcileOzonPublishTask, retryProductPublishTask, type OzonReconcileOutcome, type OzonReconcilePlatformStatus, type ProductPublishTaskDTO, type PublishBatchListItem } from '@/services/productPublish';
+import './index.less';
 
-const PUBLISH_TASK_QUERY_KEYS = [
-  'page',
-  'pageSize',
-  'keyword',
-  'status',
-  'platform',
-  'shopId',
-  'batchId',
-  'tab',
-  'id',
-  'drawer',
-  'source',
-  'productId',
-  'start',
-  'end',
-  'createdFrom',
-  'createdTo',
-] as const;
+const PUBLISH_TASK_QUERY_KEYS = ['page', 'pageSize', 'keyword', 'status', 'platform', 'shopId', 'batchId', 'tab', 'id', 'drawer', 'source', 'productId', 'start', 'end', 'createdFrom', 'createdTo'] as const;
 
 function tagFromStatus(raw: string) {
   const c = COLLECT_TASK_STATUS[raw as keyof typeof COLLECT_TASK_STATUS];
@@ -45,12 +22,23 @@ function tagFromStatus(raw: string) {
   return <Tag color={c.color}>{c.text}</Tag>;
 }
 
+function businessStatusTag(task: ProductPublishTaskDTO) {
+  const meta = productPublishBusinessStatus(task);
+  return <Tag color={meta.color}>{meta.text}</Tag>;
+}
+
+type OzonReconcileFormValues = {
+  outcome?: OzonReconcileOutcome;
+  evidence?: string;
+  externalProductId?: string;
+  externalSpuId?: string;
+  externalUrl?: string;
+  platformStatus?: OzonReconcilePlatformStatus;
+  sellableVerified?: boolean;
+};
+
 export default function ProductPublishTasksPage() {
-  const {
-    state: urlState,
-    setState: setUrlState,
-    clearState: clearUrlState,
-  } = useUrlQueryState<Record<(typeof PUBLISH_TASK_QUERY_KEYS)[number], string | undefined>>(PUBLISH_TASK_QUERY_KEYS);
+  const { state: urlState, setState: setUrlState, clearState: clearUrlState } = useUrlQueryState<Record<(typeof PUBLISH_TASK_QUERY_KEYS)[number], string | undefined>>(PUBLISH_TASK_QUERY_KEYS);
   const navSource = normalizeSource(urlState.source);
   const actionRef = useRef<ActionType>();
   const formRef = useRef<ProFormInstance>();
@@ -69,6 +57,19 @@ export default function ProductPublishTasksPage() {
   });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detail, setDetail] = useState<ProductPublishTaskDTO | null>(null);
+  const [refreshingDetail, setRefreshingDetail] = useState(false);
+  const [detailPollingError, setDetailPollingError] = useState<string>();
+  const detailPollingInFlight = useRef(false);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileForm] = Form.useForm<OzonReconcileFormValues>();
+  const reconcileOutcome = Form.useWatch('outcome', reconcileForm);
+  const reconcilePlatformStatus = Form.useWatch('platformStatus', reconcileForm);
+  const detailBusinessStatus = detail ? productPublishBusinessStatus(detail) : null;
+  const detailIsProcessing = detail ? ['pending', 'running'].includes(String(detail.status || '').toLowerCase()) || ['pending', 'ready', 'checking', 'publishing', 'running'].includes(String(detailBusinessStatus?.code || '').toLowerCase()) : false;
+  const detailCanReconcile = detail ? canReconcileOzonPublishTask(detail) : false;
+  const detailOfferIds = useMemo(() => (detail ? extractOzonOfferIds(detail) : []), [detail]);
+  const detailWarnings = useMemo(() => (detail ? extractOzonWarnings(detail) : []), [detail]);
 
   useEffect(() => {
     setTablePage(parsePositiveInt(urlState.page, 1));
@@ -83,18 +84,7 @@ export default function ProductPublishTasksPage() {
       productId: urlState.productId,
       createdRange,
     });
-  }, [
-    statusFromUrl,
-    urlState.createdFrom,
-    urlState.createdTo,
-    urlState.end,
-    urlState.page,
-    urlState.pageSize,
-    urlState.platform,
-    urlState.productId,
-    urlState.shopId,
-    urlState.start,
-  ]);
+  }, [statusFromUrl, urlState.createdFrom, urlState.createdTo, urlState.end, urlState.page, urlState.pageSize, urlState.platform, urlState.productId, urlState.shopId, urlState.start]);
 
   useEffect(() => {
     if (!statusFromUrl && !urlState.platform && !urlState.shopId && !urlState.productId) return;
@@ -114,6 +104,28 @@ export default function ProductPublishTasksPage() {
     })();
   }, [taskIdFromUrl]);
 
+  useEffect(() => {
+    if (!detailOpen || !detail?.id || !detailIsProcessing) return;
+    const taskId = detail.id;
+    const timer = globalThis.setInterval(() => {
+      if (detailPollingInFlight.current) return;
+      detailPollingInFlight.current = true;
+      void getProductPublishTask(taskId)
+        .then((row) => {
+          setDetail(row);
+          setDetailPollingError(undefined);
+          actionRef.current?.reload?.();
+        })
+        .catch((error: unknown) => {
+          setDetailPollingError((error as Error)?.message || '自动刷新暂时失败');
+        })
+        .finally(() => {
+          detailPollingInFlight.current = false;
+        });
+    }, 3000);
+    return () => globalThis.clearInterval(timer);
+  }, [detail?.id, detailIsProcessing, detailOpen]);
+
   const openTaskDetail = async (id: string) => {
     const row = await getProductPublishTask(id);
     setDetail(row);
@@ -124,7 +136,80 @@ export default function ProductPublishTasksPage() {
   const closeTaskDetail = () => {
     setDetailOpen(false);
     setDetail(null);
+    setDetailPollingError(undefined);
     setUrlState({ drawer: undefined, id: undefined }, { replace: true });
+  };
+
+  const refreshTaskDetail = async () => {
+    if (!detail?.id) return;
+    setRefreshingDetail(true);
+    try {
+      const row = await getProductPublishTask(detail.id);
+      setDetail(row);
+      setDetailPollingError(undefined);
+      actionRef.current?.reload?.();
+      message.success('已刷新任务业务状态');
+    } catch (error: unknown) {
+      message.error((error as Error)?.message || '刷新任务失败');
+    } finally {
+      setRefreshingDetail(false);
+    }
+  };
+
+  const openReconcile = () => {
+    if (!detail || !canReconcileOzonPublishTask(detail)) return;
+    reconcileForm.resetFields();
+    reconcileForm.setFieldsValue({
+      externalProductId: detail.platformProductId || undefined,
+      externalSpuId: detailOfferIds[0],
+      platformStatus: 'imported',
+      sellableVerified: false,
+    });
+    setReconcileOpen(true);
+  };
+
+  const submitReconciliation = async () => {
+    if (!detail) return;
+    const values = await reconcileForm.validateFields();
+    if (!values.outcome || !values.evidence?.trim()) return;
+    if (values.outcome === 'platform_created' && !values.externalProductId?.trim()) {
+      reconcileForm.setFields([
+        {
+          name: 'externalProductId',
+          errors: ['确认已创建时必须填写平台商品编号'],
+        },
+      ]);
+      return;
+    }
+    if (values.outcome === 'platform_created' && values.platformStatus === 'sellable' && values.sellableVerified !== true) {
+      reconcileForm.setFields([
+        {
+          name: 'sellableVerified',
+          errors: ['确认成功上架前必须勾选已验证 Ozon 前台可售'],
+        },
+      ]);
+      return;
+    }
+    setReconciling(true);
+    try {
+      const row = await reconcileOzonPublishTask(detail.id, {
+        outcome: values.outcome,
+        evidence: values.evidence.trim(),
+        externalProductId: values.externalProductId?.trim() || undefined,
+        externalSpuId: values.externalSpuId?.trim() || undefined,
+        externalUrl: values.externalUrl?.trim() || undefined,
+        platformStatus: values.outcome === 'platform_created' ? values.platformStatus : undefined,
+        sellableVerified: values.outcome === 'platform_created' ? values.sellableVerified === true : undefined,
+      });
+      setDetail(row);
+      setReconcileOpen(false);
+      actionRef.current?.reload?.();
+      message.success(values.outcome === 'platform_not_created' ? '已记录 Ozon 未创建；任务现在可由运营手动决定是否重试' : '已记录 Ozon 人工核对结果');
+    } catch (error: unknown) {
+      message.error((error as Error)?.message || '保存对账结果失败');
+    } finally {
+      setReconciling(false);
+    }
   };
 
   const columns: ProColumns<ProductPublishTaskDTO>[] = useMemo(
@@ -183,12 +268,12 @@ export default function ProductPublishTasksPage() {
         render: (_, r) => platformLabel(r.platform),
       },
       {
-        title: '状态',
+        title: '业务状态',
         dataIndex: 'status',
         width: 96,
         valueType: 'select',
         valueEnum: COLLECT_TASK_STATUS,
-        render: (_, r) => tagFromStatus(r.status),
+        render: (_, r) => businessStatusTag(r),
       },
       {
         title: '开始',
@@ -232,8 +317,10 @@ export default function ProductPublishTasksPage() {
                 </Button>
               </Popconfirm>
             );
+          } else if (productPublishBusinessStatus(r).requiresReconciliation) {
+            retryAction = <Typography.Text type="warning">{canReconcileOzonPublishTask(r) ? '请先安全对账' : '请人工核对'}</Typography.Text>;
           } else if (r.status === 'failed' && r.platform === 'ozon') {
-            retryAction = <Typography.Text type="secondary">请人工核对</Typography.Text>;
+            retryAction = <Typography.Text type="secondary">不可自动重试</Typography.Text>;
           }
           return (
             <Space>
@@ -276,8 +363,13 @@ export default function ProductPublishTasksPage() {
       { title: '商品数', dataIndex: 'productCount', width: 80, search: false },
       { title: '目标数', dataIndex: 'targetCount', width: 80, search: false },
       { title: '任务数', dataIndex: 'taskCount', width: 80, search: false },
-      { title: '成功', dataIndex: 'successCount', width: 72, search: false },
-      { title: '失败', dataIndex: 'failedCount', width: 72, search: false },
+      {
+        title: '已建草稿',
+        dataIndex: 'successCount',
+        width: 88,
+        search: false,
+      },
+      { title: '创建失败', dataIndex: 'failedCount', width: 88, search: false },
       {
         title: '操作',
         valueType: 'option',
@@ -434,17 +526,25 @@ export default function ProductPublishTasksPage() {
         ]}
       />
 
-      <Drawer width={560} title={detail ? `刊登进度 ${detail.id}` : '详情'} open={detailOpen} destroyOnHidden onClose={closeTaskDetail}>
+      <Drawer width="min(560px, 100vw)" rootClassName="product-publish-task-drawer" title={detail ? `刊登进度 ${detail.id}` : '详情'} open={detailOpen} destroyOnHidden onClose={closeTaskDetail} styles={{ body: { overflowX: 'hidden' } }}>
         {detail && (
           <Space direction="vertical" style={{ width: '100%' }} size="middle">
             <Space size={8} wrap>
               <Typography.Text strong>业务状态：</Typography.Text>
-              {tagFromStatus(detail.status)}
-              {detail.publishStatus ? <Tag>{detail.publishStatus}</Tag> : null}
+              {businessStatusTag(detail)}
+              {detailIsProcessing ? <Tag color="processing">每 3 秒自动刷新</Tag> : null}
             </Space>
+            {detailPollingError ? <Alert type="warning" showIcon message="自动刷新暂时失败" description={`${detailPollingError}；可使用下方“刷新任务结果”重试。`} /> : null}
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="业务状态代码">{detailBusinessStatus?.code || '—'}</Descriptions.Item>
+              <Descriptions.Item label="技术任务状态">{tagFromStatus(detail.status)}</Descriptions.Item>
+              <Descriptions.Item label="恢复状态">{detail.recoveryState || '—'}</Descriptions.Item>
+            </Descriptions>
+            {detailBusinessStatus?.code === 'imported' || detailBusinessStatus?.code === 'pending_review' ? <Alert type="info" showIcon message={detailBusinessStatus.text} description="Ozon 已受理或正在审核，但尚未确认前台可售；此时不会显示“成功上架”。" /> : null}
+            {detailBusinessStatus?.code === 'needs_action' ? <Alert type="error" showIcon message="Ozon 要求修改商品" description="请先处理下方平台警告，再重新保存配置；不要把该状态当作上架成功。" /> : null}
+            {detailBusinessStatus?.code === 'result_unknown' ? <Alert type="warning" showIcon message="Ozon 平台结果未知" description="禁止直接重试。请按 offer_id 或平台商品编号在 Ozon 后台只读核对，再通过“安全对账”记录事实。" /> : null}
             <Typography.Paragraph style={{ marginBottom: 0 }}>
-              <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId}{' '}
-              <Typography.Text type="secondary">({detail.platform})</Typography.Text>
+              <Typography.Text strong>店铺：</Typography.Text> {detail.shopName || detail.shopId} <Typography.Text type="secondary">({detail.platform})</Typography.Text>
             </Typography.Paragraph>
             <Typography.Paragraph style={{ marginBottom: 0 }}>
               <Typography.Text strong>商品：</Typography.Text> {detail.productTitle || detail.productId}
@@ -459,23 +559,48 @@ export default function ProductPublishTasksPage() {
                 <Typography.Text strong>平台商品编号：</Typography.Text> {detail.platformProductId}
               </Typography.Paragraph>
             ) : null}
+            {detailOfferIds.length > 0 ? (
+              <div>
+                <Typography.Text strong>offer_id：</Typography.Text>
+                <Space direction="vertical" size={2} style={{ width: '100%', marginTop: 4 }}>
+                  {detailOfferIds.map((offerId) => (
+                    <Typography.Text key={offerId} code copyable={{ text: offerId }}>
+                      {offerId}
+                    </Typography.Text>
+                  ))}
+                </Space>
+              </div>
+            ) : null}
+            {detailWarnings.length > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={`Ozon 返回 ${detailWarnings.length} 项警告`}
+                description={
+                  <ul style={{ margin: 0, paddingInlineStart: 20 }}>
+                    {detailWarnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                }
+              />
+            ) : null}
             {detail.retryable !== undefined && detail.retryable !== null ? (
               <Typography.Paragraph style={{ marginBottom: 0 }}>
                 <Typography.Text strong>可以重试：</Typography.Text> {detail.retryable ? '是' : '否'}
               </Typography.Paragraph>
             ) : null}
-            {detail.status === 'failed' && detail.platform === 'ozon' && detail.retryable !== true ? (
-              <Alert
-                type="warning"
-                showIcon
-                message="该失败或不确定结果不可自动重试"
-                description="请先在 Ozon 后台按 offer_id / 平台商品编号人工核对是否已受理，避免重复创建。只有服务端明确返回 retryable=true 时才会开放重试。"
-              />
-            ) : null}
+            {detailBusinessStatus?.requiresReconciliation ? <Alert type="warning" showIcon message="该结果不可自动重试" description={detailCanReconcile ? '请先在 Ozon 后台按 offer_id / 平台商品编号核对是否已受理，避免重复创建。安全对账只记录人工确认事实，不会自动重试或再次调用 Ozon 写接口。' : '请在 Ozon 后台按 offer_id / 平台商品编号人工核对。该历史任务不是 failed 状态，当前不会开放一个后端必然拒绝的对账或重试操作。'} /> : null}
             <Space wrap>
-              <Link to={`/product/publishing-center?productId=${encodeURIComponent(detail.productId)}&shopId=${encodeURIComponent(detail.shopId)}`}>
-                返回商品刊登配置
-              </Link>
+              <Button loading={refreshingDetail} onClick={() => void refreshTaskDetail()}>
+                刷新任务结果
+              </Button>
+              {detailCanReconcile ? (
+                <Button type="primary" danger onClick={openReconcile}>
+                  安全对账
+                </Button>
+              ) : null}
+              <Link to={`/product/publishing-center?productId=${encodeURIComponent(detail.productId)}&shopId=${encodeURIComponent(detail.shopId)}`}>返回商品刊登配置</Link>
               <Link to={`/product/drafts/${encodeURIComponent(detail.productId)}`}>查看商品详情</Link>
             </Space>
             <TechnicalDetails>
@@ -495,6 +620,66 @@ export default function ProductPublishTasksPage() {
           </Space>
         )}
       </Drawer>
+
+      <Modal title="Ozon 安全对账" open={reconcileOpen} width={680} okText="保存人工核对结果" cancelText="取消" confirmLoading={reconciling} okButtonProps={{ danger: true }} onCancel={() => setReconcileOpen(false)} onOk={() => void submitReconciliation()} destroyOnHidden>
+        <Alert type="warning" showIcon message="本操作不会调用 Ozon，也不会自动重试" description="请先在 Ozon 后台按 offer_id / 平台商品编号完成只读核对。错误确认“未创建”后再重试，可能产生重复商品。" style={{ marginBottom: 16 }} />
+        <Form form={reconcileForm} layout="vertical">
+          <Form.Item name="outcome" label="核对结论" rules={[{ required: true, message: '请选择核对结论' }]}>
+            <Radio.Group>
+              <Radio value="platform_created">Ozon 已创建/已受理</Radio>
+              <Radio value="platform_not_created">已确认 Ozon 未创建</Radio>
+            </Radio.Group>
+          </Form.Item>
+          {reconcileOutcome === 'platform_created' ? (
+            <>
+              <Form.Item
+                name="externalProductId"
+                label="Ozon 平台商品编号"
+                rules={[
+                  {
+                    required: true,
+                    whitespace: true,
+                    message: '请输入平台商品编号',
+                  },
+                ]}
+              >
+                <Input placeholder="只填写从 Ozon 后台核对到的编号" />
+              </Form.Item>
+              <Form.Item name="externalSpuId" label="offer_id / 外部 SPU">
+                <Input placeholder="建议填写，便于后续幂等核对" />
+              </Form.Item>
+              <Form.Item name="externalUrl" label="Ozon 商品链接">
+                <Input placeholder="可选；仅填写已核对的链接" />
+              </Form.Item>
+              <Form.Item name="platformStatus" label="Ozon 当前状态" rules={[{ required: true, message: '请选择平台状态' }]}>
+                <Select
+                  options={[
+                    { value: 'imported', label: '已接收，尚未确认可售' },
+                    { value: 'pending_review', label: '审核中' },
+                    { value: 'needs_action', label: '需要修改' },
+                    { value: 'sellable', label: '已验证前台可售' },
+                  ]}
+                />
+              </Form.Item>
+              {reconcilePlatformStatus === 'sellable' ? (
+                <Form.Item name="sellableVerified" valuePropName="checked">
+                  <Checkbox>我已在 Ozon 前台或 Seller 后台确认商品当前可售</Checkbox>
+                </Form.Item>
+              ) : null}
+            </>
+          ) : null}
+          <Form.Item
+            name="evidence"
+            label="核对依据"
+            rules={[
+              { required: true, whitespace: true, message: '请填写核对依据' },
+              { max: 1000, message: '核对依据不能超过 1000 字' },
+            ]}
+          >
+            <Input.TextArea rows={4} maxLength={1000} showCount placeholder="例如：核对时间、Ozon 页面、使用的 offer_id，以及看到的状态。请勿填写密钥或 Token。" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </TmPageContainer>
   );
 }

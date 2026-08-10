@@ -81,7 +81,7 @@ export async function routeAdminApi(page: Page) {
       productsResponse(path) ??
       readinessResponse(path) ??
       publishResponse(path) ??
-      ozonPublishResponse(path) ??
+      ozonPublishResponse(path, url.searchParams) ??
       settingsResponse(path) ??
       inventoryResponse(path) ??
       (path.includes("/product-publications/") &&

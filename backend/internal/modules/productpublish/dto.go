@@ -17,6 +17,18 @@ type PublishRequestBody struct {
 	Force bool `json:"force"`
 }
 
+// ReconcileOzonTaskBody records an operator-confirmed, read-only reconciliation
+// result. It never calls Ozon or automatically retries the original mutation.
+type ReconcileOzonTaskBody struct {
+	Outcome           string `json:"outcome"`
+	ExternalProductID string `json:"externalProductId,omitempty"`
+	ExternalSPUID     string `json:"externalSpuId,omitempty"`
+	ExternalURL       string `json:"externalUrl,omitempty"`
+	PlatformStatus    string `json:"platformStatus,omitempty"`
+	SellableVerified  bool   `json:"sellableVerified,omitempty"`
+	Evidence          string `json:"evidence"`
+}
+
 // TaskDTO API shape for CRUD endpoints.
 type TaskDTO struct {
 	ID                uuid.UUID  `json:"id"`
@@ -44,6 +56,7 @@ type TaskDTO struct {
 	PlatformProductID string     `json:"platformProductId,omitempty"`
 	PlatformRawError  any        `json:"platformRawError,omitempty"`
 	Retryable         bool       `json:"retryable,omitempty"`
+	RecoveryState     string     `json:"recoveryState,omitempty"`
 	RequestID         string     `json:"requestId,omitempty"`
 	MappingSnapshot   any        `json:"mappingSnapshot,omitempty"`
 	StartedAt         *time.Time `json:"startedAt,omitempty"`

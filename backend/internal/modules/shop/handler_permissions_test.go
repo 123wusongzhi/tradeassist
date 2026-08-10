@@ -84,3 +84,31 @@ func TestUnknownRoleCannotReadOzonCategoryCache(t *testing.T) {
 		t.Fatalf("status = %d, want %d; body=%s", res.Code, http.StatusForbidden, res.Body.String())
 	}
 }
+
+func TestUnknownRoleCannotReadOzonWarehouses(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open("file:shop_ozon_warehouse_permissions?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&admin.AdminUser{}, &Shop{}); err != nil {
+		t.Fatal(err)
+	}
+	userID := uuid.New()
+	user := admin.AdminUser{Base: model.Base{ID: userID}, TenantID: 42, Username: admin.NewInternalUsername(), PasswordHash: "test", Role: "unknown", Status: admin.StatusActive}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(ctxkey.AdminID, userID.String())
+		c.Set(ctxkey.TenantID, int64(42))
+	})
+	router.GET("/platform/ozon/warehouses", (&Handler{Svc: &Service{DB: db}}).ListOzonWarehouses)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/platform/ozon/warehouses?shopId="+uuid.NewString(), nil))
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d; body=%s", res.Code, http.StatusForbidden, res.Body.String())
+	}
+}

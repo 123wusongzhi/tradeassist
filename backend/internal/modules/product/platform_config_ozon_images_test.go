@@ -88,9 +88,9 @@ func TestOzonPlatformConfigPersistsAndReloadsSKUVariantMappings(t *testing.T) {
 	require.NoError(t, svc.DB.Create(&shopRow).Error)
 	require.NoError(t, svc.DB.Create(&shop.PlatformCategory{Platform: "ozon", CategoryID: "100:200", Name: "服装", IsLeaf: true, Status: "active"}).Error)
 	require.NoError(t, svc.DB.Create(&shop.PlatformCategoryAttribute{
-		Platform: "ozon", CategoryID: "100:200", AttrID: "10096", Name: "颜色", Required: true,
+		Platform: "ozon", CategoryID: "100:200", AttrID: "10096", Name: "颜色", Required: true, ValueType: "String",
 		Options: datatypes.JSON([]byte(`[{"id":"1","value":"红色"},{"id":"2","value":"蓝色"}]`)),
-		Raw:     datatypes.JSON([]byte(`{"dictionary_id":"7","is_collection":false,"attribute_complex_id":0}`)),
+		Raw:     datatypes.JSON([]byte(`{"dictionary_id":"7","is_aspect":true,"is_collection":false,"attribute_complex_id":0}`)),
 	}).Error)
 	red := ProductSKU{ProductID: productRow.ID, SKUCode: "RED", SKUName: "红色"}
 	blue := ProductSKU{ProductID: productRow.ID, SKUCode: "BLUE", SKUName: "蓝色"}

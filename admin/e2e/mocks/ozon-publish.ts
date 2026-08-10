@@ -190,7 +190,10 @@ export const e2eOzonConfig = {
   legacyFallback: false,
 };
 
-export function ozonPublishResponse(path: string) {
+export function ozonPublishResponse(
+  path: string,
+  searchParams?: URLSearchParams,
+) {
   const decodedPath = decodeURIComponent(path);
   if (decodedPath === "/api/v1/platform/ozon/categories/stats")
     return ok(e2eOzonStats);
@@ -200,25 +203,86 @@ export function ozonPublishResponse(path: string) {
     return ok({ list: e2eOzonChanges });
   if (decodedPath === "/api/v1/platform/ozon/category-mappings")
     return ok({
-      list: [{ id: "e2e-ozon-map", ...e2eOzonConfig, status: "confirmed" }],
+      list: [
+        {
+          id: "e2e-ozon-map",
+          ...e2eOzonConfig,
+          status: "active",
+          descriptionCategoryId: "100",
+          typeId: "200",
+          scope: "shop",
+          selectionMethod: "manual",
+          confirmationReason: "商品用途、材质和规格与桌子叶子类目一致",
+          templateSyncedAt: "2026-08-10T00:00:00Z",
+          confirmedAt: "2026-08-03T00:00:00Z",
+        },
+      ],
+    });
+  if (decodedPath === "/api/v1/platform/ozon/warehouses")
+    return ok({
+      list: [
+        {
+          id: "9001",
+          name: "E2E 莫斯科 FBS 仓",
+          isRfbs: false,
+          isKgt: false,
+          economy: false,
+        },
+      ],
     });
   if (
     decodedPath === `/api/v1/products/${E2E_PRODUCT_ID}/platform-configs/ozon`
   )
     return ok(e2eOzonConfig);
-  if (decodedPath === "/api/v1/platform/ozon/categories")
+  if (decodedPath === "/api/v1/platform/ozon/categories") {
+    const rootOnly = searchParams?.get("rootOnly") === "1";
+    const parentId = searchParams?.get("parentId") || "";
+    const onlyLeaf = searchParams?.get("onlyLeaf") === "1";
+    const root = {
+      id: "e2e-ozon-root",
+      categoryId: "100",
+      parentId: "",
+      name: "家具",
+      path: "家具",
+      level: 1,
+      isLeaf: false,
+      hasChildren: true,
+      childCount: 1,
+      status: "active",
+      syncedAt: "2026-08-10T00:00:00Z",
+    };
+    const leaf = {
+      id: E2E_OZON_CATEGORY_ID,
+      categoryId: E2E_OZON_CATEGORY_ID,
+      parentId: "100",
+      name: "桌子",
+      path: "家具 / 桌子",
+      descriptionCategoryId: "100",
+      typeId: "200",
+      level: 2,
+      isLeaf: true,
+      hasChildren: false,
+      childCount: 0,
+      ancestors: [{ categoryId: "100", name: "家具", level: 1 }],
+      status: "active",
+      syncedAt: "2026-08-10T00:00:00Z",
+    };
+    const list = rootOnly
+      ? [root]
+      : parentId === "100" || onlyLeaf
+        ? [leaf]
+        : [root, leaf];
     return ok({
-      list: [
-        {
-          id: E2E_OZON_CATEGORY_ID,
-          name: "桌子",
-          descriptionCategoryId: "100",
-          typeId: "200",
-          isLeaf: true,
-          status: "active",
-        },
-      ],
+      list,
+      total: 20000,
+      leafCount: 18000,
+      matchedTotal: list.length,
+      offset: 0,
+      limit: 50,
+      lastSyncedAt: "2026-08-10T00:00:00Z",
+      cacheStale: false,
     });
+  }
   if (
     decodedPath ===
     `/api/v1/platform/ozon/categories/${E2E_OZON_CATEGORY_ID}/attributes/86/values`
@@ -240,8 +304,11 @@ export function ozonPublishResponse(path: string) {
           categoryId: E2E_OZON_CATEGORY_ID,
           attrId: "85",
           name: "品牌",
+          description: "商品品牌，不用于区分 SKU",
           required: true,
           valueType: "string",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: true,
           isCollection: false,
           maxValueCount: 1,
           attributeComplexId: 0,
@@ -252,9 +319,12 @@ export function ozonPublishResponse(path: string) {
           categoryId: E2E_OZON_CATEGORY_ID,
           attrId: "86",
           name: "颜色",
+          description: "Ozon 明确允许区分 SKU 的颜色属性",
           required: true,
           valueType: "dictionary",
           dictionaryId: "colors",
+          skuVariantEligible: true,
+          skuVariantEligibilityKnown: true,
           isCollection: true,
           maxValueCount: 2,
           attributeComplexId: 0,
@@ -271,12 +341,93 @@ export function ozonPublishResponse(path: string) {
           name: "材质组合",
           required: true,
           valueType: "string",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: true,
           isCollection: false,
           maxValueCount: 1,
           attributeComplexId: 501,
           complexIsCollection: true,
         },
+        {
+          id: "e2e-attr-capacity",
+          categoryId: E2E_OZON_CATEGORY_ID,
+          attrId: "20001",
+          name: "容量",
+          description: "仅接受整数",
+          required: false,
+          valueType: "Integer",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: true,
+          isCollection: false,
+          maxValueCount: 1,
+          attributeComplexId: 0,
+          complexIsCollection: false,
+        },
+        {
+          id: "e2e-attr-polarized",
+          categoryId: E2E_OZON_CATEGORY_ID,
+          attrId: "30002",
+          name: "是否偏光",
+          required: false,
+          valueType: "Boolean",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: true,
+          isCollection: false,
+          maxValueCount: 1,
+          attributeComplexId: 0,
+          complexIsCollection: false,
+        },
+        {
+          id: "e2e-attr-url",
+          categoryId: E2E_OZON_CATEGORY_ID,
+          attrId: "30003",
+          name: "商品链接",
+          required: false,
+          valueType: "URL",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: true,
+          isCollection: false,
+          maxValueCount: 1,
+          attributeComplexId: 0,
+          complexIsCollection: false,
+        },
+        {
+          id: "e2e-attr-unknown-aspect",
+          categoryId: E2E_OZON_CATEGORY_ID,
+          attrId: "40001",
+          name: "待确认规格",
+          required: false,
+          valueType: "String",
+          skuVariantEligible: false,
+          skuVariantEligibilityKnown: false,
+          isCollection: false,
+          maxValueCount: 1,
+          attributeComplexId: 0,
+          complexIsCollection: false,
+        },
+        {
+          id: "e2e-attr-unsupported-type",
+          categoryId: E2E_OZON_CATEGORY_ID,
+          attrId: "40002",
+          name: "平台特殊规格",
+          required: false,
+          valueType: "OzonDimension",
+          skuVariantEligible: true,
+          skuVariantEligibilityKnown: true,
+          isCollection: false,
+          maxValueCount: 1,
+          attributeComplexId: 0,
+          complexIsCollection: false,
+        },
       ],
+      variantPolicy: {
+        maxSkuCount: 100,
+        maxVariantAttributeCount: 2,
+        maxVariantCombinationCount: 100,
+        eligibleAttributeCount: 2,
+        variantEligibilityFullyKnown: false,
+        source: "ozon_is_aspect+trademind_import_guardrail",
+      },
     });
   return null;
 }

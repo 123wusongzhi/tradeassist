@@ -129,6 +129,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 	read.GET("/product-publish/tasks", h.ListTasks)
 	read.GET("/product-publish/tasks/:id", h.GetTask)
 	write.POST("/product-publish/tasks/:id/retry", h.RetryTask)
+	write.POST("/product-publish/tasks/:id/reconcile-ozon", h.ReconcileOzonTask)
 	write.POST("/product-publish/tasks/:id/recover-douyin-draft", h.RecoverDouyinDraftTask)
 	write.POST("/product-publish/tasks/:id/douyin/recover", h.RecoverDouyinDraftTask)
 	write.POST("/product-publish/tasks/:id/cancel", h.CancelTask)
@@ -479,6 +480,29 @@ func (h *Handler) RetryTask(c *gin.Context) {
 	out, err := h.Svc.RetryFailed(c, id, adminUUID(c))
 	if err != nil {
 		response.Fail(c, 400, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, out)
+}
+
+func (h *Handler) ReconcileOzonTask(c *gin.Context) {
+	if h == nil || h.Svc == nil {
+		response.Fail(c, 500, response.CodeInternalError, "product publish unavailable")
+		return
+	}
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid id")
+		return
+	}
+	var body ReconcileOzonTaskBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, 400, response.CodeBadRequest, "invalid json body")
+		return
+	}
+	out, err := h.Svc.ReconcileOzonTask(c, id, body, adminUUID(c))
+	if err != nil {
+		response.HandleError(c, err)
 		return
 	}
 	response.OK(c, out)

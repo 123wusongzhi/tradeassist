@@ -152,6 +152,9 @@ type OzonCategoryMapping struct {
 	CategoryPath       string     `gorm:"size:1024" json:"categoryPath,omitempty"`
 	Status             string     `gorm:"size:32;index;not null" json:"status"`
 	SchemaHash         string     `gorm:"size:128" json:"schemaHash,omitempty"`
+	SelectionMethod    string     `gorm:"size:64" json:"selectionMethod,omitempty"`
+	ConfirmationReason string     `gorm:"size:1000" json:"confirmationReason,omitempty"`
+	TemplateSyncedAt   *time.Time `json:"templateSyncedAt,omitempty"`
 	ConfirmedAt        *time.Time `json:"confirmedAt,omitempty"`
 	ConfirmedBy        *uuid.UUID `gorm:"type:char(36);index" json:"confirmedBy,omitempty"`
 }

@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
@@ -276,6 +280,15 @@ func ValidateOzonPlatformAttributePayloadForSKUs(schema []shop.PlatformCategoryA
 			complexSchema[meta.AttributeComplexID] = append(complexSchema[meta.AttributeComplexID], attr)
 		}
 	}
+	if requireComplete && len(skuIDs) > shop.OzonMaxSKUsPerPublish {
+		return newOzonSKUVariantValidationError("Ozon 商品包含 %d 个 SKU，超过单次刊登安全上限 %d", len(skuIDs), shop.OzonMaxSKUsPerPublish)
+	}
+	eligibleVariantCount := 0
+	for _, meta := range metaByID {
+		if meta.AttributeComplexID <= 0 && meta.SKUVariantEligibilityKnown && meta.SKUVariantEligible {
+			eligibleVariantCount++
+		}
+	}
 	for attrID, values := range payload.Attributes {
 		attr, ok := byID[attrID]
 		if !ok {
@@ -299,7 +312,17 @@ func ValidateOzonPlatformAttributePayloadForSKUs(schema []shop.PlatformCategoryA
 		if metaByID[attrID].AttributeComplexID > 0 {
 			return newOzonSKUVariantValidationError("Ozon 组合属性 %s 暂不支持作为 SKU 变体；请改用普通变体属性或拆分商品", attr.Name)
 		}
+		meta := metaByID[attrID]
+		if !meta.SKUVariantEligibilityKnown {
+			return newOzonSKUVariantValidationError("Ozon 属性 %s 缺少 is_aspect 变体资格证据；请同步当前类目模板后重试", attr.Name)
+		}
+		if !meta.SKUVariantEligible {
+			return newOzonSKUVariantValidationError("Ozon 属性 %s 不允许作为 SKU 变体维度", attr.Name)
+		}
 		variantSet[attrID] = struct{}{}
+	}
+	if len(variantSet) > eligibleVariantCount {
+		return newOzonSKUVariantValidationError("Ozon SKU 变体维度数量 %d 超过当前类目已确认上限 %d", len(variantSet), eligibleVariantCount)
 	}
 	knownSKUs := make(map[string]struct{}, len(skuIDs))
 	// nil means the legacy product-level caller did not provide SKU scope.
@@ -324,6 +347,10 @@ func ValidateOzonPlatformAttributePayloadForSKUs(schema []shop.PlatformCategoryA
 			}
 			if metaByID[attrID].AttributeComplexID > 0 {
 				return newOzonSKUVariantValidationError("Ozon 组合属性 %s 暂不支持作为 SKU 变体；请改用普通变体属性或拆分商品", attr.Name)
+			}
+			meta := metaByID[attrID]
+			if !meta.SKUVariantEligibilityKnown || !meta.SKUVariantEligible {
+				return newOzonSKUVariantValidationError("Ozon SKU %s 使用了不允许作为变体维度的属性：%s", skuID, attr.Name)
 			}
 			if _, selected := variantSet[attrID]; !selected {
 				return newOzonSKUVariantValidationError("Ozon SKU %s 保存了未选作变体维度的属性：%s", skuID, attr.Name)
@@ -402,6 +429,9 @@ func ValidateOzonPlatformAttributePayloadForSKUs(schema []shop.PlatformCategoryA
 			}
 			seenTuples[tuple] = key
 		}
+	}
+	if len(seenTuples) > shop.OzonMaxSKUsPerPublish {
+		return newOzonSKUVariantValidationError("Ozon SKU 变体组合数量 %d 超过单次刊登安全上限 %d", len(seenTuples), shop.OzonMaxSKUsPerPublish)
 	}
 	for _, attr := range schema {
 		if !attr.Required {
@@ -484,23 +514,31 @@ func ozonSKUVariantTuple(attributeIDs []string, override map[string][]OzonAttrib
 }
 
 type ozonAttributeMeta struct {
-	DictionaryID        string
-	IsCollection        bool
-	AttributeComplexID  int64
-	MaxValueCount       int64
-	ComplexIsCollection bool
+	DictionaryID               string
+	SKUVariantEligible         bool
+	SKUVariantEligibilityKnown bool
+	IsCollection               bool
+	AttributeComplexID         int64
+	MaxValueCount              int64
+	ComplexIsCollection        bool
 }
 
 func parseOzonAttributeMeta(raw datatypes.JSON) ozonAttributeMeta {
 	var values map[string]any
 	_ = json.Unmarshal(raw, &values)
-	return ozonAttributeMeta{
-		DictionaryID:        dictionaryIDFromProductAttributeRaw(values["dictionary_id"]),
-		IsCollection:        boolFromOzonAttributeRaw(values["is_collection"]),
-		AttributeComplexID:  int64FromOzonAttributeRaw(values["attribute_complex_id"]),
-		MaxValueCount:       int64FromOzonAttributeRaw(values["max_value_count"]),
-		ComplexIsCollection: boolFromOzonAttributeRaw(values["complex_is_collection"]),
+	meta := ozonAttributeMeta{
+		DictionaryID:               dictionaryIDFromProductAttributeRaw(values["dictionary_id"]),
+		SKUVariantEligible:         boolFromOzonAttributeRaw(values["is_aspect"]),
+		SKUVariantEligibilityKnown: boolFromOzonAttributeRaw(values["is_aspect_known"]),
+		IsCollection:               boolFromOzonAttributeRaw(values["is_collection"]),
+		AttributeComplexID:         int64FromOzonAttributeRaw(values["attribute_complex_id"]),
+		MaxValueCount:              int64FromOzonAttributeRaw(values["max_value_count"]),
+		ComplexIsCollection:        boolFromOzonAttributeRaw(values["complex_is_collection"]),
 	}
+	if _, present := values["is_aspect"].(bool); present {
+		meta.SKUVariantEligibilityKnown = true
+	}
+	return meta
 }
 
 func validateOzonAttributeSelections(attr shop.PlatformCategoryAttribute, meta ozonAttributeMeta, values []OzonAttributeSelection) error {
@@ -527,6 +565,51 @@ func validateOzonAttributeSelections(attr shop.PlatformCategoryAttribute, meta o
 		} else if value.DictionaryValueID != "" {
 			return fmt.Errorf("Ozon 非词典属性不能包含 dictionaryValueId：%s", attr.Name)
 		}
+		if meta.DictionaryID == "" {
+			if err := validateOzonValueType(attr, value.Value); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateOzonValueType(attr shop.PlatformCategoryAttribute, raw string) error {
+	value := strings.TrimSpace(raw)
+	valueType := strings.ToLower(strings.TrimSpace(attr.ValueType))
+	switch valueType {
+	case "":
+		return fmt.Errorf("Ozon 属性 %s 缺少 valueType；请同步当前类目模板后重试", attr.Name)
+	case "string", "text":
+		return nil
+	case "integer", "int", "int64":
+		if _, err := strconv.ParseInt(value, 10, 64); err != nil {
+			return fmt.Errorf("Ozon 属性 %s 必须是 64 位整数", attr.Name)
+		}
+	case "decimal", "float", "double", "number":
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil || math.IsInf(parsed, 0) || math.IsNaN(parsed) || strings.ContainsAny(value, "eE") {
+			return fmt.Errorf("Ozon 属性 %s 必须是有限十进制数（不支持科学计数法）", attr.Name)
+		}
+	case "boolean", "bool":
+		if !strings.EqualFold(value, "true") && !strings.EqualFold(value, "false") {
+			return fmt.Errorf("Ozon 属性 %s 必须选择 true 或 false", attr.Name)
+		}
+	case "url", "uri", "image":
+		parsed, err := url.ParseRequestURI(value)
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return fmt.Errorf("Ozon 属性 %s 必须是完整的 http/https URL", attr.Name)
+		}
+	case "date":
+		if _, err := time.Parse("2006-01-02", value); err != nil {
+			return fmt.Errorf("Ozon 属性 %s 必须使用 YYYY-MM-DD 日期格式", attr.Name)
+		}
+	case "datetime", "date_time", "timestamp":
+		if _, err := time.Parse(time.RFC3339, value); err != nil {
+			return fmt.Errorf("Ozon 属性 %s 必须使用 RFC3339 日期时间格式", attr.Name)
+		}
+	default:
+		return fmt.Errorf("Ozon 属性 %s 的 valueType=%s 尚未受支持；请同步模板或升级系统后再提交", attr.Name, attr.ValueType)
 	}
 	return nil
 }

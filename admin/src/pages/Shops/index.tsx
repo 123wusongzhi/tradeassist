@@ -1,66 +1,14 @@
 import { Link } from '@umijs/renderer-react';
-import {
-  ApiOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  EyeOutlined,
-  MoreOutlined,
-  SafetyCertificateOutlined,
-  ShopOutlined,
-} from '@ant-design/icons';
+import { ApiOutlined, DeleteOutlined, EditOutlined, EyeOutlined, MoreOutlined, SafetyCertificateOutlined, ShopOutlined } from '@ant-design/icons';
 import { formatDateTime } from '@/utils/formatTime';
 import { ModalForm, ProFormDigit, ProFormRadio, ProFormSelect, ProFormText, ProFormTextArea, type ActionType, type ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TechnicalDetails, TmProTable as ProTable } from '@/components/ui';
 import { confirmRevokeStoreAuth } from '@/constants/sensitiveActions';
-import {
-  Alert,
-  Button,
-  Descriptions,
-  Divider,
-  Drawer,
-  Dropdown,
-  Form,
-  Input,
-  Modal,
-  Space,
-  Tag,
-  Typography,
-  message,
-  type MenuProps,
-} from 'antd';
+import { Alert, Button, Descriptions, Divider, Drawer, Dropdown, Form, Input, Modal, Space, Tag, Typography, message, type MenuProps } from 'antd';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  PLATFORM_PROVIDER_STATUS,
-  SHOP_AUTH_STATUS,
-  SHOP_STATUS,
-} from '@/constants/status';
-import {
-  createShop,
-  deleteShop,
-  getDouyinOAuthAuthorizeUrl,
-  getShop,
-  getTikTokOAuthAuthorizeUrl,
-  postTikTokOAuthCallback,
-  getShopeeOAuthAuthorizeUrl,
-  postShopeeOAuthCallback,
-  getLazadaOAuthAuthorizeUrl,
-  postLazadaOAuthCallback,
-  getAmazonOAuthAuthorizeUrl,
-  postAmazonOAuthCallback,
-  queryPlatformProviders,
-  queryShops,
-  refreshDouyinOAuth,
-  revokeDouyinOAuth,
-  syncDouyinShopInfo,
-  testDouyinOAuth,
-  testShopConnection,
-  updateShop,
-  updateShopAuth,
-  type PlatformProviderMeta,
-  type ShopDetail,
-  type ShopListRow,
-} from '@/services/shops';
+import { PLATFORM_PROVIDER_STATUS, SHOP_AUTH_STATUS, SHOP_STATUS } from '@/constants/status';
+import { createShop, deleteShop, getDouyinOAuthAuthorizeUrl, getShop, getTikTokOAuthAuthorizeUrl, postTikTokOAuthCallback, getShopeeOAuthAuthorizeUrl, postShopeeOAuthCallback, getLazadaOAuthAuthorizeUrl, postLazadaOAuthCallback, getAmazonOAuthAuthorizeUrl, postAmazonOAuthCallback, queryPlatformProviders, queryShops, refreshDouyinOAuth, requireSuccessfulShopConnection, revokeDouyinOAuth, syncDouyinShopInfo, testDouyinOAuth, testShopConnection, updateShop, updateShopAuth, type PlatformProviderMeta, type ShopDetail, type ShopListRow } from '@/services/shops';
 import { syncShopOrders } from '@/services/orderSync';
 import { syncCustomerMessages } from '@/services/customer';
 import { getPlatformAppSettings } from '@/services/platformOpen';
@@ -77,16 +25,7 @@ const PLATFORM_TAG_COLORS: Record<string, string> = {
   ozon: 'cyan',
 };
 
-const STD_AUTH_KEYS = new Set([
-  'appKey',
-  'appSecret',
-  'accessToken',
-  'refreshToken',
-  'sellerId',
-  'merchantId',
-  'marketplaceId',
-  'redirectUri',
-]);
+const STD_AUTH_KEYS = new Set(['appKey', 'appSecret', 'accessToken', 'refreshToken', 'sellerId', 'merchantId', 'marketplaceId', 'redirectUri']);
 
 function providerLabel(list: PlatformProviderMeta[], platform: string) {
   const p = list.find((x) => x.platform === platform);
@@ -118,9 +57,7 @@ function renderPlatformCell(platform: string, providers: PlatformProviderMeta[])
           Beta
         </Tag>
       ) : null}
-      {meta?.status === 'planned' ? (
-        <Tag style={{ margin: 0 }}>规划中</Tag>
-      ) : null}
+      {meta?.status === 'planned' ? <Tag style={{ margin: 0 }}>规划中</Tag> : null}
     </Space>
   );
 }
@@ -142,19 +79,8 @@ function renderCapabilityTags(raw: unknown) {
   );
 }
 
-function summarizeShopTest(res: {
-  ok: boolean;
-  message?: string;
-  shopName?: string;
-  externalShopId?: string;
-  region?: string;
-}) {
-  const parts = [
-    res.message,
-    res.shopName ? `店铺 ${res.shopName}` : '',
-    res.region ? `地区 ${res.region}` : '',
-    res.externalShopId ? `平台店铺编号 ${res.externalShopId}` : '',
-  ].filter(Boolean);
+function summarizeShopTest(res: { ok: boolean; message?: string; shopName?: string; externalShopId?: string; region?: string }) {
+  const parts = [res.message, res.shopName ? `店铺 ${res.shopName}` : '', res.region ? `地区 ${res.region}` : '', res.externalShopId ? `平台店铺编号 ${res.externalShopId}` : ''].filter(Boolean);
   return parts.join(' · ') || '连接成功';
 }
 
@@ -197,11 +123,7 @@ function formatPlatformPartnerErr(err: unknown): string {
   if (msg.includes('platform_amazon.lwa_auth_base_url and lwa_token_url')) {
     return `${msg}\n请在「Amazon SP-API」配置中补齐 LWA Auth Base URL 与 LWA Token URL。`;
   }
-  if (
-    msg.includes(
-      'TikTok 平台配置不完整，请先填写应用 Key、应用密钥和授权回调地址。',
-    )
-  ) {
+  if (msg.includes('TikTok 平台配置不完整，请先填写应用 Key、应用密钥和授权回调地址。')) {
     return `${msg}\n请先前往「设置 → 平台接入设置」填写 TikTok Shop（分组 platform_tiktok）必填项后再试。`;
   }
   if (low.includes('tiktok platform config is incomplete') || low.includes('platform_tiktok')) {
@@ -220,9 +142,15 @@ export default function ShopsPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [authForm] = Form.useForm();
   const [syncOpen, setSyncOpen] = useState(false);
-  const [syncTarget, setSyncTarget] = useState<{ id: string; platform: string } | null>(null);
+  const [syncTarget, setSyncTarget] = useState<{
+    id: string;
+    platform: string;
+  } | null>(null);
   const [cmSyncOpen, setCmSyncOpen] = useState(false);
-  const [cmSyncTarget, setCmSyncTarget] = useState<{ id: string; platform: string } | null>(null);
+  const [cmSyncTarget, setCmSyncTarget] = useState<{
+    id: string;
+    platform: string;
+  } | null>(null);
   const [tiktokOAuthAuthorizeUrl, setTikTokOAuthAuthorizeUrl] = useState('');
   const [tiktokOAuthState, setTikTokOAuthState] = useState('');
   const [shopeeOAuthAuthorizeUrl, setShopeeOAuthAuthorizeUrl] = useState('');
@@ -266,9 +194,7 @@ export default function ShopsPage() {
       try {
         const row = await getPlatformAppSettings(p.platform);
         if (!isDeployAppConfigComplete(row.schema ?? p.appConfigSchema, row.values)) {
-          setAuthPartnerWarn(
-            `请先到「设置 → 平台接入设置」填写「${p.name}」平台应用信息（分组 ${p.settingsGroupKey}），再完成店铺授权。`,
-          );
+          setAuthPartnerWarn(`请先到「设置 → 平台接入设置」填写「${p.name}」平台应用信息（分组 ${p.settingsGroupKey}），再完成店铺授权。`);
         }
       } catch {
         setAuthPartnerWarn('无法校验平台应用配置，请检查网络或稍后重试。');
@@ -420,7 +346,12 @@ export default function ShopsPage() {
           <Button
             type="link"
             size="small"
-            style={{ padding: 0, height: 'auto', maxWidth: '100%', textAlign: 'left' }}
+            style={{
+              padding: 0,
+              height: 'auto',
+              maxWidth: '100%',
+              textAlign: 'left',
+            }}
             onClick={() => void openDetail(r)}
           >
             <Space size={6} style={{ maxWidth: '100%' }}>
@@ -541,9 +472,7 @@ export default function ShopsPage() {
               },
               {
                 key: 'olog',
-                label: (
-                  <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link>
-                ),
+                label: <Link to={`/orders/sync-tasks?shopId=${encodeURIComponent(r.id)}`}>订单同步记录</Link>,
               },
               {
                 key: 'cmsync',
@@ -552,11 +481,7 @@ export default function ShopsPage() {
               },
               {
                 key: 'cmlog',
-                label: (
-                  <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>
-                    客服同步记录
-                  </Link>
-                ),
+                label: <Link to={`/customer/message-sync-tasks?shopId=${encodeURIComponent(r.id)}`}>客服同步记录</Link>,
               },
             ],
           });
@@ -567,11 +492,12 @@ export default function ShopsPage() {
             icon: <ApiOutlined />,
             onClick: async () => {
               try {
-                const res =
-                  r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id);
+                const res = requireSuccessfulShopConnection(r.platform === 'douyin_shop' ? await testDouyinOAuth(r.id) : await testShopConnection(r.id));
                 message.success(summarizeShopTest(res));
               } catch (e: unknown) {
                 message.error(formatPlatformPartnerErr(e));
+              } finally {
+                actionRef.current?.reload();
               }
             },
           });
@@ -597,13 +523,7 @@ export default function ShopsPage() {
 
           return (
             <Space size={0} wrap={false}>
-              <Button
-                type="link"
-                size="small"
-                style={{ paddingInline: 4 }}
-                icon={<EyeOutlined />}
-                onClick={() => void openDetail(r)}
-              >
+              <Button type="link" size="small" style={{ paddingInline: 4 }} icon={<EyeOutlined />} onClick={() => void openDetail(r)}>
                 查看
               </Button>
               <Button
@@ -619,13 +539,7 @@ export default function ShopsPage() {
               >
                 编辑
               </Button>
-              <Button
-                type="link"
-                size="small"
-                style={{ paddingInline: 4 }}
-                icon={<SafetyCertificateOutlined />}
-                onClick={() => void openAuthFor(r.id)}
-              >
+              <Button type="link" size="small" style={{ paddingInline: 4 }} icon={<SafetyCertificateOutlined />} onClick={() => void openAuthFor(r.id)}>
                 授权
               </Button>
               <Dropdown menu={{ items: moreItems }} trigger={['click']}>
@@ -642,10 +556,7 @@ export default function ShopsPage() {
   );
 
   return (
-    <TmPageContainer
-      title="店铺管理"
-      subTitle="授权并管理已连接的电商平台店铺，可在此同步订单与更新店铺信息。"
-    >
+    <TmPageContainer title="店铺管理" subTitle="授权并管理已连接的电商平台店铺，可在此同步订单与更新店铺信息。">
       <ProTable<ShopListRow>
         rowKey="id"
         actionRef={actionRef}
@@ -658,7 +569,11 @@ export default function ShopsPage() {
           span: { xs: 24, sm: 12, md: 8, lg: 6, xl: 6, xxl: 6 },
         }}
         options={{ reload: true, density: true, setting: true }}
-        pagination={{ defaultPageSize: 20, showSizeChanger: true, showQuickJumper: true }}
+        pagination={{
+          defaultPageSize: 20,
+          showSizeChanger: true,
+          showQuickJumper: true,
+        }}
         headerTitle="店铺列表"
         toolBarRender={() => [
           <Button key="n" type="primary" onClick={() => setCreateOpen(true)}>
@@ -681,7 +596,10 @@ export default function ShopsPage() {
       <ModalForm
         title="新建店铺"
         open={createOpen}
-        modalProps={{ destroyOnHidden: true, onCancel: () => setCreateOpen(false) }}
+        modalProps={{
+          destroyOnHidden: true,
+          onCancel: () => setCreateOpen(false),
+        }}
         onFinish={async (vals) => {
           const plat = vals.platform as string;
           const meta = providers.find((x) => x.platform === plat);
@@ -689,9 +607,7 @@ export default function ShopsPage() {
             try {
               const row = await getPlatformAppSettings(meta.platform);
               if (!isDeployAppConfigComplete(row.schema ?? meta.appConfigSchema, row.values)) {
-                message.error(
-                  `请先到「设置 → 平台接入设置」填写「${meta.name}」平台应用信息后再创建店铺。`,
-                );
+                message.error(`请先到「设置 → 平台接入设置」填写「${meta.name}」平台应用信息后再创建店铺。`);
                 return false;
               }
             } catch (e: unknown) {
@@ -755,7 +671,10 @@ export default function ShopsPage() {
             : undefined
         }
         key={detail?.id ?? 'edit'}
-        modalProps={{ destroyOnHidden: true, onCancel: () => setEditOpen(false) }}
+        modalProps={{
+          destroyOnHidden: true,
+          onCancel: () => setEditOpen(false),
+        }}
         onFinish={async (vals) => {
           if (!detail) return false;
           await updateShop(detail.id, {
@@ -803,7 +722,13 @@ export default function ShopsPage() {
             setSyncTarget(null);
           },
         }}
-        initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
+        initialValues={{
+          mode: 'incremental',
+          limit: 50,
+          cursor: '',
+          start: '',
+          end: '',
+        }}
         onFinish={async (vals) => {
           if (!syncTarget) return false;
           try {
@@ -849,7 +774,13 @@ export default function ShopsPage() {
             setCmSyncTarget(null);
           },
         }}
-        initialValues={{ mode: 'incremental', limit: 50, cursor: '', start: '', end: '' }}
+        initialValues={{
+          mode: 'incremental',
+          limit: 50,
+          cursor: '',
+          start: '',
+          end: '',
+        }}
         onFinish={async (vals) => {
           if (!cmSyncTarget) return false;
           try {
@@ -888,7 +819,8 @@ export default function ShopsPage() {
 
       <Drawer
         title={detail ? `店铺：${detail.shopName}` : '店铺详情'}
-        width={640}
+        width="min(640px, 100vw)"
+        styles={{ body: { overflowX: 'hidden' } }}
         open={detailOpen}
         onClose={() => {
           setDetailOpen(false);
@@ -897,7 +829,7 @@ export default function ShopsPage() {
         destroyOnHidden
         extra={
           detail ? (
-            <Space>
+            <Space wrap>
               <Button
                 onClick={() => {
                   setEditOpen(true);
@@ -908,22 +840,11 @@ export default function ShopsPage() {
               <Button type="primary" onClick={() => detail && void openAuthFor(detail.id)}>
                 授权配置
               </Button>
+              {detail.platform === 'douyin_shop' ? <Button onClick={() => void redirectDouyinOAuth(detail.id)}>重新授权</Button> : null}
+              {detail.platform === 'douyin_shop' ? <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button> : null}
+              {detail.platform === 'douyin_shop' ? <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button> : null}
               {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void redirectDouyinOAuth(detail.id)}>重新授权</Button>
-              ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void refreshDouyinFor(detail.id)}>刷新授权</Button>
-              ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button onClick={() => void syncDouyinInfoFor(detail.id)}>同步店铺信息</Button>
-              ) : null}
-              {detail.platform === 'douyin_shop' ? (
-                <Button
-                  danger
-                  onClick={() =>
-                    confirmRevokeStoreAuth(detail.shopName || detail.id, () => void revokeDouyinFor(detail.id))
-                  }
-                >
+                <Button danger onClick={() => confirmRevokeStoreAuth(detail.shopName || detail.id, () => void revokeDouyinFor(detail.id))}>
                   解除授权
                 </Button>
               ) : null}
@@ -952,10 +873,13 @@ export default function ShopsPage() {
               <Button
                 onClick={async () => {
                   try {
-                    const res = detail.platform === 'douyin_shop' ? await testDouyinOAuth(detail.id) : await testShopConnection(detail.id);
+                    const res = requireSuccessfulShopConnection(detail.platform === 'douyin_shop' ? await testDouyinOAuth(detail.id) : await testShopConnection(detail.id));
                     message.success(summarizeShopTest(res));
                   } catch (e: unknown) {
                     message.error(formatPlatformPartnerErr(e));
+                  } finally {
+                    actionRef.current?.reload();
+                    void refreshDetail(detail.id);
                   }
                 }}
               >
@@ -967,68 +891,12 @@ export default function ShopsPage() {
       >
         {detail && provForShop && (
           <>
-            {provForShop.status === 'planned' && (
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="平台暂未接入"
-                description="可先创建店铺占位；店铺授权与订单同步能力将陆续开放。"
-              />
-            )}
-            {detail.platform === 'tiktok' && provForShop.status === 'beta' && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="TikTok Shop（Beta）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置」填写平台应用信息，再在此生成授权链接并完成授权。"
-              />
-            )}
-            {detail.platform === 'douyin_shop' && provForShop.status === 'beta' && (
-              <Alert
-                type={detail.authStatus === 'authorized' ? 'success' : detail.authStatus === 'expired' ? 'warning' : 'info'}
-                showIcon
-                style={{ marginBottom: 12 }}
-                message={
-                  detail.authStatus === 'authorized'
-                    ? '店铺连接正常'
-                    : detail.authStatus === 'expired'
-                      ? '授权已过期，请重新授权'
-                      : detail.authStatus === 'invalid' || detail.authStatus === 'need_check'
-                        ? '店铺连接异常，请检查应用权限或重新授权'
-                        : '请先连接抖店店铺'
-                }
-                description="支持抖店店铺授权、连接测试、手动订单同步与店铺信息校准；订单同步需在平台接入设置中开启订单同步。不会在前端返回授权凭证明文。"
-              />
-            )}
-            {detail.platform === 'shopee' && provForShop.status === 'beta' && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="Shopee（Beta）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Shopee」填写平台应用信息，再完成授权。"
-              />
-            )}
-            {detail.platform === 'lazada' && provForShop.status === 'beta' && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="Lazada（测试中）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Lazada」填写平台应用信息，再完成授权。"
-              />
-            )}
-            {detail.platform === 'amazon' && provForShop.status === 'beta' && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="Amazon SP-API（测试中）"
-                description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Amazon」填写完整平台应用信息；服务器需按文档配置亚马逊访问凭证。"
-              />
-            )}
+            {provForShop.status === 'planned' && <Alert type="info" showIcon style={{ marginBottom: 12 }} message="平台暂未接入" description="可先创建店铺占位；店铺授权与订单同步能力将陆续开放。" />}
+            {detail.platform === 'tiktok' && provForShop.status === 'beta' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="TikTok Shop（Beta）" description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置」填写平台应用信息，再在此生成授权链接并完成授权。" />}
+            {detail.platform === 'douyin_shop' && provForShop.status === 'beta' && <Alert type={detail.authStatus === 'authorized' ? 'success' : detail.authStatus === 'expired' ? 'warning' : 'info'} showIcon style={{ marginBottom: 12 }} message={detail.authStatus === 'authorized' ? '店铺连接正常' : detail.authStatus === 'expired' ? '授权已过期，请重新授权' : detail.authStatus === 'invalid' || detail.authStatus === 'need_check' ? '店铺连接异常，请检查应用权限或重新授权' : '请先连接抖店店铺'} description="支持抖店店铺授权、连接测试、手动订单同步与店铺信息校准；订单同步需在平台接入设置中开启订单同步。不会在前端返回授权凭证明文。" />}
+            {detail.platform === 'shopee' && provForShop.status === 'beta' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Shopee（Beta）" description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Shopee」填写平台应用信息，再完成授权。" />}
+            {detail.platform === 'lazada' && provForShop.status === 'beta' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Lazada（测试中）" description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Lazada」填写平台应用信息，再完成授权。" />}
+            {detail.platform === 'amazon' && provForShop.status === 'beta' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="Amazon SP-API（测试中）" description="支持店铺授权、连接测试与订单同步。请先在「平台接入设置 → Amazon」填写完整平台应用信息；服务器需按文档配置亚马逊访问凭证。" />}
             <Descriptions bordered size="small" column={2}>
               <Descriptions.Item label="平台">{providerLabel(providers, detail.platform)}</Descriptions.Item>
               <Descriptions.Item label="平台标识">{detail.platform}</Descriptions.Item>
@@ -1050,7 +918,8 @@ export default function ShopsPage() {
 
       <Drawer
         title="授权配置"
-        width={640}
+        width="min(640px, 100vw)"
+        styles={{ body: { overflowX: 'hidden' } }}
         open={authOpen}
         onClose={() => setAuthOpen(false)}
         destroyOnHidden
@@ -1063,7 +932,7 @@ export default function ShopsPage() {
                   const v = await authForm.validateFields();
                   const payload = buildAuthPayload(v as Record<string, unknown>);
                   await updateShopAuth(detail.id, payload);
-                  message.success('授权已保存');
+                  message.success(detail.platform === 'ozon' ? '凭证已保存但尚未验证，请点击“测试连接”完成授权' : '授权已保存');
                   setAuthOpen(false);
                   actionRef.current?.reload();
                   if (detailOpen) void refreshDetail(detail.id);
@@ -1079,27 +948,9 @@ export default function ShopsPage() {
       >
         {detail && (
           <>
-            {authPartnerWarn && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="平台应用信息可能不完整"
-                description={authPartnerWarn}
-              />
-            )}
-            {detail.platform === 'manual' && (
-              <Alert type="success" showIcon message="手工店铺无需授权" description="无需配置授权凭证或密钥。" />
-            )}
-            {detail.platform !== 'manual' && provForShop?.status === 'planned' && (
-              <Alert
-                type="warning"
-                showIcon
-                style={{ marginBottom: 12 }}
-                message="平台接入规划中"
-                description="可预先填写占位字段；测试连接将返回「未实现」。不真实访问平台 API。"
-              />
-            )}
+            {authPartnerWarn && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="平台应用信息可能不完整" description={authPartnerWarn} />}
+            {detail.platform === 'manual' && <Alert type="success" showIcon message="手工店铺无需授权" description="无需配置授权凭证或密钥。" />}
+            {detail.platform !== 'manual' && provForShop?.status === 'planned' && <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="平台接入规划中" description="可预先填写占位字段；测试连接将返回「未实现」。不真实访问平台 API。" />}
             {detail.platform === 'tiktok' && provForShop?.status === 'beta' && (
               <Alert
                 type="info"
@@ -1108,8 +959,7 @@ export default function ShopsPage() {
                 message="TikTok 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 TikTok 平台应用信息，再生成授权链接。
-                    本地开发需启动任务队列服务。仅在展开「可选覆盖」时才使用本页单独填写的密钥。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 TikTok 平台应用信息，再生成授权链接。 本地开发需启动任务队列服务。仅在展开「可选覆盖」时才使用本页单独填写的密钥。
                   </>
                 }
               />
@@ -1122,8 +972,7 @@ export default function ShopsPage() {
                 message="Shopee 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Shopee 平台应用信息。
-                    授权回调中如有店铺编号，请一并填写到提交表单。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Shopee 平台应用信息。 授权回调中如有店铺编号，请一并填写到提交表单。
                   </>
                 }
               />
@@ -1136,8 +985,7 @@ export default function ShopsPage() {
                 message="Lazada 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Lazada 平台应用信息。
-                    授权完成后从回调页面复制授权码并提交即可。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Lazada 平台应用信息。 授权完成后从回调页面复制授权码并提交即可。
                   </>
                 }
               />
@@ -1150,8 +998,7 @@ export default function ShopsPage() {
                 message="Amazon 授权提示"
                 description={
                   <>
-                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Amazon 平台应用信息。
-                    授权完成后按页面提示填写卖家编号与授权码。管理端不会直接访问亚马逊接口。
+                    请先在 <Link to="/settings/platforms">平台接入设置</Link> 填写 Amazon 平台应用信息。 授权完成后按页面提示填写卖家编号与授权码。管理端不会直接访问亚马逊接口。
                   </>
                 }
               />
@@ -1166,97 +1013,52 @@ export default function ShopsPage() {
                 </Typography.Text>
                 {detail.platform === 'tiktok' ? (
                   <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
-                    <Form.Item
-                      name="appKey"
-                      label="覆盖应用 Key"
-                      tooltip="多数情况留空即可，使用「平台接入设置」中的默认值"
-                    >
+                    <Form.Item name="appKey" label="覆盖应用 Key" tooltip="多数情况留空即可，使用「平台接入设置」中的默认值">
                       <Input autoComplete="off" />
                     </Form.Item>
-                    <Form.Item
-                      name="appSecret"
-                      label="覆盖应用密钥"
-                      tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用"
-                    >
+                    <Form.Item name="appSecret" label="覆盖应用密钥" tooltip="留空以保持平台配置的 Secret；仅在多应用并行调试时使用">
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
-                    <Form.Item
-                      name="redirectUri"
-                      label="覆盖授权回调地址"
-                      tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致"
-                    >
+                    <Form.Item name="redirectUri" label="覆盖授权回调地址" tooltip="留空则用平台配置的 redirect_uri；必须与 Partner Center 登记的回调完全一致">
                       <Input placeholder="https://…" />
                     </Form.Item>
                   </TechnicalDetails>
                 ) : detail.platform === 'shopee' ? (
                   <TechnicalDetails label="可选：覆盖 Partner 凭证与回调地址" className="tm-shop-auth-override">
-                    <Form.Item
-                      name="appKey"
-                      label="覆盖 Partner ID"
-                      tooltip="留空则使用「平台接入设置」中的 partner_id"
-                    >
+                    <Form.Item name="appKey" label="覆盖 Partner ID" tooltip="留空则使用「平台接入设置」中的 partner_id">
                       <Input autoComplete="off" />
                     </Form.Item>
-                    <Form.Item
-                      name="appSecret"
-                      label="覆盖 Partner Key"
-                      tooltip="留空则使用平台配置中的 partner_key（加密存储）"
-                    >
+                    <Form.Item name="appSecret" label="覆盖 Partner Key" tooltip="留空则使用平台配置中的 partner_key（加密存储）">
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
-                    <Form.Item
-                      name="redirectUri"
-                      label="覆盖授权回调地址"
-                      tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致"
-                    >
+                    <Form.Item name="redirectUri" label="覆盖授权回调地址" tooltip="留空则用平台配置的 redirect_uri；须与 Shopee Open Platform 登记一致">
                       <Input placeholder="https://…" />
                     </Form.Item>
                   </TechnicalDetails>
                 ) : detail.platform === 'lazada' ? (
                   <TechnicalDetails label="可选：覆盖应用密钥与回调地址" className="tm-shop-auth-override">
-                    <Form.Item
-                      name="appKey"
-                      label="覆盖应用 Key"
-                      tooltip="留空则使用「平台接入设置」中的 app_key"
-                    >
+                    <Form.Item name="appKey" label="覆盖应用 Key" tooltip="留空则使用「平台接入设置」中的 app_key">
                       <Input autoComplete="off" />
                     </Form.Item>
-                    <Form.Item
-                      name="appSecret"
-                      label="覆盖应用密钥"
-                      tooltip="留空以保持平台配置的 app_secret（加密存储）"
-                    >
+                    <Form.Item name="appSecret" label="覆盖应用密钥" tooltip="留空以保持平台配置的 app_secret（加密存储）">
                       <Input.Password autoComplete="new-password" />
                     </Form.Item>
-                    <Form.Item
-                      name="redirectUri"
-                      label="覆盖授权回调地址"
-                      tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致"
-                    >
+                    <Form.Item name="redirectUri" label="覆盖授权回调地址" tooltip="留空则用平台配置的 redirect_uri；须与 Lazada App Console 登记一致">
                       <Input placeholder="https://…" />
                     </Form.Item>
                   </TechnicalDetails>
                 ) : detail.platform === 'amazon' ? (
                   <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
                     LWA 客户端 ID/密钥、授权回调地址、SP-API 与 LWA 端点均在「
-                    <Link to="/settings/platforms">平台接入设置</Link>」维护；本页保存店铺授权凭证与 Selling Partner 标识。
+                    <Link to="/settings/platforms">平台接入设置</Link>
+                    」维护；本页保存店铺授权凭证与 Selling Partner 标识。
                   </Typography.Paragraph>
                 ) : detail.platform === 'ozon' ? (
                   <>
-                    <Form.Item
-                      name="appKey"
-                      label="Client-ID"
-                      tooltip="Ozon 卖家后台 → 设置 → API Keys 页面中的数字 Client-ID"
-                      rules={[{ required: true, message: '请填写 Ozon Client-ID' }]}
-                    >
+                    <Form.Item name="appKey" label="Client-ID" tooltip="Ozon 卖家后台 → 设置 → API Keys 页面中的数字 Client-ID" rules={[{ required: true, message: '请填写 Ozon Client-ID' }]}>
                       <Input autoComplete="off" placeholder="例如 5278166" />
                     </Form.Item>
-                    <Form.Item
-                      name="accessToken"
-                      label="Api-Key"
-                      tooltip="Ozon Seller API 密钥，生成时只显示一次；加密存储，留空/保持 **** 不覆盖"
-                      rules={[{ required: true, message: '请填写 Ozon Api-Key' }]}
-                    >
+                    <Form.Item name="accessToken" label="Api-Key" tooltip="Ozon Seller API 密钥，生成时只显示一次；加密存储，留空/保持 **** 不覆盖" rules={detail.auth?.accessToken ? undefined : [{ required: true, message: '请填写 Ozon Api-Key' }]}>
                       <Input.Password autoComplete="new-password" placeholder="只显示一次；留空保持原值" />
                     </Form.Item>
                     <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
@@ -1283,64 +1085,16 @@ export default function ShopsPage() {
                   <Form.Item name="refreshToken" label="刷新授权凭证">
                     <Input.Password autoComplete="new-password" />
                   </Form.Item>
-                  <Form.Item
-                    name="expiresAt"
-                    label="授权凭证过期时间"
-                    tooltip="ISO 8601 格式，例如 2026-06-01T00:00:00Z"
-                  >
+                  <Form.Item name="expiresAt" label="授权凭证过期时间" tooltip="ISO 8601 格式，例如 2026-06-01T00:00:00Z">
                     <Input placeholder="2026-06-01T00:00:00Z" />
                   </Form.Item>
                   <Form.Item name="refreshExpiresAt" label="刷新凭证过期时间" tooltip="ISO 8601 格式">
                     <Input placeholder="2026-06-01T00:00:00Z" />
                   </Form.Item>
-                  <Form.Item
-                    name="sellerId"
-                    label={
-                      detail.platform === 'tiktok'
-                        ? 'Seller Id（TikTok 通常不用填）'
-                        : detail.platform === 'shopee'
-                          ? 'Shopee 店铺编号'
-                          : detail.platform === 'lazada'
-                            ? '卖家标识'
-                            : detail.platform === 'amazon'
-                              ? 'Selling Partner Id'
-                              : 'Seller Id'
-                    }
-                    tooltip={
-                      detail.platform === 'shopee'
-                        ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。'
-                        : detail.platform === 'lazada'
-                          ? 'Lazada 店铺标识；店铺授权成功后通常会自动写入。'
-                          : detail.platform === 'amazon'
-                            ? 'Amazon SP-API 卖家编号；授权回调必填。'
-                            : undefined
-                    }
-                  >
+                  <Form.Item name="sellerId" label={detail.platform === 'tiktok' ? 'Seller Id（TikTok 通常不用填）' : detail.platform === 'shopee' ? 'Shopee 店铺编号' : detail.platform === 'lazada' ? '卖家标识' : detail.platform === 'amazon' ? 'Selling Partner Id' : 'Seller Id'} tooltip={detail.platform === 'shopee' ? '与 Shopee 回调 URL 参数 shop_id 一致，用于 OpenAPI 签名。' : detail.platform === 'lazada' ? 'Lazada 店铺标识；店铺授权成功后通常会自动写入。' : detail.platform === 'amazon' ? 'Amazon SP-API 卖家编号；授权回调必填。' : undefined}>
                     <Input />
                   </Form.Item>
-                  <Form.Item
-                    name="merchantId"
-                    label={
-                      detail.platform === 'tiktok'
-                        ? 'Shop cipher'
-                        : detail.platform === 'shopee'
-                          ? '主账号 ID（可选）'
-                          : detail.platform === 'lazada'
-                            ? '扩展信息（可选）'
-                            : detail.platform === 'amazon'
-                              ? '扩展（可选）'
-                              : 'Merchant Id'
-                    }
-                    tooltip={
-                      detail.platform === 'tiktok'
-                        ? '店铺授权成功后通常会自动写入；仅在手工调试时粘贴。'
-                        : detail.platform === 'shopee'
-                          ? '跨境/主帐号场景可选；店铺授权回调可一并提交。'
-                          : detail.platform === 'lazada'
-                            ? '店铺授权回调 country / account 摘要可写入 auth_config。'
-                            : undefined
-                    }
-                  >
+                  <Form.Item name="merchantId" label={detail.platform === 'tiktok' ? 'Shop cipher' : detail.platform === 'shopee' ? '主账号 ID（可选）' : detail.platform === 'lazada' ? '扩展信息（可选）' : detail.platform === 'amazon' ? '扩展（可选）' : 'Merchant Id'} tooltip={detail.platform === 'tiktok' ? '店铺授权成功后通常会自动写入；仅在手工调试时粘贴。' : detail.platform === 'shopee' ? '跨境/主帐号场景可选；店铺授权回调可一并提交。' : detail.platform === 'lazada' ? '店铺授权回调 country / account 摘要可写入 auth_config。' : undefined}>
                     <Input />
                   </Form.Item>
                   <Form.Item name="marketplaceId" label="站点 Marketplace ID（可选）">
@@ -1394,13 +1148,7 @@ export default function ShopsPage() {
                     </Space>
                     <Form.Item label="authorizeUrl">
                       <Space align="start">
-                        <Input.TextArea
-                          style={{ width: 460 }}
-                          autoSize={{ minRows: 2, maxRows: 6 }}
-                          readOnly
-                          value={tiktokOAuthAuthorizeUrl}
-                          placeholder='点击上方「生成授权链接」后出现'
-                        />
+                        <Input.TextArea style={{ width: 460 }} autoSize={{ minRows: 2, maxRows: 6 }} readOnly value={tiktokOAuthAuthorizeUrl} placeholder="点击上方「生成授权链接」后出现" />
                         <Button
                           disabled={!tiktokOAuthAuthorizeUrl}
                           onClick={() => {
@@ -1413,7 +1161,7 @@ export default function ShopsPage() {
                       </Space>
                     </Form.Item>
                     <Form.Item label="state（服务端签发）">
-                      <Input readOnly value={tiktokOAuthState} placeholder='生成后出现' />
+                      <Input readOnly value={tiktokOAuthState} placeholder="生成后出现" />
                     </Form.Item>
                     <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                       用户在 TikTok 授权后复制返回的 code，填入下方并提交：
@@ -1497,13 +1245,7 @@ export default function ShopsPage() {
                     </Space>
                     <Form.Item label="authorizeUrl">
                       <Space align="start">
-                        <Input.TextArea
-                          style={{ width: 460 }}
-                          autoSize={{ minRows: 2, maxRows: 6 }}
-                          readOnly
-                          value={shopeeOAuthAuthorizeUrl}
-                          placeholder='点击上方「生成授权链接」后出现'
-                        />
+                        <Input.TextArea style={{ width: 460 }} autoSize={{ minRows: 2, maxRows: 6 }} readOnly value={shopeeOAuthAuthorizeUrl} placeholder="点击上方「生成授权链接」后出现" />
                         <Button
                           disabled={!shopeeOAuthAuthorizeUrl}
                           onClick={() => {
@@ -1516,11 +1258,11 @@ export default function ShopsPage() {
                       </Space>
                     </Form.Item>
                     <Form.Item label="state（服务端签发）">
-                      <Input readOnly value={shopeeOAuthState} placeholder='生成后出现' />
+                      <Input readOnly value={shopeeOAuthState} placeholder="生成后出现" />
                     </Form.Item>
                     <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                      授权成功后，从回调 URL 读取 <code style={{ padding: '0 4px' }}>code</code> 与{' '}
-                      <code style={{ padding: '0 4px' }}>shop_id</code>，填入下方：
+                      授权成功后，从回调 URL 读取 <code style={{ padding: '0 4px' }}>code</code> 与 <code style={{ padding: '0 4px' }}>shop_id</code>
+                      ，填入下方：
                     </Typography.Text>
                     <Form.Item name="shopeeAuthCode" label="授权码">
                       <Input placeholder="Paste authorization code" />
@@ -1614,13 +1356,7 @@ export default function ShopsPage() {
                     </Space>
                     <Form.Item label="authorizeUrl">
                       <Space align="start">
-                        <Input.TextArea
-                          style={{ width: 460 }}
-                          autoSize={{ minRows: 2, maxRows: 6 }}
-                          readOnly
-                          value={lazadaOAuthAuthorizeUrl}
-                          placeholder='点击上方「生成授权链接」后出现'
-                        />
+                        <Input.TextArea style={{ width: 460 }} autoSize={{ minRows: 2, maxRows: 6 }} readOnly value={lazadaOAuthAuthorizeUrl} placeholder="点击上方「生成授权链接」后出现" />
                         <Button
                           disabled={!lazadaOAuthAuthorizeUrl}
                           onClick={() => {
@@ -1633,7 +1369,7 @@ export default function ShopsPage() {
                       </Space>
                     </Form.Item>
                     <Form.Item label="state（服务端签发）">
-                      <Input readOnly value={lazadaOAuthState} placeholder='生成后出现' />
+                      <Input readOnly value={lazadaOAuthState} placeholder="生成后出现" />
                     </Form.Item>
                     <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                       从 Lazada 授权回调 URL 复制 <code style={{ padding: '0 4px' }}>code</code>，与上方 state 一并提交：
@@ -1710,13 +1446,7 @@ export default function ShopsPage() {
                     </Space>
                     <Form.Item label="authorizeUrl">
                       <Space align="start">
-                        <Input.TextArea
-                          style={{ width: 460 }}
-                          autoSize={{ minRows: 2, maxRows: 6 }}
-                          readOnly
-                          value={amazonOAuthAuthorizeUrl}
-                          placeholder='点击上方「生成授权链接」后出现'
-                        />
+                        <Input.TextArea style={{ width: 460 }} autoSize={{ minRows: 2, maxRows: 6 }} readOnly value={amazonOAuthAuthorizeUrl} placeholder="点击上方「生成授权链接」后出现" />
                         <Button
                           disabled={!amazonOAuthAuthorizeUrl}
                           onClick={() => {
@@ -1729,7 +1459,7 @@ export default function ShopsPage() {
                       </Space>
                     </Form.Item>
                     <Form.Item label="state（服务端签发）">
-                      <Input readOnly value={amazonOAuthState} placeholder='生成后出现' />
+                      <Input readOnly value={amazonOAuthState} placeholder="生成后出现" />
                     </Form.Item>
                     <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
                       提交授权 code（Seller Central 回调中的 spapi_oauth_code）、selling_partner_id，以及可选 marketplaceId：
@@ -1737,10 +1467,7 @@ export default function ShopsPage() {
                     <Form.Item name="amazonAuthCode" label="code（spapi_oauth_code）">
                       <Input placeholder="Paste authorization code" />
                     </Form.Item>
-                    <Form.Item
-                      name="amazonSellingPartnerId"
-                      label="sellingPartnerId"
-                    >
+                    <Form.Item name="amazonSellingPartnerId" label="sellingPartnerId">
                       <Input placeholder="来自回调 selling_partner_id" />
                     </Form.Item>
                     <Form.Item name="amazonMarketplaceId" label="marketplaceId（可选）">
@@ -1785,18 +1512,8 @@ export default function ShopsPage() {
                 )}
                 {provForShop?.authSchema?.map((f) =>
                   STD_AUTH_KEYS.has(f.name) ? null : (
-                    <Form.Item
-                      key={f.name}
-                      name={f.name}
-                      label={f.label}
-                      tooltip={f.hint}
-                      rules={f.required ? [{ required: true, message: `请填写 ${f.label}` }] : undefined}
-                    >
-                      {f.sensitive || f.type === 'password' ? (
-                        <Input.Password autoComplete="new-password" />
-                      ) : (
-                        <Input />
-                      )}
+                    <Form.Item key={f.name} name={f.name} label={f.label} tooltip={f.hint} rules={f.required ? [{ required: true, message: `请填写 ${f.label}` }] : undefined}>
+                      {f.sensitive || f.type === 'password' ? <Input.Password autoComplete="new-password" /> : <Input />}
                     </Form.Item>
                   ),
                 )}

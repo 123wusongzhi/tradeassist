@@ -60,11 +60,13 @@ export const OPERATION_LOG_ACTION_LABEL: Record<string, string> = {
   'product.image.delete': '删除商品图片',
   'product.image.reorder': '调整商品图片顺序',
   'product.image.select_best_main': '自动选择最佳主图',
-  'product.readiness.check': '检查商品发布就绪',
-  'product.readiness.batch_check': '批量检查商品发布就绪',
-  'product.publish.create': '创建商品刊登提交',
-  'product.publish.running': '商品刊登执行中',
-  'product.publish.success': '商品刊登成功',
+  'product.readiness.check': '运行发布前检查（非上架）',
+  'product.readiness.batch_check': '批量运行发布前检查（非上架）',
+  'product.publish.create': '创建刊登任务（非平台成功）',
+  'product.publish.running': '正在向平台提交',
+  'product.publish.accepted': 'Ozon 已受理（待确认可售）',
+  'product.publish.needs_attention': 'Ozon 刊登需要处理',
+  'product.publish.success': 'Ozon 已确认可售',
   'product.publish.failed': '商品刊登失败',
   'product.publish.retry': '重试商品刊登',
   'ai.title_optimize.success': 'AI 标题优化成功',
@@ -392,10 +394,6 @@ export function operationLogActionLabel(action?: string): string {
   return OPERATION_LOG_ACTION_LABEL[k] || humanizeDottedKey(k);
 }
 
-export const OPERATION_LOG_RESOURCE_OPTIONS = Object.entries(OPERATION_LOG_RESOURCE_LABEL).map(
-  ([value, label]) => ({ value, label }),
-);
+export const OPERATION_LOG_RESOURCE_OPTIONS = Object.entries(OPERATION_LOG_RESOURCE_LABEL).map(([value, label]) => ({ value, label }));
 
-export const OPERATION_LOG_ACTION_OPTIONS = Object.entries(OPERATION_LOG_ACTION_LABEL).map(
-  ([value, label]) => ({ value, label }),
-);
+export const OPERATION_LOG_ACTION_OPTIONS = Object.entries(OPERATION_LOG_ACTION_LABEL).map(([value, label]) => ({ value, label }));

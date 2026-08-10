@@ -1,18 +1,8 @@
 import PublishBoundaryBanner from '@/components/platform/PublishBoundaryBanner';
 import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBanner';
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
-import {
-  publishBatchStatusLabel,
-  publishBatchStatusTag,
-  publishCapabilityLabel,
-  publishTargetStatusLabel,
-} from '@/constants/publishLabels';
-import {
-  cancelPendingPublishBatch,
-  getPublishBatch,
-  retryFailedPublishBatch,
-  type PublishBatchDetail,
-} from '@/services/productPublish';
+import { publishBatchStatusLabel, publishBatchStatusTag, publishCapabilityLabel, publishTargetStatusLabel } from '@/constants/publishLabels';
+import { cancelPendingPublishBatch, getPublishBatch, retryFailedPublishBatch, type PublishBatchDetail } from '@/services/productPublish';
 import { formatDateTime } from '@/utils/formatTime';
 import { Link, history, useParams, useSearchParams } from '@umijs/max';
 import { normalizeSource } from '@/utils/urlState';
@@ -20,7 +10,7 @@ import { Alert, Button, Card, Descriptions, Popconfirm, Space, Table, Tag, Typog
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const TASK_STATUS_FILTER = [
-  { text: '成功', value: 'success' },
+  { text: '草稿已创建', value: 'success' },
   { text: '失败', value: 'failed' },
   { text: '等待处理', value: 'pending' },
   { text: '处理中', value: 'running' },
@@ -118,30 +108,18 @@ export default function PublishBatchDetailPage() {
         <>
           <DouyinE2EPrecheckBanner blockedByCredentials compact />
           <PublishBoundaryBanner capability="real_draft_create" blockedByCredentials />
-          {detail.status === 'partial_success' && (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-              message="部分子任务失败"
-              description="本批次部分商品或目标未能创建草稿，可点击下方「重试失败项」再次尝试。"
-            />
-          )}
+          {detail.status === 'partial_success' && <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="部分子任务失败" description="本批次部分商品或目标未能创建草稿，可点击下方「重试失败项」再次尝试。" />}
           <Card style={{ marginBottom: 16 }}>
             <Descriptions bordered size="small" column={{ xs: 1, sm: 2, md: 3 }}>
-              <Descriptions.Item label="批次状态">
-                {batchStatusTag(detail.status, detail.statusLabel || publishBatchStatusLabel(detail.status))}
-              </Descriptions.Item>
+              <Descriptions.Item label="批次状态">{batchStatusTag(detail.status, detail.statusLabel || publishBatchStatusLabel(detail.status))}</Descriptions.Item>
               <Descriptions.Item label="商品数量">{detail.productCount}</Descriptions.Item>
               <Descriptions.Item label="目标数量">{detail.targetCount}</Descriptions.Item>
               <Descriptions.Item label="任务总数">{detail.taskCount}</Descriptions.Item>
-              <Descriptions.Item label="成功">{detail.successCount}</Descriptions.Item>
-              <Descriptions.Item label="失败">{detail.failedCount}</Descriptions.Item>
+              <Descriptions.Item label="已创建草稿">{detail.successCount}</Descriptions.Item>
+              <Descriptions.Item label="草稿创建失败">{detail.failedCount}</Descriptions.Item>
               <Descriptions.Item label="跳过">{detail.skippedCount}</Descriptions.Item>
               <Descriptions.Item label="创建时间">{formatDateTime(detail.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="完成时间">
-                {detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}
-              </Descriptions.Item>
+              <Descriptions.Item label="完成时间">{detail.finishedAt ? formatDateTime(detail.finishedAt) : '—'}</Descriptions.Item>
             </Descriptions>
             <Space style={{ marginTop: 16 }} wrap>
               {detail.failedCount > 0 && (
@@ -162,7 +140,11 @@ export default function PublishBatchDetailPage() {
             <Table
               rowKey={(r) => `${r.productId}:${r.targetKey}:${r.taskId || 'skip'}`}
               size="small"
-              pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 条` }}
+              pagination={{
+                pageSize: 20,
+                showSizeChanger: true,
+                showTotal: (t) => `共 ${t} 条`,
+              }}
               dataSource={filteredItems}
               scroll={{ x: 1100 }}
               columns={[
@@ -171,9 +153,7 @@ export default function PublishBatchDetailPage() {
                   dataIndex: 'productTitle',
                   ellipsis: true,
                   width: 160,
-                  render: (t: string, r) => (
-                    <Link to={`/product/drafts/${r.productId}`}>{t || '—'}</Link>
-                  ),
+                  render: (t: string, r) => <Link to={`/product/drafts/${r.productId}`}>{t || '—'}</Link>,
                 },
                 {
                   title: '平台 / 店铺',
@@ -214,11 +194,7 @@ export default function PublishBatchDetailPage() {
                   render: (_: unknown, r) => (
                     <Space wrap>
                       <Link to={`/product/drafts/${r.productId}?tab=publish`}>平台配置</Link>
-                      {r.taskId ? (
-                        <Link to={`/product/publish-tasks?id=${r.taskId}`}>查看任务</Link>
-                      ) : (
-                        <Typography.Text type="secondary">—</Typography.Text>
-                      )}
+                      {r.taskId ? <Link to={`/product/publish-tasks?id=${r.taskId}`}>查看任务</Link> : <Typography.Text type="secondary">—</Typography.Text>}
                     </Space>
                   ),
                 },
@@ -236,7 +212,14 @@ export default function PublishBatchDetailPage() {
 
           {detail.input && (
             <TechnicalDetails label="技术详情（批次配置快照）" style={{ marginTop: 16 }}>
-              <pre style={{ fontSize: 12, margin: 0, maxHeight: 240, overflow: 'auto' }}>
+              <pre
+                style={{
+                  fontSize: 12,
+                  margin: 0,
+                  maxHeight: 240,
+                  overflow: 'auto',
+                }}
+              >
                 {JSON.stringify(detail.input, null, 2)}
               </pre>
             </TechnicalDetails>

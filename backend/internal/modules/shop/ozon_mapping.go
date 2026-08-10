@@ -20,15 +20,23 @@ const (
 )
 
 type OzonCategoryMappingDTO struct {
-	ID                 uuid.UUID  `json:"id"`
-	ShopID             *uuid.UUID `json:"shopId,omitempty"`
-	SourceCategoryKey  string     `json:"sourceCategoryKey"`
-	SourceCategoryName string     `json:"sourceCategoryName,omitempty"`
-	CategoryID         string     `json:"categoryId"`
-	CategoryPath       string     `json:"categoryPath,omitempty"`
-	Status             string     `json:"status"`
-	SchemaHash         string     `json:"schemaHash,omitempty"`
-	ConfirmedAt        *time.Time `json:"confirmedAt,omitempty"`
+	ID                    uuid.UUID  `json:"id"`
+	ShopID                *uuid.UUID `json:"shopId,omitempty"`
+	SourceCategoryKey     string     `json:"sourceCategoryKey"`
+	SourceCategoryName    string     `json:"sourceCategoryName,omitempty"`
+	CategoryID            string     `json:"categoryId"`
+	DescriptionCategoryID string     `json:"descriptionCategoryId,omitempty"`
+	TypeID                string     `json:"typeId,omitempty"`
+	CategoryPath          string     `json:"categoryPath,omitempty"`
+	Status                string     `json:"status"`
+	SchemaHash            string     `json:"schemaHash,omitempty"`
+	SelectionMethod       string     `json:"selectionMethod,omitempty"`
+	ConfirmationReason    string     `json:"confirmationReason,omitempty"`
+	Scope                 string     `json:"scope"`
+	TemplateSyncedAt      *time.Time `json:"templateSyncedAt,omitempty"`
+	ConfirmedAt           *time.Time `json:"confirmedAt,omitempty"`
+	ConfirmedBy           *uuid.UUID `json:"confirmedBy,omitempty"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
 }
 
 type PutOzonCategoryMappingBody struct {
@@ -38,6 +46,8 @@ type PutOzonCategoryMappingBody struct {
 	CategoryID         string `json:"categoryId"`
 	CategoryPath       string `json:"categoryPath"`
 	Status             string `json:"status"`
+	SelectionMethod    string `json:"selectionMethod"`
+	ConfirmationReason string `json:"confirmationReason"`
 }
 
 type RecommendOzonCategoryMappingBody struct {
@@ -155,18 +165,36 @@ func (s *Service) PutOzonCategoryMapping(ctx context.Context, tenantID int64, bo
 	if status != OzonMappingActive && status != OzonMappingNeedsReview && status != OzonMappingInactive {
 		return nil, fmt.Errorf("invalid mapping status")
 	}
+	selectionMethod := strings.TrimSpace(body.SelectionMethod)
+	if selectionMethod == "" {
+		selectionMethod = "manual"
+	}
+	if selectionMethod != "manual" && selectionMethod != "recommended_then_manual" {
+		return nil, fmt.Errorf("invalid selectionMethod")
+	}
+	confirmationReason := strings.TrimSpace(body.ConfirmationReason)
+	if len([]rune(confirmationReason)) > 1000 {
+		return nil, fmt.Errorf("confirmationReason must be 1000 characters or fewer")
+	}
 	var attrs []PlatformCategoryAttribute
 	if err := s.DB.WithContext(ctx).Where("platform = ? AND category_id = ?", ozonPlatform, catID).Find(&attrs).Error; err != nil {
 		return nil, err
 	}
+	var templateSyncedAt *time.Time
+	for _, attr := range attrs {
+		if attr.SyncedAt != nil && (templateSyncedAt == nil || attr.SyncedAt.After(*templateSyncedAt)) {
+			value := attr.SyncedAt.UTC()
+			templateSyncedAt = &value
+		}
+	}
 	scopeKey := ozonMappingScopeKey(sid)
-	row := OzonCategoryMapping{TenantID: tenantID, ShopID: sid, ScopeKey: scopeKey, SourceCategoryKey: key, SourceCategoryName: strings.TrimSpace(body.SourceCategoryName), CategoryID: catID, CategoryPath: CanonicalOzonCategoryPath(ctx, s.DB, cat), Status: status, SchemaHash: OzonCategorySchemaHash(attrs)}
+	row := OzonCategoryMapping{TenantID: tenantID, ShopID: sid, ScopeKey: scopeKey, SourceCategoryKey: key, SourceCategoryName: strings.TrimSpace(body.SourceCategoryName), CategoryID: catID, CategoryPath: CanonicalOzonCategoryPath(ctx, s.DB, cat), Status: status, SchemaHash: OzonCategorySchemaHash(attrs), SelectionMethod: selectionMethod, ConfirmationReason: confirmationReason, TemplateSyncedAt: templateSyncedAt}
 	if status == OzonMappingActive {
 		now := time.Now().UTC()
 		row.ConfirmedAt = &now
 		row.ConfirmedBy = adminID
 	}
-	if err := s.DB.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "tenant_id"}, {Name: "scope_key"}, {Name: "source_category_key"}}, DoUpdates: clause.AssignmentColumns([]string{"shop_id", "source_category_name", "category_id", "category_path", "status", "schema_hash", "confirmed_at", "confirmed_by", "updated_at"})}).Create(&row).Error; err != nil {
+	if err := s.DB.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "tenant_id"}, {Name: "scope_key"}, {Name: "source_category_key"}}, DoUpdates: clause.AssignmentColumns([]string{"shop_id", "source_category_name", "category_id", "category_path", "status", "schema_hash", "selection_method", "confirmation_reason", "template_synced_at", "confirmed_at", "confirmed_by", "updated_at"})}).Create(&row).Error; err != nil {
 		return nil, err
 	}
 	var saved OzonCategoryMapping
@@ -202,7 +230,20 @@ func (s *Service) ensureOzonMappingShop(ctx context.Context, tenantID int64, raw
 	return id, nil
 }
 func ozonMappingDTO(row OzonCategoryMapping) OzonCategoryMappingDTO {
-	return OzonCategoryMappingDTO{ID: row.ID, ShopID: row.ShopID, SourceCategoryKey: row.SourceCategoryKey, SourceCategoryName: row.SourceCategoryName, CategoryID: row.CategoryID, CategoryPath: row.CategoryPath, Status: row.Status, SchemaHash: row.SchemaHash, ConfirmedAt: row.ConfirmedAt}
+	descriptionCategoryID, typeID := splitOzonLeafCategoryID(row.CategoryID)
+	scope := "tenant"
+	if row.ShopID != nil && *row.ShopID != uuid.Nil {
+		scope = "shop"
+	}
+	return OzonCategoryMappingDTO{
+		ID: row.ID, ShopID: row.ShopID, SourceCategoryKey: row.SourceCategoryKey,
+		SourceCategoryName: row.SourceCategoryName, CategoryID: row.CategoryID,
+		DescriptionCategoryID: descriptionCategoryID, TypeID: typeID,
+		CategoryPath: row.CategoryPath, Status: row.Status, SchemaHash: row.SchemaHash,
+		SelectionMethod: row.SelectionMethod, ConfirmationReason: row.ConfirmationReason,
+		Scope: scope, TemplateSyncedAt: row.TemplateSyncedAt, ConfirmedAt: row.ConfirmedAt,
+		ConfirmedBy: row.ConfirmedBy, UpdatedAt: row.UpdatedAt,
+	}
 }
 func firstNonEmptyOzon(v ...string) string {
 	for _, s := range v {

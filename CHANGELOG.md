@@ -6,6 +6,15 @@ This project follows a lightweight changelog format before the first stable rele
 
 ## Unreleased
 
+### Ozon publishing safety and operator workflow hardening (2026-08-10)
+
+- Reworked the daily Ozon category flow into a dynamic parent-to-child navigator with full-path search, pagination, cache freshness, explicit leaf confirmation, and server-owned mapping evidence. Historical mappings without an operator confirmation reason now fail closed before submission.
+- Added authoritative SKU-variant eligibility from Ozon `is_aspect`, typed attribute controls and validation, bounded SKU/combination guardrails, live warehouse selection, and repeated schema validation immediately before `/v3/product/import`.
+- Corrected publication truth states: a successful import is `imported`, warnings or stock uncertainty are `needs_action`, and only explicit `sellableVerified=true` evidence can be presented as published. Historical or mutation-uncertain results require reconciliation instead of optimistic success.
+- Hardened task recovery with mutation-aware retry boundaries, non-cancellable running Ozon writes, lease-safe completion transactions, `result_unknown` handling, and an audited manual reconciliation endpoint that never calls the Provider or retries automatically.
+- Fixed Ozon credential handling so saving secrets does not imply authorization, masked or blank updates preserve existing encrypted values, and a failed read-only connection test persists `invalid` rather than displaying success.
+- Updated Admin confirmation snapshots, task warnings and `offer_id` visibility, operation-log wording, responsive layouts, contract mocks, migrations, and regression coverage. Real Ozon create/update/archive acceptance remains intentionally separate from automated tests.
+
 ### Ozon category publishing flow acceptance (2026-08-03)
 
 - Added an Admin workflow for category sync, tenant/shop-scoped category mappings, product-level category and dynamic attributes, live read-only preflight, local drafts, and explicitly confirmed Ozon submits.

@@ -3,56 +3,21 @@ import DouyinE2EPrecheckBanner from '@/components/platform/DouyinE2EPrecheckBann
 import { TmPageContainer, TechnicalDetails } from '@/components/ui';
 import type { PublishConfigLayer } from '@/constants/publishConfig';
 import { validatePublishConfigClient } from '@/constants/publishConfig';
-import {
-  publishCapabilityLabel,
-  publishTargetStatusLabel,
-} from '@/constants/publishLabels';
-import {
-  PUBLISH_BATCH_LIMIT_MESSAGE,
-  PUBLISH_BATCH_MAX_PRODUCTS,
-  validatePublishBatchMatrix,
-} from '@/constants/publishLimits';
+import { publishCapabilityLabel, publishTargetStatusLabel } from '@/constants/publishLabels';
+import { PUBLISH_BATCH_LIMIT_MESSAGE, PUBLISH_BATCH_MAX_PRODUCTS, validatePublishBatchMatrix } from '@/constants/publishLimits';
 import { PRODUCT_STATUS } from '@/constants/status';
 import { productSourceLabel } from '@/constants/userFriendly';
 import ConfigPriorityBanner from '@/pages/Product/PublishBatch/components/ConfigPriorityBanner';
 import EffectiveConfigPreviewModal from '@/pages/Product/PublishBatch/components/EffectiveConfigPreviewModal';
 import OverrideConfigTabs from '@/pages/Product/PublishBatch/components/OverrideConfigTabs';
 import PublishConfigEditor from '@/pages/Product/PublishBatch/components/PublishConfigEditor';
-import {
-  useWizardDraftPersistence,
-  wizardDraftKey,
-  type WizardDraft,
-} from '@/pages/Product/PublishBatch/hooks/useWizardDraft';
+import { useWizardDraftPersistence, wizardDraftKey, type WizardDraft } from '@/pages/Product/PublishBatch/hooks/useWizardDraft';
 import { fetchProductDetail, fetchProductOperationProgress, type ProductListRow } from '@/services/products';
-import {
-  checkBatchPublishTargets,
-  createBatchPublishDrafts,
-  fetchGlobalPublishTargets,
-  type BatchTargetCheckItem,
-  type BatchTargetsCheckResponse,
-  type PublishConfigOverrides,
-  type PublishTargetPlatform,
-  type PublishTargetRef,
-} from '@/services/productPublish';
+import { checkBatchPublishTargets, createBatchPublishDrafts, fetchGlobalPublishTargets, type BatchTargetCheckItem, type BatchTargetsCheckResponse, type PublishConfigOverrides, type PublishTargetPlatform, type PublishTargetRef } from '@/services/productPublish';
 import { confirmBatchPublishDraft } from '@/constants/sensitiveActions';
 import { detectConfigReminders } from '@/utils/publishConfigMerge';
 import { Link, history, useLocation, useModel } from '@umijs/max';
-import {
-  Alert,
-  Button,
-  Card,
-  Checkbox,
-  Descriptions,
-  Image,
-  Modal,
-  Space,
-  Spin,
-  Steps,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+import { Alert, Button, Card, Checkbox, Descriptions, Image, Modal, Space, Spin, Steps, Table, Tag, Typography, message } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type SelectedTarget = PublishTargetRef & {
@@ -79,13 +44,20 @@ function parseProductIdsFromSearch(search: string): string[] {
     const sp = new URLSearchParams(search);
     const raw = sp.get('productIds')?.trim();
     if (!raw) return [];
-    return raw.split(',').map((s) => s.trim()).filter(Boolean);
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   } catch {
     return [];
   }
 }
 
-function parseConfigError(e: unknown): { title?: string; message: string; technical?: Record<string, unknown> } {
+function parseConfigError(e: unknown): {
+  title?: string;
+  message: string;
+  technical?: Record<string, unknown>;
+} {
   const err = e as Error & { data?: Record<string, unknown> };
   const data = err.data;
   if (data && typeof data === 'object') {
@@ -119,14 +91,15 @@ export default function PublishBatchWizardPage() {
   const [creating, setCreating] = useState(false);
   const [matrixPage, setMatrixPage] = useState(1);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [configError, setConfigError] = useState<{ title?: string; message: string; technical?: Record<string, unknown> } | null>(null);
+  const [configError, setConfigError] = useState<{
+    title?: string;
+    message: string;
+    technical?: Record<string, unknown>;
+  } | null>(null);
   const [draftPrompted, setDraftPrompted] = useState(false);
 
   const productIds = useMemo(() => products.map((p) => p.id), [products]);
-  const draftKey = useMemo(
-    () => (productIds.length ? wizardDraftKey(userId, productIds) : null),
-    [userId, productIds],
-  );
+  const draftKey = useMemo(() => (productIds.length ? wizardDraftKey(userId, productIds) : null), [userId, productIds]);
   const selectedTargetList = useMemo(() => Object.values(selectedTargets), [selectedTargets]);
   const publishBoundaryCapability = useMemo((): 'local_draft_only' | 'real_draft_create' | undefined => {
     const items = checkResult?.items ?? [];
@@ -140,10 +113,7 @@ export default function PublishBatchWizardPage() {
     return undefined;
   }, [checkResult?.items, selectedTargetList]);
   const expectedTasks = productIds.length * selectedTargetList.length;
-  const matrixLimitError = useMemo(
-    () => validatePublishBatchMatrix(productIds.length, selectedTargetList.length),
-    [productIds.length, selectedTargetList.length],
-  );
+  const matrixLimitError = useMemo(() => validatePublishBatchMatrix(productIds.length, selectedTargetList.length), [productIds.length, selectedTargetList.length]);
   const dirty = step > 1 || Object.keys(commonConfig).length > 0 || Object.keys(overrides).length > 0;
 
   const draftSnapshot = useCallback(
@@ -202,10 +172,7 @@ export default function PublishBatchWizardPage() {
       const rows = await Promise.all(
         ids.map(async (id) => {
           try {
-            const [detail, progress] = await Promise.all([
-              fetchProductDetail(id),
-              fetchProductOperationProgress(id).catch(() => null),
-            ]);
+            const [detail, progress] = await Promise.all([fetchProductDetail(id), fetchProductOperationProgress(id).catch(() => null)]);
             const cover = detail.images?.find((img) => img.imageType === 'main')?.publicUrl;
             return {
               id: detail.id,
@@ -295,7 +262,10 @@ export default function PublishBatchWizardPage() {
     try {
       const res = await checkBatchPublishTargets({
         productIds,
-        targets: selectedTargetList.map(({ platform, shopId }) => ({ platform, shopId })),
+        targets: selectedTargetList.map(({ platform, shopId }) => ({
+          platform,
+          shopId,
+        })),
         commonConfig: commonConfig as Record<string, unknown>,
         overrides,
       });
@@ -319,7 +289,10 @@ export default function PublishBatchWizardPage() {
     try {
       const res = await createBatchPublishDrafts({
         productIds,
-        targets: selectedTargetList.map(({ platform, shopId }) => ({ platform, shopId })),
+        targets: selectedTargetList.map(({ platform, shopId }) => ({
+          platform,
+          shopId,
+        })),
         commonConfig: commonConfig as Record<string, unknown>,
         overrides,
         onlyReady,
@@ -327,7 +300,7 @@ export default function PublishBatchWizardPage() {
         name: `批量刊登 ${productIds.length} 商品`,
       });
       clearDraft();
-      message.success(`批次已创建：${res.successCount} 成功，${res.failedCount} 失败，${res.skippedCount} 跳过`);
+      message.info(`本地刊登草稿批次已保存：${res.successCount} 个草稿已创建，${res.failedCount} 个创建失败，${res.skippedCount} 个跳过；这不代表平台已上架。`);
       history.push(`/product/publish-batches/${res.batchId}`);
     } catch (e: unknown) {
       const parsed = parseConfigError(e);
@@ -353,8 +326,7 @@ export default function PublishBatchWizardPage() {
       message.warning('没有可创建的草稿项');
       return;
     }
-    const localDraftOnly =
-      creatableItems.length > 0 && creatableItems.every((i) => i.capability === 'local_draft_only');
+    const localDraftOnly = creatableItems.length > 0 && creatableItems.every((i) => i.capability === 'local_draft_only');
     confirmBatchPublishDraft(count, localDraftOnly, () => runCreate(onlyReady));
   };
 
@@ -362,18 +334,7 @@ export default function PublishBatchWizardPage() {
     const list: ReturnType<typeof detectConfigReminders> = [];
     products.forEach((p) => {
       selectedTargetList.forEach((t) => {
-        list.push(
-          ...detectConfigReminders(
-            commonConfig,
-            overrides,
-            p.id,
-            t.platform,
-            t.shopId || undefined,
-            p.title,
-            t.platformLabel,
-            t.shopName,
-          ),
-        );
+        list.push(...detectConfigReminders(commonConfig, overrides, p.id, t.platform, t.shopId || undefined, p.title, t.platformLabel, t.shopName));
       });
     });
     const seen = new Set<string>();
@@ -436,33 +397,20 @@ export default function PublishBatchWizardPage() {
       title: '状态',
       dataIndex: 'status',
       width: 120,
-      render: (_: unknown, r: BatchTargetCheckItem) => (
-        <Tag color={statusColor(r.status)}>{r.statusLabel || publishTargetStatusLabel(r.status)}</Tag>
-      ),
+      render: (_: unknown, r: BatchTargetCheckItem) => <Tag color={statusColor(r.status)}>{r.statusLabel || publishTargetStatusLabel(r.status)}</Tag>,
     },
     {
       title: '问题',
       key: 'issues',
       ellipsis: true,
-      render: (_: unknown, r: BatchTargetCheckItem) =>
-        r.issues?.length ? r.issues.map((i) => i.title || i.message).join('；') : '—',
+      render: (_: unknown, r: BatchTargetCheckItem) => (r.issues?.length ? r.issues.map((i) => i.title || i.message).join('；') : '—'),
     },
   ];
 
-  const stepItems = [
-    { title: '确认商品' },
-    { title: '选择平台店铺' },
-    { title: '统一配置' },
-    { title: '单独覆盖' },
-    { title: '检查并创建' },
-  ];
+  const stepItems = [{ title: '确认商品' }, { title: '选择平台店铺' }, { title: '统一配置' }, { title: '单独覆盖' }, { title: '检查并创建' }];
 
   return (
-    <TmPageContainer
-      title="批量创建刊登草稿"
-      subTitle="为多个商品同时创建平台草稿或本地刊登草稿（不直接上架）"
-      onBack={handleBack}
-    >
+    <TmPageContainer title="批量创建刊登草稿" subTitle="为多个商品同时创建平台草稿或本地刊登草稿（不直接上架）" onBack={handleBack}>
       <Steps current={step} items={stepItems} style={{ marginBottom: 24 }} />
       <DouyinE2EPrecheckBanner blockedByCredentials />
       <PublishBoundaryBanner capability={publishBoundaryCapability} blockedByCredentials />
@@ -484,12 +432,7 @@ export default function PublishBatchWizardPage() {
             />
           ) : (
             <>
-              <Alert
-                type="info"
-                showIcon
-                style={{ marginBottom: 16 }}
-                message={`已选择 ${products.length} 个商品${selectedTargetList.length ? `，预计生成 ${expectedTasks} 个刊登提交` : ''}`}
-              />
+              <Alert type="info" showIcon style={{ marginBottom: 16 }} message={`已选择 ${products.length} 个商品${selectedTargetList.length ? `，预计生成 ${expectedTasks} 个刊登提交` : ''}`} />
               <Table
                 rowKey="id"
                 size="small"
@@ -501,8 +444,7 @@ export default function PublishBatchWizardPage() {
                     title: '主图',
                     dataIndex: 'coverUrl',
                     width: 72,
-                    render: (url: string) =>
-                      url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover' }} /> : '—',
+                    render: (url: string) => (url ? <Image src={url} width={48} height={48} style={{ objectFit: 'cover' }} /> : '—'),
                   },
                   { title: '标题', dataIndex: 'title', ellipsis: true },
                   {
@@ -524,14 +466,7 @@ export default function PublishBatchWizardPage() {
                     title: '运营进度',
                     key: 'progress',
                     width: 140,
-                    render: (_: unknown, row: ProductListRow) =>
-                      row.operationProgress ? (
-                        <Tag color={row.operationProgress.currentStep === 'ready' ? 'green' : 'blue'}>
-                          {row.operationProgress.currentStepLabel || '继续完善'}
-                        </Tag>
-                      ) : (
-                        '—'
-                      ),
+                    render: (_: unknown, row: ProductListRow) => (row.operationProgress ? <Tag color={row.operationProgress.currentStep === 'ready' ? 'green' : 'blue'}>{row.operationProgress.currentStepLabel || '继续完善'}</Tag> : '—'),
                   },
                   {
                     title: '操作',
@@ -576,19 +511,9 @@ export default function PublishBatchWizardPage() {
                         const key = targetKey(plat.platform, shop.shopId);
                         const disabled = !shop.enabled || shop.authStatus !== 'authorized';
                         return (
-                          <Checkbox
-                            key={key}
-                            checked={!!selectedTargets[key]}
-                            disabled={disabled}
-                            onChange={(e) => toggleShop(plat, shop.shopId, shop.shopName, e.target.checked)}
-                          >
+                          <Checkbox key={key} checked={!!selectedTargets[key]} disabled={disabled} onChange={(e) => toggleShop(plat, shop.shopId, shop.shopName, e.target.checked)}>
                             {shop.shopName}
-                            {disabled ? (
-                              <Typography.Text type="secondary">
-                                {' '}
-                                （{shop.authStatus !== 'authorized' ? '店铺未授权' : '已停用'}）
-                              </Typography.Text>
-                            ) : null}
+                            {disabled ? <Typography.Text type="secondary"> （{shop.authStatus !== 'authorized' ? '店铺未授权' : '已停用'}）</Typography.Text> : null}
                           </Checkbox>
                         );
                       })
@@ -600,16 +525,14 @@ export default function PublishBatchWizardPage() {
               ))}
             </Space>
           )}
-          <Alert
-            type={matrixLimitError ? 'error' : 'info'}
-            showIcon
-            style={{ marginTop: 16 }}
-            message={
-              matrixLimitError ||
-              `已选 ${selectedTargetList.length} 个刊登目标，预计 ${expectedTasks} 个子任务`
-            }
-          />
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <Alert type={matrixLimitError ? 'error' : 'info'} showIcon style={{ marginTop: 16 }} message={matrixLimitError || `已选 ${selectedTargetList.length} 个刊登目标，预计 ${expectedTasks} 个子任务`} />
+          <div
+            style={{
+              marginTop: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}
+          >
             <Button onClick={() => setStep(0)}>上一步</Button>
             <Button type="primary" disabled={!selectedTargetList.length} onClick={() => setStep(2)}>
               下一步
@@ -620,15 +543,16 @@ export default function PublishBatchWizardPage() {
 
       {step === 2 && (
         <Card title="第 3 步：统一刊登配置">
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message="这里的配置会应用到本次选择的所有商品和刊登目标。后续单独配置会优先生效。"
-          />
+          <Alert type="info" showIcon style={{ marginBottom: 16 }} message="这里的配置会应用到本次选择的所有商品和刊登目标。后续单独配置会优先生效。" />
           <ConfigPriorityBanner />
           <PublishConfigEditor value={commonConfig} onChange={setCommonConfig} />
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              marginTop: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}
+          >
             <Button onClick={() => setStep(1)}>上一步</Button>
             <Button type="primary" onClick={() => setStep(3)}>
               下一步
@@ -639,20 +563,9 @@ export default function PublishBatchWizardPage() {
 
       {step === 3 && (
         <Card title="第 4 步：单独配置（可选）">
-          <Alert
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-            message="当某些商品、平台或店铺需要不同配置时，可以在这里单独设置。单独配置会优先生效。"
-          />
+          <Alert type="info" showIcon style={{ marginBottom: 16 }} message="当某些商品、平台或店铺需要不同配置时，可以在这里单独设置。单独配置会优先生效。" />
           <ConfigPriorityBanner />
-          <OverrideConfigTabs
-            products={products}
-            targets={selectedTargetList}
-            overrides={overrides}
-            onChange={setOverrides}
-            commonConfig={commonConfig}
-          />
+          <OverrideConfigTabs products={products} targets={selectedTargetList} overrides={overrides} onChange={setOverrides} commonConfig={commonConfig} />
           {configReminders.length > 0 && (
             <Alert
               type="warning"
@@ -686,7 +599,13 @@ export default function PublishBatchWizardPage() {
               }
             />
           )}
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'space-between' }}>
+          <div
+            style={{
+              marginTop: 16,
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}
+          >
             <Button onClick={() => setStep(2)}>上一步</Button>
             <Button type="primary" loading={checking} onClick={() => void runCheck()}>
               检查并进入下一步
@@ -752,40 +671,18 @@ export default function PublishBatchWizardPage() {
 
           <Space style={{ marginTop: 16 }} wrap>
             <Button onClick={() => setStep(3)}>返回修改配置</Button>
-            <Button
-              type="primary"
-              loading={creating}
-              onClick={() => invokeCreate(true)}
-              disabled={checkResult.summary.readyCount === 0}
-            >
+            <Button type="primary" loading={creating} onClick={() => invokeCreate(true)} disabled={checkResult.summary.readyCount === 0}>
               只创建可处理的草稿
             </Button>
-            <Button
-              loading={creating}
-              onClick={() => invokeCreate(false)}
-              disabled={checkResult.summary.readyCount + checkResult.summary.warningCount === 0}
-            >
+            <Button loading={creating} onClick={() => invokeCreate(false)} disabled={checkResult.summary.readyCount + checkResult.summary.warningCount === 0}>
               创建可处理项（含建议检查）
             </Button>
           </Space>
-          {checkResult.summary.blockedCount > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginTop: 12 }}
-              message="暂不能创建的项将自动跳过，不会强行提交。"
-            />
-          )}
+          {checkResult.summary.blockedCount > 0 && <Alert type="warning" showIcon style={{ marginTop: 12 }} message="暂不能创建的项将自动跳过，不会强行提交。" />}
         </Card>
       )}
 
-      <EffectiveConfigPreviewModal
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        cells={previewCells}
-        commonConfig={commonConfig}
-        overrides={overrides}
-      />
+      <EffectiveConfigPreviewModal open={previewOpen} onClose={() => setPreviewOpen(false)} cells={previewCells} commonConfig={commonConfig} overrides={overrides} />
     </TmPageContainer>
   );
 }

@@ -34,7 +34,7 @@ func newOzonCategoryFakeAPI(t *testing.T) *ozonCategoryFakeAPI {
 		case "/v1/description-category/tree":
 			_, _ = w.Write([]byte(`{"result":[{"description_category_id":100,"category_name":"Мебель","disabled":false,"children":[{"type_id":200,"type_name":"Стол","disabled":false}]}]}`))
 		case "/v1/description-category/attribute":
-			_, _ = w.Write([]byte(`{"result":[{"id":85,"name":"Бренд","type":"String","is_collection":false,"is_required":true,"dictionary_id":0},{"id":86,"name":"Цвет","type":"Option","is_collection":false,"is_required":true,"dictionary_id":123}]}`))
+			_, _ = w.Write([]byte(`{"result":[{"id":85,"name":"Бренд","description":"Марка товара","type":"String","is_aspect":false,"is_collection":false,"is_required":true,"dictionary_id":0},{"id":86,"name":"Цвет","description":"Основной цвет","type":"String","is_aspect":true,"is_collection":false,"is_required":true,"dictionary_id":123}]}`))
 		case "/v1/description-category/attribute/values":
 			api.seenAttrValues = true
 			var req map[string]any
@@ -46,6 +46,8 @@ func newOzonCategoryFakeAPI(t *testing.T) *ozonCategoryFakeAPI {
 			_, _ = w.Write([]byte(`{"result":[]}`))
 		case "/v1/description-category/attribute/values/search":
 			_, _ = w.Write([]byte(`{"result":[{"id":1001,"value":"Белый"}]}`))
+		case "/v2/warehouse/list":
+			_, _ = w.Write([]byte(`{"warehouses":[{"warehouse_id":5278166,"name":"测试 FBS 仓","is_rfbs":false}],"has_next":false,"cursor":""}`))
 		default:
 			t.Fatalf("unexpected ozon path %s", r.URL.Path)
 		}
@@ -215,6 +217,23 @@ func TestOzonCategorySyncWritesCacheIdempotently(t *testing.T) {
 	}
 }
 
+func TestListOzonWarehousesUsesAuthorizedTenantShop(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	svc := newOzonCategoryTestService(t, db, enc)
+	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
+	shopID := seedOzonAuthorizedShop(t, db, enc, api.URL)
+
+	rows, err := svc.ListOzonWarehouses(context.Background(), 0, shopID)
+	if err != nil {
+		t.Fatalf("ListOzonWarehouses() error = %v", err)
+	}
+	if len(rows) != 1 || rows[0].ID != "5278166" || rows[0].Name != "测试 FBS 仓" {
+		t.Fatalf("unexpected warehouses: %+v", rows)
+	}
+}
+
 func TestOzonCategorySyncRequiresAuthorizedShop(t *testing.T) {
 	db := newOzonCategoryTestDB(t)
 	enc, _ := encrypt.NewService("test-master-key")
@@ -289,8 +308,12 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 			dictionaryDTO = &dtoList[i]
 		}
 	}
-	if len(dtoList) != 2 || dictionaryDTO == nil || dictionaryDTO.DictionaryID != "123" {
+	if len(dtoList) != 2 || dictionaryDTO == nil || dictionaryDTO.DictionaryID != "123" || !dictionaryDTO.SKUVariantEligibilityKnown || !dictionaryDTO.SKUVariantEligible || dictionaryDTO.Description != "Основной цвет" {
 		t.Fatalf("unexpected dto list: %+v", dtoList)
+	}
+	policy := OzonVariantPolicy(dtoList)
+	if policy.MaxSKUCount != OzonMaxSKUsPerPublish || policy.MaxVariantAttributeCount != 1 || policy.MaxVariantCombinationCount != OzonMaxSKUsPerPublish || !policy.VariantEligibilityFullyKnown {
+		t.Fatalf("unexpected variant policy: %+v", policy)
 	}
 }
 
@@ -392,8 +415,17 @@ func TestOzonCategoryListFiltersAndStats(t *testing.T) {
 	if out.LeafCount != 1 || len(out.List) != 1 {
 		t.Fatalf("unexpected leaf list: %+v", out)
 	}
+	if out.Total != 2 || out.MatchedTotal != 1 || out.Offset != 0 || out.Limit != 500 {
+		t.Fatalf("unexpected list metadata: %+v", out)
+	}
+	if out.LastSyncedAt == nil || out.CacheStale {
+		t.Fatalf("fresh category cache metadata missing: %+v", out)
+	}
 	if out.List[0].TypeID != "200" || out.List[0].DescriptionCategoryID != "100" {
 		t.Fatalf("leaf dto missing ids: %+v", out.List[0])
+	}
+	if out.List[0].Path != "Мебель / Стол" {
+		t.Fatalf("leaf dto path = %q, want canonical hierarchy", out.List[0].Path)
 	}
 	stats, err := svc.OzonCategoryStats(context.Background())
 	if err != nil {
@@ -401,6 +433,112 @@ func TestOzonCategoryListFiltersAndStats(t *testing.T) {
 	}
 	if stats.Count != 2 || stats.LeafCount != 1 {
 		t.Fatalf("unexpected stats: %+v", stats)
+	}
+}
+
+func TestOzonCategoryListSearchesFullPathAndPaginatesMatches(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	svc := newOzonCategoryTestService(t, db, &encrypt.Service{})
+	now := time.Now().UTC()
+	rows := []PlatformCategory{
+		{Platform: ozonPlatform, CategoryID: "home", Name: "住宅和花园", Level: 1, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "storage", ParentID: "home", Name: "收纳", Level: 2, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "17027937:95482", ParentID: "storage", Name: "储物箱", Level: 3, IsLeaf: true, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "17027937:95483", ParentID: "storage", Name: "衣物收纳盒", Level: 3, IsLeaf: true, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "17027937:95484", ParentID: "storage", Name: "旧收纳盒", Level: 3, IsLeaf: true, Status: "inactive", SyncedAt: &now},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		Keyword: "住宅和花园 / 收纳", OnlyLeaf: true, ActiveOnly: true, Limit: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.MatchedTotal != 2 || len(first.List) != 1 || first.Offset != 0 || first.Limit != 1 {
+		t.Fatalf("first page metadata = %+v", first)
+	}
+	if !strings.Contains(first.List[0].Path, "住宅和花园 / 收纳 /") {
+		t.Fatalf("full path missing from result: %+v", first.List[0])
+	}
+
+	second, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		Keyword: "收纳", OnlyLeaf: true, ActiveOnly: true, Limit: 1, Offset: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.MatchedTotal != 2 || len(second.List) != 1 || second.Offset != 1 || second.List[0].CategoryID == first.List[0].CategoryID {
+		t.Fatalf("second page = %+v", second)
+	}
+
+	byID, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		Keyword: "17027937:95482", OnlyLeaf: true, ActiveOnly: true, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byID.MatchedTotal != 1 || len(byID.List) != 1 || byID.List[0].Path != "住宅和花园 / 收纳 / 储物箱" {
+		t.Fatalf("id search = %+v", byID)
+	}
+}
+
+func TestOzonCategoryListSupportsParentByParentNavigation(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	svc := newOzonCategoryTestService(t, db, &encrypt.Service{})
+	now := time.Now().UTC()
+	rows := []PlatformCategory{
+		{Platform: ozonPlatform, CategoryID: "home", Name: "住宅和花园", Level: 1, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "electronics", Name: "电子产品", Level: 1, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "storage", ParentID: "home", Name: "收纳", Level: 2, Status: "active", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "inactive-child", ParentID: "home", Name: "停用分支", Level: 2, Status: "inactive", SyncedAt: &now},
+		{Platform: ozonPlatform, CategoryID: "17027937:95482", ParentID: "storage", Name: "储物箱", Level: 3, IsLeaf: true, Status: "active", SyncedAt: &now},
+	}
+	if err := db.Create(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	roots, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		RootOnly: true, ActiveOnly: true, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if roots.MatchedTotal != 2 || len(roots.List) != 2 {
+		t.Fatalf("roots = %+v", roots)
+	}
+	if roots.List[0].Level != 1 || len(roots.List[0].Ancestors) != 0 {
+		t.Fatalf("root metadata = %+v", roots.List[0])
+	}
+
+	parentID := "home"
+	children, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		ParentID: &parentID, ActiveOnly: true, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if children.MatchedTotal != 1 || len(children.List) != 1 || children.List[0].CategoryID != "storage" {
+		t.Fatalf("children = %+v", children)
+	}
+	if !children.List[0].HasChildren || children.List[0].ChildCount != 1 {
+		t.Fatalf("child count = %+v", children.List[0])
+	}
+
+	leafParentID := "storage"
+	leaves, err := svc.ListOzonCategories(context.Background(), OzonCategoryListQuery{
+		ParentID: &leafParentID, ActiveOnly: true, Limit: 20,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaves.List) != 1 || !leaves.List[0].IsLeaf || leaves.List[0].HasChildren {
+		t.Fatalf("leaf = %+v", leaves)
+	}
+	if got := leaves.List[0].Ancestors; len(got) != 2 || got[0].CategoryID != "home" || got[1].CategoryID != "storage" {
+		t.Fatalf("leaf ancestors = %+v", got)
 	}
 }
 

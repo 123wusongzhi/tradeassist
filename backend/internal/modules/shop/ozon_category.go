@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -34,6 +35,9 @@ const (
 	OzonCategorySyncSucceeded   = "succeeded"
 	OzonCategorySyncPartial     = "partial"
 	OzonCategorySyncFailedState = "failed"
+	// OzonMaxSKUsPerPublish is a TradeMind adapter guardrail shared by the
+	// editor, cached-template validator and final Ozon provider.
+	OzonMaxSKUsPerPublish = platformozon.MaxProductImportItemsPerRequest
 )
 
 const ozonCredentialInvalidMessage = "Ozon 店铺授权已失效或 API Key 已停用，请前往店铺管理更新凭证后重试"
@@ -69,25 +73,41 @@ func ozonCategoryErr(code string, err error) *OzonCategoryError {
 	return &OzonCategoryError{Code: code, Message: message, Err: err}
 }
 
-// OzonCategoryNodeDTO is one cached Ozon category row (level 1 or leaf).
-// Leaf rows carry both descriptionCategoryId and typeId.
+type OzonCategoryBreadcrumbDTO struct {
+	CategoryID string `json:"categoryId"`
+	Name       string `json:"name"`
+	Level      int    `json:"level"`
+}
+
+// OzonCategoryNodeDTO is one cached Ozon category row. Leaf rows carry both
+// descriptionCategoryId and typeId; ancestors let Admin reconstruct an exact
+// search result as a parent-by-parent navigator without trusting display text.
 type OzonCategoryNodeDTO struct {
-	ID                    uuid.UUID  `json:"id"`
-	CategoryID            string     `json:"categoryId"` // leaf: "<descId>:<typeId>"
-	DescriptionCategoryID string     `json:"descriptionCategoryId,omitempty"`
-	TypeID                string     `json:"typeId,omitempty"`
-	ParentID              string     `json:"parentId"`
-	Name                  string     `json:"name"`
-	Level                 int        `json:"level"`
-	IsLeaf                bool       `json:"isLeaf"`
-	Status                string     `json:"status"`
-	SyncedAt              *time.Time `json:"syncedAt,omitempty"`
+	ID                    uuid.UUID                   `json:"id"`
+	CategoryID            string                      `json:"categoryId"` // leaf: "<descId>:<typeId>"
+	DescriptionCategoryID string                      `json:"descriptionCategoryId,omitempty"`
+	TypeID                string                      `json:"typeId,omitempty"`
+	ParentID              string                      `json:"parentId"`
+	Name                  string                      `json:"name"`
+	Path                  string                      `json:"path,omitempty"`
+	Level                 int                         `json:"level"`
+	IsLeaf                bool                        `json:"isLeaf"`
+	HasChildren           bool                        `json:"hasChildren"`
+	ChildCount            int                         `json:"childCount"`
+	Ancestors             []OzonCategoryBreadcrumbDTO `json:"ancestors,omitempty"`
+	Status                string                      `json:"status"`
+	SyncedAt              *time.Time                  `json:"syncedAt,omitempty"`
 }
 
 type OzonCategoryListResult struct {
-	List      []OzonCategoryNodeDTO `json:"list"`
-	Total     int                   `json:"total"`
-	LeafCount int                   `json:"leafCount"`
+	List         []OzonCategoryNodeDTO `json:"list"`
+	Total        int                   `json:"total"`
+	LeafCount    int                   `json:"leafCount"`
+	MatchedTotal int                   `json:"matchedTotal"`
+	Offset       int                   `json:"offset"`
+	Limit        int                   `json:"limit"`
+	LastSyncedAt *time.Time            `json:"lastSyncedAt,omitempty"`
+	CacheStale   bool                  `json:"cacheStale"`
 }
 
 type OzonCategoryStats struct {
@@ -120,21 +140,61 @@ type OzonCategoryChangeDTO struct {
 }
 
 type OzonAttributeDTO struct {
-	ID                  uuid.UUID       `json:"id"`
-	CategoryID          string          `json:"categoryId"`
-	AttrID              string          `json:"attrId"`
-	Name                string          `json:"name"`
-	Required            bool            `json:"required"`
-	ValueType           string          `json:"valueType,omitempty"`
-	DictionaryID        string          `json:"dictionaryId,omitempty"`
-	IsCollection        bool            `json:"isCollection"`
-	MaxValueCount       int64           `json:"maxValueCount,omitempty"`
-	AttributeComplexID  int64           `json:"attributeComplexId,omitempty"`
-	ComplexIsCollection bool            `json:"complexIsCollection"`
-	CategoryDependent   bool            `json:"categoryDependent"`
-	Options             json.RawMessage `json:"options,omitempty"`
-	SyncedAt            *time.Time      `json:"syncedAt,omitempty"`
-	CacheStale          bool            `json:"cacheStale"`
+	ID                         uuid.UUID       `json:"id"`
+	CategoryID                 string          `json:"categoryId"`
+	AttrID                     string          `json:"attrId"`
+	Name                       string          `json:"name"`
+	Description                string          `json:"description,omitempty"`
+	Required                   bool            `json:"required"`
+	ValueType                  string          `json:"valueType,omitempty"`
+	DictionaryID               string          `json:"dictionaryId,omitempty"`
+	SKUVariantEligible         bool            `json:"skuVariantEligible"`
+	SKUVariantEligibilityKnown bool            `json:"skuVariantEligibilityKnown"`
+	IsCollection               bool            `json:"isCollection"`
+	MaxValueCount              int64           `json:"maxValueCount,omitempty"`
+	AttributeComplexID         int64           `json:"attributeComplexId,omitempty"`
+	ComplexIsCollection        bool            `json:"complexIsCollection"`
+	CategoryDependent          bool            `json:"categoryDependent"`
+	Options                    json.RawMessage `json:"options,omitempty"`
+	SyncedAt                   *time.Time      `json:"syncedAt,omitempty"`
+	CacheStale                 bool            `json:"cacheStale"`
+}
+
+// OzonVariantPolicyDTO separates Ozon template facts from TradeMind's import
+// guardrail. Ozon exposes SKU-dimension eligibility through is_aspect, but the
+// category APIs do not expose separate SKU, dimension, or combination caps.
+type OzonVariantPolicyDTO struct {
+	MaxSKUCount                  int    `json:"maxSkuCount"`
+	MaxVariantAttributeCount     int    `json:"maxVariantAttributeCount"`
+	MaxVariantCombinationCount   int    `json:"maxVariantCombinationCount"`
+	EligibleAttributeCount       int    `json:"eligibleAttributeCount"`
+	VariantEligibilityFullyKnown bool   `json:"variantEligibilityFullyKnown"`
+	Source                       string `json:"source"`
+}
+
+func OzonVariantPolicy(attrs []OzonAttributeDTO) OzonVariantPolicyDTO {
+	eligibleCount := 0
+	fullyKnown := true
+	for _, attr := range attrs {
+		if attr.AttributeComplexID > 0 {
+			continue
+		}
+		if !attr.SKUVariantEligibilityKnown {
+			fullyKnown = false
+			continue
+		}
+		if attr.SKUVariantEligible {
+			eligibleCount++
+		}
+	}
+	return OzonVariantPolicyDTO{
+		MaxSKUCount:                  OzonMaxSKUsPerPublish,
+		MaxVariantAttributeCount:     eligibleCount,
+		MaxVariantCombinationCount:   OzonMaxSKUsPerPublish,
+		EligibleAttributeCount:       eligibleCount,
+		VariantEligibilityFullyKnown: fullyKnown,
+		Source:                       "ozon_is_aspect+trademind_import_guardrail",
+	}
 }
 
 type OzonAttributeMappingDTO struct {
@@ -152,7 +212,8 @@ func OzonCategorySchemaHash(attrs []PlatformCategoryAttribute) string {
 	for _, a := range attrs {
 		meta := ozonAttributeSchemaMeta(a.Raw)
 		rows = append(rows, platformozon.CategoryAttr{
-			ID: a.AttrID, Name: a.Name, ValueType: a.ValueType, DictionaryID: meta.DictionaryID, Required: a.Required,
+			ID: a.AttrID, Name: a.Name, Description: meta.Description, ValueType: a.ValueType, DictionaryID: meta.DictionaryID, Required: a.Required,
+			SKUVariantEligible: meta.SKUVariantEligible, SKUVariantEligibilityKnown: meta.SKUVariantEligibilityKnown,
 			IsCollection: meta.IsCollection, AttributeComplexID: meta.AttributeComplexID, MaxValueCount: meta.MaxValueCount,
 			ComplexIsCollection: meta.ComplexIsCollection, CategoryDependent: meta.CategoryDependent,
 		})
@@ -458,62 +519,189 @@ func ozonLeafCategoryID(descID, typeID string) string {
 // OzonCategoryListQuery filters cached Ozon categories.
 type OzonCategoryListQuery struct {
 	Keyword    string
+	ParentID   *string
+	RootOnly   bool
 	OnlyLeaf   bool
 	ActiveOnly bool
 	Limit      int
+	Offset     int
 }
 
 func (s *Service) ListOzonCategories(ctx context.Context, q OzonCategoryListQuery) (*OzonCategoryListResult, error) {
 	if s == nil || s.DB == nil {
 		return nil, fmt.Errorf("shop service unavailable")
 	}
-	qb := s.DB.WithContext(ctx).Where("platform = ?", ozonPlatform)
-	if strings.TrimSpace(q.Keyword) != "" {
-		kw := "%" + strings.TrimSpace(q.Keyword) + "%"
-		qb = qb.Where("name ILIKE ? OR category_id ILIKE ?", kw, kw)
-	}
-	if q.OnlyLeaf {
-		qb = qb.Where("is_leaf = ?", true)
-	}
-	if q.ActiveOnly {
-		qb = qb.Where("status = ?", "active")
-	}
 	var rows []PlatformCategory
+	if err := s.DB.WithContext(ctx).
+		Where("platform = ?", ozonPlatform).
+		Order("level ASC, name ASC").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
 	limit := q.Limit
 	if limit <= 0 || limit > 1000 {
 		limit = 500
 	}
-	if err := qb.Order("level ASC, name ASC").Limit(limit).Find(&rows).Error; err != nil {
-		return nil, err
+	offset := q.Offset
+	if offset < 0 {
+		offset = 0
 	}
-	list := make([]OzonCategoryNodeDTO, 0, len(rows))
+
+	byID := make(map[string]PlatformCategory, len(rows))
+	childCounts := make(map[string]int, len(rows))
+	leafCount := 0
+	var lastSyncedAt *time.Time
 	for _, r := range rows {
-		row := OzonCategoryNodeDTO{
-			ID:         r.ID,
-			CategoryID: r.CategoryID,
-			ParentID:   r.ParentID,
-			Name:       r.Name,
-			Level:      r.Level,
-			IsLeaf:     r.IsLeaf,
-			Status:     r.Status,
-			SyncedAt:   r.SyncedAt,
+		byID[r.CategoryID] = r
+		if !q.ActiveOnly || r.Status == "active" {
+			childCounts[strings.TrimSpace(r.ParentID)]++
 		}
 		if r.IsLeaf {
-			descID, typeID := splitOzonLeafCategoryID(r.CategoryID)
-			row.DescriptionCategoryID = descID
-			row.TypeID = typeID
+			leafCount++
+		}
+		if r.SyncedAt != nil && (lastSyncedAt == nil || r.SyncedAt.After(*lastSyncedAt)) {
+			value := r.SyncedAt.UTC()
+			lastSyncedAt = &value
+		}
+	}
+
+	keyword := strings.ToLower(strings.TrimSpace(q.Keyword))
+	type match struct {
+		row  PlatformCategory
+		path string
+		rank int
+	}
+	matches := make([]match, 0, len(rows))
+	for _, r := range rows {
+		if q.ParentID != nil {
+			if strings.TrimSpace(r.ParentID) != strings.TrimSpace(*q.ParentID) {
+				continue
+			}
+		} else if q.RootOnly && strings.TrimSpace(r.ParentID) != "" {
+			continue
+		}
+		if q.OnlyLeaf && !r.IsLeaf {
+			continue
+		}
+		if q.ActiveOnly && r.Status != "active" {
+			continue
+		}
+		path := canonicalOzonCategoryPathFromCache(r, byID)
+		rank, ok := ozonCategoryMatchRank(r, path, keyword)
+		if !ok {
+			continue
+		}
+		matches = append(matches, match{row: r, path: path, rank: rank})
+	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].rank != matches[j].rank {
+			return matches[i].rank < matches[j].rank
+		}
+		left := strings.ToLower(matches[i].path)
+		right := strings.ToLower(matches[j].path)
+		if left != right {
+			return left < right
+		}
+		return matches[i].row.CategoryID < matches[j].row.CategoryID
+	})
+
+	matchedTotal := len(matches)
+	if offset > matchedTotal {
+		offset = matchedTotal
+	}
+	end := offset + limit
+	if end > matchedTotal {
+		end = matchedTotal
+	}
+	list := make([]OzonCategoryNodeDTO, 0, end-offset)
+	for _, item := range matches[offset:end] {
+		r := item.row
+		row := OzonCategoryNodeDTO{
+			ID: r.ID, CategoryID: r.CategoryID, ParentID: r.ParentID, Name: r.Name,
+			Path: item.path, Level: r.Level, IsLeaf: r.IsLeaf,
+			HasChildren: childCounts[r.CategoryID] > 0, ChildCount: childCounts[r.CategoryID],
+			Ancestors: ozonCategoryAncestorsFromCache(r, byID), Status: r.Status, SyncedAt: r.SyncedAt,
+		}
+		if r.IsLeaf {
+			row.DescriptionCategoryID, row.TypeID = splitOzonLeafCategoryID(r.CategoryID)
 		}
 		list = append(list, row)
 	}
-	var cnt int64
-	var leafCnt int64
-	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ?", ozonPlatform).Count(&cnt).Error; err != nil {
-		return nil, err
+	cacheStale := lastSyncedAt == nil || time.Since(*lastSyncedAt) > OzonCategoryCacheTTL
+	return &OzonCategoryListResult{
+		List: list, Total: len(rows), LeafCount: leafCount, MatchedTotal: matchedTotal,
+		Offset: offset, Limit: limit, LastSyncedAt: lastSyncedAt, CacheStale: cacheStale,
+	}, nil
+}
+
+func ozonCategoryAncestorsFromCache(category PlatformCategory, byID map[string]PlatformCategory) []OzonCategoryBreadcrumbDTO {
+	ancestors := make([]OzonCategoryBreadcrumbDTO, 0, 4)
+	parentID := strings.TrimSpace(category.ParentID)
+	seen := map[string]bool{category.CategoryID: true}
+	for depth := 0; depth < 10 && parentID != "" && !seen[parentID]; depth++ {
+		seen[parentID] = true
+		parent, ok := byID[parentID]
+		if !ok {
+			break
+		}
+		ancestors = append(ancestors, OzonCategoryBreadcrumbDTO{
+			CategoryID: parent.CategoryID,
+			Name:       parent.Name,
+			Level:      parent.Level,
+		})
+		parentID = strings.TrimSpace(parent.ParentID)
 	}
-	if err := s.DB.WithContext(ctx).Model(&PlatformCategory{}).Where("platform = ? AND is_leaf = ?", ozonPlatform, true).Count(&leafCnt).Error; err != nil {
-		return nil, err
+	for left, right := 0, len(ancestors)-1; left < right; left, right = left+1, right-1 {
+		ancestors[left], ancestors[right] = ancestors[right], ancestors[left]
 	}
-	return &OzonCategoryListResult{List: list, Total: int(cnt), LeafCount: int(leafCnt)}, nil
+	return ancestors
+}
+
+func canonicalOzonCategoryPathFromCache(category PlatformCategory, byID map[string]PlatformCategory) string {
+	names := make([]string, 0, 4)
+	current := category
+	seen := map[string]bool{}
+	for depth := 0; depth < 10; depth++ {
+		if name := strings.TrimSpace(current.Name); name != "" {
+			names = append(names, name)
+		}
+		parentID := strings.TrimSpace(current.ParentID)
+		if parentID == "" || seen[parentID] {
+			break
+		}
+		seen[parentID] = true
+		parent, ok := byID[parentID]
+		if !ok {
+			break
+		}
+		current = parent
+	}
+	for left, right := 0, len(names)-1; left < right; left, right = left+1, right-1 {
+		names[left], names[right] = names[right], names[left]
+	}
+	return strings.Join(names, " / ")
+}
+
+func ozonCategoryMatchRank(category PlatformCategory, path, keyword string) (int, bool) {
+	if keyword == "" {
+		return 0, true
+	}
+	id := strings.ToLower(strings.TrimSpace(category.CategoryID))
+	name := strings.ToLower(strings.TrimSpace(category.Name))
+	fullPath := strings.ToLower(strings.TrimSpace(path))
+	switch {
+	case id == keyword:
+		return 0, true
+	case name == keyword:
+		return 1, true
+	case strings.HasPrefix(name, keyword):
+		return 2, true
+	case strings.Contains(fullPath, keyword), strings.Contains(id, keyword):
+		return 3, true
+	default:
+		return 0, false
+	}
 }
 
 func splitOzonLeafCategoryID(id string) (descID, typeID string) {
@@ -658,6 +846,9 @@ func (s *Service) syncOzonCategoryAttributes(ctx context.Context, tenantID int64
 		}
 		raw := map[string]any{
 			"dictionary_id":         a.DictionaryID,
+			"description":           a.Description,
+			"is_aspect":             a.SKUVariantEligible,
+			"is_aspect_known":       a.SKUVariantEligibilityKnown,
 			"is_collection":         a.IsCollection,
 			"attribute_complex_id":  a.AttributeComplexID,
 			"max_value_count":       a.MaxValueCount,
@@ -730,8 +921,9 @@ func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID str
 	for _, r := range rows {
 		meta := ozonAttributeSchemaMeta(r.Raw)
 		dto := OzonAttributeDTO{
-			ID: r.ID, CategoryID: r.CategoryID, AttrID: r.AttrID, Name: r.Name,
+			ID: r.ID, CategoryID: r.CategoryID, AttrID: r.AttrID, Name: r.Name, Description: meta.Description,
 			Required: r.Required, ValueType: r.ValueType, SyncedAt: r.SyncedAt, CacheStale: cacheStale,
+			SKUVariantEligible: meta.SKUVariantEligible, SKUVariantEligibilityKnown: meta.SKUVariantEligibilityKnown,
 			IsCollection: meta.IsCollection, MaxValueCount: meta.MaxValueCount, AttributeComplexID: meta.AttributeComplexID,
 			ComplexIsCollection: meta.ComplexIsCollection, CategoryDependent: meta.CategoryDependent,
 		}
@@ -787,12 +979,15 @@ func isOzonDictionaryID(raw string) bool {
 }
 
 type ozonAttributeSchemaMetadata struct {
-	DictionaryID        string
-	IsCollection        bool
-	AttributeComplexID  int64
-	MaxValueCount       int64
-	ComplexIsCollection bool
-	CategoryDependent   bool
+	DictionaryID               string
+	Description                string
+	SKUVariantEligible         bool
+	SKUVariantEligibilityKnown bool
+	IsCollection               bool
+	AttributeComplexID         int64
+	MaxValueCount              int64
+	ComplexIsCollection        bool
+	CategoryDependent          bool
 }
 
 func ozonAttributeSchemaMeta(raw datatypes.JSON) ozonAttributeSchemaMetadata {
@@ -804,11 +999,20 @@ func ozonAttributeSchemaMeta(raw datatypes.JSON) ozonAttributeSchemaMetadata {
 		return ozonAttributeSchemaMetadata{}
 	}
 	out := ozonAttributeSchemaMetadata{
-		IsCollection:        ozonBool(m["is_collection"]),
-		AttributeComplexID:  ozonInt64(m["attribute_complex_id"]),
-		MaxValueCount:       ozonInt64(m["max_value_count"]),
-		ComplexIsCollection: ozonBool(m["complex_is_collection"]),
-		CategoryDependent:   ozonBool(m["category_dependent"]),
+		Description:                strings.TrimSpace(fmt.Sprint(m["description"])),
+		SKUVariantEligible:         ozonBool(m["is_aspect"]),
+		SKUVariantEligibilityKnown: ozonBool(m["is_aspect_known"]),
+		IsCollection:               ozonBool(m["is_collection"]),
+		AttributeComplexID:         ozonInt64(m["attribute_complex_id"]),
+		MaxValueCount:              ozonInt64(m["max_value_count"]),
+		ComplexIsCollection:        ozonBool(m["complex_is_collection"]),
+		CategoryDependent:          ozonBool(m["category_dependent"]),
+	}
+	if _, present := m["is_aspect"].(bool); present {
+		out.SKUVariantEligibilityKnown = true
+	}
+	if out.Description == "<nil>" {
+		out.Description = ""
 	}
 	if v, ok := m["dictionary_id"].(string); ok {
 		out.DictionaryID = strings.TrimSpace(v)

@@ -608,12 +608,26 @@ func applySecret(enc *encrypt.Service, input string, prevCipher string) (string,
 	}
 	input = strings.TrimSpace(input)
 	if input == "" {
-		return "", nil
+		// The public auth DTO never returns a secret in plaintext. An omitted or
+		// blank field therefore means "keep the stored value", matching the Admin
+		// form copy and preventing an unrelated edit from erasing credentials.
+		return prevCipher, nil
 	}
 	if enc == nil {
 		return "", fmt.Errorf("encryption not configured")
 	}
 	return enc.Encrypt([]byte(input))
+}
+
+func authFieldPresent(input, stored string, sensitive bool) bool {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return strings.TrimSpace(stored) != ""
+	}
+	if sensitive && encrypt.LooksMasked(trimmed) {
+		return strings.TrimSpace(stored) != ""
+	}
+	return true
 }
 
 func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBody, adminID *uuid.UUID) (*AuthPublicDTO, error) {
@@ -639,38 +653,6 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	if authTypeIn == "" {
 		authTypeIn = schema.AuthType
 	}
-	// Basic required-field validation from schema
-	for _, f := range schema.Fields {
-		if !f.Required {
-			continue
-		}
-		switch f.Name {
-		case "appKey":
-			if strings.TrimSpace(body.AppKey) == "" {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		case "appSecret":
-			if strings.TrimSpace(body.AppSecret) == "" && !encrypt.LooksMasked(body.AppSecret) {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		case "accessToken":
-			if strings.TrimSpace(body.AccessToken) == "" && !encrypt.LooksMasked(body.AccessToken) {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		default:
-			if body.AuthConfig != nil {
-				if v, ok := body.AuthConfig[f.Name]; ok {
-					if fmt.Sprint(v) == "" {
-						return nil, fmt.Errorf("field required: %s", f.Name)
-					}
-				} else {
-					return nil, fmt.Errorf("field required: %s", f.Name)
-				}
-			} else {
-				return nil, fmt.Errorf("field required: %s", f.Name)
-			}
-		}
-	}
 
 	var tok ShopAuthToken
 	err = s.DB.WithContext(c.Request.Context()).Where("shop_id = ?", shopID).First(&tok).Error
@@ -679,6 +661,40 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 		err = nil
 	} else if err != nil {
 		return nil, err
+	}
+	var storedAuthConfig map[string]any
+	_ = json.Unmarshal(tok.AuthConfig, &storedAuthConfig)
+
+	// Basic required-field validation from schema
+	for _, f := range schema.Fields {
+		if !f.Required {
+			continue
+		}
+		switch f.Name {
+		case "appKey":
+			if !authFieldPresent(body.AppKey, tok.AppKey, false) {
+				return nil, fmt.Errorf("field required: %s", f.Name)
+			}
+		case "appSecret":
+			if !authFieldPresent(body.AppSecret, tok.AppSecretEnc, true) {
+				return nil, fmt.Errorf("field required: %s", f.Name)
+			}
+		case "accessToken":
+			if !authFieldPresent(body.AccessToken, tok.AccessTokenEnc, true) {
+				return nil, fmt.Errorf("field required: %s", f.Name)
+			}
+		case "refreshToken":
+			if !authFieldPresent(body.RefreshToken, tok.RefreshTokenEnc, true) {
+				return nil, fmt.Errorf("field required: %s", f.Name)
+			}
+		default:
+			incoming, incomingOK := body.AuthConfig[f.Name]
+			stored, storedOK := storedAuthConfig[f.Name]
+			if (!incomingOK || strings.TrimSpace(fmt.Sprint(incoming)) == "") &&
+				(!storedOK || strings.TrimSpace(fmt.Sprint(stored)) == "") {
+				return nil, fmt.Errorf("field required: %s", f.Name)
+			}
+		}
 	}
 
 	tok.AuthType = authTypeIn
@@ -740,18 +756,34 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 	// raw_data: only non-sensitive snapshot (no secrets)
 	tok.RawData = nil
 
-	if tok.ID == uuid.Nil {
-		if err := s.DB.WithContext(c.Request.Context()).Create(&tok).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		if err := s.DB.WithContext(c.Request.Context()).Save(&tok).Error; err != nil {
-			return nil, err
-		}
+	nextAuthStatus := AuthAuthorized
+	if strings.EqualFold(strings.TrimSpace(shopRow.Platform), ozonPlatform) {
+		// Saving credentials proves only that encrypted material was persisted. It
+		// must not authorize Ozon publishing until a read-only provider check passes.
+		nextAuthStatus = AuthUnauthorized
 	}
-
-	shopRow.AuthStatus = AuthAuthorized
-	_ = s.DB.WithContext(c.Request.Context()).Model(shopRow).Update("auth_status", AuthAuthorized).Error
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if tok.ID == uuid.Nil {
+			if err := tx.Create(&tok).Error; err != nil {
+				return err
+			}
+		} else if err := tx.Save(&tok).Error; err != nil {
+			return err
+		}
+		result := tx.Model(&Shop{}).
+			Where("id = ? AND tenant_id = ?", shopID, shopRow.TenantID).
+			Update("auth_status", nextAuthStatus)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	shopRow.AuthStatus = nextAuthStatus
 
 	if s.OpLog != nil {
 		_ = s.OpLog.Write(c, operationlog.WriteOpts{
@@ -760,7 +792,7 @@ func (s *Service) UpdateAuth(c *gin.Context, shopID uuid.UUID, body UpdateAuthBo
 			Resource:    "shop",
 			ResourceID:  shopID.String(),
 			Status:      "success",
-			Message:     fmt.Sprintf("shopId=%s platform=%s", shopID.String(), shopRow.Platform),
+			Message:     fmt.Sprintf("shopId=%s platform=%s authStatus=%s", shopID.String(), shopRow.Platform, nextAuthStatus),
 		})
 	}
 	return s.buildAuthPublic(&tok), nil
@@ -915,10 +947,19 @@ func (s *Service) TestConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid
 		action := "shop.test_connection.success"
 		st := "success"
 		msg := "ok"
-		if err != nil {
+		if err != nil || res == nil || !res.OK {
 			action = "shop.test_connection.failed"
 			st = "failed"
-			msg = err.Error()
+			switch {
+			case err != nil:
+				msg = err.Error()
+			case res == nil:
+				msg = "provider returned an empty connection result"
+			case strings.TrimSpace(res.Message) != "":
+				msg = res.Message
+			default:
+				msg = "provider rejected the connection"
+			}
 		} else if res != nil && res.Message != "" {
 			msg = res.Message
 		}
@@ -932,14 +973,45 @@ func (s *Service) TestConnection(c *gin.Context, shopID uuid.UUID, adminID *uuid
 		})
 	}
 
-	// Manual: no token row needed
+	callReq := req
 	if shopRow.Platform == "manual" {
-		res, err := p.TestConnection(ctx, platformp.TestConnectionRequest{})
-		tryLog(res, err)
-		return res, err
+		// Manual shops have no token row, but still use the same truthful status
+		// persistence and auditing path as remote providers.
+		callReq = platformp.TestConnectionRequest{}
 	}
+	res, err := p.TestConnection(ctx, callReq)
 
-	res, err := p.TestConnection(ctx, req)
+	updates := map[string]any{"auth_status": AuthError}
+	if err == nil {
+		updates["auth_status"] = AuthInvalid
+		if res != nil && res.OK {
+			updates["auth_status"] = AuthAuthorized
+			if v := strings.TrimSpace(res.ShopName); v != "" {
+				updates["shop_name"] = v
+			}
+			if v := strings.TrimSpace(res.ExternalShopID); v != "" {
+				updates["external_shop_id"] = v
+			}
+			if v := strings.TrimSpace(res.Region); v != "" {
+				updates["region"] = v
+			}
+			if v := strings.TrimSpace(res.Currency); v != "" {
+				updates["currency"] = strings.ToUpper(v)
+			}
+		}
+	}
+	result := s.DB.WithContext(c.Request.Context()).Model(&Shop{}).
+		Where("id = ? AND tenant_id = ?", shopID, tenantID).
+		Updates(updates)
+	if result.Error != nil || result.RowsAffected != 1 {
+		persistErr := result.Error
+		if persistErr == nil {
+			persistErr = gorm.ErrRecordNotFound
+		}
+		persistErr = fmt.Errorf("persist connection result: %w", persistErr)
+		tryLog(res, persistErr)
+		return nil, persistErr
+	}
 	tryLog(res, err)
 	return res, err
 }

@@ -7,8 +7,16 @@ export type OzonCategoryNode = {
   typeId?: string;
   parentId?: string;
   name: string;
+  path?: string;
   level: number;
   isLeaf: boolean;
+  hasChildren: boolean;
+  childCount: number;
+  ancestors?: Array<{
+    categoryId: string;
+    name: string;
+    level: number;
+  }>;
   status?: string;
   syncedAt?: string;
 };
@@ -32,9 +40,12 @@ export type OzonCategoryAttribute = {
   categoryId: string;
   attrId: string;
   name: string;
+  description?: string;
   required: boolean;
   valueType?: string;
   dictionaryId?: string;
+  skuVariantEligible?: boolean;
+  skuVariantEligibilityKnown?: boolean;
   isCollection: boolean;
   maxValueCount?: number;
   attributeComplexId?: number;
@@ -43,6 +54,15 @@ export type OzonCategoryAttribute = {
   options?: { id: string; value: string }[];
   syncedAt?: string;
   cacheStale?: boolean;
+};
+
+export type OzonVariantPolicy = {
+  maxSkuCount: number;
+  maxVariantAttributeCount: number;
+  maxVariantCombinationCount: number;
+  eligibleAttributeCount: number;
+  variantEligibilityFullyKnown: boolean;
+  source: "ozon_is_aspect+trademind_import_guardrail" | string;
 };
 
 export type OzonAttributeMapping = {
@@ -55,17 +75,32 @@ export type OzonAttributeMapping = {
 
 export async function queryOzonCategories(params?: {
   keyword?: string;
+  parentId?: string;
+  rootOnly?: boolean;
   onlyLeaf?: boolean;
+  activeOnly?: boolean;
   limit?: number;
+  offset?: number;
 }): Promise<{
   list: OzonCategoryNode[];
   total: number;
   leafCount: number;
+  matchedTotal: number;
+  offset: number;
+  limit: number;
+  lastSyncedAt?: string;
+  cacheStale: boolean;
 }> {
   return getWithParams("/api/v1/platform/ozon/categories", {
     keyword: params?.keyword || undefined,
+    parentId:
+      typeof params?.parentId === "string" ? params.parentId : undefined,
+    rootOnly: params?.rootOnly ? "1" : undefined,
     onlyLeaf: params?.onlyLeaf ? "1" : undefined,
+    activeOnly: params?.activeOnly ? "1" : undefined,
     limit: params?.limit ? String(params.limit) : undefined,
+    offset:
+      typeof params?.offset === "number" ? String(params.offset) : undefined,
   });
 }
 
@@ -84,6 +119,7 @@ export async function getOzonCategoryStats(): Promise<OzonCategoryStats> {
 
 export async function queryOzonCategoryAttributes(categoryId: string): Promise<{
   list: OzonCategoryAttribute[];
+  variantPolicy: OzonVariantPolicy;
 }> {
   return getJSON(
     `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`,

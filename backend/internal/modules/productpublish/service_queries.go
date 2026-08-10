@@ -16,6 +16,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/repository"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasktenant"
+	"gorm.io/gorm"
 )
 
 func (s *Service) shopNameLookup(ctx context.Context, tenantID int64, id uuid.UUID) string {
@@ -64,6 +65,7 @@ func (s *Service) taskToDTO(ctx context.Context, t *ProductPublishTask) TaskDTO 
 		PlatformProductID: strings.TrimSpace(t.PlatformProductID),
 		PlatformRawError:  dtoTrimJSON(t.PlatformRawError),
 		Retryable:         t.Retryable,
+		RecoveryState:     recoveryStateForTask(t),
 		RequestID:         strings.TrimSpace(t.RequestID),
 		MappingSnapshot:   dtoTrimJSON(t.MappingSnapshot),
 		StartedAt:         t.StartedAt,
@@ -76,6 +78,26 @@ func (s *Service) taskToDTO(ctx context.Context, t *ProductPublishTask) TaskDTO 
 		CreatedAt:         t.CreatedAt,
 		UpdatedAt:         t.UpdatedAt,
 	}
+}
+
+func recoveryStateForTask(t *ProductPublishTask) string {
+	if t == nil {
+		return ""
+	}
+	switch strings.TrimSpace(t.ErrorCode) {
+	case ErrorPublishNotSent:
+		return "definite_not_sent"
+	case ErrorPublishResultUnknown, "PUBLISH_RESULT_PERSIST_FAILED":
+		return StatusResultUnknown
+	case ErrorPublishReconciledNotCreated:
+		return "confirmed_not_created"
+	case ErrorPublishNeedsAction:
+		return StatusNeedsAction
+	}
+	if strings.TrimSpace(t.PublishStatus) == StatusResultUnknown {
+		return StatusResultUnknown
+	}
+	return ""
 }
 
 func effectivePublishStatus(t *ProductPublishTask) string {
@@ -213,35 +235,46 @@ func (s *Service) RetryFailed(c *gin.Context, taskID uuid.UUID, adminID *uuid.UU
 		return nil, fmt.Errorf("Ozon 失败任务不能自动重试；请先人工核对或恢复外部刊登结果")
 	}
 	reset := time.Now().UTC()
-	claim := s.DB.WithContext(c.Request.Context()).Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tid, TaskFailed).
-		Updates(map[string]any{
-			"status":          TaskPending,
-			"publish_status":  StatusReady,
-			"error_code":      "",
-			"error_message":   "",
-			"started_at":      nil,
-			"finished_at":     nil,
-			"output":          nil,
-			"platform_result": nil,
-			"retryable":       false,
-			"locked_by":       nil,
-			"locked_until":    nil,
-			"updated_at":      reset,
-		})
-	if claim.Error != nil {
-		return nil, claim.Error
-	}
-	if claim.RowsAffected != 1 {
-		return nil, fmt.Errorf("task retry already claimed")
-	}
-	if rid, ok := snapshotPublicationFromTask(&task); ok {
-		_ = s.DB.WithContext(c.Request.Context()).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, tid).
+	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		claim := tx.Model(&ProductPublishTask{}).Where("id = ? AND tenant_id = ? AND status = ?", taskID, tid, TaskFailed).
 			Updates(map[string]any{
-				"status":          StatusPublishing,
-				"publish_status":  StatusPublishing,
-				"publish_task_id": taskID,
+				"status":          TaskPending,
+				"publish_status":  StatusReady,
+				"error_code":      "",
+				"error_message":   "",
+				"started_at":      nil,
+				"finished_at":     nil,
+				"output":          nil,
+				"platform_result": nil,
+				"retryable":       false,
+				"locked_by":       nil,
+				"locked_until":    nil,
 				"updated_at":      reset,
-			}).Error
+			})
+		if claim.Error != nil {
+			return claim.Error
+		}
+		if claim.RowsAffected != 1 {
+			return fmt.Errorf("task retry already claimed")
+		}
+		if rid, ok := snapshotPublicationFromTask(&task); ok {
+			publication := tx.Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, tid).
+				Updates(map[string]any{
+					"status":          StatusPublishing,
+					"publish_status":  StatusPublishing,
+					"publish_task_id": taskID,
+					"updated_at":      reset,
+				})
+			if publication.Error != nil {
+				return publication.Error
+			}
+			if publication.RowsAffected != 1 {
+				return fmt.Errorf("publication %s not found in tenant %d", rid, tid)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	if s.OpLog != nil {

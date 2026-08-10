@@ -33,6 +33,11 @@ func (s *Service) CancelTask(c *gin.Context, taskID uuid.UUID, adminID *uuid.UUI
 	if st != TaskPending && st != TaskRunning {
 		return nil, fmt.Errorf("only pending or running tasks can be cancelled")
 	}
+	if st == TaskRunning && strings.EqualFold(strings.TrimSpace(task.Platform), "ozon") {
+		// An Ozon import may already have crossed the network boundary. Pretending
+		// that a local cancellation stopped it can produce a duplicate on retry.
+		return nil, fmt.Errorf("运行中的 Ozon 发布任务不能取消；平台写入可能已发出，请等待完成或执行结果对账")
+	}
 	fin := time.Now().UTC()
 	if err := s.DB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		update := tx.Model(&ProductPublishTask{}).

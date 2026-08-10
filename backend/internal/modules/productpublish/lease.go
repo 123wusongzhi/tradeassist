@@ -2,8 +2,10 @@ package productpublish
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +13,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/tasklease"
 	platformdouyin "github.com/trademind-ai/trademind/backend/internal/providers/platform/douyinshop"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 func (s *Service) publishLeaseTTL() time.Duration {
@@ -53,18 +56,47 @@ func (s *Service) validatePublishLease(ctx context.Context, taskID uuid.UUID, wo
 }
 
 func (s *Service) finishProductPublishTask(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
-	if err := s.validatePublishLease(ctx, taskID, workerID, claim); err != nil {
-		slog.Warn("product_publish_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID, "error", err.Error())
-		return err
+	return s.finishProductPublishTaskWithDB(ctx, s.DB, taskID, workerID, claim, updates)
+}
+
+// finishProductPublishTaskWithDB performs the lease check and terminal update
+// in one SQL statement. Passing a transaction lets callers atomically commit a
+// task outcome together with its publication rows.
+func (s *Service) finishProductPublishTaskWithDB(ctx context.Context, db *gorm.DB, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, updates map[string]any) error {
+	if db == nil || claim == nil {
+		return tasklease.ErrLeaseLost
 	}
 	now := time.Now().UTC()
-	updates["locked_by"] = nil
-	updates["locked_until"] = nil
-	updates["updated_at"] = now
+	terminal := make(map[string]any, len(updates)+3)
+	for key, value := range updates {
+		terminal[key] = value
+	}
+	terminal["locked_by"] = nil
+	terminal["locked_until"] = nil
+	terminal["updated_at"] = now
+	res := db.WithContext(ctx).Model(&ProductPublishTask{}).
+		Where("id = ? AND status = ? AND locked_by = ? AND execution_id = ? AND lock_version = ? AND locked_until IS NOT NULL AND locked_until > ?",
+			taskID, TaskRunning, workerID, claim.ExecutionID.String(), claim.LeaseVersion, now).
+		Updates(terminal)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		slog.Warn("product_publish_lease_lost_on_finish", "taskId", taskID.String(), "workerId", workerID)
+		return tasklease.ErrLeaseLost
+	}
+	return nil
+}
+
+func (s *Service) setProductPublishStage(ctx context.Context, taskID uuid.UUID, workerID string, claim *tasklease.ClaimResult, stage string) error {
+	if s == nil || s.DB == nil || claim == nil {
+		return tasklease.ErrLeaseLost
+	}
+	now := time.Now().UTC()
 	res := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
-		Where("id = ? AND locked_by = ? AND execution_id = ? AND lock_version = ?",
-			taskID, workerID, claim.ExecutionID.String(), claim.LeaseVersion).
-		Updates(updates)
+		Where("id = ? AND status = ? AND locked_by = ? AND execution_id = ? AND lock_version = ? AND locked_until IS NOT NULL AND locked_until > ?",
+			taskID, TaskRunning, workerID, claim.ExecutionID.String(), claim.LeaseVersion, now).
+		Updates(map[string]any{"publish_status": stage, "updated_at": now})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -90,6 +122,7 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 	msg := "worker lease expired"
 	code := platformdouyin.CodeDouyinTaskStale
 	recovery := platformdouyin.RecoveryStale
+	applied := false
 	if task.Platform == "douyin_shop" {
 		out := platformdouyin.MarshalRecoveryOutput(nil, platformdouyin.TaskRecoveryMeta{
 			RecoveryStatus: recovery,
@@ -123,38 +156,69 @@ func (s *Service) RecoverLeaseExpired(ctx context.Context, taskID uuid.UUID) err
 		if result.RowsAffected == 0 {
 			return nil
 		}
+		applied = true
 	} else {
-		recoveryUpdate := s.DB.WithContext(ctx).Model(&ProductPublishTask{}).
-			Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, TaskRunning, now, task.LockVersion)
-		if task.LockedBy != nil {
-			recoveryUpdate = recoveryUpdate.Where("locked_by = ?", *task.LockedBy)
+		publishStatus, errorCode, errorMessage, retryable := StatusPubFailed, inferPublishErrorCode(msg), msg, false
+		out := map[string]any{"reason": "lease_expired"}
+		if strings.EqualFold(strings.TrimSpace(task.Platform), "ozon") {
+			if strings.TrimSpace(task.PublishStatus) == StatusPublishing {
+				publishStatus, errorCode, errorMessage = StatusResultUnknown, ErrorPublishResultUnknown, "Ozon 发布请求执行期间 worker 租约过期；平台结果需要对账"
+				out["recoveryState"], out["mutationSent"] = StatusResultUnknown, true
+			} else {
+				publishStatus, errorCode, errorMessage, retryable = StatusPubFailed, ErrorPublishNotSent, "Ozon 发布请求发出前 worker 租约过期；可安全重新创建或重试", true
+				out["recoveryState"], out["mutationSent"] = "definite_not_sent", false
+			}
 		}
-		if task.ExecutionID != nil {
-			recoveryUpdate = recoveryUpdate.Where("execution_id = ?", *task.ExecutionID)
-		}
-		result := recoveryUpdate.
-			Updates(map[string]any{
-				"status":        TaskFailed,
-				"error_message": msg,
-				"finished_at":   &fin,
-				"locked_by":     nil,
-				"locked_until":  nil,
-				"updated_at":    fin,
+		raw, _ := json.Marshal(out)
+		if err := s.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			recoveryUpdate := tx.Model(&ProductPublishTask{}).
+				Where("id = ? AND tenant_id = ? AND status = ? AND locked_until IS NOT NULL AND locked_until < ? AND lock_version = ?", taskID, task.TenantID, TaskRunning, now, task.LockVersion)
+			if task.LockedBy != nil {
+				recoveryUpdate = recoveryUpdate.Where("locked_by = ?", *task.LockedBy)
+			}
+			if task.ExecutionID != nil {
+				recoveryUpdate = recoveryUpdate.Where("execution_id = ?", *task.ExecutionID)
+			}
+			result := recoveryUpdate.Updates(map[string]any{
+				"status": TaskFailed, "publish_status": publishStatus,
+				"error_code": errorCode, "error_message": errorMessage, "retryable": retryable,
+				"finished_at": &fin, "output": datatypes.JSON(raw),
+				"locked_by": nil, "locked_until": nil, "updated_at": fin,
 			})
-		if result.Error != nil {
-			return result.Error
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				return nil
+			}
+			if rid, ok := snapshotPublicationFromTask(&task); ok {
+				publication := tx.Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, task.TenantID).
+					Updates(map[string]any{"status": publishStatus, "publish_status": publishStatus, "updated_at": fin})
+				if publication.Error != nil {
+					return publication.Error
+				}
+				if publication.RowsAffected != 1 {
+					return fmt.Errorf("publication %s not found in tenant %d", rid, task.TenantID)
+				}
+			}
+			applied = true
+			return nil
+		}); err != nil {
+			return err
 		}
-		if result.RowsAffected == 0 {
+		if !applied {
 			return nil
 		}
 	}
-	if rid, ok := snapshotPublicationFromTask(&task); ok {
-		_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, task.TenantID).
-			Updates(map[string]any{
-				"status":         StatusPubFailed,
-				"publish_status": StatusPubFailed,
-				"updated_at":     fin,
-			}).Error
+	if task.Platform == "douyin_shop" {
+		if rid, ok := snapshotPublicationFromTask(&task); ok {
+			_ = s.DB.WithContext(ctx).Model(&ProductPublication{}).Where("id = ? AND tenant_id = ?", rid, task.TenantID).
+				Updates(map[string]any{
+					"status":         StatusPubFailed,
+					"publish_status": StatusPubFailed,
+					"updated_at":     fin,
+				}).Error
+		}
 	}
 	if s.OpLog != nil {
 		_ = s.OpLog.WriteBackground(ctx, operationlog.WriteOpts{

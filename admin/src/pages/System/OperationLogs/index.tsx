@@ -2,24 +2,19 @@ import type { ActionType, ProColumns } from '@ant-design/pro-components';
 import { TmPageContainer, TmProTable as ProTable } from '@/components/ui';
 import { formatDateTime } from '@/utils/formatTime';
 
-import { Tag, Tooltip, Typography } from 'antd';
+import { Alert, Tag, Tooltip, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { useRef } from 'react';
 import { PAGE_COPY, TASK_COPY, commonStatusLabel } from '@/constants/copywriting';
-import {
-  OPERATION_LOG_ACTION_OPTIONS,
-  OPERATION_LOG_RESOURCE_OPTIONS,
-  operationLogActionLabel,
-  operationLogResourceLabel,
-} from '@/constants/operationLogs';
+import { OPERATION_LOG_ACTION_OPTIONS, OPERATION_LOG_RESOURCE_OPTIONS, operationLogActionLabel, operationLogResourceLabel } from '@/constants/operationLogs';
 import { fetchOperationLogs, type OperationLogRow } from '@/services/operationLogs';
 import { useListEmptyLocale } from '@/hooks/useListEmptyLocale';
 
 function statusTag(s: string) {
   const k = (s || '').trim().toLowerCase();
   const label = commonStatusLabel(k);
-  if (k === 'success') return <Tag color="success">{label}</Tag>;
-  if (k === 'failed') return <Tag color="error">{label}</Tag>;
+  if (k === 'success') return <Tag color="processing">接口已执行</Tag>;
+  if (k === 'failed') return <Tag color="error">接口执行失败</Tag>;
   return <Tag>{label === '—' ? s || '—' : label}</Tag>;
 }
 
@@ -88,7 +83,7 @@ export default function OperationLogsPage() {
       render: (_, row) => mappedResourceTag(row.resource),
     },
     {
-      title: '状态',
+      title: '接口执行',
       dataIndex: 'status',
       width: 96,
       search: false,
@@ -139,6 +134,13 @@ export default function OperationLogsPage() {
 
   return (
     <TmPageContainer title={PAGE_COPY.operationLogs.title} subTitle={PAGE_COPY.operationLogs.description}>
+      <Alert
+        type="info"
+        showIcon
+        message="这里记录接口和操作是否执行，不等于平台业务结果"
+        description="发布检查通过仅表示可以进入提交确认；只有刊登任务明确显示“成功上架”且含可售验证证据，才代表 Ozon 已可售。"
+        style={{ marginBottom: 16 }}
+      />
       <ProTable<OperationLogRow>
         rowKey="id"
         actionRef={actionRef}

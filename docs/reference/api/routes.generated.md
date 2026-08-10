@@ -11,7 +11,7 @@ generator: pnpm docs:generate:api
 >
 > This is a static scan of Go `.METHOD("path")` registrations. Prefer OpenAPI if introduced later.
 
-Total matched registrations: 419
+Total matched registrations: 421
 
 | Method | Path | Source file |
 | --- | --- | --- |
@@ -289,6 +289,7 @@ Total matched registrations: 419
 | POST | `/platform/ozon/category-mappings/recommend` | `backend/internal/modules/shop/router.go` |
 | GET | `/platform/ozon/category-mappings` | `backend/internal/modules/shop/router.go` |
 | PUT | `/platform/ozon/category-mappings` | `backend/internal/modules/shop/router.go` |
+| GET | `/platform/ozon/warehouses` | `backend/internal/modules/shop/router.go` |
 | GET | `/platform/providers` | `backend/internal/modules/shop/router.go` |
 | GET | `/platform/publish-settings/:platform` | `backend/internal/modules/shop/router.go` |
 | PUT | `/platform/publish-settings/:platform` | `backend/internal/modules/shop/router.go` |
@@ -313,6 +314,7 @@ Total matched registrations: 419
 | GET | `/product-publish/targets` | `backend/internal/modules/productpublish/handler.go` |
 | POST | `/product-publish/tasks/:id/cancel` | `backend/internal/modules/productpublish/handler.go` |
 | POST | `/product-publish/tasks/:id/douyin/recover` | `backend/internal/modules/productpublish/handler.go` |
+| POST | `/product-publish/tasks/:id/reconcile-ozon` | `backend/internal/modules/productpublish/handler.go` |
 | POST | `/product-publish/tasks/:id/recover-douyin-draft` | `backend/internal/modules/productpublish/handler.go` |
 | POST | `/product-publish/tasks/:id/retry` | `backend/internal/modules/productpublish/handler.go` |
 | GET | `/product-publish/tasks/:id` | `backend/internal/modules/productpublish/handler.go` |

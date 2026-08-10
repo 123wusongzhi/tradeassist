@@ -205,6 +205,7 @@ export type ProductPublishTaskDTO = {
   platformProductId?: string;
   platformRawError?: unknown;
   retryable?: boolean;
+  recoveryState?: string;
   requestId?: string;
   mappingSnapshot?: unknown;
   startedAt?: string;
@@ -218,6 +219,177 @@ export type ProductPublishTaskDTO = {
   updatedAt: string;
   readiness?: ProductReadinessResult;
 };
+
+export type OzonReconcileOutcome = 'platform_created' | 'platform_not_created';
+export type OzonReconcilePlatformStatus = 'imported' | 'pending_review' | 'needs_action' | 'sellable';
+
+export type ReconcileOzonPublishTaskInput = {
+  outcome: OzonReconcileOutcome;
+  evidence: string;
+  externalProductId?: string;
+  externalSpuId?: string;
+  externalUrl?: string;
+  platformStatus?: OzonReconcilePlatformStatus;
+  sellableVerified?: boolean;
+};
+
+export type ProductPublishBusinessStatus = {
+  code: string;
+  text: string;
+  color?: string;
+  successful: boolean;
+  requiresReconciliation: boolean;
+};
+
+export function productPublishBusinessStatus(task: ProductPublishTaskDTO): ProductPublishBusinessStatus {
+  const raw = String(task.publishStatus || task.status || '')
+    .trim()
+    .toLowerCase();
+  const code = raw === 'result_uncertain' ? 'result_unknown' : raw;
+  let requiresReconciliation = task.platform === 'ozon' && (code === 'result_unknown' || task.recoveryState === 'result_unknown' || (task.status === 'failed' && task.retryable !== true && task.recoveryState !== 'confirmed_not_created'));
+  if (task.recoveryState === 'confirmed_not_created') {
+    return {
+      code: 'confirmed_not_created',
+      text: '已确认 Ozon 未创建',
+      color: 'blue',
+      successful: false,
+      requiresReconciliation: false,
+    };
+  }
+  if (task.platform === 'ozon' && (code === 'published' || code === 'sellable') && !hasTrueJSONFlag(task.platformResult, 'sellableVerified') && !hasTrueJSONFlag(task.output, 'sellableVerified')) {
+    requiresReconciliation = true;
+    return {
+      code: 'historical_unverified',
+      text: '历史上架状态待核对',
+      color: 'gold',
+      successful: false,
+      requiresReconciliation,
+    };
+  }
+  const values: Record<string, Omit<ProductPublishBusinessStatus, 'code' | 'requiresReconciliation'>> = {
+    published: { text: '成功上架', color: 'green', successful: true },
+    sellable: { text: '成功上架', color: 'green', successful: true },
+    imported: {
+      text: 'Ozon 已接收，待确认可售',
+      color: 'blue',
+      successful: false,
+    },
+    pending_review: {
+      text: 'Ozon 审核中',
+      color: 'processing',
+      successful: false,
+    },
+    needs_action: { text: '需要修改', color: 'orange', successful: false },
+    result_unknown: {
+      text: '平台结果待核对',
+      color: 'gold',
+      successful: false,
+    },
+    draft_created: { text: '仅创建本地草稿', successful: false },
+    publishing: { text: '正在提交', color: 'processing', successful: false },
+    checking: { text: '正在检查', color: 'processing', successful: false },
+    ready: { text: '等待提交', color: 'processing', successful: false },
+    pending: { text: '等待处理', color: 'processing', successful: false },
+    running: { text: '正在处理', color: 'processing', successful: false },
+    failed: { text: '提交失败', color: 'red', successful: false },
+    cancelled: { text: '已取消', successful: false },
+    canceled: { text: '已取消', successful: false },
+    succeeded: {
+      text: '任务已完成，平台状态待确认',
+      color: 'gold',
+      successful: false,
+    },
+    success: {
+      text: '任务已完成，平台状态待确认',
+      color: 'gold',
+      successful: false,
+    },
+  };
+  const meta = values[code] || { text: code || '状态未知', successful: false };
+  return { code: code || 'unknown', ...meta, requiresReconciliation };
+}
+
+export function canReconcileOzonPublishTask(task: ProductPublishTaskDTO): boolean {
+  return (
+    String(task.platform || '')
+      .trim()
+      .toLowerCase() === 'ozon' &&
+    String(task.status || '')
+      .trim()
+      .toLowerCase() === 'failed' &&
+    productPublishBusinessStatus(task).requiresReconciliation
+  );
+}
+
+function normalizedJSONKey(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function hasTrueJSONFlag(value: unknown, wantedKey: string, depth = 0): boolean {
+  if (value === null || value === undefined || depth > 8) return false;
+  if (Array.isArray(value)) return value.some((item) => hasTrueJSONFlag(item, wantedKey, depth + 1));
+  if (typeof value !== 'object') return false;
+  const normalizedWanted = normalizedJSONKey(wantedKey);
+  return Object.entries(value as Record<string, unknown>).some(([key, nested]) => (normalizedJSONKey(key) === normalizedWanted && nested === true) || hasTrueJSONFlag(nested, wantedKey, depth + 1));
+}
+
+function collectStringsForKeys(value: unknown, wanted: Set<string>, result: string[], depth = 0) {
+  if (value === null || value === undefined || depth > 8 || result.length >= 50) return;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectStringsForKeys(item, wanted, result, depth + 1));
+    return;
+  }
+  if (typeof value !== 'object') return;
+  Object.entries(value as Record<string, unknown>).forEach(([key, nested]) => {
+    if (wanted.has(normalizedJSONKey(key))) {
+      if (typeof nested === 'string' || typeof nested === 'number') {
+        const text = String(nested).trim();
+        if (text) result.push(text);
+      } else if (Array.isArray(nested)) {
+        nested.forEach((item) => {
+          if (typeof item === 'string' || typeof item === 'number') result.push(String(item).trim());
+          else if (item && typeof item === 'object') {
+            const row = item as Record<string, unknown>;
+            const text = String(row.message || row.text || row.value || row.description || '').trim();
+            if (text) result.push(text);
+          }
+        });
+      }
+    }
+    collectStringsForKeys(nested, wanted, result, depth + 1);
+  });
+}
+
+export function extractOzonOfferIds(task: ProductPublishTaskDTO): string[] {
+  const values: string[] = [];
+  const keys = new Set(['offerid', 'externalspuid']);
+  [task.platformPayload, task.input, task.mappingSnapshot, task.platformResult, task.output].forEach((value) => collectStringsForKeys(value, keys, values));
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+export function extractOzonWarnings(task: ProductPublishTaskDTO): string[] {
+  const values: string[] = [];
+  const keys = new Set(['warning', 'warnings']);
+  [task.platformResult, task.output, task.platformRawError].forEach((value) => collectStringsForKeys(value, keys, values));
+  const collectWarningObjects = (value: unknown, depth = 0) => {
+    if (value === null || value === undefined || depth > 8 || values.length >= 50) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => collectWarningObjects(item, depth + 1));
+      return;
+    }
+    if (typeof value !== 'object') return;
+    const row = value as Record<string, unknown>;
+    const level = String(row.level || row.severity || row.status || '').toLowerCase();
+    if (level.includes('warn')) {
+      const text = String(row.message || row.text || row.description || row.code || '').trim();
+      if (text) values.push(text);
+    }
+    Object.values(row).forEach((nested) => collectWarningObjects(nested, depth + 1));
+  };
+  collectWarningObjects(task.platformResult);
+  collectWarningObjects(task.output);
+  return Array.from(new Set(values.filter(Boolean))).slice(0, 20);
+}
 
 export async function publishProduct(
   productId: string,
@@ -266,6 +438,10 @@ export async function retryProductPublishTask(id: string): Promise<ProductPublis
 
 export async function cancelProductPublishTask(id: string): Promise<ProductPublishTaskDTO> {
   return postJSON(`/api/v1/product-publish/tasks/${id}/cancel`, {});
+}
+
+export async function reconcileOzonPublishTask(id: string, body: ReconcileOzonPublishTaskInput): Promise<ProductPublishTaskDTO> {
+  return postJSON(`/api/v1/product-publish/tasks/${encodeURIComponent(id)}/reconcile-ozon`, body);
 }
 
 export async function createDouyinProductDraft(
