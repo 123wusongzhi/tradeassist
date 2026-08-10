@@ -7,6 +7,7 @@ import {
   E2E_OZON_CATEGORY_ID,
   E2E_OZON_SHOP_ID,
   e2eOzonConfig,
+  ozonPublishResponse,
 } from "../mocks/ozon-publish";
 import { e2eShops } from "../mocks/publish";
 import {
@@ -26,6 +27,27 @@ const fiveViewports = [
 
 function cloneConfig() {
   return JSON.parse(JSON.stringify(e2eOzonConfig)) as typeof e2eOzonConfig;
+}
+
+function optionalOzonAttribute(
+  attrId: string,
+  name: string,
+  valueType: string,
+) {
+  return {
+    id: `e2e-attr-${attrId}`,
+    categoryId: E2E_OZON_CATEGORY_ID,
+    attrId,
+    name,
+    required: false,
+    valueType,
+    skuVariantEligible: false,
+    skuVariantEligibilityKnown: true,
+    isCollection: false,
+    maxValueCount: 1,
+    attributeComplexId: 0,
+    complexIsCollection: false,
+  };
 }
 
 async function routeConfigReads(
@@ -109,6 +131,49 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     admin,
     page,
   }) => {
+    await page.route(
+      "**/api/v1/platform/ozon/categories/*/attributes*",
+      async (route) => {
+        const url = new URL(route.request().url());
+        if (
+          route.request().method() !== "GET" ||
+          !decodeURIComponent(url.pathname).endsWith(
+            `/${E2E_OZON_CATEGORY_ID}/attributes`,
+          )
+        ) {
+          await route.fallback();
+          return;
+        }
+        const response = ozonPublishResponse(
+          url.pathname,
+          url.searchParams,
+        ) as {
+          code: number;
+          message: string;
+          data: { list: unknown[] } & Record<string, unknown>;
+        } | null;
+        if (!response?.data?.list) {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            ...response,
+            data: {
+              ...response.data,
+              list: [
+                ...response.data.list,
+                optionalOzonAttribute("30004", "富内容 JSON", "JSON"),
+                optionalOzonAttribute("30005", "PDF 说明书", "URL"),
+                optionalOzonAttribute("30006", "调试标记", "String"),
+              ],
+            },
+          }),
+        });
+      },
+    );
     await admin.goto(centerPath);
     await expectCenterReady(page);
     await expect(
@@ -150,6 +215,29 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByRole("textbox", { name: "商品链接" }),
     ).toHaveAttribute("type", "url");
+    const mappingEvidence = page.locator(
+      ".publishing-center__mapping-evidence",
+    );
+    await expect(
+      mappingEvidence.getByText("description_category_id", { exact: true }),
+    ).toBeHidden();
+    await mappingEvidence.getByText("技术信息 / 高级", { exact: true }).click();
+    await expect(
+      mappingEvidence.getByText("description_category_id", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "富内容 JSON" }),
+    ).toBeHidden();
+    await page.getByText("低频与技术属性（3 项）", { exact: true }).click();
+    await expect(
+      page.getByRole("textbox", { name: "富内容 JSON" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "PDF 说明书" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "刷新当前类目属性模板" }),
+    ).toBeHidden();
 
     await goPublishingStep(page, "包裹、仓库与税率");
     await expect(page.getByText(/E2E 莫斯科 FBS 仓/)).toBeVisible();
@@ -158,12 +246,58 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     ).toBeVisible();
 
     await goPublishingStep(page, "内容与图片");
+    const bulkImages = page.locator(".ozon-publish-page__bulk-images");
+    await expect(
+      bulkImages.locator(".ozon-publish-page__shared-image-grid"),
+    ).toBeHidden();
+    await bulkImages
+      .getByText("选择公共图片（共 2 张）", { exact: true })
+      .click();
+    await expect(
+      bulkImages.locator(".ozon-publish-page__shared-image-grid"),
+    ).toBeVisible();
     const skuImages = page.locator(".ozon-publish-page__sku-image-collapse");
     await expect(skuImages).toHaveCount(1);
     await expect(page.getByText("SKU 原始主图", { exact: true })).toBeHidden();
     await skuImages.locator(".ant-collapse-header").click();
     await expect(
       page.getByText("SKU 原始主图", { exact: true }).last(),
+    ).toBeVisible();
+  });
+
+  test("summarizes a large public-image pool before the operator expands its 43 choices", async ({
+    admin,
+    page,
+  }) => {
+    const largeImageConfig = cloneConfig();
+    largeImageConfig.ozonImages.sharedImages = Array.from(
+      { length: 43 },
+      (_, index) => ({
+        id: `e2e-ozon-shared-${index + 1}`,
+        url: `https://example.test/ozon-shared-${index + 1}.jpg`,
+        imageType: index === 0 ? "main" : "detail",
+        sortOrder: index + 1,
+      }),
+    );
+    await routeConfigReads(page, () => largeImageConfig);
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await goPublishingStep(page, "内容与图片");
+    const bulkImages = page.locator(".ozon-publish-page__bulk-images");
+    await expect(
+      bulkImages.getByText("选择公共图片（共 43 张）", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      bulkImages.locator(".ozon-publish-page__shared-image-grid"),
+    ).toBeHidden();
+    await expect(
+      bulkImages.getByRole("button", { name: "应用到所有 SKU" }),
+    ).toBeVisible();
+    await expect(
+      bulkImages.getByRole("button", {
+        name: "清空所有 SKU 的追加图片",
+      }),
     ).toBeVisible();
   });
 
@@ -198,8 +332,15 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(
       page.getByText("已定位叶子类目，尚未应用", { exact: true }),
     ).toBeVisible();
+    const candidateAlert = page
+      .locator(".ant-alert")
+      .filter({ hasText: "已定位叶子类目，尚未应用" });
     await expect(
-      page.getByText(/description_category_id：100；type_id：200/),
+      candidateAlert.getByText(/description_category_id：100；type_id：200/),
+    ).toBeHidden();
+    await candidateAlert.getByText("技术信息", { exact: true }).click();
+    await expect(
+      candidateAlert.getByText(/description_category_id：100；type_id：200/),
     ).toBeVisible();
     await page
       .getByRole("button", { name: "确认此叶子类目并加载模板" })
@@ -678,6 +819,7 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(colorOption).toBeVisible();
     await colorOption.click();
     await page.getByRole("button", { name: "从本地 SKU 属性自动匹配" }).click();
+    await page.getByText("逐 SKU 变体明细（2 个）", { exact: true }).click();
     await expect(page.getByText("本地属性候选").first()).toBeVisible();
     await page.getByRole("button", { name: "保存当前编辑（不提交）" }).click();
 
@@ -766,6 +908,56 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(page).toHaveURL(new RegExp(`shopId=${secondShopId}`));
   });
 
+  test("does not persist unsaved trial edits when the operator starts preflight", async ({
+    admin,
+    page,
+  }) => {
+    admin.writeGuard.allow({
+      operation: "unexpected-save-before-preflight",
+      method: "PUT",
+      path: new RegExp(`${configPath}$`),
+      response: ok(cloneConfig()),
+    });
+    admin.writeGuard.allow({
+      operation: "unexpected-preflight-for-unsaved-edit",
+      method: "POST",
+      path: new RegExp(
+        `/api/v1/products/${E2E_PRODUCT_ID}/readiness/validate$`,
+      ),
+      response: ok(readinessPassed),
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await goPublishingStep(page, "内容与图片");
+    await page
+      .getByRole("textbox", { name: "Ozon 标题" })
+      .fill("仅用于试探、尚未确认的标题");
+    await goPublishingStep(page, "发布前检查与提交");
+    await expect(
+      page.getByText("有未保存修改：发布前检查不会自动保存", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "运行发布前检查" }).click();
+
+    const warning = page.getByRole("dialog", {
+      name: "有未保存修改，尚未运行检查",
+    });
+    await expect(warning).toBeVisible();
+    await expect(
+      warning.getByText(/试探类目、误选属性和临时编辑均不会被写入/),
+    ).toBeVisible();
+    expect(
+      admin.writeGuard.calls("unexpected-save-before-preflight"),
+    ).toHaveLength(0);
+    expect(
+      admin.writeGuard.calls("unexpected-preflight-for-unsaved-edit"),
+    ).toHaveLength(0);
+    await warning.getByRole("button", { name: "返回确认并保存" }).click();
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
+  });
+
   test("uses read-only backend preflight, requires a second confirmation, and submits once", async ({
     admin,
     page,
@@ -830,8 +1022,12 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
       admin.writeGuard.calls("ozon-readonly-preflight")[0].postDataJSON,
     ).toEqual({ platform: "ozon", shopId: E2E_OZON_SHOP_ID });
     await expect(page.getByText("只读检查通过", { exact: true })).toBeVisible();
-    await expect(page.getByText(/库存：88/)).toBeVisible();
-    await expect(page.getByText(/本地库存/).last()).toBeVisible();
+    await expect(
+      page.getByText("库存：88（本地库存）", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/售价：1990/)).toBeHidden();
+    await page.getByText("查看全部规格明细（1 个）", { exact: true }).click();
+    await expect(page.getByText(/售价：1990/)).toBeVisible();
     expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
 
     const submit = page
@@ -845,8 +1041,11 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     await expect(confirmation).toBeVisible();
     await expect(confirmation.getByText("E2E Ozon 测试店铺")).toBeVisible();
     await expect(
-      confirmation.getByText(/家具 \/ 桌子（100:200）/),
+      confirmation.getByText("家具 / 桌子", { exact: true }),
     ).toBeVisible();
+    await expect(
+      confirmation.getByText("description_category_id", { exact: true }),
+    ).toBeHidden();
     await expect(confirmation.getByText("SKU 数")).toBeVisible();
     await expect(confirmation.getByText(/合计 88/)).toBeVisible();
     await expect(
@@ -944,8 +1143,11 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     });
     await expect(mappingDialog.getByText(/E2E 本地桌子/)).toBeVisible();
     await expect(
-      mappingDialog.getByText(/家具 \/ 桌子（100:200）/),
+      mappingDialog.getByText("家具 / 桌子", { exact: true }),
     ).toBeVisible();
+    await expect(
+      mappingDialog.getByText(/description_category_id：100/),
+    ).toBeHidden();
     await expect(
       mappingDialog.getByRole("button", { name: "确认当前映射" }),
     ).toBeDisabled();
@@ -1008,6 +1210,122 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
     expect(
       admin.writeGuard.calls("sync-ozon-category-cache")[0].postDataJSON,
     ).toEqual({ shopId: E2E_OZON_SHOP_ID });
+  });
+
+  test("reloads the latest attribute template immediately and marks the page result as applied", async ({
+    admin,
+    page,
+  }) => {
+    let templateState: "old" | "latest" | "empty" = "old";
+    const refreshKeys: Array<string | null> = [];
+    const variantPolicy = {
+      maxSkuCount: 100,
+      maxVariantAttributeCount: 2,
+      maxVariantCombinationCount: 100,
+      eligibleAttributeCount: 0,
+      variantEligibilityFullyKnown: true,
+      source: "ozon_is_aspect+trademind_import_guardrail",
+    };
+    await page.route(
+      "**/api/v1/platform/ozon/categories/*/attributes*",
+      async (route) => {
+        if (route.request().method() !== "GET") {
+          await route.fallback();
+          return;
+        }
+        const url = new URL(route.request().url());
+        refreshKeys.push(url.searchParams.get("_refresh"));
+        const attrId =
+          templateState === "latest"
+            ? "latest-template-field"
+            : "old-template-field";
+        const name =
+          templateState === "latest" ? "刷新后的模板字段" : "刷新前模板字段";
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            ok({
+              list:
+                templateState === "empty"
+                  ? []
+                  : [
+                      {
+                        id: attrId,
+                        categoryId: E2E_OZON_CATEGORY_ID,
+                        attrId,
+                        name,
+                        required: false,
+                        valueType: "String",
+                        skuVariantEligible: false,
+                        skuVariantEligibilityKnown: true,
+                        isCollection: false,
+                        maxValueCount: 1,
+                        attributeComplexId: 0,
+                        complexIsCollection: false,
+                        syncedAt:
+                          templateState === "latest"
+                            ? "2026-08-10T08:00:00Z"
+                            : "2026-08-09T08:00:00Z",
+                      },
+                    ],
+              variantPolicy,
+            }),
+          ),
+        });
+      },
+    );
+    admin.writeGuard.allow({
+      operation: "refresh-ozon-attribute-template",
+      method: "POST",
+      path: /\/api\/v1\/platform\/ozon\/categories\/(?:100%3A200|100:200)\/attributes\/sync$/,
+      response: () => {
+        templateState = templateState === "old" ? "latest" : "empty";
+        return ok({
+          count: templateState === "empty" ? 0 : 1,
+          leafCount: 0,
+        });
+      },
+    });
+
+    await admin.goto(centerPath);
+    await expectCenterReady(page);
+    await goPublishingStep(page, "Ozon 类目与属性");
+    await expect(
+      page.getByRole("textbox", { name: "刷新前模板字段" }),
+    ).toBeVisible();
+    await page.getByText("高级类目维护", { exact: true }).click();
+    await page.getByRole("button", { name: "刷新当前类目属性模板" }).click();
+
+    await admin.writeGuard.expectRequestCount(
+      "refresh-ozon-attribute-template",
+      1,
+    );
+    await expect(
+      page.getByText("最新类目属性模板已重新加载，页面已生效", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "刷新后的模板字段" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "刷新前模板字段" }),
+    ).toBeHidden();
+    expect(refreshKeys.some(Boolean)).toBe(true);
+
+    await page.getByRole("button", { name: "刷新当前类目属性模板" }).click();
+    await admin.writeGuard.expectRequestCount(
+      "refresh-ozon-attribute-template",
+      2,
+    );
+    await expect(
+      page.getByText(/Ozon 返回的最新类目属性模板为空/),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "刷新后的模板字段" }),
+    ).toBeVisible();
+    expect(admin.writeGuard.calls("publish-ozon")).toHaveLength(0);
   });
 
   test("shows loading, empty, error, and readonly states without issuing writes", async ({
@@ -1102,6 +1420,10 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
       await goPublishingStep(page, "发布前检查与提交");
       await expectNoRootOverflow(page);
       await expectHeaderContentAligned(page);
+      await page
+        .getByText("查看全部规格明细（1 个）", { exact: true })
+        .click();
+      await expectNoRootOverflow(page);
       if (viewport.width <= 1024) {
         const positions = await page.evaluate(() => {
           const editor = document
@@ -1115,6 +1437,13 @@ test.describe("@ozon-publish @publishing-center 统一刊登中心", () => {
         expect(positions.checkTop).toBeLessThanOrEqual(
           positions.editorTop ?? Number.POSITIVE_INFINITY,
         );
+      }
+      if (viewport.width <= 768) {
+        await goPublishingStep(page, "内容与图片");
+        await page
+          .getByText("选择公共图片（共 2 张）", { exact: true })
+          .click();
+        await expectNoRootOverflow(page);
       }
     });
   }

@@ -12,6 +12,7 @@ type Props = {
   onBulkImageIdsChange: (imageIds: string[]) => void;
   onApplyBulk: (imageIds: string[]) => void;
   onUpdateSKU: (skuId: string, patch: OzonSKUImageSelectionPatch) => void;
+  compactBulkSelection?: boolean;
 };
 
 function skuDisplayName(sku: OzonSKUImageConfig) {
@@ -31,11 +32,28 @@ function imageSourceLabel(source: string) {
   return '商品公共图片';
 }
 
-export default function OzonSKUImageConfigurator({ config, skus, bulkImageIds, disabled, onBulkImageIdsChange, onApplyBulk, onUpdateSKU }: Props) {
+export default function OzonSKUImageConfigurator({ config, skus, bulkImageIds, disabled, onBulkImageIdsChange, onApplyBulk, onUpdateSKU, compactBulkSelection = false }: Props) {
   const sharedImages = config?.sharedImages ?? [];
   const maxImagesPerSku = config?.maxImagesPerSku ?? 10;
   const errorCount = (config?.issues?.length ?? 0) + skus.reduce((total, sku) => total + sku.issues.length, 0);
   const imagesReady = skus.length > 0 && errorCount === 0;
+  const bulkImageSelector = (
+    <Checkbox.Group aria-label="批量选择商品公共图片" value={bulkImageIds} disabled={disabled} onChange={(values) => onBulkImageIdsChange(values.map(String))}>
+      <div className="ozon-publish-page__shared-image-grid">
+        {sharedImages.map((image, index) => (
+          <Checkbox key={image.id} value={image.id}>
+            <span className="ozon-publish-page__shared-image-option">
+              <Image src={image.url} alt={`商品公共图片 ${index + 1}`} width={56} height={56} preview={false} />
+              <span>
+                图片 {index + 1}
+                <Typography.Text type="secondary">{image.imageType || '商品图片'}</Typography.Text>
+              </span>
+            </span>
+          </Checkbox>
+        ))}
+      </div>
+    </Checkbox.Group>
+  );
 
   return (
     <div className="ozon-publish-page__sku-images">
@@ -54,21 +72,25 @@ export default function OzonSKUImageConfigurator({ config, skus, bulkImageIds, d
         <div className="ozon-publish-page__bulk-images">
           <Typography.Text strong>批量追加相同商品公共图片</Typography.Text>
           <Typography.Paragraph type="secondary">先勾选，再应用到所有 SKU；应用后仍可逐个 SKU 调整。</Typography.Paragraph>
-          <Checkbox.Group aria-label="批量选择商品公共图片" value={bulkImageIds} disabled={disabled} onChange={(values) => onBulkImageIdsChange(values.map(String))}>
-            <div className="ozon-publish-page__shared-image-grid">
-              {sharedImages.map((image, index) => (
-                <Checkbox key={image.id} value={image.id}>
-                  <span className="ozon-publish-page__shared-image-option">
-                    <Image src={image.url} alt={`商品公共图片 ${index + 1}`} width={56} height={56} preview={false} />
-                    <span>
-                      图片 {index + 1}
-                      <Typography.Text type="secondary">{image.imageType || '商品图片'}</Typography.Text>
-                    </span>
-                  </span>
-                </Checkbox>
-              ))}
-            </div>
-          </Checkbox.Group>
+          {compactBulkSelection ? (
+            <Collapse
+              size="small"
+              items={[
+                {
+                  key: 'bulk-image-selection',
+                  label: (
+                    <Space wrap>
+                      <span>选择公共图片（共 {sharedImages.length} 张）</span>
+                      <Tag color={bulkImageIds.length > 0 ? 'blue' : undefined}>已选 {bulkImageIds.length} 张</Tag>
+                    </Space>
+                  ),
+                  children: bulkImageSelector,
+                },
+              ]}
+            />
+          ) : (
+            bulkImageSelector
+          )}
           <Space wrap>
             <Button disabled={disabled || bulkImageIds.length === 0} onClick={() => onApplyBulk(bulkImageIds)}>
               应用到所有 SKU

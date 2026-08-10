@@ -117,13 +117,17 @@ export async function getOzonCategoryStats(): Promise<OzonCategoryStats> {
   return getJSON("/api/v1/platform/ozon/categories/stats");
 }
 
-export async function queryOzonCategoryAttributes(categoryId: string): Promise<{
+export async function queryOzonCategoryAttributes(
+  categoryId: string,
+  options?: { refreshKey?: string | number },
+): Promise<{
   list: OzonCategoryAttribute[];
   variantPolicy: OzonVariantPolicy;
 }> {
-  return getJSON(
-    `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`,
-  );
+  const path = `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`;
+  if (options?.refreshKey !== undefined)
+    return getWithParams(path, { _refresh: options.refreshKey });
+  return getJSON(path);
 }
 
 export async function syncOzonCategoryAttributes(

@@ -2,6 +2,7 @@ import { CheckCircleOutlined, SearchOutlined } from "@ant-design/icons";
 import {
   Alert,
   Button,
+  Collapse,
   Input,
   Select,
   Space,
@@ -521,11 +522,23 @@ export default function OzonCategoryNavigator({
           description={
             <Space direction="vertical" size={4}>
               <span>{candidate.path || candidate.name}</span>
-              <span>
-                description_category_id：
-                {candidate.descriptionCategoryId || "—"}；type_id：
-                {candidate.typeId || "—"}
-              </span>
+              <Collapse
+                ghost
+                size="small"
+                items={[
+                  {
+                    key: "category-technical-info",
+                    label: "技术信息",
+                    children: (
+                      <Typography.Text type="secondary">
+                        description_category_id：
+                        {candidate.descriptionCategoryId || "—"}；type_id：
+                        {candidate.typeId || "—"}
+                      </Typography.Text>
+                    ),
+                  },
+                ]}
+              />
               {value && candidate.categoryId !== value ? (
                 <span>
                   当前已应用：{valuePath || value}

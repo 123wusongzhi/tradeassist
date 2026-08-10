@@ -263,6 +263,31 @@ describe("ozon category services", () => {
     );
   });
 
+  it("bypasses cached attribute reads after a template refresh", async () => {
+    requestMock.mockResolvedValueOnce(
+      envelope({
+        list: [],
+        variantPolicy: {
+          maxSkuCount: 100,
+          maxVariantAttributeCount: 1,
+          maxVariantCombinationCount: 100,
+          eligibleAttributeCount: 0,
+          variantEligibilityFullyKnown: true,
+          source: "ozon_is_aspect+trademind_import_guardrail",
+        },
+      }),
+    );
+
+    await queryOzonCategoryAttributes("100:200", {
+      refreshKey: "refresh-1",
+    });
+
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/platform/ozon/categories/100%3A200/attributes",
+      { method: "GET", params: { _refresh: "refresh-1" } },
+    );
+  });
+
   it("round-trips attribute mappings via PUT", async () => {
     requestMock.mockResolvedValueOnce(
       envelope({
