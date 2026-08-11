@@ -201,6 +201,7 @@ describe("TradeMind API contract registry", () => {
       "suggestions[].confidenceLevel",
       "suggestions[].requiresReview",
       "suggestions[].reason",
+      "suggestions[].sourceRefs",
       "skipped[].attributeId",
       "skipped[].attributeName",
       "skipped[].reason",
@@ -208,6 +209,11 @@ describe("TradeMind API contract registry", () => {
       "summary.requiresReview",
       "summary.notFound",
       "warnings",
+    ]);
+    expect(ozonAttributeSuggestions?.confidenceLevels).toEqual([
+      "high",
+      "medium",
+      "low",
     ]);
     expect(ozonAttributeSuggestions?.tenantScoped).toBe(true);
     expect(ozonAttributeSuggestions?.storeScoped).toBe(true);

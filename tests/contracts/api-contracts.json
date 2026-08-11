@@ -366,6 +366,7 @@
         "suggestions[].confidenceLevel",
         "suggestions[].requiresReview",
         "suggestions[].reason",
+        "suggestions[].sourceRefs",
         "skipped[].attributeId",
         "skipped[].attributeName",
         "skipped[].reason",
@@ -374,6 +375,7 @@
         "summary.notFound",
         "warnings"
       ],
+      "confidenceLevels": ["high", "medium", "low"],
       "businessStatuses": ["ready", "partial", "no_match"],
       "errorStatuses": [400, 403, 404, 409, 502, 503],
       "errorDataFields": ["errorCode"]

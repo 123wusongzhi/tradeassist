@@ -45,9 +45,10 @@ const partialResult: OzonAttributeSuggestionResult = {
       attributeId: "count",
       attributeName: "数量",
       values: [{ value: "12" }],
-      confidence: 0.7,
-      confidenceLevel: "medium",
+      confidence: 0.3,
+      confidenceLevel: "low",
       requiresReview: true,
+      sourceRefs: ["common_knowledge"],
     },
   ],
   skipped: [

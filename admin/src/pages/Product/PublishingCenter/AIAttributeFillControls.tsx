@@ -168,7 +168,9 @@ export default function AIAttributeFillControls({
         <div>
           <Typography.Text strong>AI 辅助填写</Typography.Text>
           <Typography.Text type="secondary">
-            仅填写当前普通商品级空白属性，不会保存配置、运行预检或提交 Ozon。
+            会结合商品文字、代表
+            SKU、图片和类目主动推断；仅填写普通商品级空白属性，所有建议请审核，不会自动保存、预检或提交
+            Ozon。
           </Typography.Text>
         </div>
         <Space wrap className="publishing-center__attribute-ai-buttons">
@@ -230,7 +232,7 @@ export default function AIAttributeFillControls({
               ? feedback.notFound > 0 || feedback.partial
                 ? "AI 已部分填写空白项"
                 : "AI 已填写空白项"
-              : "AI 未找到可安全填写的空白项"
+              : "AI 未返回可填写的空白项"
           }
           description={
             <Space direction="vertical" size={6} style={{ width: "100%" }}>

@@ -41,7 +41,7 @@ function suggestion(
 }
 
 describe("Ozon AI attribute suggestion merge", () => {
-  it("fills only blank ordinary fields and marks medium confidence for review", () => {
+  it("fills low-confidence ordinary fields, marks them for review, and never overwrites", () => {
     const result = mergeOzonAIAttributeSuggestions({
       template: [
         attribute("brand"),
@@ -53,8 +53,8 @@ describe("Ozon AI attribute suggestion merge", () => {
         suggestion("brand", "AI 品牌"),
         suggestion("count", "12"),
         suggestion("automatic", "true", {
-          confidence: 0.7,
-          confidenceLevel: "medium",
+          confidence: 0.3,
+          confidenceLevel: "low",
           requiresReview: true,
         }),
       ],
@@ -67,6 +67,9 @@ describe("Ozon AI attribute suggestion merge", () => {
     });
     expect(result.filled).toBe(2);
     expect(result.requiresReview).toBe(1);
+    expect(result.applied.automatic).toEqual(
+      expect.objectContaining({ confidenceLevel: "low", requiresReview: true }),
+    );
     expect(result.applied.brand).toBeUndefined();
     expect(result.rejected).toContainEqual(
       expect.objectContaining({

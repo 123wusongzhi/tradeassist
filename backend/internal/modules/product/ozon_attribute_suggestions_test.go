@@ -2,8 +2,10 @@ package product
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -22,6 +24,16 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
+
+type deadlineCapturingOzonAttributeAI struct {
+	response    *aigate.ChatResponse
+	hasDeadline bool
+}
+
+func (f *deadlineCapturingOzonAttributeAI) Chat(ctx context.Context, _ aigate.ChatRequest) (*aigate.ChatResponse, error) {
+	_, f.hasDeadline = ctx.Deadline()
+	return f.response, nil
+}
 
 type ozonAttributeSuggestionFixture struct {
 	svc     *Service
@@ -59,8 +71,10 @@ func setupOzonAttributeSuggestionFixture(t *testing.T) ozonAttributeSuggestionFi
 	productRow.SKUs = []ProductSKU{sku}
 	shopRow := shop.Shop{TenantID: 1, Platform: "ozon", ShopName: "Test Ozon", Status: shop.StatusActive, AuthStatus: shop.AuthAuthorized}
 	require.NoError(t, svc.DB.Create(&shopRow).Error)
-	require.NoError(t, svc.DB.Create(&shop.PlatformCategory{
-		Platform: "ozon", CategoryID: "100:200", Name: "Industrial controllers", IsLeaf: true, Status: "active",
+	require.NoError(t, svc.DB.Create(&[]shop.PlatformCategory{
+		{Platform: "ozon", CategoryID: "root", Name: "Electronics", Level: 1, Status: "active"},
+		{Platform: "ozon", CategoryID: "controls", ParentID: "root", Name: "Industrial automation", Level: 2, Status: "active"},
+		{Platform: "ozon", CategoryID: "100:200", ParentID: "controls", Name: "Industrial controllers", Level: 3, IsLeaf: true, Status: "active"},
 	}).Error)
 	now := time.Now().UTC()
 	attrs := []shop.OzonAttributeDTO{
@@ -94,10 +108,10 @@ func TestOzonAttributeSuggestionsFillOnlyBlankValidateTypesAndAuditPartialResult
 	fixture := setupOzonAttributeSuggestionFixture(t)
 	fakeAI := &fakeOzonRecommendationAI{responses: []*aigate.ChatResponse{{
 		Content: `{"suggestions":[` +
-			`{"attributeKey":"attribute_1","values":["Acme"],"confidence":0.94,"reason":"apiToken=TEST_ONLY_MODEL_SECRET","evidenceKeys":["evidence_1"]},` +
-			`{"attributeKey":"attribute_2","values":["12.5"],"confidence":0.91,"reason":"数量证据","evidenceKeys":["evidence_2"]},` +
-			`{"attributeKey":"attribute_3","values":["true"],"confidence":0.72,"reason":"描述支持自动模式","evidenceKeys":["evidence_1"]},` +
-			`{"attributeKey":"attribute_999","values":["ignored"],"confidence":0.99,"reason":"unknown","evidenceKeys":["evidence_1"]}` +
+			`{"attributeKey":"attribute_1","values":["Acme"],"confidence":0.94,"reason":"apiToken=TEST_ONLY_MODEL_SECRET","sourceRefs":["product.attributes"]},` +
+			`{"attributeKey":"attribute_2","values":["12.5"],"confidence":0.91,"reason":"数量证据","sourceRefs":["product.title"]},` +
+			`{"attributeKey":"attribute_3","values":["true"],"confidence":0.22,"reason":"标题和 SKU 语义支持自动模式","sourceRefs":["product.title","sku.1"]},` +
+			`{"attributeKey":"attribute_999","values":["ignored"],"confidence":0.99,"reason":"unknown","sourceRefs":["product.title"]}` +
 			`]}`,
 		Model: "fake-attributes", InputTokens: 41, OutputTokens: 29,
 	}}}
@@ -114,9 +128,11 @@ func TestOzonAttributeSuggestionsFillOnlyBlankValidateTypesAndAuditPartialResult
 	require.Len(t, result.Suggestions, 2)
 	require.Equal(t, "10", result.Suggestions[0].Values[0].DictionaryValueID)
 	require.Equal(t, "Acme", result.Suggestions[0].Values[0].Value)
-	require.Empty(t, result.Suggestions[0].Reason)
+	require.NotContains(t, result.Suggestions[0].Reason, "TEST_ONLY_MODEL_SECRET")
 	require.Equal(t, "30-auto", result.Suggestions[1].AttributeID)
+	require.Equal(t, "low", result.Suggestions[1].ConfidenceLevel)
 	require.True(t, result.Suggestions[1].RequiresReview)
+	require.Equal(t, []string{"product.title", "sku.1"}, result.Suggestions[1].SourceRefs)
 	require.NotEmpty(t, result.Context.Fingerprint)
 	require.Equal(t, shop.OzonCategoryAttributeSchemaHash(fixture.attrs), result.Context.TemplateFingerprint)
 	require.NotContains(t, result.Suggestions, OzonAttributeSuggestion{AttributeID: "60-filled"})
@@ -165,18 +181,22 @@ func TestOzonAttributeSuggestionsRejectDictionaryIDsAndInvalidValuesWithoutDropp
 	fixture := setupOzonAttributeSuggestionFixture(t)
 	fixture.svc.OzonAttributeAI = &fakeOzonRecommendationAI{responses: []*aigate.ChatResponse{{
 		Content: `{"suggestions":[` +
-			`{"attributeKey":"attribute_1","values":["999999"],"confidence":0.99,"reason":"model tried an id","evidenceKeys":["evidence_1"]},` +
-			`{"attributeKey":"attribute_2","values":["12"],"confidence":0.9,"reason":"valid integer","evidenceKeys":["evidence_2"]},` +
-			`{"attributeKey":"attribute_3","values":["yes"],"confidence":0.9,"reason":"invalid boolean","evidenceKeys":["evidence_1"]}` +
+			`{"attributeKey":"attribute_1","values":["999999"],"confidence":0.99,"reason":"model tried an id","sourceRefs":["product.title"]},` +
+			`{"attributeKey":"attribute_2","values":["12"],"confidence":0.9,"reason":"valid integer","sourceRefs":["product.title"]},` +
+			`{"attributeKey":"attribute_3","values":["yes"],"confidence":0.9,"reason":"invalid boolean","sourceRefs":["product.title"]},` +
+			`{"attributeKey":"attribute_4","values":["https://manufacturer.example/spec"],"confidence":0.31,"reason":"inferred official product page","sourceRefs":["common_knowledge"]}` +
 			`]}`,
 	}}}
 	c := tenantProductAdminContext(t, fixture.svc, 1)
 	result, err := fixture.svc.SuggestOzonAttributes(c, fixture.product.ID, suggestionBody(fixture, nil), nil)
 	require.NoError(t, err)
 	require.Equal(t, OzonAttributeSuggestionPartial, result.Status)
-	require.Len(t, result.Suggestions, 1)
+	require.Len(t, result.Suggestions, 2)
 	require.Equal(t, "20-quantity", result.Suggestions[0].AttributeID)
 	require.Equal(t, "12", result.Suggestions[0].Values[0].Value)
+	require.Equal(t, "50-url", result.Suggestions[1].AttributeID)
+	require.Equal(t, "low", result.Suggestions[1].ConfidenceLevel)
+	require.True(t, result.Suggestions[1].RequiresReview)
 	for _, suggestion := range result.Suggestions {
 		require.NotEqual(t, "10-brand", suggestion.AttributeID, "a model-supplied dictionary ID must never be accepted")
 	}
@@ -208,7 +228,70 @@ func TestOzonAttributeSuggestionsDoNotPromptOrOverwriteFilledFields(t *testing.T
 	require.NotContains(t, prompt, "12.5")
 }
 
-func TestOzonAttributeSuggestionsWithoutSafeEvidenceSkipsProviderAndAuditsNoMatch(t *testing.T) {
+func TestSelectRepresentativeOzonAttributeSKUsUsesFarthestDifferences(t *testing.T) {
+	created := time.Date(2026, 8, 11, 1, 0, 0, 0, time.UTC)
+	skus := []ProductSKU{
+		{SKUCode: "MAIN", SKUName: "默认款", Attrs: jsonBytes(t, map[string]any{"颜色": "红", "尺寸": "S"})},
+		{SKUCode: "NEAR", SKUName: "近似款", Attrs: jsonBytes(t, map[string]any{"颜色": "红", "尺寸": "M"})},
+		{SKUCode: "FARTHEST", SKUName: "差异最大", Attrs: jsonBytes(t, map[string]any{"颜色": "蓝", "尺寸": "L", "材质": "钢"})},
+		{SKUCode: "THIRD", SKUName: "第三代表", Attrs: jsonBytes(t, map[string]any{"颜色": "绿", "尺寸": "S", "材质": "塑料"})},
+	}
+	for index := range skus {
+		skus[index].ID = uuid.New()
+		skus[index].CreatedAt = created.Add(time.Duration(index) * time.Minute)
+	}
+
+	selected := selectRepresentativeOzonAttributeSKUs(skus)
+	require.Len(t, selected, 3)
+	require.Equal(t, []string{"MAIN", "FARTHEST", "THIRD"}, []string{selected[0].SKUCode, selected[1].SKUCode, selected[2].SKUCode})
+	require.Equal(t, []string{"sku.1", "sku.2", "sku.3"}, []string{selected[0].SourceRef, selected[1].SourceRef, selected[2].SourceRef})
+}
+
+func TestOzonAttributeSuggestionsSendsFullCategoryThreeSKUsAndTwoSafeVisionImages(t *testing.T) {
+	fixture := setupOzonAttributeSuggestionFixture(t)
+	for index, attrs := range []map[string]any{
+		{"模式": "手动", "电压": "12V"},
+		{"模式": "远程", "电压": "220V", "外壳": "金属"},
+		{"模式": "定时", "电压": "24V", "外壳": "塑料"},
+		{"模式": "脉冲", "电压": "48V", "外壳": "铝"},
+	} {
+		require.NoError(t, fixture.svc.DB.Create(&ProductSKU{
+			ProductID: fixture.product.ID, SKUCode: fmt.Sprintf("EXTRA-%d", index+1), SKUName: fmt.Sprintf("扩展款 %d", index+1),
+			Attrs: jsonBytes(t, attrs),
+		}).Error)
+	}
+	require.NoError(t, fixture.svc.DB.Create(&[]ProductImage{
+		{ProductID: fixture.product.ID, ImageType: ImageTypeMain, OriginURL: "https://cdn.example.test/main.jpg?width=1200", IsBestMain: true, SortOrder: 1},
+		{ProductID: fixture.product.ID, ImageType: ImageTypeDetail, OriginURL: "https://cdn.example.test/main.jpg?width=800", SortOrder: 2},
+		{ProductID: fixture.product.ID, ImageType: ImageTypeDetail, OriginURL: "https://cdn.example.test/detail.jpg", SortOrder: 3},
+		{ProductID: fixture.product.ID, ImageType: ImageTypeMarketing, OriginURL: "https://private.example.test/pack.jpg?X-Amz-Signature=TEST_ONLY_SIGNATURE", SortOrder: 4},
+		{ProductID: fixture.product.ID, ImageType: ImageTypeMarketing, OriginURL: "https://cdn.example.test/marketing.jpg", SortOrder: 5},
+	}).Error)
+	fakeAI := &fakeOzonRecommendationAI{responses: []*aigate.ChatResponse{{Content: `{"suggestions":[]}`}}}
+	fixture.svc.OzonAttributeAI = fakeAI
+
+	_, err := fixture.svc.SuggestOzonAttributes(
+		tenantProductAdminContext(t, fixture.svc, 1), fixture.product.ID, suggestionBody(fixture, nil), nil,
+	)
+	require.NoError(t, err)
+	require.Len(t, fakeAI.requests, 1)
+	require.Len(t, fakeAI.requests[0].Messages, 2)
+	userMessage := fakeAI.requests[0].Messages[1]
+	require.Equal(t, []string{
+		"https://cdn.example.test/main.jpg?width=1200",
+		"https://cdn.example.test/detail.jpg",
+	}, userMessage.ImageURLs)
+	require.Equal(t, 3, strings.Count(userMessage.Content, `"sourceRef":"sku.`))
+	require.Contains(t, userMessage.Content, `"fullPath":"Electronics / Industrial automation / Industrial controllers"`)
+	require.Contains(t, userMessage.Content, `"productType":"Industrial controllers"`)
+	require.NotContains(t, userMessage.Content, "https://cdn.example.test")
+	require.NotContains(t, userMessage.Content, "TEST_ONLY_SIGNATURE")
+	require.NotContains(t, strings.Join(userMessage.ImageURLs, "\n"), "private.example.test")
+	require.Contains(t, fakeAI.requests[0].Messages[0].Content, aiprompt.OzonAttributeSuggestionPolicyVersion)
+	require.NotContains(t, fakeAI.requests[0].Messages[0].Content, "没有证据就省略该属性")
+}
+
+func TestOzonAttributeSuggestionsWithoutProductTextStillUsesCategoryPolicyContext(t *testing.T) {
 	fixture := setupOzonAttributeSuggestionFixture(t)
 	emptyJSON := jsonBytes(t, map[string]any{})
 	require.NoError(t, fixture.svc.DB.Model(&Product{}).
@@ -219,7 +302,7 @@ func TestOzonAttributeSuggestionsWithoutSafeEvidenceSkipsProviderAndAuditsNoMatc
 	require.NoError(t, fixture.svc.DB.Model(&ProductSKU{}).
 		Where("product_id = ?", fixture.product.ID).
 		Updates(map[string]any{"attrs": emptyJSON, "raw_data": emptyJSON}).Error)
-	fakeAI := &fakeOzonRecommendationAI{}
+	fakeAI := &fakeOzonRecommendationAI{responses: []*aigate.ChatResponse{{Content: `{"suggestions":[]}`}}}
 	fixture.svc.OzonAttributeAI = fakeAI
 
 	result, err := fixture.svc.SuggestOzonAttributes(
@@ -228,9 +311,12 @@ func TestOzonAttributeSuggestionsWithoutSafeEvidenceSkipsProviderAndAuditsNoMatc
 	require.NoError(t, err)
 	require.Equal(t, OzonAttributeSuggestionNoMatch, result.Status)
 	require.Empty(t, result.Suggestions)
-	require.Empty(t, fakeAI.requests)
+	require.Len(t, fakeAI.requests, 1)
 	require.Positive(t, result.Summary.NotFound)
-	require.Contains(t, strings.Join(result.Warnings, "\n"), "可信文本证据")
+	prompt := fakeAI.requests[0].Messages[1].Content
+	require.Contains(t, prompt, `"fullPath":"Electronics / Industrial automation / Industrial controllers"`)
+	require.Contains(t, prompt, `"common_knowledge"`)
+	require.NotContains(t, prompt, fixture.product.Title)
 
 	var task aitask.AITask
 	require.NoError(t, fixture.svc.DB.First(&task, "id = ?", result.TaskID).Error)
@@ -265,6 +351,19 @@ func TestOzonAttributeSuggestionsProviderFailureKeepsInputsAndStoresRedactedAudi
 	var persisted Product
 	require.NoError(t, fixture.svc.DB.First(&persisted, "id = ?", fixture.product.ID).Error)
 	require.True(t, persisted.UpdatedAt.Equal(beforeUpdatedAt))
+}
+
+func TestOzonAttributeSuggestionsDelegatesProviderTimeoutToAIGateway(t *testing.T) {
+	fixture := setupOzonAttributeSuggestionFixture(t)
+	fakeAI := &deadlineCapturingOzonAttributeAI{response: &aigate.ChatResponse{Content: `{"suggestions":[]}`}}
+	fixture.svc.OzonAttributeAI = fakeAI
+
+	result, err := fixture.svc.SuggestOzonAttributes(
+		tenantProductAdminContext(t, fixture.svc, 1), fixture.product.ID, suggestionBody(fixture, nil), nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, fakeAI.hasDeadline, "service must not replace AIGateway's completion-aware timeout with a shorter deadline")
 }
 
 func TestOzonAttributeSuggestionsRejectUntrustedCurrentValuesBeforeTaskOrAI(t *testing.T) {
@@ -323,6 +422,27 @@ func TestOzonAttributeSuggestionsRejectNonLeafOrInactiveCategoryBeforeTaskOrAI(t
 	}
 }
 
+func TestOzonAttributeSuggestionsRejectStaleTemplateFingerprintBeforeTaskOrAI(t *testing.T) {
+	fixture := setupOzonAttributeSuggestionFixture(t)
+	fakeAI := &fakeOzonRecommendationAI{}
+	fixture.svc.OzonAttributeAI = fakeAI
+	body := suggestionBody(fixture, nil)
+	body.TemplateFingerprint = "stale-template"
+
+	_, err := fixture.svc.SuggestOzonAttributes(
+		tenantProductAdminContext(t, fixture.svc, 1), fixture.product.ID, body, nil,
+	)
+	require.Error(t, err)
+	var apiErr *ozonAttributeSuggestionAPIError
+	require.ErrorAs(t, err, &apiErr)
+	require.Equal(t, http.StatusConflict, apiErr.HTTPStatus())
+	require.Equal(t, OzonAttributeSuggestionContextStale, apiErr.code)
+	require.Empty(t, fakeAI.requests)
+	var taskCount int64
+	require.NoError(t, fixture.svc.DB.Model(&aitask.AITask{}).Count(&taskCount).Error)
+	require.Zero(t, taskCount)
+}
+
 func TestOzonAttributeSuggestionHTTPRejectsReadonlyTenantAndShopBeforeAI(t *testing.T) {
 	fixture := setupOzonAttributeSuggestionFixture(t)
 	fakeAI := &fakeOzonRecommendationAI{}
@@ -363,7 +483,7 @@ func TestOzonAttributeSuggestionHTTPRejectsReadonlyTenantAndShopBeforeAI(t *test
 func TestOzonAttributeSuggestionHTTPSuccessUsesEnvelopeAndRouteIsRegistered(t *testing.T) {
 	fixture := setupOzonAttributeSuggestionFixture(t)
 	fixture.svc.OzonAttributeAI = &fakeOzonRecommendationAI{responses: []*aigate.ChatResponse{{
-		Content: `{"suggestions":[{"attributeKey":"attribute_1","values":["Acme"],"confidence":0.9,"reason":"title","evidenceKeys":["evidence_1"]}]}`,
+		Content: `{"suggestions":[{"attributeKey":"attribute_1","values":["Acme"],"confidence":0.9,"reason":"title","sourceRefs":["product.title"]}]}`,
 	}}}
 	handler := &Handler{Svc: fixture.svc}
 	engine := gin.New()

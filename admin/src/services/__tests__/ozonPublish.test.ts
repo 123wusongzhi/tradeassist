@@ -478,13 +478,24 @@ describe("ozon publish services", () => {
           templateFingerprint: "schema-1",
           fingerprint: "context-1",
         },
-        suggestions: [],
+        suggestions: [
+          {
+            attributeId: "country",
+            attributeName: "原产国",
+            values: [{ value: "中国" }],
+            confidence: 0.25,
+            confidenceLevel: "low",
+            requiresReview: true,
+            reason: "根据商品与通用知识推断",
+            sourceRefs: ["product.title", "common_knowledge"],
+          },
+        ],
         skipped: [],
-        summary: { filled: 0, requiresReview: 0, notFound: 0 },
+        summary: { filled: 1, requiresReview: 1, notFound: 0 },
         warnings: [],
       },
     });
-    await suggestOzonAttributes("product/1", {
+    const result = await suggestOzonAttributes("product/1", {
       shopId: "shop-1",
       categoryId: "100:200",
       templateFingerprint: "schema-1",
@@ -507,6 +518,13 @@ describe("ozon publish services", () => {
           },
         },
       },
+    );
+    expect(result.suggestions[0]).toEqual(
+      expect.objectContaining({
+        confidenceLevel: "low",
+        requiresReview: true,
+        sourceRefs: ["product.title", "common_knowledge"],
+      }),
     );
   });
 

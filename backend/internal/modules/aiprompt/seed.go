@@ -15,6 +15,8 @@ const CodeOzonAttributeSuggestions = "ozon_attribute_suggestions"
 const CodeCustomerReplyGenerate = "customer_reply_generate"
 const CodeCollectRuleGenerate = "collect_rule_generate"
 
+const OzonAttributeSuggestionPolicyVersion = "ozon_attribute_suggestions_policy_v2"
+
 // EnsureDefaults creates built-in prompts when missing.
 func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if db == nil {
@@ -27,6 +29,9 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	if err := ensureOzonAttributeSuggestions(ctx, db); err != nil {
+		return err
+	}
+	if err := migrateOzonAttributeSuggestionsPolicyV2(ctx, db); err != nil {
 		return err
 	}
 	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
@@ -186,15 +191,56 @@ func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
 						"values":       map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
 						"confidence":   map[string]string{"type": "number"},
 						"reason":       map[string]string{"type": "string"},
-						"evidenceKeys": map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+						"sourceRefs":   map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
 					},
-					"required": []string{"attributeKey", "values", "confidence", "reason", "evidenceKeys"},
+					"required": []string{"attributeKey", "values", "confidence", "reason", "sourceRefs"},
 				},
 			},
 		},
 		"required": []string{"suggestions"},
 	})
-	defaultSys := strings.TrimSpace(`你是 Ozon 商品级类目属性建议器。严格输出一个 JSON 对象，且只能包含 suggestions 数组，不要 Markdown 或额外说明。
+	defaultSys := strings.TrimSpace(`你是 Ozon 商品级类目属性建议器。必须遵守服务端附加的产品策略与安全规则，并严格输出单个 JSON 对象。`)
+	defaultUser := strings.TrimSpace(`请尽量为当前普通商品级空白属性生成建议。
+
+商品、类目、代表 SKU 与图片引用 JSON：
+{{context}}
+
+当前允许建议的空白属性 JSON：
+{{attributes}}
+
+允许引用的来源：
+{{sourceRefs}}
+
+只输出 JSON：{"suggestions":[{"attributeKey":"attribute_1","values":["语义文本"],"confidence":0.0,"reason":"简短依据","sourceRefs":["product.title"]}]}`)
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
+// OzonAttributeSuggestionRuntimePolicy is appended at request time so a
+// persisted pre-v2 prompt cannot silently retain the former conservative
+// "omit unless explicit evidence" behavior. Template/type/dictionary checks
+// remain authoritative in product service after the model returns.
+func OzonAttributeSuggestionRuntimePolicy() string {
+	return strings.TrimSpace(`[` + OzonAttributeSuggestionPolicyVersion + `]
+目标：积极使用推断能力，尽量填写当前允许处理的普通商品级空白属性；用户会在保存前最终审核。
+
+输出必须是单个 JSON 对象且只能包含 suggestions 数组。每项必须且只能包含 attributeKey、values、confidence、reason、sourceRefs。
+
+推断政策：
+- 允许综合商品标题、描述、可信商品文本属性、完整 Ozon 类目路径/名称/商品类型、最多 3 个代表 SKU、最多 2 张商品图片以及通用商品知识主动推断。
+- 不要因为缺少直接文字证据就大面积省略。品牌、产地、尺寸重量、保修、HS 编码、认证/合规、日期和 URL 等也可合理推断；不确定时仍返回，并用较低 confidence、明确 reason 和 sourceRefs 标记。
+- 高、中、低可信建议都要返回。confidence 必须在 0 到 1 之间；直接明确可用高可信，需要语义判断用中可信，主要依赖视觉或通用知识用低可信。
+- 只有无法形成任何语义候选、无法满足 valueType/格式/数量约束，或词典属性无法从 dictionaryOptions 中选择唯一语义文本时才省略。
+
+安全与格式：
+- 只能引用输入中的 attributeKey；不得输出或猜测类目 ID、属性 ID、词典 ID、平台 ID。
+- values 只返回语义文本。词典属性只能从该属性 dictionaryOptions 中选择文本，绝不能返回数字 ID。
+- sourceRefs 只能从 allowedSourceRefs 中选择；基于通用知识时使用 common_knowledge，图片按 image.1 / image.2 引用。
+- 单值属性只返回一个值；多值属性不得超过 maxValueCount。Integer、Decimal、Boolean、URL、date/datetime 必须使用对应标准格式。
+- 不要输出凭证、Token、Cookie、店铺信息、图片 URL 或任何私有链接。`)
+}
+
+func legacyBuiltinOzonAttributeSuggestionsV1() (string, string) {
+	legacySys := strings.TrimSpace(`你是 Ozon 商品级类目属性建议器。严格输出一个 JSON 对象，且只能包含 suggestions 数组，不要 Markdown 或额外说明。
 
 每个 suggestions 项必须包含 attributeKey、values、confidence、reason、evidenceKeys。
 
@@ -205,7 +251,7 @@ func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
 - confidence 必须在 0 到 1 之间。证据直接且唯一时才可高于或等于 0.8；需要人工语义判断时应低于 0.8。
 - 单值属性只返回一个值；多值属性不得超过 maxValueCount。
 - 不要输出图片、链接、凭证、Token、Cookie、店铺信息或任何输入中不存在的内容。`)
-	defaultUser := strings.TrimSpace(`请仅为下列空白 Ozon 商品级属性生成有证据的候选值。
+	legacyUser := strings.TrimSpace(`请仅为下列空白 Ozon 商品级属性生成有证据的候选值。
 
 可信商品证据 JSON：
 {{evidence}}
@@ -214,7 +260,29 @@ func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
 {{attributes}}
 
 只输出 JSON：{"suggestions":[...]}`)
-	return defaultSys, defaultUser, datatypes.JSON(schema)
+	return legacySys, legacyUser
+}
+
+func migrateOzonAttributeSuggestionsPolicyV2(ctx context.Context, db *gorm.DB) error {
+	if db == nil {
+		return nil
+	}
+	var row AIPrompt
+	if err := db.WithContext(ctx).Where("code = ?", CodeOzonAttributeSuggestions).First(&row).Error; err != nil {
+		return nil
+	}
+	legacySys, legacyUser := legacyBuiltinOzonAttributeSuggestionsV1()
+	if strings.TrimSpace(row.SystemPrompt) != legacySys || strings.TrimSpace(row.UserPrompt) != legacyUser {
+		return nil
+	}
+	sys, user, schema := builtinOzonAttributeSuggestions()
+	row.SystemPrompt = sys
+	row.UserPrompt = user
+	row.OutputSchema = schema
+	if row.MaxTokens < 4096 {
+		row.MaxTokens = 4096
+	}
+	return db.WithContext(ctx).Save(&row).Error
 }
 
 func ensureOzonAttributeSuggestions(ctx context.Context, db *gorm.DB) error {
@@ -229,7 +297,7 @@ func ensureOzonAttributeSuggestions(ctx context.Context, db *gorm.DB) error {
 	row := &AIPrompt{
 		Code: CodeOzonAttributeSuggestions, Name: "Ozon 类目属性建议", Scene: "product",
 		SystemPrompt: defaultSys, UserPrompt: defaultUser, OutputSchema: schema,
-		Temperature: 0.2, MaxTokens: 2500, Enabled: true,
+		Temperature: 0.2, MaxTokens: 4096, Enabled: true,
 	}
 	return db.WithContext(ctx).Create(row).Error
 }

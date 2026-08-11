@@ -100,7 +100,7 @@ async function openAttributeStep(admin: AdminPage, page: Page) {
 }
 
 test.describe("@smoke @ozon-publish AI 填写 Ozon 属性空白项", () => {
-  test("fills only blanks once, marks medium confidence, clears preflight, and restores the form on undo", async ({
+  test("fills low-confidence blanks, marks them for review, clears preflight, and restores the form on undo", async ({
     admin,
     page,
   }) => {

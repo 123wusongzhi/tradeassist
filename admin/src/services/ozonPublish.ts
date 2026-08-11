@@ -350,7 +350,7 @@ export type OzonAttributeSuggestionContext = {
   fingerprint: string;
 };
 
-export type OzonAttributeSuggestionConfidenceLevel = "high" | "medium";
+export type OzonAttributeSuggestionConfidenceLevel = "high" | "medium" | "low";
 
 export type OzonAttributeSuggestion = {
   attributeId: string;
@@ -360,6 +360,7 @@ export type OzonAttributeSuggestion = {
   confidenceLevel: OzonAttributeSuggestionConfidenceLevel;
   requiresReview: boolean;
   reason?: string;
+  sourceRefs?: string[];
 };
 
 export type OzonAttributeSuggestionSkipped = {

@@ -39,10 +39,11 @@ export const e2eOzonAttributeSuggestions = {
       attributeId: "30002",
       attributeName: "是否偏光",
       values: [{ value: "true" }],
-      confidence: 0.68,
-      confidenceLevel: "medium",
+      confidence: 0.28,
+      confidenceLevel: "low",
       requiresReview: true,
       reason: "商品描述存在相关语义",
+      sourceRefs: ["image.1", "common_knowledge"],
     },
   ],
   skipped: [

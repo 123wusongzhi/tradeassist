@@ -153,15 +153,19 @@ function validateSuggestion(
     return { issue: "组合属性不在 AI 自动填写范围内" };
   if (
     !Number.isFinite(suggestion.confidence) ||
-    suggestion.confidence < mediumConfidenceThreshold ||
+    suggestion.confidence < 0 ||
     suggestion.confidence > 1
   )
-    return { issue: "建议可信度无效或低于回填阈值" };
+    return { issue: "建议可信度无效" };
   const expectedLevel =
-    suggestion.confidence >= highConfidenceThreshold ? "high" : "medium";
+    suggestion.confidence >= highConfidenceThreshold
+      ? "high"
+      : suggestion.confidence >= mediumConfidenceThreshold
+        ? "medium"
+        : "low";
   if (
     suggestion.confidenceLevel !== expectedLevel ||
-    suggestion.requiresReview !== (expectedLevel === "medium")
+    suggestion.requiresReview !== (expectedLevel !== "high")
   )
     return { issue: "建议可信度等级不一致" };
   if (!Array.isArray(suggestion.values) || suggestion.values.length === 0)
