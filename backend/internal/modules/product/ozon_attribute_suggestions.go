@@ -1,7 +1,6 @@
 package product
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -35,7 +34,6 @@ const (
 	OzonAttributeSuggestionAIFailed     = "OZON_ATTRIBUTE_SUGGESTION_AI_FAILED"
 
 	ozonAttributeSuggestionTaskType        = "ozon_attribute_suggestions"
-	ozonAttributeSuggestionRequestTimeout  = 30 * time.Second
 	ozonAttributeSuggestionMediumThreshold = 0.55
 	ozonAttributeSuggestionHighThreshold   = 0.80
 	ozonAttributeSuggestionMaxAttributes   = 120
@@ -366,9 +364,12 @@ func (s *Service) SuggestOzonAttributes(
 		Temperature: promptRow.Temperature, MaxTokens: maxTokens,
 		ResponseFormat: &aigate.ResponseFormat{Type: "json_object"},
 	}
-	requestCtx, cancel := context.WithTimeout(c.Request.Context(), ozonAttributeSuggestionRequestTimeout)
-	defer cancel()
-	resp, err := client.Chat(requestCtx, req)
+	// AIGateway owns the bounded provider timeout (including its completion-size
+	// floor and the configured timeout_sec). Adding a shorter service deadline
+	// here can cancel otherwise healthy large prompts before the gateway policy
+	// has a chance to complete them. The incoming request context still carries
+	// client cancellation through to the provider.
+	resp, err := client.Chat(c.Request.Context(), req)
 	if err != nil || resp == nil {
 		_ = s.AITasks.MarkFailed(c.Request.Context(), task.ID, "provider request failed")
 		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "provider_failed", OzonAttributeSuggestionSummary{})

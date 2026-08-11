@@ -2,6 +2,7 @@ package product
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -22,6 +23,16 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
 )
+
+type deadlineCapturingOzonAttributeAI struct {
+	response    *aigate.ChatResponse
+	hasDeadline bool
+}
+
+func (f *deadlineCapturingOzonAttributeAI) Chat(ctx context.Context, _ aigate.ChatRequest) (*aigate.ChatResponse, error) {
+	_, f.hasDeadline = ctx.Deadline()
+	return f.response, nil
+}
 
 type ozonAttributeSuggestionFixture struct {
 	svc     *Service
@@ -265,6 +276,19 @@ func TestOzonAttributeSuggestionsProviderFailureKeepsInputsAndStoresRedactedAudi
 	var persisted Product
 	require.NoError(t, fixture.svc.DB.First(&persisted, "id = ?", fixture.product.ID).Error)
 	require.True(t, persisted.UpdatedAt.Equal(beforeUpdatedAt))
+}
+
+func TestOzonAttributeSuggestionsDelegatesProviderTimeoutToAIGateway(t *testing.T) {
+	fixture := setupOzonAttributeSuggestionFixture(t)
+	fakeAI := &deadlineCapturingOzonAttributeAI{response: &aigate.ChatResponse{Content: `{"suggestions":[]}`}}
+	fixture.svc.OzonAttributeAI = fakeAI
+
+	result, err := fixture.svc.SuggestOzonAttributes(
+		tenantProductAdminContext(t, fixture.svc, 1), fixture.product.ID, suggestionBody(fixture, nil), nil,
+	)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, fakeAI.hasDeadline, "service must not replace AIGateway's completion-aware timeout with a shorter deadline")
 }
 
 func TestOzonAttributeSuggestionsRejectUntrustedCurrentValuesBeforeTaskOrAI(t *testing.T) {
