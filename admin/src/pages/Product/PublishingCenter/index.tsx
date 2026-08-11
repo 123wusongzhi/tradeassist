@@ -54,6 +54,8 @@ import {
   toOzonImageConfigInput,
   validateOzonReadiness,
   type OzonAttributeEditorValues,
+  type OzonAttributeSuggestionCurrentValues,
+  type OzonAttributeSuggestionResult,
   type OzonImageConfigView,
   type OzonCategoryMapping,
   type OzonProductCategoryRecommendationCandidate,
@@ -87,6 +89,15 @@ import {
   type OzonAttributeFilter,
 } from "./attributeUi";
 import AICategoryRecommendationPanel from "./AICategoryRecommendationPanel";
+import AIAttributeFillControls, {
+  type OzonAIAttributeRequestContext,
+} from "./AIAttributeFillControls";
+import {
+  cloneOzonEditorAttributes,
+  mergeOzonAIAttributeSuggestions,
+  undoOzonAIAttributeSuggestions,
+  type OzonAIAttributeMarker,
+} from "./aiAttributeSuggestions";
 import "../OzonPublish/index.less";
 import "./index.less";
 
@@ -118,6 +129,12 @@ type TemplateRefreshFeedback = {
   attributeCount: number;
   requiredCount: number;
   syncedAt?: string;
+};
+
+type AIAttributeUndoSnapshot = {
+  contextKey: string;
+  attributes: Record<string, string | string[]>;
+  applied: Record<string, OzonAIAttributeMarker>;
 };
 
 type PublishingStep = 0 | 1 | 2 | 3 | 4 | 5;
@@ -235,6 +252,17 @@ function isFilled(value: unknown) {
   if (Array.isArray(value))
     return value.some((item) => String(item ?? "").trim());
   return String(value ?? "").trim() !== "";
+}
+
+function aiAttributeContextKey(context?: OzonAIAttributeRequestContext) {
+  if (!context) return "";
+  return [
+    context.productId,
+    context.shopId,
+    context.categoryId,
+    context.templateFingerprint,
+    context.generation,
+  ].join("\n");
 }
 
 function positiveNumber(value: unknown) {
@@ -479,6 +507,8 @@ export default function PublishingCenterPage() {
   const [config, setConfig] = useState<OzonProductConfig>();
   const [attributes, setAttributes] = useState<OzonCategoryAttribute[]>([]);
   const [variantPolicy, setVariantPolicy] = useState<OzonVariantPolicy>();
+  const [attributeTemplateFingerprint, setAttributeTemplateFingerprint] =
+    useState("");
   const [categoryPath, setCategoryPath] = useState("");
   const [categoryNavigatorRefreshToken, setCategoryNavigatorRefreshToken] =
     useState(0);
@@ -520,6 +550,11 @@ export default function PublishingCenterPage() {
   const [expandedAttributeDescriptions, setExpandedAttributeDescriptions] =
     useState<Set<string>>(() => new Set());
   const [skuVariantDetailsOpen, setSKUVariantDetailsOpen] = useState(false);
+  const [aiAttributeMarkers, setAIAttributeMarkers] = useState<
+    Record<string, OzonAIAttributeMarker>
+  >({});
+  const [aiAttributeUndo, setAIAttributeUndo] =
+    useState<AIAttributeUndoSnapshot>();
   const [loadError, setLoadError] = useState<string>();
   const [searchingAttribute, setSearchingAttribute] = useState<string>();
   const [searchingProducts, setSearchingProducts] = useState(false);
@@ -541,6 +576,11 @@ export default function PublishingCenterPage() {
     setExpandedAttributeDescriptions(new Set());
   }, []);
 
+  const resetAIAttributeState = useCallback(() => {
+    setAIAttributeMarkers({});
+    setAIAttributeUndo(undefined);
+  }, []);
+
   useEffect(() => {
     setActiveStep(initialStep);
   }, [initialStep]);
@@ -548,7 +588,8 @@ export default function PublishingCenterPage() {
   useEffect(() => {
     setAppliedRecommendationCategoryID(undefined);
     attributeLoadSequence.current += 1;
-  }, [productId, shopId]);
+    resetAIAttributeState();
+  }, [productId, resetAIAttributeState, shopId]);
 
   const canEdit =
     !readonly &&
@@ -650,6 +691,7 @@ export default function PublishingCenterPage() {
       setConfig(undefined);
       setAttributes([]);
       setVariantPolicy(undefined);
+      setAttributeTemplateFingerprint("");
       setSKUImages([]);
       form.resetFields();
       return;
@@ -694,6 +736,7 @@ export default function PublishingCenterPage() {
       const categoryId = next.categoryId || undefined;
       let nextAttributes: OzonCategoryAttribute[] = [];
       let nextVariantPolicy: OzonVariantPolicy | undefined;
+      let nextTemplateFingerprint = "";
       if (categoryId) {
         const result = await queryOzonCategoryAttributes(categoryId);
         nextAttributes = addSavedDictionaryOptions(
@@ -701,6 +744,7 @@ export default function PublishingCenterPage() {
           next.platformAttributes,
         );
         nextVariantPolicy = result.variantPolicy;
+        nextTemplateFingerprint = String(result.schemaHash || "").trim();
       }
       // Store switches can finish out of order when their category templates
       // have different response times. Never hydrate a superseded shop into
@@ -761,6 +805,7 @@ export default function PublishingCenterPage() {
       });
       setAttributes(nextAttributes);
       setVariantPolicy(nextVariantPolicy);
+      setAttributeTemplateFingerprint(nextTemplateFingerprint);
       setCategoryPath(next.categoryPath || categoryId || "");
       const imageView = next.ozonImages;
       setSKUImages(
@@ -777,9 +822,10 @@ export default function PublishingCenterPage() {
       setPreflight(undefined);
       setTemplateRefreshFeedback(undefined);
       resetAttributeViewState();
+      resetAIAttributeState();
       setSKUVariantDetailsOpen(false);
     },
-    [form, resetAttributeViewState],
+    [form, resetAIAttributeState, resetAttributeViewState],
   );
 
   useEffect(() => {
@@ -787,6 +833,7 @@ export default function PublishingCenterPage() {
       setConfig(undefined);
       setAttributes([]);
       setVariantPolicy(undefined);
+      setAttributeTemplateFingerprint("");
       setSKUImages([]);
       setPreflight(undefined);
       resetAttributeViewState();
@@ -883,6 +930,42 @@ export default function PublishingCenterPage() {
     setPreflight(undefined);
   };
 
+  const clearAIAttributeTracking = (attributeIDs: string[]) => {
+    const changed = new Set(attributeIDs.filter(Boolean));
+    if (changed.size === 0) return;
+    setAIAttributeMarkers((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(
+          ([attributeID]) => !changed.has(attributeID),
+        ),
+      ),
+    );
+    setAIAttributeUndo((current) => {
+      if (!current) return current;
+      const applied = Object.fromEntries(
+        Object.entries(current.applied).filter(
+          ([attributeID]) => !changed.has(attributeID),
+        ),
+      );
+      return Object.keys(applied).length > 0
+        ? { ...current, applied }
+        : undefined;
+    });
+  };
+
+  const handlePublishingValuesChange = (
+    changedValues: Partial<PublishingFormValues>,
+  ) => {
+    const changedAttributeIDs = Object.keys(changedValues.attributes || {});
+    const selectedVariantIDs = Array.isArray(
+      changedValues.skuVariantAttributeIds,
+    )
+      ? changedValues.skuVariantAttributeIds
+      : [];
+    clearAIAttributeTracking([...changedAttributeIDs, ...selectedVariantIDs]);
+    markDirty();
+  };
+
   const confirmContextChange = useCallback(() => {
     if (!dirty) return Promise.resolve(true);
     return new Promise<boolean>((resolve) => {
@@ -914,10 +997,12 @@ export default function PublishingCenterPage() {
     setConfig(undefined);
     setAttributes([]);
     setVariantPolicy(undefined);
+    setAttributeTemplateFingerprint("");
     setSKUImages([]);
     form.resetFields();
     setTemplateRefreshFeedback(undefined);
     resetAttributeViewState();
+    resetAIAttributeState();
     setSKUVariantDetailsOpen(false);
     setProductId(value);
     setPreflight(undefined);
@@ -933,10 +1018,12 @@ export default function PublishingCenterPage() {
     setConfig(undefined);
     setAttributes([]);
     setVariantPolicy(undefined);
+    setAttributeTemplateFingerprint("");
     setSKUImages([]);
     form.resetFields();
     setTemplateRefreshFeedback(undefined);
     resetAttributeViewState();
+    resetAIAttributeState();
     setSKUVariantDetailsOpen(false);
     setShopId(value);
     setPreflight(undefined);
@@ -951,6 +1038,8 @@ export default function PublishingCenterPage() {
     canonicalPath?: string,
   ) => {
     const sequence = ++attributeLoadSequence.current;
+    setAttributeTemplateFingerprint("");
+    resetAIAttributeState();
     form.setFieldValue("categoryId", categoryId);
     setCategoryPath(canonicalPath || "");
     setAttributes([]);
@@ -976,6 +1065,7 @@ export default function PublishingCenterPage() {
       const nextAttributes = result.list || [];
       setAttributes(nextAttributes);
       setVariantPolicy(result.variantPolicy);
+      setAttributeTemplateFingerprint(String(result.schemaHash || "").trim());
       const initialGroups: Record<
         string,
         Array<Record<string, string | string[]>>
@@ -1647,6 +1737,157 @@ export default function PublishingCenterPage() {
     issue.field?.startsWith("skuAttributeOverrides"),
   ).length;
 
+  const aiAttributeContext: OzonAIAttributeRequestContext | undefined =
+    productId && shopId && selectedCategoryId && attributeTemplateFingerprint
+      ? {
+          productId,
+          shopId,
+          categoryId: selectedCategoryId,
+          templateFingerprint: attributeTemplateFingerprint,
+          generation: attributeLoadSequence.current,
+        }
+      : undefined;
+  const aiAttributeContextRef = useRef(aiAttributeContext);
+  aiAttributeContextRef.current = aiAttributeContext;
+  const aiAttributeDisabledReason =
+    !productId || !shopId
+      ? "请先选择商品和已授权 Ozon 店铺"
+      : !selectedCategoryId
+        ? "请先选择 Ozon 叶子类目"
+        : attributes.length === 0
+          ? "当前类目属性模板尚未加载"
+          : !attributeTemplateFingerprint
+            ? "当前类目模板缺少指纹，请重新加载模板"
+            : templateCacheStale
+              ? "当前类目属性模板已过期，请刷新后再使用 AI 填写"
+              : attributeTemplateError
+                ? "当前类目属性模板状态异常，请刷新后再使用 AI 填写"
+                : syncing
+                  ? "正在刷新 Ozon 类目模板，请稍候"
+                  : loadingConfig
+                    ? "正在加载当前商品配置，请稍候"
+                    : saving
+                      ? "正在保存当前编辑，请稍候"
+                      : checking
+                        ? "正在运行发布前检查，请稍候"
+                        : submitting
+                          ? "正在提交 Ozon，请稍候"
+                          : undefined;
+  const aiAttributeControlsDisabled = Boolean(
+    !canEdit ||
+    aiAttributeDisabledReason ||
+    loadingConfig ||
+    syncing ||
+    saving ||
+    checking ||
+    submitting,
+  );
+
+  const currentAIAttributeValues = () => {
+    const values = form.getFieldsValue(true) as PublishingFormValues;
+    return {
+      attributes: cloneOzonEditorAttributes(values.attributes),
+      skuVariantAttributeIds: [...(values.skuVariantAttributeIds || [])],
+    };
+  };
+
+  const applyAIAttributeResult = (
+    result: OzonAttributeSuggestionResult,
+    snapshot: OzonAttributeSuggestionCurrentValues,
+    requestedContext: OzonAIAttributeRequestContext,
+  ) => {
+    const requestedContextKey = aiAttributeContextKey(requestedContext);
+    if (
+      requestedContextKey !==
+        aiAttributeContextKey(aiAttributeContextRef.current) ||
+      result.context.productId !== requestedContext.productId ||
+      result.context.shopId !== requestedContext.shopId ||
+      result.context.categoryId !== requestedContext.categoryId ||
+      result.context.templateFingerprint !==
+        requestedContext.templateFingerprint
+    )
+      return {
+        filled: 0,
+        requiresReview: 0,
+        notFound: 0,
+        details: ["编辑上下文已变化，旧建议已丢弃"],
+      };
+
+    const latest = form.getFieldsValue(true) as PublishingFormValues;
+    const merged = mergeOzonAIAttributeSuggestions({
+      template: attributes,
+      currentAttributes: latest.attributes,
+      selectedVariantAttributeIds: latest.skuVariantAttributeIds,
+      hasMultipleSKUs: (product?.skus.length || 0) > 1,
+      suggestions: result.suggestions || [],
+    });
+    if (merged.filled > 0) {
+      form.setFieldValue("attributes", merged.attributes);
+      setAIAttributeMarkers((current) => ({
+        ...current,
+        ...merged.applied,
+      }));
+      setAIAttributeUndo({
+        contextKey: requestedContextKey,
+        attributes: cloneOzonEditorAttributes(snapshot.attributes),
+        applied: merged.applied,
+      });
+      markDirty();
+    }
+    const details = [
+      ...(result.skipped || []).map(
+        (item) => `${item.attributeName || item.attributeId}：${item.reason}`,
+      ),
+      ...merged.rejected.map(
+        (item) => `${item.attributeName || item.attributeId}：${item.reason}`,
+      ),
+      ...(result.warnings || []),
+    ];
+    const serverNotFound = Math.max(
+      Number(result.summary?.notFound || 0),
+      (result.skipped || []).length,
+    );
+    return {
+      filled: merged.filled,
+      requiresReview: merged.requiresReview,
+      notFound: serverNotFound + merged.rejected.length,
+      partial:
+        result.status === "partial" ||
+        serverNotFound > 0 ||
+        merged.rejected.length > 0,
+      details,
+    };
+  };
+
+  const undoAIAttributeResult = () => {
+    const current = aiAttributeUndo;
+    if (
+      !current ||
+      current.contextKey !==
+        aiAttributeContextKey(aiAttributeContextRef.current)
+    ) {
+      setAIAttributeUndo(undefined);
+      return;
+    }
+    const latest = form.getFieldsValue(true) as PublishingFormValues;
+    const undone = undoOzonAIAttributeSuggestions({
+      currentAttributes: latest.attributes,
+      snapshotAttributes: current.attributes,
+      applied: current.applied,
+    });
+    if (undone.restoredAttributeIds.length > 0) {
+      form.setFieldValue("attributes", undone.attributes);
+      markDirty();
+    }
+    clearAIAttributeTracking(Object.keys(current.applied));
+    setAIAttributeUndo(undefined);
+    if (undone.preservedManualAttributeIds.length > 0)
+      message.warning(
+        `已撤销未修改的 AI 值；${undone.preservedManualAttributeIds.length} 个后来人工修改的字段保持不变`,
+      );
+    else message.success("已撤销本次 AI 填写，恢复点击前的空白值");
+  };
+
   const submitGate = useMemo(() => {
     const reasons: string[] = [];
     const resolved = preflight?.resolvedOzon;
@@ -1714,105 +1955,104 @@ export default function PublishingCenterPage() {
     shopId,
   ]);
 
-  const saveCurrent = useCallback(
-    async () => {
-      if (!product || !productId || !shopId)
-        throw new Error("请先选择商品和 Ozon 店铺");
-      const values = form.getFieldsValue(true) as PublishingFormValues;
-      if (!values.categoryId) throw new Error("请先选择 Ozon 叶子类目");
-      setSaving(true);
-      try {
-        const localTitle = productTitle(product);
-        const localDescription = productDescription(product);
-        const currentListing = config?.ozonListing;
-        const currency = String(values.currencyCode || "")
-          .trim()
-          .toUpperCase();
-        const skuPriceOverrides = Object.fromEntries(
-          product.skus
-            .map((sku) => [sku.id, values.skuPrices?.[sku.id]] as const)
-            .filter(([skuId, price]) => {
-              const local = product.skus.find((sku) => sku.id === skuId)?.price;
-              return (
-                positiveNumber(price) &&
-                (local === undefined ||
-                  local === null ||
-                  Math.abs(Number(price) - local) > 0.000001)
-              );
-            })
-            .map(([skuId, price]) => [skuId, Number(price)]),
-        );
-        const effectiveCurrency = config?.ozonPreview?.currency;
-        const keepCurrencyOverride =
-          currentListing?.currencyCode ||
-          !effectiveCurrency ||
-          currency !==
-            String(effectiveCurrency.value || "")
-              .trim()
-              .toUpperCase();
-        const saved = await saveOzonProductConfig(productId, {
-          shopId,
-          categoryId: values.categoryId,
-          categoryPath,
-          platformAttributes: buildOzonPlatformAttributesV3(attributes, {
-            attributes: values.attributes,
-            complexGroups: values.complexGroups,
-            skuVariantAttributeIds: values.skuVariantAttributeIds,
-            skuAttributeOverrides: values.skuAttributeOverrides,
-          }),
-          ozonImages: toOzonImageConfigInput(skuImages),
-          ozonListing: {
-            version: 1,
-            titleOverride:
-              String(values.title || "").trim() === localTitle
-                ? undefined
-                : String(values.title || "").trim(),
-            descriptionOverride:
-              String(values.description || "").trim() === localDescription
-                ? undefined
-                : String(values.description || "").trim(),
-            currencyCode: keepCurrencyOverride ? currency : undefined,
-            skuPriceOverrides,
-            package: {
-              weightG: values.package?.weightG,
-              widthMm: values.package?.widthMm,
-              heightMm: values.package?.heightMm,
-              depthMm: values.package?.depthMm,
-              warehouseId:
-                String(values.package?.warehouseId || "").trim() || undefined,
-              vat: String(values.package?.vat || "").trim() || undefined,
-            },
+  const saveCurrent = useCallback(async () => {
+    if (!product || !productId || !shopId)
+      throw new Error("请先选择商品和 Ozon 店铺");
+    const values = form.getFieldsValue(true) as PublishingFormValues;
+    if (!values.categoryId) throw new Error("请先选择 Ozon 叶子类目");
+    setSaving(true);
+    try {
+      const localTitle = productTitle(product);
+      const localDescription = productDescription(product);
+      const currentListing = config?.ozonListing;
+      const currency = String(values.currencyCode || "")
+        .trim()
+        .toUpperCase();
+      const skuPriceOverrides = Object.fromEntries(
+        product.skus
+          .map((sku) => [sku.id, values.skuPrices?.[sku.id]] as const)
+          .filter(([skuId, price]) => {
+            const local = product.skus.find((sku) => sku.id === skuId)?.price;
+            return (
+              positiveNumber(price) &&
+              (local === undefined ||
+                local === null ||
+                Math.abs(Number(price) - local) > 0.000001)
+            );
+          })
+          .map(([skuId, price]) => [skuId, Number(price)]),
+      );
+      const effectiveCurrency = config?.ozonPreview?.currency;
+      const keepCurrencyOverride =
+        currentListing?.currencyCode ||
+        !effectiveCurrency ||
+        currency !==
+          String(effectiveCurrency.value || "")
+            .trim()
+            .toUpperCase();
+      const saved = await saveOzonProductConfig(productId, {
+        shopId,
+        categoryId: values.categoryId,
+        categoryPath,
+        platformAttributes: buildOzonPlatformAttributesV3(attributes, {
+          attributes: values.attributes,
+          complexGroups: values.complexGroups,
+          skuVariantAttributeIds: values.skuVariantAttributeIds,
+          skuAttributeOverrides: values.skuAttributeOverrides,
+        }),
+        ozonImages: toOzonImageConfigInput(skuImages),
+        ozonListing: {
+          version: 1,
+          titleOverride:
+            String(values.title || "").trim() === localTitle
+              ? undefined
+              : String(values.title || "").trim(),
+          descriptionOverride:
+            String(values.description || "").trim() === localDescription
+              ? undefined
+              : String(values.description || "").trim(),
+          currencyCode: keepCurrencyOverride ? currency : undefined,
+          skuPriceOverrides,
+          package: {
+            weightG: values.package?.weightG,
+            widthMm: values.package?.widthMm,
+            heightMm: values.package?.heightMm,
+            depthMm: values.package?.depthMm,
+            warehouseId:
+              String(values.package?.warehouseId || "").trim() || undefined,
+            vat: String(values.package?.vat || "").trim() || undefined,
           },
-        });
-        setConfig(saved);
-        setSKUImages(
-          (saved.ozonImages?.skus || []).map((sku) =>
-            buildOzonSKUImagePreview(
-              sku,
-              saved.ozonImages?.sharedImages || [],
-              saved.ozonImages?.maxImagesPerSku || 10,
-            ),
+        },
+      });
+      setConfig(saved);
+      setSKUImages(
+        (saved.ozonImages?.skus || []).map((sku) =>
+          buildOzonSKUImagePreview(
+            sku,
+            saved.ozonImages?.sharedImages || [],
+            saved.ozonImages?.maxImagesPerSku || 10,
           ),
-        );
-        setDirty(false);
-        setPreflight(undefined);
-        message.success("当前编辑已保存到 TradeMind，不会提交 Ozon");
-        return saved;
-      } finally {
-        setSaving(false);
-      }
-    },
-    [
-      attributes,
-      categoryPath,
-      config,
-      form,
-      product,
-      productId,
-      shopId,
-      skuImages,
-    ],
-  );
+        ),
+      );
+      setDirty(false);
+      setPreflight(undefined);
+      resetAIAttributeState();
+      message.success("当前编辑已保存到 TradeMind，不会提交 Ozon");
+      return saved;
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    attributes,
+    categoryPath,
+    config,
+    form,
+    product,
+    productId,
+    resetAIAttributeState,
+    shopId,
+    skuImages,
+  ]);
 
   const runPreflight = async () => {
     if (!productId || !shopId) return;
@@ -2091,6 +2331,8 @@ export default function PublishingCenterPage() {
     if (!selectedCategoryId || !shopId) return;
     const categoryId = selectedCategoryId;
     const sequence = ++attributeLoadSequence.current;
+    setAttributeTemplateFingerprint("");
+    resetAIAttributeState();
     const values = form.getFieldsValue(true) as PublishingFormValues;
     const currentPayload = buildOzonPlatformAttributesV3(attributes, {
       attributes: values.attributes,
@@ -2153,6 +2395,7 @@ export default function PublishingCenterPage() {
       );
       setAttributes(nextAttributes);
       setVariantPolicy(result.variantPolicy);
+      setAttributeTemplateFingerprint(String(result.schemaHash || "").trim());
       resetAttributeViewState();
       setDirty(true);
       setPreflight(undefined);
@@ -2262,10 +2505,25 @@ export default function PublishingCenterPage() {
 
   const renderAttributeLabel = (attribute: OzonCategoryAttribute) => {
     const formatHint = ozonAttributeFormatHint(attribute);
+    const aiMarker = aiAttributeMarkers[attribute.attrId];
     return (
       <Space size={4} wrap>
         <span>{attribute.name}</span>
         {formatHint ? <Tag>{formatHint}</Tag> : null}
+        {aiMarker ? (
+          <Tag
+            color="processing"
+            title={aiMarker.reason}
+            aria-label={`${attribute.name}：AI 建议${aiMarker.reason ? `，依据：${aiMarker.reason}` : ""}`}
+          >
+            AI 建议
+          </Tag>
+        ) : null}
+        {aiMarker?.requiresReview ? (
+          <Tag color="warning" aria-label={`${attribute.name}：建议核对`}>
+            建议核对
+          </Tag>
+        ) : null}
       </Space>
     );
   };
@@ -2603,7 +2861,7 @@ export default function PublishingCenterPage() {
         <Form<PublishingFormValues>
           form={form}
           layout="vertical"
-          onValuesChange={markDirty}
+          onValuesChange={handlePublishingValuesChange}
           disabled={!canEdit || loadingConfig}
         >
           {activeStep === 0 || activeStep === 2 ? (
@@ -3189,7 +3447,22 @@ export default function PublishingCenterPage() {
                   <SectionCard
                     title="Ozon 类目属性"
                     description="多值属性使用多选；复杂属性按字段组保存，只有 Ozon 明确允许时才能重复添加。"
+                    className="publishing-center__attributes-card"
                   >
+                    <AIAttributeFillControls
+                      context={aiAttributeContext}
+                      readOnly={!canEdit}
+                      disabled={aiAttributeControlsDisabled}
+                      disabledReason={aiAttributeDisabledReason}
+                      canUndo={Boolean(
+                        aiAttributeUndo &&
+                        aiAttributeUndo.contextKey ===
+                          aiAttributeContextKey(aiAttributeContext),
+                      )}
+                      getCurrentValues={currentAIAttributeValues}
+                      onApplyResult={applyAIAttributeResult}
+                      onUndo={undoAIAttributeResult}
+                    />
                     {templateRefreshFeedback &&
                     templateRefreshFeedback.categoryId ===
                       selectedCategoryId ? (

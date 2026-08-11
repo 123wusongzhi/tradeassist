@@ -12,6 +12,7 @@ import {
   ozonSKUVariantTuple,
   publishOzonProduct,
   recommendOzonProductCategories,
+  suggestOzonAttributes,
   saveOzonProductConfig,
   searchOzonLeafCategories,
   syncOzonCategoryFlow,
@@ -458,6 +459,52 @@ describe("ozon publish services", () => {
           shopId: "shop-1",
           skuIds: [],
           refreshPolicy: "if_missing_or_stale",
+        },
+      },
+    );
+  });
+
+  it("requests validated Ozon attribute suggestions without saving or publishing", async () => {
+    requestMock.mockResolvedValueOnce({
+      code: 0,
+      message: "ok",
+      data: {
+        status: "partial",
+        context: {
+          productId: "product/1",
+          productUpdatedAt: "2026-08-11T00:00:00Z",
+          shopId: "shop-1",
+          categoryId: "100:200",
+          templateFingerprint: "schema-1",
+          fingerprint: "context-1",
+        },
+        suggestions: [],
+        skipped: [],
+        summary: { filled: 0, requiresReview: 0, notFound: 0 },
+        warnings: [],
+      },
+    });
+    await suggestOzonAttributes("product/1", {
+      shopId: "shop-1",
+      categoryId: "100:200",
+      templateFingerprint: "schema-1",
+      currentValues: {
+        attributes: { brand: "用户品牌", colors: ["red"] },
+        skuVariantAttributeIds: ["size"],
+      },
+    });
+    expect(requestMock).toHaveBeenCalledWith(
+      "/api/v1/products/product%2F1/ai/ozon-attribute-suggestions",
+      {
+        method: "POST",
+        data: {
+          shopId: "shop-1",
+          categoryId: "100:200",
+          templateFingerprint: "schema-1",
+          currentValues: {
+            attributes: { brand: "用户品牌", colors: ["red"] },
+            skuVariantAttributeIds: ["size"],
+          },
         },
       },
     );

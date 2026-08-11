@@ -3,6 +3,58 @@ import { E2E_PRODUCT_ID } from "./product.fixture";
 
 export const E2E_OZON_SHOP_ID = "e2e-ozon-shop";
 export const E2E_OZON_CATEGORY_ID = "100:200";
+export const E2E_OZON_SCHEMA_HASH = "e2e-schema-v1";
+
+export const e2eOzonAttributeSuggestions = {
+  status: "partial",
+  taskId: "e2e-ozon-attribute-suggestion-task",
+  context: {
+    productId: E2E_PRODUCT_ID,
+    productUpdatedAt: "2026-01-01T00:00:00Z",
+    shopId: E2E_OZON_SHOP_ID,
+    categoryId: E2E_OZON_CATEGORY_ID,
+    templateFingerprint: E2E_OZON_SCHEMA_HASH,
+    fingerprint: "e2e-product-shop-category-template-fingerprint",
+  },
+  suggestions: [
+    {
+      attributeId: "85",
+      attributeName: "品牌",
+      values: [{ value: "AI 不应覆盖的品牌" }],
+      confidence: 0.96,
+      confidenceLevel: "high",
+      requiresReview: false,
+      reason: "商品标题包含品牌",
+    },
+    {
+      attributeId: "20001",
+      attributeName: "容量",
+      values: [{ value: "24" }],
+      confidence: 0.92,
+      confidenceLevel: "high",
+      requiresReview: false,
+      reason: "商品规格包含明确容量",
+    },
+    {
+      attributeId: "30002",
+      attributeName: "是否偏光",
+      values: [{ value: "true" }],
+      confidence: 0.68,
+      confidenceLevel: "medium",
+      requiresReview: true,
+      reason: "商品描述存在相关语义",
+    },
+  ],
+  skipped: [
+    {
+      attributeId: "30003",
+      attributeName: "商品链接",
+      reason: "缺少可核验证据，已留空",
+    },
+  ],
+  summary: { filled: 2, requiresReview: 1, notFound: 1 },
+  warnings: ["部分字段缺少可靠证据，已保留为空"],
+};
 
 export const e2eOzonStats = {
   activeCount: 2,
@@ -71,7 +123,7 @@ export const e2eOzonConfig = {
     skuVariantAttributeIds: [],
     skuAttributeOverrides: {},
   },
-  schemaHash: "e2e-schema-v1",
+  schemaHash: E2E_OZON_SCHEMA_HASH,
   schemaConfirmedAt: "2026-08-03T00:00:00Z",
   ozonImages: {
     version: 1,
@@ -141,7 +193,7 @@ export const e2eOzonConfig = {
     shopId: E2E_OZON_SHOP_ID,
     categoryId: E2E_OZON_CATEGORY_ID,
     categoryPath: "家具 / 桌子",
-    schemaHash: "e2e-schema-v1",
+    schemaHash: E2E_OZON_SCHEMA_HASH,
     title: { value: "E2E Ozon 店铺标题", source: "ozon_product_shop_config" },
     description: {
       value: "E2E Ozon 店铺描述",
@@ -522,6 +574,7 @@ export function ozonPublishResponse(
         variantEligibilityFullyKnown: false,
         source: "ozon_is_aspect+trademind_import_guardrail",
       },
+      schemaHash: E2E_OZON_SCHEMA_HASH,
     });
   return null;
 }

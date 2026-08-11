@@ -11,7 +11,7 @@ generator: pnpm docs:generate:api
 >
 > This is a static scan of Go `.METHOD("path")` registrations. Prefer OpenAPI if introduced later.
 
-Total matched registrations: 422
+Total matched registrations: 423
 
 | Method | Path | Source file |
 | --- | --- | --- |
@@ -323,6 +323,7 @@ Total matched registrations: 422
 | POST | `/product-text` | `backend/internal/modules/aioperationbatch/router.go` |
 | POST | `/products/:id/ai/generate-description` | `backend/internal/modules/product/router.go` |
 | POST | `/products/:id/ai/optimize-title` | `backend/internal/modules/product/router.go` |
+| POST | `/products/:id/ai/ozon-attribute-suggestions` | `backend/internal/modules/product/router.go` |
 | GET | `/products/:id/ai/tasks` | `backend/internal/modules/product/router.go` |
 | POST | `/products/:id/apply-ai-description` | `backend/internal/modules/product/router.go` |
 | POST | `/products/:id/apply-ai-title` | `backend/internal/modules/product/router.go` |

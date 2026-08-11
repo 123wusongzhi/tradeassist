@@ -40,6 +40,7 @@ type Service struct {
 	Shops               DouyinShopClientFactory
 	OzonCategories      OzonCategoryRecommendationCatalog
 	OzonCategoryAI      AIChatClient
+	OzonAttributeAI     AIChatClient
 	DouyinImageUploader DouyinImageUploader
 	Readiness           func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
 }

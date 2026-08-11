@@ -11,6 +11,7 @@ import (
 
 const CodeProductTitleOptimize = "product_title_optimize"
 const CodeProductDescriptionGenerate = "product_description_generate"
+const CodeOzonAttributeSuggestions = "ozon_attribute_suggestions"
 const CodeCustomerReplyGenerate = "customer_reply_generate"
 const CodeCollectRuleGenerate = "collect_rule_generate"
 
@@ -23,6 +24,9 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 		return err
 	}
 	if err := ensureProductDescriptionGenerate(ctx, db); err != nil {
+		return err
+	}
+	if err := ensureOzonAttributeSuggestions(ctx, db); err != nil {
 		return err
 	}
 	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
@@ -165,6 +169,67 @@ Reply with JSON only using the schema from the system message.`)
 		Temperature:  0.45,
 		MaxTokens:    2500,
 		Enabled:      true,
+	}
+	return db.WithContext(ctx).Create(row).Error
+}
+
+func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
+	schema, _ := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"suggestions": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"attributeKey": map[string]string{"type": "string"},
+						"values":       map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+						"confidence":   map[string]string{"type": "number"},
+						"reason":       map[string]string{"type": "string"},
+						"evidenceKeys": map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+					},
+					"required": []string{"attributeKey", "values", "confidence", "reason", "evidenceKeys"},
+				},
+			},
+		},
+		"required": []string{"suggestions"},
+	})
+	defaultSys := strings.TrimSpace(`你是 Ozon 商品级类目属性建议器。严格输出一个 JSON 对象，且只能包含 suggestions 数组，不要 Markdown 或额外说明。
+
+每个 suggestions 项必须包含 attributeKey、values、confidence、reason、evidenceKeys。
+
+不可违反的规则：
+- 只能引用输入中已有的 attributeKey 和 evidence key；不得创造属性、证据、类目 ID、属性 ID 或词典 ID。
+- values 只返回语义文本。词典属性也只能从该属性 dictionaryOptions 中逐字选择文本，绝不能返回或猜测 ID。
+- 只根据 evidence 中明确出现的商品事实建议；没有证据就省略该属性，不能靠常识补齐材质、品牌、认证、日期、链接或规格。
+- confidence 必须在 0 到 1 之间。证据直接且唯一时才可高于或等于 0.8；需要人工语义判断时应低于 0.8。
+- 单值属性只返回一个值；多值属性不得超过 maxValueCount。
+- 不要输出图片、链接、凭证、Token、Cookie、店铺信息或任何输入中不存在的内容。`)
+	defaultUser := strings.TrimSpace(`请仅为下列空白 Ozon 商品级属性生成有证据的候选值。
+
+可信商品证据 JSON：
+{{evidence}}
+
+当前模板允许建议的空白属性 JSON：
+{{attributes}}
+
+只输出 JSON：{"suggestions":[...]}`)
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
+func ensureOzonAttributeSuggestions(ctx context.Context, db *gorm.DB) error {
+	defaultSys, defaultUser, schema := builtinOzonAttributeSuggestions()
+	var count int64
+	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeOzonAttributeSuggestions).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	row := &AIPrompt{
+		Code: CodeOzonAttributeSuggestions, Name: "Ozon 类目属性建议", Scene: "product",
+		SystemPrompt: defaultSys, UserPrompt: defaultUser, OutputSchema: schema,
+		Temperature: 0.2, MaxTokens: 2500, Enabled: true,
 	}
 	return db.WithContext(ctx).Create(row).Error
 }

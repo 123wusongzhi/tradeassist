@@ -336,6 +336,61 @@ export type OzonAttributeEditorValues = {
   skuAttributeOverrides?: OzonSKUAttributeEditorValues;
 };
 
+export type OzonAttributeSuggestionCurrentValues = {
+  attributes: Record<string, string | string[]>;
+  skuVariantAttributeIds?: string[];
+};
+
+export type OzonAttributeSuggestionContext = {
+  productId: string;
+  productUpdatedAt: string;
+  shopId: string;
+  categoryId: string;
+  templateFingerprint: string;
+  fingerprint: string;
+};
+
+export type OzonAttributeSuggestionConfidenceLevel = "high" | "medium";
+
+export type OzonAttributeSuggestion = {
+  attributeId: string;
+  attributeName: string;
+  values: OzonAttributeSelection[];
+  confidence: number;
+  confidenceLevel: OzonAttributeSuggestionConfidenceLevel;
+  requiresReview: boolean;
+  reason?: string;
+};
+
+export type OzonAttributeSuggestionSkipped = {
+  attributeId: string;
+  attributeName: string;
+  reason: string;
+};
+
+export type OzonAttributeSuggestionSummary = {
+  filled: number;
+  requiresReview: number;
+  notFound: number;
+};
+
+export type OzonAttributeSuggestionResult = {
+  status: "ready" | "partial" | "no_match" | string;
+  taskId?: string;
+  context: OzonAttributeSuggestionContext;
+  suggestions: OzonAttributeSuggestion[];
+  skipped: OzonAttributeSuggestionSkipped[];
+  summary: OzonAttributeSuggestionSummary;
+  warnings: string[];
+};
+
+export type OzonAttributeSuggestionInput = {
+  shopId: string;
+  categoryId: string;
+  templateFingerprint: string;
+  currentValues: OzonAttributeSuggestionCurrentValues;
+};
+
 export type OzonImageSource =
   | "sku_original"
   | "manual_fallback"
@@ -1083,6 +1138,15 @@ export function recommendOzonProductCategories(
       skuIds: body.skuIds ?? [],
       refreshPolicy: body.refreshPolicy ?? "if_missing_or_stale",
     },
+  );
+}
+export function suggestOzonAttributes(
+  productId: string,
+  body: OzonAttributeSuggestionInput,
+) {
+  return postJSON<OzonAttributeSuggestionResult>(
+    `/api/v1/products/${enc(productId)}/ai/ozon-attribute-suggestions`,
+    body,
   );
 }
 export function saveOzonCategoryMapping(body: OzonCategoryMappingInput) {

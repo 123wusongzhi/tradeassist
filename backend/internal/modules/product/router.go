@@ -53,6 +53,7 @@ func Register(g *gin.RouterGroup, h *Handler) {
 
 	g.POST("/products/:id/ai/optimize-title", h.OptimizeTitle)
 	g.POST("/products/:id/ai/generate-description", h.GenerateDescription)
+	g.POST("/products/:id/ai/ozon-attribute-suggestions", h.SuggestOzonAttributesHTTP)
 	g.POST("/products/:id/apply-ai-title", h.ApplyAITitle)
 	g.POST("/products/:id/apply-ai-description", h.ApplyAIDescription)
 	g.POST("/products/:id/undo-ai-title", h.UndoAITitle)

@@ -123,6 +123,7 @@ export async function queryOzonCategoryAttributes(
 ): Promise<{
   list: OzonCategoryAttribute[];
   variantPolicy: OzonVariantPolicy;
+  schemaHash: string;
 }> {
   const path = `/api/v1/platform/ozon/categories/${encodeURIComponent(categoryId)}/attributes`;
   if (options?.refreshKey !== undefined)

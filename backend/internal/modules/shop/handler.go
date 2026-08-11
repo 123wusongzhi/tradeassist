@@ -856,7 +856,10 @@ func (h *Handler) ListOzonCategoryAttributes(c *gin.Context) {
 		failOzon(c, err)
 		return
 	}
-	response.OK(c, gin.H{"list": out, "variantPolicy": OzonVariantPolicy(out)})
+	response.OK(c, gin.H{
+		"list": out, "variantPolicy": OzonVariantPolicy(out),
+		"schemaHash": OzonCategoryAttributeSchemaHash(out),
+	})
 }
 
 // SearchOzonDictionaryValues GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values

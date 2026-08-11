@@ -1,7 +1,7 @@
-import { expect, type Page, type Route } from '@playwright/test';
-import { ok } from '../mocks/envelope';
+import { expect, type Page, type Route } from "@playwright/test";
+import { ok } from "../mocks/envelope";
 
-type HttpMethod = 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type HttpMethod = string;
 
 export type WriteRecord = {
   operation: string;
@@ -18,7 +18,7 @@ type AllowRule = {
   operation: string;
   method: HttpMethod;
   path: RegExp;
-  response?: unknown | ((record: WriteRecord) => unknown);
+  response?: unknown | ((record: WriteRecord) => unknown | Promise<unknown>);
   status?: number;
 };
 
@@ -31,7 +31,7 @@ export class NetworkWriteGuard {
   constructor(private readonly page: Page) {}
 
   async install() {
-    await this.page.route('**/api/v1/**', async (route) => this.handle(route));
+    await this.page.route("**/*", async (route) => this.handle(route));
   }
 
   allow(rule: AllowRule) {
@@ -55,13 +55,17 @@ export class NetworkWriteGuard {
   }
 
   async expectRequestCount(operation: string, count: number) {
-    await expect.poll(() => this.calls(operation).length, { message: `${operation} request count` }).toBe(count);
+    await expect
+      .poll(() => this.calls(operation).length, {
+        message: `${operation} request count`,
+      })
+      .toBe(count);
   }
 
   private async handle(route: Route) {
     const request = route.request();
     const method = request.method().toUpperCase();
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    if (method === "GET") {
       await route.fallback();
       return;
     }
@@ -74,7 +78,7 @@ export class NetworkWriteGuard {
       postDataJSON = request.postData();
     }
     const record: WriteRecord = {
-      operation: 'unexpected',
+      operation: "unexpected",
       method: method as HttpMethod,
       url: request.url(),
       path: url.pathname,
@@ -84,20 +88,42 @@ export class NetworkWriteGuard {
       order: ++this.order,
     };
 
-    const matched = this.allowed.find((rule) => rule.method === method && rule.path.test(url.pathname));
+    const matched = this.allowed.find(
+      (rule) => rule.method === method && rule.path.test(url.pathname),
+    );
     if (!matched) {
       this.unexpected.push(record);
-      await route.fulfill({ status: 599, contentType: 'application/json', body: JSON.stringify({ code: 599, message: `unexpected ${method} ${url.pathname}`, data: null }) });
+      await route.fulfill({
+        status: 599,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: 599,
+          message: `unexpected ${method} ${url.pathname}`,
+          data: null,
+        }),
+      });
       return;
     }
 
     record.operation = matched.operation;
     this.records.push(record);
-    const response = typeof matched.response === 'function' ? matched.response(record) : matched.response ?? ok({});
-    await route.fulfill({ status: matched.status ?? 200, contentType: 'application/json', body: JSON.stringify(response) });
+    const response =
+      typeof matched.response === "function"
+        ? await matched.response(record)
+        : (matched.response ?? ok({}));
+    await route.fulfill({
+      status: matched.status ?? 200,
+      contentType: "application/json",
+      body: JSON.stringify(response),
+    });
   }
 
   private formatUnexpected() {
-    return this.unexpected.map((record) => `${record.method} ${record.url} payload=${JSON.stringify(record.postDataJSON)}`).join('\n');
+    return this.unexpected
+      .map(
+        (record) =>
+          `${record.method} ${record.url} payload=${JSON.stringify(record.postDataJSON)}`,
+      )
+      .join("\n");
   }
 }

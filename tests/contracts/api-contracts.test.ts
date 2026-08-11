@@ -48,6 +48,7 @@ describe("TradeMind API contract registry", () => {
         "PUT /api/v1/platform/ozon/category-mappings",
         "GET /api/v1/products/:id/platform-configs/ozon",
         "PUT /api/v1/products/:id/platform-configs/ozon",
+        "POST /api/v1/products/:id/ai/ozon-attribute-suggestions",
         "POST /api/v1/products/:id/platform-configs/ozon/category-recommendations",
         "POST /api/v1/products/:id/readiness/validate",
         "POST /api/v1/product-publish/ozon/category-groups/check",
@@ -87,6 +88,11 @@ describe("TradeMind API contract registry", () => {
         routeKey(item) ===
         "GET /api/v1/platform/ozon/categories/:id/attributes/:attrId/values",
     );
+    const ozonAttributes = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "GET /api/v1/platform/ozon/categories/:id/attributes",
+    );
     const ozonConfig = contracts.endpoints.find(
       (item) =>
         routeKey(item) === "PUT /api/v1/products/:id/platform-configs/ozon",
@@ -99,6 +105,11 @@ describe("TradeMind API contract registry", () => {
       (item) =>
         routeKey(item) ===
         "POST /api/v1/products/:id/platform-configs/ozon/category-recommendations",
+    );
+    const ozonAttributeSuggestions = contracts.endpoints.find(
+      (item) =>
+        routeKey(item) ===
+        "POST /api/v1/products/:id/ai/ozon-attribute-suggestions",
     );
     const ozonReadiness = contracts.endpoints.find(
       (item) =>
@@ -154,6 +165,58 @@ describe("TradeMind API contract registry", () => {
       "ozonListing",
     ]);
     expect(ozonConfigRead?.query).toEqual(["shopId"]);
+    expect(ozonAttributes?.responseFields).toEqual([
+      "list",
+      "variantPolicy",
+      "schemaHash",
+    ]);
+    expect(ozonAttributeSuggestions?.requestBody).toEqual([
+      "shopId",
+      "categoryId",
+      "templateFingerprint",
+      "currentValues",
+    ]);
+    expect(ozonAttributeSuggestions?.responseData).toBe(
+      "OzonAttributeSuggestionResult",
+    );
+    expect(ozonAttributeSuggestions?.businessStatuses).toEqual([
+      "ready",
+      "partial",
+      "no_match",
+    ]);
+    expect(ozonAttributeSuggestions?.responseFields).toEqual([
+      "status",
+      "taskId",
+      "context.productId",
+      "context.productUpdatedAt",
+      "context.shopId",
+      "context.categoryId",
+      "context.templateFingerprint",
+      "context.fingerprint",
+      "suggestions[].attributeId",
+      "suggestions[].attributeName",
+      "suggestions[].values[].value",
+      "suggestions[].values[].dictionaryValueId",
+      "suggestions[].confidence",
+      "suggestions[].confidenceLevel",
+      "suggestions[].requiresReview",
+      "suggestions[].reason",
+      "skipped[].attributeId",
+      "skipped[].attributeName",
+      "skipped[].reason",
+      "summary.filled",
+      "summary.requiresReview",
+      "summary.notFound",
+      "warnings",
+    ]);
+    expect(ozonAttributeSuggestions?.tenantScoped).toBe(true);
+    expect(ozonAttributeSuggestions?.storeScoped).toBe(true);
+    expect(ozonAttributeSuggestions?.auth).toBe(true);
+    expect(ozonAttributeSuggestions?.readonlyAllowed).toBe(false);
+    expect(ozonAttributeSuggestions?.errorStatuses).toEqual([
+      400, 403, 404, 409, 502, 503,
+    ]);
+    expect(ozonAttributeSuggestions?.errorDataFields).toEqual(["errorCode"]);
     expect(ozonCategoryRecommendations?.requestBody).toEqual([
       "shopId",
       "skuIds",
@@ -253,7 +316,7 @@ describe("TradeMind API contract registry", () => {
   });
 
   it("marks every protected Admin endpoint as authenticated", () => {
-    expect(contracts.endpoints).toHaveLength(36);
+    expect(contracts.endpoints).toHaveLength(37);
     expect(
       contracts.endpoints.every((endpoint) => endpoint.auth === true),
     ).toBe(true);

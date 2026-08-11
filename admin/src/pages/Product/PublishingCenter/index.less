@@ -214,6 +214,36 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 16px;
 }
+.publishing-center__attribute-ai {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--ant-color-border-secondary);
+  border-radius: 8px;
+  background: var(--ant-color-fill-quaternary);
+}
+.publishing-center__attribute-ai-actions {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.publishing-center__attribute-ai-actions > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.publishing-center__attribute-ai-actions .ant-typography,
+.publishing-center__attribute-ai .ant-alert-description {
+  overflow-wrap: anywhere;
+}
+.publishing-center__attribute-ai-buttons {
+  flex: none;
+}
 .publishing-center__attribute-grid,
 .publishing-center__attribute-grid > .ant-form-item,
 .publishing-center__attribute-section,
@@ -451,6 +481,15 @@
   .publishing-center__attribute-toolbar {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
+  }
+  .publishing-center__attribute-ai-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .publishing-center__attribute-ai-buttons,
+  .publishing-center__attribute-ai-buttons .ant-space-item,
+  .publishing-center__attribute-ai-buttons .ant-btn {
+    width: 100%;
   }
   .publishing-center__attribute-filters {
     justify-content: flex-start;

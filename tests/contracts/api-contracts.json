@@ -184,7 +184,8 @@
       "method": "GET",
       "path": "/api/v1/platform/ozon/categories/:id/attributes",
       "auth": true,
-      "responseData": "OzonCategoryAttributeList"
+      "responseData": "OzonCategoryAttributeList",
+      "responseFields": ["list", "variantPolicy", "schemaHash"]
     },
     {
       "method": "GET",
@@ -333,6 +334,49 @@
         "legacyFallback"
       ],
       "errorStatuses": [400, 403, 404]
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/products/:id/ai/ozon-attribute-suggestions",
+      "auth": true,
+      "tenantScoped": true,
+      "storeScoped": true,
+      "readonlyAllowed": false,
+      "requestBody": [
+        "shopId",
+        "categoryId",
+        "templateFingerprint",
+        "currentValues"
+      ],
+      "responseData": "OzonAttributeSuggestionResult",
+      "responseFields": [
+        "status",
+        "taskId",
+        "context.productId",
+        "context.productUpdatedAt",
+        "context.shopId",
+        "context.categoryId",
+        "context.templateFingerprint",
+        "context.fingerprint",
+        "suggestions[].attributeId",
+        "suggestions[].attributeName",
+        "suggestions[].values[].value",
+        "suggestions[].values[].dictionaryValueId",
+        "suggestions[].confidence",
+        "suggestions[].confidenceLevel",
+        "suggestions[].requiresReview",
+        "suggestions[].reason",
+        "skipped[].attributeId",
+        "skipped[].attributeName",
+        "skipped[].reason",
+        "summary.filled",
+        "summary.requiresReview",
+        "summary.notFound",
+        "warnings"
+      ],
+      "businessStatuses": ["ready", "partial", "no_match"],
+      "errorStatuses": [400, 403, 404, 409, 502, 503],
+      "errorDataFields": ["errorCode"]
     },
     {
       "method": "POST",
