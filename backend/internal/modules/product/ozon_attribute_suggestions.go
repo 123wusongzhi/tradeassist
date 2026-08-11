@@ -1,7 +1,6 @@
 package product
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
