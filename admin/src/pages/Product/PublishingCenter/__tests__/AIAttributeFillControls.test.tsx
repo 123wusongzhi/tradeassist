@@ -47,14 +47,31 @@ const partialResult: OzonAttributeSuggestionResult = {
       values: [{ value: "12" }],
       confidence: 0.3,
       confidenceLevel: "low",
+      inferenceBasis: "category_fallback_guess",
       requiresReview: true,
       sourceRefs: ["common_knowledge"],
     },
   ],
   skipped: [
-    { attributeId: "url", attributeName: "链接", reason: "缺少可信素材" },
+    {
+      attributeId: "url",
+      attributeName: "链接",
+      kind: "external",
+      reason: "外部字段已跳过",
+    },
   ],
-  summary: { filled: 1, requiresReview: 1, notFound: 1 },
+  summary: {
+    filled: 1,
+    requiresReview: 1,
+    notFound: 1,
+    eligible: 1,
+    high: 0,
+    medium: 0,
+    low: 1,
+    externalSkipped: 1,
+    unsupportedSkipped: 0,
+    validationSkipped: 0,
+  },
   warnings: [],
 };
 
@@ -84,7 +101,12 @@ function props(
       filled: 1,
       requiresReview: 1,
       notFound: 1,
-      details: ["链接：缺少可信素材"],
+      high: 0,
+      medium: 0,
+      low: 1,
+      externalSkipped: 1,
+      otherIncomplete: 1,
+      details: ["链接：外部字段已跳过"],
     })),
     onUndo: vi.fn(),
     ...overrides,
@@ -109,7 +131,13 @@ describe("AIAttributeFillControls", () => {
       "已填写 1",
     );
     expect(screen.getByLabelText("AI 属性填写结果")).toHaveTextContent(
-      "建议核对 1",
+      "低 1",
+    );
+    expect(screen.getByLabelText("AI 属性填写结果")).toHaveTextContent(
+      "外部跳过 1",
+    );
+    expect(screen.getByLabelText("AI 属性填写结果")).toHaveTextContent(
+      "其他未完成 1",
     );
     expect(mocks.suggestOzonAttributes).toHaveBeenCalledWith("product-1", {
       shopId: "shop-1",

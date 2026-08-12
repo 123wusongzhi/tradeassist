@@ -194,13 +194,28 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // LimitedStdHTTPClient returns a stdlib client routed through provider limiter + breaker defaults.
 func LimitedStdHTTPClient(timeout time.Duration, limiter providerlimit.ProviderConcurrencyLimiter, provider providerlimit.ProviderName, operation providerlimit.ProviderOperation) *http.Client {
+	return LimitedStdHTTPClientWithHeaderTimeout(timeout, 0, limiter, provider, operation)
+}
+
+// LimitedStdHTTPClientWithHeaderTimeout is the bounded provider client variant
+// for APIs whose response-header budget must track a request-specific timeout.
+// Passing zero preserves the shared 30-second response-header default.
+func LimitedStdHTTPClientWithHeaderTimeout(timeout, responseHeaderTimeout time.Duration, limiter providerlimit.ProviderConcurrencyLimiter, provider providerlimit.ProviderName, operation providerlimit.ProviderOperation) *http.Client {
+	cfg := limitedStdHTTPConfig(timeout, responseHeaderTimeout)
+	cli := New(cfg, nil, 0)
+	cli.SetProviderLimit(limiter, provider, operation)
+	return cli.HTTPClient()
+}
+
+func limitedStdHTTPConfig(timeout, responseHeaderTimeout time.Duration) Config {
 	cfg := DefaultConfig()
 	if timeout > 0 {
 		cfg.RequestTimeout = timeout
 	}
-	cli := New(cfg, nil, 0)
-	cli.SetProviderLimit(limiter, provider, operation)
-	return cli.HTTPClient()
+	if responseHeaderTimeout > 0 {
+		cfg.ResponseHeaderTimeout = responseHeaderTimeout
+	}
+	return cfg
 }
 
 func (c *Client) observeLimitResult(status int, retryAfter time.Duration, err error) {

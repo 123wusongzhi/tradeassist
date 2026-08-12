@@ -67,6 +67,9 @@ describe("Ozon AI attribute suggestion merge", () => {
     });
     expect(result.filled).toBe(2);
     expect(result.requiresReview).toBe(1);
+    expect(result.high).toBe(1);
+    expect(result.medium).toBe(0);
+    expect(result.low).toBe(1);
     expect(result.applied.automatic).toEqual(
       expect.objectContaining({ confidenceLevel: "low", requiresReview: true }),
     );
@@ -79,7 +82,7 @@ describe("Ozon AI attribute suggestion merge", () => {
     );
   });
 
-  it("rejects invalid types, collections, dictionary ids, variants, and complex fields", () => {
+  it("rejects invalid values, selected variants, and complex fields while keeping unselected variant-eligible fields product-level", () => {
     const result = mergeOzonAIAttributeSuggestions({
       template: [
         attribute("integer", { valueType: "Integer" }),
@@ -112,9 +115,9 @@ describe("Ozon AI attribute suggestion merge", () => {
       ],
     });
 
-    expect(result.filled).toBe(0);
-    expect(result.rejected).toHaveLength(6);
-    expect(result.attributes).toEqual({});
+    expect(result.filled).toBe(1);
+    expect(result.rejected).toHaveLength(5);
+    expect(result.attributes).toEqual({ potentialVariant: "L" });
   });
 
   it("accepts only a current official dictionary option and stores its editor id", () => {
@@ -133,6 +136,101 @@ describe("Ozon AI attribute suggestion merge", () => {
     });
     expect(result.attributes.color).toBe("10");
     expect(result.filled).toBe(1);
+  });
+
+  it("accepts a server-normalized dictionary label when the cached Ozon label has surrounding whitespace", () => {
+    const result = mergeOzonAIAttributeSuggestions({
+      template: [
+        attribute("organizer", {
+          dictionaryId: "organizer-types",
+          options: [{ id: "972863826", value: "存储容器 " }],
+        }),
+      ],
+      suggestions: [
+        suggestion("organizer", "存储容器", {
+          values: [{ value: "存储容器", dictionaryValueId: "972863826" }],
+        }),
+      ],
+    });
+
+    expect(result.attributes.organizer).toBe("972863826");
+    expect(result.filled).toBe(1);
+  });
+
+  it("accepts an authoritative dictionary id when cached and server labels use different locales", () => {
+    const result = mergeOzonAIAttributeSuggestions({
+      template: [
+        attribute("display-color", {
+          dictionaryId: "display-colors",
+          options: [{ id: "42396", value: "彩色" }],
+        }),
+      ],
+      suggestions: [
+        suggestion("display-color", "Цветной", {
+          values: [{ value: "Цветной", dictionaryValueId: "42396" }],
+        }),
+      ],
+    });
+
+    expect(result.attributes["display-color"]).toBe("42396");
+    expect(result.filled).toBe(1);
+    expect(result.dictionaryOptions).toEqual({});
+  });
+
+  it("accepts a server-validated official dictionary option outside the bounded cache", () => {
+    const result = mergeOzonAIAttributeSuggestions({
+      template: [
+        attribute("brand", {
+          dictionaryId: "brands",
+          options: [{ id: "10", value: "Acme" }],
+        }),
+      ],
+      suggestions: [
+        suggestion("brand", "Remote Brand", {
+          values: [{ value: "Remote Brand", dictionaryValueId: "77" }],
+        }),
+      ],
+    });
+
+    expect(result.attributes.brand).toBe("77");
+    expect(result.filled).toBe(1);
+    expect(result.dictionaryOptions).toEqual({
+      brand: [{ id: "77", value: "Remote Brand" }],
+    });
+  });
+
+  it("applies deterministic high, medium, and low inference levels", () => {
+    const result = mergeOzonAIAttributeSuggestions({
+      template: [attribute("high"), attribute("medium"), attribute("low")],
+      suggestions: [
+        suggestion("high", "直接值", {
+          confidence: 0.9,
+          confidenceLevel: "high",
+          inferenceBasis: "direct_product_evidence",
+        }),
+        suggestion("medium", "标品推断", {
+          confidence: 0.7,
+          confidenceLevel: "medium",
+          inferenceBasis: "product_standard_inference",
+          requiresReview: true,
+        }),
+        suggestion("low", "类目猜测", {
+          confidence: 0.3,
+          confidenceLevel: "low",
+          inferenceBasis: "category_fallback_guess",
+          requiresReview: true,
+        }),
+      ],
+    });
+
+    expect(result.attributes).toEqual({
+      high: "直接值",
+      medium: "标品推断",
+      low: "类目猜测",
+    });
+    expect(result).toMatchObject({ high: 1, medium: 1, low: 1 });
+    expect(result.applied.medium.requiresReview).toBe(true);
+    expect(result.applied.low.requiresReview).toBe(true);
   });
 
   it("rejects impossible dates and non-RFC3339 datetimes", () => {

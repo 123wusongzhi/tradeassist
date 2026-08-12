@@ -134,12 +134,14 @@ test.describe("@smoke @ozon-publish AI 填写 Ozon 属性空白项", () => {
     const brand = page.getByRole("textbox", { name: "品牌" });
     const capacity = page.getByRole("spinbutton", { name: "容量" });
     const polarized = page.getByLabel("是否偏光");
+    const inferredSpec = page.getByRole("textbox", { name: "待确认规格" });
     const polarizedItem = page
       .locator(".ant-form-item")
       .filter({ has: polarized })
       .first();
     await expect(brand).toHaveValue("E2E");
     await expect(capacity).toHaveValue("");
+    await expect(inferredSpec).toHaveValue("");
     await expect(
       polarizedItem.getByText("是（true）", { exact: true }),
     ).toHaveCount(0);
@@ -156,18 +158,30 @@ test.describe("@smoke @ozon-publish AI 填写 Ozon 属性空白项", () => {
     await expect(
       page.getByText("AI 已部分填写空白项", { exact: true }),
     ).toBeVisible();
-    await expect(feedback.getByText("已填写 2", { exact: true })).toBeVisible();
+    await expect(feedback.getByText("已填写 3", { exact: true })).toBeVisible();
     await expect(
-      feedback.getByText("建议核对 1", { exact: true }),
+      feedback.getByText("高 1", { exact: true }),
     ).toBeVisible();
-    await expect(feedback.getByText("未找到 2", { exact: true })).toBeVisible();
+    await expect(feedback.getByText("中 1", { exact: true })).toBeVisible();
+    await expect(feedback.getByText("低 1", { exact: true })).toBeVisible();
+    await expect(
+      feedback.getByText("外部跳过 1", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      feedback.getByText("其他未完成 1", { exact: true }),
+    ).toBeVisible();
     await expect(brand).toHaveValue("E2E");
     await expect(capacity).toHaveValue("24");
+    await expect(inferredSpec).toHaveValue("通用规格");
     await expect(
       polarizedItem.getByText("是（true）", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("AI 建议", { exact: true })).toHaveCount(2);
+    await expect(page.getByText("AI 建议", { exact: true })).toHaveCount(3);
+    await expect(page.getByText("高可信", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("中可信", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("低可信", { exact: true })).toHaveCount(1);
     await expect(page.getByText("建议核对", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("重点核对", { exact: true })).toHaveCount(1);
 
     const request = admin.writeGuard.calls("suggest-ozon-attributes")[0]
       .postDataJSON as {
@@ -193,9 +207,11 @@ test.describe("@smoke @ozon-publish AI 填写 Ozon 属性空白项", () => {
     await expect(page.getByText("只读检查通过", { exact: true })).toBeHidden();
     await page.getByText("Ozon 类目与属性", { exact: true }).first().click();
 
+    await capacity.fill("25");
     await page.getByRole("button", { name: "撤销本次 AI 填写" }).click();
     await expect(brand).toHaveValue("E2E");
-    await expect(capacity).toHaveValue("");
+    await expect(capacity).toHaveValue("25");
+    await expect(inferredSpec).toHaveValue("");
     await expect(
       polarizedItem.getByText("是（true）", { exact: true }),
     ).toHaveCount(0);
@@ -228,6 +244,35 @@ test.describe("@smoke @ozon-publish AI 填写 Ozon 属性空白项", () => {
     await expect(capacity).toHaveValue("");
     await expect(page.getByLabel("AI 属性填写结果")).toHaveCount(0);
     await expect(page.getByText("AI 建议", { exact: true })).toHaveCount(0);
+    expectNoSaveOrPublish(admin);
+    await admin.writeGuard.expectRequestCount("preflight-ozon-after-ai", 0);
+  });
+
+  test("does not overwrite a value entered while the AI response is pending", async ({
+    admin,
+    page,
+  }) => {
+    const responseGate = deferred<ReturnType<typeof ok>>();
+    admin.writeGuard.allow({
+      operation: "suggest-ozon-attributes-manual-race",
+      method: "POST",
+      path: suggestionPath,
+      response: () => responseGate.promise,
+    });
+    watchPersistenceWrites(admin);
+
+    await openAttributeStep(admin, page);
+    const capacity = page.getByRole("spinbutton", { name: "容量" });
+    await page.getByRole("button", { name: "AI 填写空白项" }).click();
+    await admin.writeGuard.expectRequestCount(
+      "suggest-ozon-attributes-manual-race",
+      1,
+    );
+    await capacity.fill("19");
+    responseGate.resolve(ok(cloneSuggestions()));
+
+    await expect(page.getByLabel("AI 属性填写结果")).toBeVisible();
+    await expect(capacity).toHaveValue("19");
     expectNoSaveOrPublish(admin);
     await admin.writeGuard.expectRequestCount("preflight-ozon-after-ai", 0);
   });

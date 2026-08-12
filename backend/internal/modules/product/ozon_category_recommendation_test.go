@@ -23,22 +23,36 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/pkg/ctxkey"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/response"
 	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	platformozon "github.com/trademind-ai/trademind/backend/internal/providers/platform/ozon"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type fakeOzonRecommendationAI struct {
-	mu        sync.Mutex
-	responses []*aigate.ChatResponse
-	errors    []error
-	requests  []aigate.ChatRequest
+	mu             sync.Mutex
+	responses      []*aigate.ChatResponse
+	errors         []error
+	requests       []aigate.ChatRequest
+	factResponse   *aigate.ChatResponse
+	factError      error
+	nonFactCallNum int
 }
 
 func (f *fakeOzonRecommendationAI) Chat(_ context.Context, request aigate.ChatRequest) (*aigate.ChatResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.requests = append(f.requests, request)
-	index := len(f.requests) - 1
+	if isOzonAttributeFactRequest(request) {
+		if f.factError != nil {
+			return nil, f.factError
+		}
+		if f.factResponse != nil {
+			return f.factResponse, nil
+		}
+		return &aigate.ChatResponse{Content: `{"facts":[]}`, Model: "fake-facts"}, nil
+	}
+	index := f.nonFactCallNum
+	f.nonFactCallNum++
 	if index < len(f.errors) && f.errors[index] != nil {
 		return nil, f.errors[index]
 	}
@@ -48,19 +62,49 @@ func (f *fakeOzonRecommendationAI) Chat(_ context.Context, request aigate.ChatRe
 	return f.responses[index], nil
 }
 
+func isOzonAttributeFactRequest(request aigate.ChatRequest) bool {
+	for _, message := range request.Messages {
+		if strings.Contains(message.Content, "商品图文事实提炼器") || strings.Contains(message.Content, `"facts":[{"name"`) {
+			return true
+		}
+	}
+	return false
+}
+
 type fakeOzonRecommendationCatalog struct {
-	mu            sync.Mutex
-	allowedShop   uuid.UUID
-	ensureErr     error
-	categories    []shop.OzonCategoryNodeDTO
-	categoryErr   error
-	searchErr     error
-	attrs         map[string][]shop.OzonAttributeDTO
-	attrErrors    map[string]error
-	refreshErrors map[string]error
-	refreshCalls  []string
-	mappings      []shop.OzonCategoryMappingDTO
-	mappingErr    error
+	mu               sync.Mutex
+	allowedShop      uuid.UUID
+	ensureErr        error
+	categories       []shop.OzonCategoryNodeDTO
+	categoryErr      error
+	searchErr        error
+	attrs            map[string][]shop.OzonAttributeDTO
+	attrErrors       map[string]error
+	refreshErrors    map[string]error
+	refreshCalls     []string
+	mappings         []shop.OzonCategoryMappingDTO
+	mappingErr       error
+	dictionaryValues map[string][]platformozon.DictionaryValue
+	dictionaryErrors map[string]error
+	dictionaryCalls  []string
+}
+
+func (f *fakeOzonRecommendationCatalog) SearchOzonDictionaryValues(
+	_ context.Context,
+	_ int64,
+	categoryID string,
+	attrID string,
+	_ uuid.UUID,
+	keyword string,
+) ([]platformozon.DictionaryValue, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := categoryID + "\n" + attrID + "\n" + keyword
+	f.dictionaryCalls = append(f.dictionaryCalls, key)
+	if err := f.dictionaryErrors[key]; err != nil {
+		return nil, err
+	}
+	return append([]platformozon.DictionaryValue(nil), f.dictionaryValues[key]...), nil
 }
 
 func (f *fakeOzonRecommendationCatalog) EnsureAuthorizedOzonShop(_ context.Context, _ int64, shopID uuid.UUID) error {

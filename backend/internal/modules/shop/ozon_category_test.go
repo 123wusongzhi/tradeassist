@@ -317,6 +317,53 @@ func TestOzonCategoryAttributeSyncWritesCacheAndDictionaryValues(t *testing.T) {
 	}
 }
 
+func TestOzonCategoryAttributeFreshnessFollowsTemplateSync(t *testing.T) {
+	db := newOzonCategoryTestDB(t)
+	enc, _ := encrypt.NewService("test-master-key")
+	svc := newOzonCategoryTestService(t, db, enc)
+	api := newOzonCategoryFakeAPI(t)
+	setOzonTestBaseURL(t, svc, api.URL)
+	seedOzonAuthorizedShop(t, db, enc, api.URL)
+	catID := seedOzonLeafCategory(t, db)
+
+	staleTreeTime := time.Now().UTC().Add(-OzonCategoryCacheTTL - time.Hour)
+	if err := db.Model(&PlatformCategory{}).Where("id = ?", catID).Update("synced_at", staleTreeTime).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.SyncOzonCategoryAttributes(context.Background(), 0, catID.String(), uuid.Nil); err != nil {
+		t.Fatalf("SyncOzonCategoryAttributes() error = %v", err)
+	}
+
+	fresh, err := svc.ListOzonCategoryAttributes(context.Background(), catID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fresh) == 0 {
+		t.Fatal("expected refreshed attribute template")
+	}
+	for _, attr := range fresh {
+		if attr.CacheStale {
+			t.Fatalf("fresh attribute %s remained stale because category tree is old: %+v", attr.AttrID, attr)
+		}
+	}
+
+	staleTemplateTime := time.Now().UTC().Add(-OzonCategoryCacheTTL - time.Hour)
+	if err := db.Model(&PlatformCategoryAttribute{}).
+		Where("platform = ? AND category_id = ?", ozonPlatform, "100:200").
+		Update("synced_at", staleTemplateTime).Error; err != nil {
+		t.Fatal(err)
+	}
+	stale, err := svc.ListOzonCategoryAttributes(context.Background(), catID.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, attr := range stale {
+		if !attr.CacheStale {
+			t.Fatalf("stale attribute %s was marked fresh: %+v", attr.AttrID, attr)
+		}
+	}
+}
+
 func TestOzonCategoryAttributeSyncReturnsActionableCredentialError(t *testing.T) {
 	db := newOzonCategoryTestDB(t)
 	enc, _ := encrypt.NewService("test-master-key")

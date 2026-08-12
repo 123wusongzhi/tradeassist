@@ -1810,6 +1810,11 @@ export default function PublishingCenterPage() {
         filled: 0,
         requiresReview: 0,
         notFound: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        externalSkipped: 0,
+        otherIncomplete: 0,
         details: ["编辑上下文已变化，旧建议已丢弃"],
       };
 
@@ -1822,6 +1827,23 @@ export default function PublishingCenterPage() {
       suggestions: result.suggestions || [],
     });
     if (merged.filled > 0) {
+      if (Object.keys(merged.dictionaryOptions).length > 0)
+        setAttributes((current) =>
+          current.map((attribute) => {
+            const additions = merged.dictionaryOptions[attribute.attrId] || [];
+            if (additions.length === 0) return attribute;
+            const optionIDs = new Set(
+              (attribute.options || []).map((option) => String(option.id)),
+            );
+            return {
+              ...attribute,
+              options: [
+                ...(attribute.options || []),
+                ...additions.filter((option) => !optionIDs.has(option.id)),
+              ],
+            };
+          }),
+        );
       form.setFieldValue("attributes", merged.attributes);
       setAIAttributeMarkers((current) => ({
         ...current,
@@ -1843,18 +1865,46 @@ export default function PublishingCenterPage() {
       ),
       ...(result.warnings || []),
     ];
+    const skipped = result.skipped || [];
     const serverNotFound = Math.max(
       Number(result.summary?.notFound || 0),
-      (result.skipped || []).length,
+      skipped.length,
     );
+    const skippedExternal = skipped.filter(
+      (item) => item.kind === "external",
+    ).length;
+    const externalSkipped = Math.max(
+      Number(result.summary?.externalSkipped || 0),
+      skippedExternal,
+    );
+    const hasCategorizedSummary = [
+      result.summary?.externalSkipped,
+      result.summary?.unsupportedSkipped,
+      result.summary?.validationSkipped,
+    ].some((value) => typeof value === "number");
+    const categorizedOther =
+      Number(result.summary?.unsupportedSkipped || 0) +
+      Number(result.summary?.validationSkipped || 0);
+    const skippedOther = Math.max(0, skipped.length - skippedExternal);
+    const serverOtherIncomplete = hasCategorizedSummary
+      ? Math.max(categorizedOther, skippedOther)
+      : Math.max(0, serverNotFound - externalSkipped, skippedOther);
+    const otherIncomplete = serverOtherIncomplete + merged.rejected.length;
     return {
       filled: merged.filled,
       requiresReview: merged.requiresReview,
-      notFound: serverNotFound + merged.rejected.length,
+      notFound: Math.max(
+        serverNotFound + merged.rejected.length,
+        externalSkipped + otherIncomplete,
+      ),
+      high: merged.high,
+      medium: merged.medium,
+      low: merged.low,
+      externalSkipped,
+      otherIncomplete,
       partial:
         result.status === "partial" ||
-        serverNotFound > 0 ||
-        merged.rejected.length > 0,
+        otherIncomplete > 0,
       details,
     };
   };
@@ -2506,6 +2556,24 @@ export default function PublishingCenterPage() {
   const renderAttributeLabel = (attribute: OzonCategoryAttribute) => {
     const formatHint = ozonAttributeFormatHint(attribute);
     const aiMarker = aiAttributeMarkers[attribute.attrId];
+    const confidenceLabel =
+      aiMarker?.confidenceLevel === "high"
+        ? "高可信"
+        : aiMarker?.confidenceLevel === "medium"
+          ? "中可信"
+          : "低可信";
+    const confidenceColor =
+      aiMarker?.confidenceLevel === "high"
+        ? "success"
+        : aiMarker?.confidenceLevel === "medium"
+          ? "warning"
+          : "error";
+    const reviewLabel =
+      aiMarker?.confidenceLevel === "low"
+        ? "重点核对"
+        : aiMarker?.confidenceLevel === "medium"
+          ? "建议核对"
+          : "";
     return (
       <Space size={4} wrap>
         <span>{attribute.name}</span>
@@ -2519,9 +2587,20 @@ export default function PublishingCenterPage() {
             AI 建议
           </Tag>
         ) : null}
-        {aiMarker?.requiresReview ? (
-          <Tag color="warning" aria-label={`${attribute.name}：建议核对`}>
-            建议核对
+        {aiMarker ? (
+          <Tag
+            color={confidenceColor}
+            aria-label={`${attribute.name}：${confidenceLabel}`}
+          >
+            {confidenceLabel}
+          </Tag>
+        ) : null}
+        {aiMarker?.requiresReview && reviewLabel ? (
+          <Tag
+            color={aiMarker.confidenceLevel === "low" ? "error" : "warning"}
+            aria-label={`${attribute.name}：${reviewLabel}`}
+          >
+            {reviewLabel}
           </Tag>
         ) : null}
       </Space>

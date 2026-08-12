@@ -942,9 +942,16 @@ func (s *Service) ListOzonCategoryAttributes(ctx context.Context, categoryID str
 		Order("required DESC, attr_id ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	cacheStale := false
-	if cat.SyncedAt == nil || time.Since(*cat.SyncedAt) > OzonCategoryCacheTTL {
-		cacheStale = true
+	// Attribute-template freshness is independent from the category-tree
+	// cache. Refreshing one leaf template intentionally does not rewrite the
+	// taxonomy sync timestamp, so using cat.SyncedAt here would keep a freshly
+	// refreshed template marked stale until a much heavier full-tree sync ran.
+	cacheStale := len(rows) == 0
+	for _, row := range rows {
+		if row.SyncedAt == nil || time.Since(*row.SyncedAt) > OzonCategoryCacheTTL {
+			cacheStale = true
+			break
+		}
 	}
 	out := make([]OzonAttributeDTO, 0, len(rows))
 	for _, r := range rows {

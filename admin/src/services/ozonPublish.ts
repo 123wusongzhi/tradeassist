@@ -351,6 +351,18 @@ export type OzonAttributeSuggestionContext = {
 };
 
 export type OzonAttributeSuggestionConfidenceLevel = "high" | "medium" | "low";
+export type OzonAttributeSuggestionInferenceBasis =
+  | "direct_product_evidence"
+  | "product_standard_inference"
+  | "category_fallback_guess";
+
+export type OzonAttributeSuggestionSkipKind =
+  | "external"
+  | "unsupported"
+  | "dictionary_unmatched"
+  | "validation_failed"
+  | "model_omitted"
+  | "batch_failed";
 
 export type OzonAttributeSuggestion = {
   attributeId: string;
@@ -358,6 +370,7 @@ export type OzonAttributeSuggestion = {
   values: OzonAttributeSelection[];
   confidence: number;
   confidenceLevel: OzonAttributeSuggestionConfidenceLevel;
+  inferenceBasis?: OzonAttributeSuggestionInferenceBasis | string;
   requiresReview: boolean;
   reason?: string;
   sourceRefs?: string[];
@@ -366,6 +379,7 @@ export type OzonAttributeSuggestion = {
 export type OzonAttributeSuggestionSkipped = {
   attributeId: string;
   attributeName: string;
+  kind?: OzonAttributeSuggestionSkipKind | string;
   reason: string;
 };
 
@@ -373,6 +387,13 @@ export type OzonAttributeSuggestionSummary = {
   filled: number;
   requiresReview: number;
   notFound: number;
+  eligible?: number;
+  high?: number;
+  medium?: number;
+  low?: number;
+  externalSkipped?: number;
+  unsupportedSkipped?: number;
+  validationSkipped?: number;
 };
 
 export type OzonAttributeSuggestionResult = {

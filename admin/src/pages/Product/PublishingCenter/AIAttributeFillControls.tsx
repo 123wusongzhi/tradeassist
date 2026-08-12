@@ -19,6 +19,11 @@ export type OzonAIAttributeApplyFeedback = {
   filled: number;
   requiresReview: number;
   notFound: number;
+  high: number;
+  medium: number;
+  low: number;
+  externalSkipped: number;
+  otherIncomplete: number;
   partial?: boolean;
   details?: string[];
 };
@@ -152,7 +157,7 @@ export default function AIAttributeFillControls({
   const feedbackType =
     feedback &&
     feedback.filled > 0 &&
-    feedback.notFound === 0 &&
+    feedback.otherIncomplete === 0 &&
     !feedback.partial
       ? "success"
       : feedback && feedback.filled > 0
@@ -213,6 +218,7 @@ export default function AIAttributeFillControls({
           type="info"
           showIcon
           message="正在分析商品信息并校验当前 Ozon 属性模板…"
+          description="先提炼图文事实，再并发处理普通商品级空白属性；请保持当前商品、店铺和类目不变。"
         />
       ) : null}
       {error ? (
@@ -229,7 +235,7 @@ export default function AIAttributeFillControls({
           showIcon
           message={
             feedback.filled > 0
-              ? feedback.notFound > 0 || feedback.partial
+              ? feedback.otherIncomplete > 0 || feedback.partial
                 ? "AI 已部分填写空白项"
                 : "AI 已填写空白项"
               : "AI 未返回可填写的空白项"
@@ -243,8 +249,13 @@ export default function AIAttributeFillControls({
                 aria-live="polite"
               >
                 <Tag color="success">已填写 {feedback.filled}</Tag>
-                <Tag color="warning">建议核对 {feedback.requiresReview}</Tag>
-                <Tag>未找到 {feedback.notFound}</Tag>
+                <Tag color="green">高 {feedback.high}</Tag>
+                <Tag color="gold">中 {feedback.medium}</Tag>
+                <Tag color="orange">低 {feedback.low}</Tag>
+                <Tag>外部跳过 {feedback.externalSkipped}</Tag>
+                <Tag color={feedback.otherIncomplete > 0 ? "warning" : undefined}>
+                  其他未完成 {feedback.otherIncomplete}
+                </Tag>
               </Space>
               {feedback.details?.length ? (
                 <Typography.Text type="secondary">

@@ -9,5 +9,8 @@ import (
 )
 
 func limitedAIHTTPClient(timeout time.Duration) *http.Client {
-	return httpclient.LimitedStdHTTPClient(timeout, providerlimit.Global(), providerlimit.ProviderAI, providerlimit.OperationText)
+	// Chat completions may legitimately take longer than the shared provider
+	// client's 30-second response-header default. Keep both HTTP bounds aligned
+	// with the finite timeout computed by AIGateway for this completion size.
+	return httpclient.LimitedStdHTTPClientWithHeaderTimeout(timeout, timeout, providerlimit.Global(), providerlimit.ProviderAI, providerlimit.OperationText)
 }

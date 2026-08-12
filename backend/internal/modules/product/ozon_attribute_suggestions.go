@@ -1,17 +1,20 @@
 package product
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +24,7 @@ import (
 	"github.com/trademind-ai/trademind/backend/internal/modules/operationlog"
 	"github.com/trademind-ai/trademind/backend/internal/modules/shop"
 	"github.com/trademind-ai/trademind/backend/internal/pkg/adminperm"
-	aigate "github.com/trademind-ai/trademind/backend/internal/providers/ai"
+	"github.com/trademind-ai/trademind/backend/internal/pkg/safedownload"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
@@ -36,15 +39,22 @@ const (
 	OzonAttributeSuggestionUnavailable  = "OZON_ATTRIBUTE_SUGGESTION_UNAVAILABLE"
 	OzonAttributeSuggestionAIFailed     = "OZON_ATTRIBUTE_SUGGESTION_AI_FAILED"
 
-	ozonAttributeSuggestionTaskType        = "ozon_attribute_suggestions"
-	ozonAttributeSuggestionMediumThreshold = 0.55
-	ozonAttributeSuggestionHighThreshold   = 0.80
-	ozonAttributeSuggestionMaxAttributes   = 120
-	ozonAttributeSuggestionMaxOptions      = 100
-	ozonAttributeSuggestionMaxProductAttrs = 40
-	ozonAttributeSuggestionMaxSKUAttrs     = 40
-	ozonAttributeSuggestionMaxSKUs         = 3
-	ozonAttributeSuggestionMaxImages       = 2
+	ozonAttributeSuggestionTaskType                = "ozon_attribute_suggestions"
+	ozonAttributeSuggestionMediumThreshold         = 0.55
+	ozonAttributeSuggestionHighThreshold           = 0.80
+	ozonAttributeSuggestionMaxAttributes           = 120
+	ozonAttributeSuggestionMaxOptions              = 100
+	ozonAttributeSuggestionMaxProductAttrs         = 40
+	ozonAttributeSuggestionMaxSKUAttrs             = 40
+	ozonAttributeSuggestionMaxSKUs                 = 3
+	ozonAttributeSuggestionMaxImages               = 2
+	ozonAttributeSuggestionMaxBatchSize            = 15
+	ozonAttributeSuggestionMaxBatchBytes           = 24000
+	ozonAttributeSuggestionMaxConcurrency          = 3
+	ozonAttributeSuggestionMaxRepairBatch          = 10
+	ozonAttributeSuggestionDictConcurrency         = 2
+	ozonAttributeSuggestionImageProbeConcurrency   = 4
+	ozonAttributeSuggestionMaxImageProbeCandidates = 32
 )
 
 var (
@@ -52,7 +62,8 @@ var (
 	ozonAttributeSuggestionSecretPattern = regexp.MustCompile(
 		`(?i)(^|[^a-z0-9])(api[_-]?(key|token)|access[_-]?(key|token)|refresh[_-]?token|client[_-]?secret|app[_-]?secret|secret[_-]?key|private[_-]?key|shop[_-]?secret|authorization|password|passwd|cookie|credential|session[_-]?id|bearer)([^a-z0-9]|$)`,
 	)
-	ozonAttributeSuggestionNonAlnumPattern = regexp.MustCompile(`[^a-z0-9]+`)
+	ozonAttributeSuggestionNonAlnumPattern           = regexp.MustCompile(`[^a-z0-9]+`)
+	ozonAttributeSuggestionImageVariantSuffixPattern = regexp.MustCompile(`(?i)_q[0-9]+\.(?:jpe?g|png|webp)$`)
 )
 
 type OzonAttributeSuggestionBody struct {
@@ -85,6 +96,7 @@ type OzonAttributeSuggestion struct {
 	Values          []OzonAttributeSelection `json:"values"`
 	Confidence      float64                  `json:"confidence"`
 	ConfidenceLevel string                   `json:"confidenceLevel"`
+	InferenceBasis  string                   `json:"inferenceBasis"`
 	RequiresReview  bool                     `json:"requiresReview"`
 	Reason          string                   `json:"reason,omitempty"`
 	SourceRefs      []string                 `json:"sourceRefs,omitempty"`
@@ -93,13 +105,21 @@ type OzonAttributeSuggestion struct {
 type OzonAttributeSuggestionSkipped struct {
 	AttributeID   string `json:"attributeId"`
 	AttributeName string `json:"attributeName"`
+	Kind          string `json:"kind,omitempty"`
 	Reason        string `json:"reason"`
 }
 
 type OzonAttributeSuggestionSummary struct {
-	Filled         int `json:"filled"`
-	RequiresReview int `json:"requiresReview"`
-	NotFound       int `json:"notFound"`
+	Filled             int `json:"filled"`
+	RequiresReview     int `json:"requiresReview"`
+	NotFound           int `json:"notFound"`
+	Eligible           int `json:"eligible"`
+	High               int `json:"high"`
+	Medium             int `json:"medium"`
+	Low                int `json:"low"`
+	ExternalSkipped    int `json:"externalSkipped"`
+	UnsupportedSkipped int `json:"unsupportedSkipped"`
+	ValidationSkipped  int `json:"validationSkipped"`
 }
 
 type OzonAttributeSuggestionResult struct {
@@ -149,6 +169,33 @@ func failedOzonAttributeSuggestion(message string, err error) error {
 	return &ozonAttributeSuggestionAPIError{status: http.StatusBadGateway, code: OzonAttributeSuggestionAIFailed, message: message, err: err}
 }
 
+func ozonAttributeSuggestionFailureMessage(err error) string {
+	if err == nil {
+		return "provider request failed"
+	}
+	low := strings.ToLower(err.Error())
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "provider request failed: gateway_timeout"
+	case strings.Contains(low, "429"), strings.Contains(low, "请求过于频繁"), strings.Contains(low, "额度受限"), strings.Contains(low, "rate limit"):
+		return "provider request failed: rate_limited"
+	case strings.Contains(low, "too many product facts"):
+		return "fact output rejected: too_many_facts"
+	case strings.Contains(low, "fact extraction failed") && (strings.Contains(low, "json") || strings.Contains(low, "decode") || strings.Contains(low, "unmarshal")):
+		return "fact output rejected: invalid_json"
+	case strings.Contains(low, "all attribute batches returned invalid output"):
+		return "batch output rejected: invalid_json"
+	case strings.Contains(low, "timeout"), strings.Contains(low, "请求超时"):
+		return "provider request failed: gateway_timeout"
+	case strings.Contains(low, "all attribute batches failed"):
+		return "provider request failed: all_batches_failed"
+	case strings.Contains(low, "模型不存在"), strings.Contains(low, "无权限访问该模型"):
+		return "provider request failed: model_unavailable"
+	default:
+		return "provider request failed"
+	}
+}
+
 type ozonAttributePromptCategory struct {
 	FullPath    string `json:"fullPath"`
 	Name        string `json:"name"`
@@ -167,32 +214,52 @@ type ozonAttributePromptImage struct {
 	Role      string `json:"role"`
 }
 
+type ozonAttributePromptSKUVariation struct {
+	Attribute string   `json:"attribute"`
+	Values    []string `json:"values"`
+	Semantics []string `json:"semantics,omitempty"`
+}
+
 type ozonAttributePromptContext struct {
-	ProductTitle       string                      `json:"productTitle,omitempty"`
-	ProductDescription string                      `json:"productDescription,omitempty"`
-	ProductAttributes  map[string]string           `json:"productAttributes"`
-	Category           ozonAttributePromptCategory `json:"category"`
-	RepresentativeSKUs []ozonAttributePromptSKU    `json:"representativeSkus"`
-	Images             []ozonAttributePromptImage  `json:"images"`
-	AllowedSourceRefs  []string                    `json:"allowedSourceRefs"`
+	ProductTitle       string                            `json:"productTitle,omitempty"`
+	ProductDescription string                            `json:"productDescription,omitempty"`
+	ProductAttributes  map[string]string                 `json:"productAttributes"`
+	Category           ozonAttributePromptCategory       `json:"category"`
+	RepresentativeSKUs []ozonAttributePromptSKU          `json:"representativeSkus"`
+	SKUVariations      []ozonAttributePromptSKUVariation `json:"skuVariations,omitempty"`
+	Images             []ozonAttributePromptImage        `json:"images"`
+	AllowedSourceRefs  []string                          `json:"allowedSourceRefs"`
+	Facts              []ozonAttributePromptFact         `json:"facts,omitempty"`
+}
+
+type ozonAttributePromptFact struct {
+	FactKey    string   `json:"factKey"`
+	Name       string   `json:"name"`
+	Value      string   `json:"value"`
+	Evidence   string   `json:"evidence"`
+	SourceRefs []string `json:"sourceRefs"`
 }
 
 type ozonAttributePromptCandidate struct {
-	AttributeKey      string   `json:"attributeKey"`
-	Name              string   `json:"name"`
-	Description       string   `json:"description,omitempty"`
-	ValueType         string   `json:"valueType"`
-	IsCollection      bool     `json:"isCollection"`
-	MaxValueCount     int64    `json:"maxValueCount,omitempty"`
-	DictionaryOptions []string `json:"dictionaryOptions,omitempty"`
+	AttributeKey               string   `json:"attributeKey"`
+	Name                       string   `json:"name"`
+	Description                string   `json:"description,omitempty"`
+	SemanticHint               string   `json:"semanticHint,omitempty"`
+	ValueType                  string   `json:"valueType"`
+	IsCollection               bool     `json:"isCollection"`
+	MaxValueCount              int64    `json:"maxValueCount,omitempty"`
+	DictionaryOptions          []string `json:"dictionaryOptions,omitempty"`
+	DictionaryOptionsTruncated bool     `json:"dictionaryOptionsTruncated,omitempty"`
 }
 
 type ozonAttributeAICandidate struct {
-	AttributeKey string   `json:"attributeKey"`
-	Values       []string `json:"values"`
-	Confidence   float64  `json:"confidence"`
-	Reason       string   `json:"reason"`
-	SourceRefs   []string `json:"sourceRefs,omitempty"`
+	AttributeKey   string   `json:"attributeKey"`
+	Values         []string `json:"values"`
+	Confidence     float64  `json:"confidence"`
+	InferenceBasis string   `json:"inferenceBasis,omitempty"`
+	Reason         string   `json:"reason"`
+	SourceRefs     []string `json:"sourceRefs,omitempty"`
+	FactRefs       []string `json:"factRefs,omitempty"`
 	// EvidenceKeys accepts only the known v1 field while persisted prompts are
 	// migrated. Values still have to belong to the v2 source-ref allowlist.
 	EvidenceKeys []string `json:"evidenceKeys,omitempty"`
@@ -312,15 +379,20 @@ func (s *Service) SuggestOzonAttributes(
 		Context:     contextInfo,
 		Suggestions: []OzonAttributeSuggestion{}, Skipped: []OzonAttributeSuggestionSkipped{}, Warnings: []string{},
 	}
+	promptContext, imageURLs := buildOzonAttributeSuggestionPromptContext(
+		*productRow, category, s.DB, c.Request.Context(), s.ozonAttributeImageProbe,
+	)
 	candidates, promptCandidates, initialSkipped := buildOzonAttributeSuggestionCandidates(attrs, filled, selectedVariants, len(productRow.SKUs))
+	candidates, promptCandidates, variantSkipped := excludeOzonAttributeSKUVariationConflicts(candidates, promptCandidates, promptContext.SKUVariations)
+	initialSkipped = append(initialSkipped, variantSkipped...)
 	result.Skipped = append(result.Skipped, initialSkipped...)
-	promptContext, imageURLs := buildOzonAttributeSuggestionPromptContext(*productRow, category, s.DB, c.Request.Context())
+	_, requestDeadlinePresent := c.Request.Context().Deadline()
 
 	auditInput, _ := json.Marshal(map[string]any{
 		"productId": productID.String(), "shopId": shopID.String(), "categoryId": categoryID,
 		"templateFingerprint": templateFingerprint, "blankCandidateCount": len(candidates), "skippedCount": len(initialSkipped),
 		"representativeSkuCount": len(promptContext.RepresentativeSKUs), "imageCount": len(imageURLs),
-		"sourceRefCount": len(promptContext.AllowedSourceRefs),
+		"sourceRefCount": len(promptContext.AllowedSourceRefs), "requestDeadlinePresent": requestDeadlinePresent,
 	})
 	task := &aitask.AITask{
 		TenantID: tenantID, TaskType: ozonAttributeSuggestionTaskType,
@@ -334,7 +406,7 @@ func (s *Service) SuggestOzonAttributes(
 
 	if len(candidates) == 0 {
 		result.Warnings = append(result.Warnings, "当前没有可安全填写的普通商品级空白属性")
-		result.Summary.NotFound = len(result.Skipped)
+		finalizeOzonAttributeSuggestionResult(result, len(candidates))
 		s.finishOzonAttributeSuggestionAudit(c, adminID, task.ID, productID, result, 0, 0, "")
 		return result, nil
 	}
@@ -349,6 +421,12 @@ func (s *Service) SuggestOzonAttributes(
 		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "prompt_unavailable", OzonAttributeSuggestionSummary{})
 		return nil, unavailableOzonAttributeSuggestion("AI 属性建议提示词未启用", err)
 	}
+	factPromptRow, err := s.Prompts.GetEnabledByCode(c.Request.Context(), aiprompt.CodeOzonAttributeFacts)
+	if err != nil {
+		_ = s.AITasks.MarkFailed(c.Request.Context(), task.ID, "fact prompt missing or disabled")
+		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "prompt_unavailable", OzonAttributeSuggestionSummary{})
+		return nil, unavailableOzonAttributeSuggestion("AI 商品事实提炼提示词未启用", err)
+	}
 	client := s.OzonAttributeAI
 	if client == nil && s.AIGateway != nil {
 		client = s.AIGateway
@@ -359,57 +437,41 @@ func (s *Service) SuggestOzonAttributes(
 		return nil, unavailableOzonAttributeSuggestion("AI 属性建议服务未配置", nil)
 	}
 
-	contextJSON, _ := json.Marshal(promptContext)
-	attributesJSON, _ := json.Marshal(promptCandidates)
-	sourceRefsJSON, _ := json.Marshal(promptContext.AllowedSourceRefs)
-	vars := map[string]string{
-		// evidence remains as a compatibility alias for custom persisted v1
-		// prompts. It carries the same bounded v2 context, never current values.
-		"evidence": string(contextJSON), "context": string(contextJSON),
-		"attributes": string(attributesJSON), "sourceRefs": string(sourceRefsJSON),
-	}
-	maxTokens := promptRow.MaxTokens
-	if maxTokens < 512 {
-		maxTokens = 512
-	}
-	if maxTokens > 4096 {
-		maxTokens = 4096
-	}
-	storedSystemPrompt := aiprompt.ReplaceVariables(promptRow.SystemPrompt, vars)
-	runtimePolicy := aiprompt.OzonAttributeSuggestionRuntimePolicy()
-	req := aigate.ChatRequest{
-		Model: strings.TrimSpace(promptRow.Model),
-		Messages: []aigate.Message{
-			{Role: "system", Content: storedSystemPrompt + "\n\n" + runtimePolicy},
-			{Role: "user", Content: aiprompt.ReplaceVariables(promptRow.UserPrompt, vars), ImageURLs: imageURLs},
-		},
-		Temperature: promptRow.Temperature, MaxTokens: maxTokens,
-		ResponseFormat: &aigate.ResponseFormat{Type: "json_object"},
-	}
-	// AIGateway owns the bounded provider timeout (including its completion-size
-	// floor and the configured timeout_sec). Adding a shorter service deadline
-	// here can cancel otherwise healthy large prompts before the gateway policy
-	// has a chance to complete them. The incoming request context still carries
-	// client cancellation through to the provider.
-	resp, err := client.Chat(c.Request.Context(), req)
-	if err != nil || resp == nil {
-		_ = s.AITasks.MarkFailed(c.Request.Context(), task.ID, "provider request failed")
+	pipeline, err := s.runOzonAttributeSuggestionPipeline(
+		c.Request.Context(), client, *factPromptRow, *promptRow, promptContext, imageURLs,
+		candidates, promptCandidates, tenantID, shopID, categoryID,
+	)
+	if err != nil || pipeline == nil {
+		failureMessage := ozonAttributeSuggestionFailureMessage(err)
+		if pipeline == nil {
+			_ = s.AITasks.MarkFailed(c.Request.Context(), task.ID, failureMessage)
+		} else {
+			s.updateOzonAttributeSuggestionAuditInput(c.Request.Context(), tenantID, task.ID, auditInput, pipeline, OzonAttributeSuggestionSummary{})
+			_ = s.AITasks.MarkFailedWithMeta(
+				c.Request.Context(), task.ID, failureMessage, nil,
+				pipeline.InputTokens, pipeline.OutputTokens, truncateRunes(strings.Join(pipeline.Models, ","), 128),
+			)
+		}
 		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "provider_failed", OzonAttributeSuggestionSummary{})
 		return nil, failedOzonAttributeSuggestion("AI 填写失败，现有输入未变更，请稍后手动重试", err)
 	}
-	var modelOutput ozonAttributeAIOutput
-	if err := decodeStrictOzonRecommendationJSON(resp.Content, &modelOutput); err != nil || len(modelOutput.Suggestions) > ozonAttributeSuggestionMaxAttributes*2 {
-		_ = s.AITasks.MarkFailedWithMeta(c.Request.Context(), task.ID, "model output rejected", nil, resp.InputTokens, resp.OutputTokens, resp.Model)
-		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "invalid_model_output", OzonAttributeSuggestionSummary{})
-		return nil, failedOzonAttributeSuggestion("AI 返回结果未通过格式校验，现有输入未变更", err)
+	result.Suggestions = append(result.Suggestions, pipeline.Suggestions...)
+	result.Skipped = append(result.Skipped, pipeline.Skipped...)
+	result.Warnings = append(result.Warnings, pipeline.Warnings...)
+	finalizeOzonAttributeSuggestionResult(result, len(candidates))
+	if err := s.revalidateOzonAttributeSuggestionContext(
+		c, productID, productRow.UpdatedAt, tenantID, shopID, categoryID, templateFingerprint,
+	); err != nil {
+		_ = s.AITasks.MarkFailedWithMeta(c.Request.Context(), task.ID, "request context changed", nil, pipeline.InputTokens, pipeline.OutputTokens, truncateRunes(strings.Join(pipeline.Models, ","), 128))
+		s.writeOzonAttributeSuggestionLog(c, adminID, productID, task.ID, "failed", "context_stale", result.Summary)
+		return nil, err
 	}
-
-	applyOzonAttributeAIOutput(result, candidates, promptContext.AllowedSourceRefs, modelOutput)
-	usedModel := strings.TrimSpace(resp.Model)
+	s.updateOzonAttributeSuggestionAuditInput(c.Request.Context(), tenantID, task.ID, auditInput, pipeline, result.Summary)
+	usedModel := truncateRunes(strings.Join(pipeline.Models, ","), 128)
 	if usedModel == "" {
 		usedModel = strings.TrimSpace(promptRow.Model)
 	}
-	s.finishOzonAttributeSuggestionAudit(c, adminID, task.ID, productID, result, resp.InputTokens, resp.OutputTokens, usedModel)
+	s.finishOzonAttributeSuggestionAudit(c, adminID, task.ID, productID, result, pipeline.InputTokens, pipeline.OutputTokens, usedModel)
 	return result, nil
 }
 
@@ -535,17 +597,26 @@ func buildOzonAttributeSuggestionCandidates(
 		if name == "" {
 			name = attr.AttrID
 		}
-		reason := ozonAttributeSuggestionSkipReason(attr, selectedVariants[attr.AttrID], skuCount)
+		kind, reason := ozonAttributeSuggestionSkip(attr, selectedVariants[attr.AttrID], skuCount)
 		options := []ozonAttributeDictionaryOption{}
+		optionsTruncated := false
 		if reason == "" && attr.DictionaryID != "" {
-			var optionsErr error
-			options, optionsErr = strictOzonAttributeDictionaryOptions(attr)
-			if optionsErr != nil {
-				reason = "当前模板没有可核验的官方词典选项，已留空"
+			if len(attr.Options) == 0 {
+				// Large Ozon dictionaries may intentionally be absent from the
+				// bounded cache. The model still returns semantic text and the
+				// service performs an authoritative read-only exact lookup later.
+				optionsTruncated = true
+			} else {
+				var optionsErr error
+				options, optionsErr = strictOzonAttributeDictionaryOptions(attr)
+				if optionsErr != nil {
+					kind = ozonAttributeSkipValidation
+					reason = "当前模板的官方词典选项无效，已留空"
+				}
 			}
 		}
 		if reason != "" {
-			skipped = append(skipped, OzonAttributeSuggestionSkipped{AttributeID: attr.AttrID, AttributeName: name, Reason: reason})
+			skipped = append(skipped, OzonAttributeSuggestionSkipped{AttributeID: attr.AttrID, AttributeName: name, Kind: kind, Reason: reason})
 			continue
 		}
 		key := fmt.Sprintf("attribute_%d", len(candidates)+1)
@@ -560,8 +631,10 @@ func buildOzonAttributeSuggestionCandidates(
 		}
 		prompt = append(prompt, ozonAttributePromptCandidate{
 			AttributeKey: key, Name: name, Description: truncateRunes(strings.TrimSpace(attr.Description), 300),
-			ValueType: strings.TrimSpace(attr.ValueType), IsCollection: attr.IsCollection,
+			SemanticHint: ozonAttributePromptSemanticHint(attr, options),
+			ValueType:    strings.TrimSpace(attr.ValueType), IsCollection: attr.IsCollection,
 			MaxValueCount: attr.MaxValueCount, DictionaryOptions: labels,
+			DictionaryOptionsTruncated: optionsTruncated || len(options) > len(labels),
 		})
 	}
 	return candidates, prompt, skipped
@@ -598,26 +671,32 @@ func strictOzonAttributeDictionaryOptions(attr shop.OzonAttributeDTO) ([]ozonAtt
 	return out, nil
 }
 
-func ozonAttributeSuggestionSkipReason(attr shop.OzonAttributeDTO, selectedVariant bool, skuCount int) string {
-	if attr.AttributeComplexID > 0 {
-		return "组合属性需按字段组人工确认，MVP 不自动填写"
+func ozonAttributeSuggestionSkip(attr shop.OzonAttributeDTO, selectedVariant bool, _ int) (string, string) {
+	if externalOzonAttributeReason(attr) != "" {
+		return ozonAttributeSkipExternal, externalOzonAttributeReason(attr)
 	}
-	if selectedVariant || (skuCount > 1 && attr.SKUVariantEligible) {
-		return "多 SKU 变体属性需逐 SKU 确认，MVP 不自动填写"
+	if attr.AttributeComplexID > 0 {
+		return ozonAttributeSkipUnsupported, "组合属性需按字段组人工确认，当前版本不自动填写"
+	}
+	// SKUVariantEligible only means Ozon permits the attribute to vary by SKU.
+	// It remains a normal product-level attribute until the current editor
+	// explicitly selects it as a variant dimension.
+	if selectedVariant {
+		return ozonAttributeSkipUnsupported, "多 SKU 变体属性需逐 SKU 确认，当前版本不自动填写"
 	}
 	if attr.IsCollection && attr.MaxValueCount <= 0 {
-		return "多值属性缺少明确上限，已留空"
+		return ozonAttributeSkipUnsupported, "多值属性缺少明确上限，已留空"
 	}
 	if attr.DictionaryID != "" {
-		return ""
+		return "", ""
 	}
 	switch strings.ToLower(strings.TrimSpace(attr.ValueType)) {
 	case "string", "text", "integer", "int", "int64", "decimal", "float", "double", "number", "boolean", "bool", "url", "uri", "image", "date", "datetime", "date_time", "timestamp":
-		return ""
+		return "", ""
 	case "":
-		return "当前模板缺少 valueType，已留空"
+		return ozonAttributeSkipUnsupported, "当前模板缺少 valueType，已留空"
 	default:
-		return fmt.Sprintf("当前 valueType=%s 不支持安全 AI 回填，已留空", attr.ValueType)
+		return ozonAttributeSkipUnsupported, fmt.Sprintf("当前 valueType=%s 不支持安全 AI 回填，已留空", attr.ValueType)
 	}
 }
 
@@ -626,12 +705,14 @@ func buildOzonAttributeSuggestionPromptContext(
 	category shop.PlatformCategory,
 	db *gorm.DB,
 	ctx context.Context,
+	imageProbe ozonAttributeSuggestionImageProbe,
 ) (ozonAttributePromptContext, []string) {
 	categoryName := sanitizeOzonAttributeSuggestionEvidenceValue(category.Name)
 	categoryPath := sanitizeOzonAttributeSuggestionEvidenceValue(shop.CanonicalOzonCategoryPath(ctx, db, category))
 	if categoryPath == "" {
 		categoryPath = categoryName
 	}
+	representativeSKUs := selectRepresentativeOzonAttributeSKUs(productRow.SKUs)
 	prompt := ozonAttributePromptContext{
 		ProductTitle:       sanitizeOzonAttributeSuggestionEvidenceValue(firstNonEmptyProduct(productRow.Title, productRow.OriginalTitle)),
 		ProductDescription: sanitizeOzonAttributeSuggestionEvidenceValue(firstNonEmptyProduct(productRow.Description, productRow.AIDescription)),
@@ -639,9 +720,10 @@ func buildOzonAttributeSuggestionPromptContext(
 		Category: ozonAttributePromptCategory{
 			FullPath: categoryPath, Name: categoryName, ProductType: categoryName,
 		},
-		RepresentativeSKUs: selectRepresentativeOzonAttributeSKUs(productRow.SKUs),
+		RepresentativeSKUs: representativeSKUs,
+		SKUVariations:      buildOzonAttributePromptSKUVariations(representativeSKUs),
 	}
-	imageURLs := selectOzonAttributeSuggestionImages(productRow.Images, productRow.SKUs)
+	imageURLs := selectOzonAttributeSuggestionImages(ctx, productRow.Images, productRow.SKUs, imageProbe)
 	for index := range imageURLs {
 		role := "detail_or_packaging"
 		if index == 0 {
@@ -773,6 +855,60 @@ func selectRepresentativeOzonAttributeSKUs(skus []ProductSKU) []ozonAttributePro
 	return out
 }
 
+func buildOzonAttributePromptSKUVariations(skus []ozonAttributePromptSKU) []ozonAttributePromptSKUVariation {
+	type variationWork struct {
+		name   string
+		values map[string]string
+	}
+	byKey := map[string]*variationWork{}
+	for _, sku := range skus {
+		for name, value := range sku.Attributes {
+			cleanName := sanitizeOzonAttributeSuggestionEvidenceValue(name)
+			cleanValue := sanitizeOzonAttributeSuggestionEvidenceValue(value)
+			key := normalizeOzonRecommendationText(cleanName)
+			valueKey := normalizeOzonRecommendationText(cleanValue)
+			if key == "" || valueKey == "" {
+				continue
+			}
+			work := byKey[key]
+			if work == nil {
+				work = &variationWork{name: cleanName, values: map[string]string{}}
+				byKey[key] = work
+			}
+			work.values[valueKey] = cleanValue
+		}
+	}
+	keys := make([]string, 0, len(byKey))
+	for key, work := range byKey {
+		if len(work.values) > 1 {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	out := make([]ozonAttributePromptSKUVariation, 0, len(keys))
+	for _, key := range keys {
+		work := byKey[key]
+		valueKeys := make([]string, 0, len(work.values))
+		for valueKey := range work.values {
+			valueKeys = append(valueKeys, valueKey)
+		}
+		sort.Strings(valueKeys)
+		values := make([]string, 0, len(valueKeys))
+		for _, valueKey := range valueKeys {
+			values = append(values, work.values[valueKey])
+		}
+		out = append(out, ozonAttributePromptSKUVariation{
+			Attribute: work.name,
+			Values:    values,
+			Semantics: classifyOzonAttributeSKUVariationSemantics(work.name, values),
+		})
+		if len(out) >= 20 {
+			break
+		}
+	}
+	return out
+}
+
 func ozonAttributeSKUDistance(left, right map[string]string) int {
 	keys := map[string]bool{}
 	for key := range left {
@@ -808,9 +944,18 @@ type ozonAttributeImageCandidate struct {
 	id        string
 }
 
+type ozonAttributeSuggestionImageMetadata struct {
+	width  int
+	height int
+}
+
+type ozonAttributeSuggestionImageProbe func(context.Context, string) (ozonAttributeSuggestionImageMetadata, error)
+
 func selectOzonAttributeSuggestionImages(
+	ctx context.Context,
 	images []ProductImage,
 	allSKUs []ProductSKU,
+	probe ozonAttributeSuggestionImageProbe,
 ) []string {
 	mainImages := []ozonAttributeImageCandidate{}
 	detailImages := []ozonAttributeImageCandidate{}
@@ -846,6 +991,54 @@ func selectOzonAttributeSuggestionImages(
 		}
 		return ozonAttributeImageCandidateLess(detailImages[i], detailImages[j])
 	})
+	orderedSKUs := append([]ProductSKU(nil), allSKUs...)
+	sort.SliceStable(orderedSKUs, func(i, j int) bool {
+		if !orderedSKUs[i].CreatedAt.Equal(orderedSKUs[j].CreatedAt) {
+			return orderedSKUs[i].CreatedAt.Before(orderedSKUs[j].CreatedAt)
+		}
+		return orderedSKUs[i].ID.String() < orderedSKUs[j].ID.String()
+	})
+	skuImages := make([]ozonAttributeImageCandidate, 0, len(orderedSKUs))
+	for index, sku := range orderedSKUs {
+		imageURL := firstSafeOzonAttributeSuggestionImageURL(sku.ImageURL)
+		if imageURL == "" {
+			continue
+		}
+		skuImages = append(skuImages, ozonAttributeImageCandidate{
+			url: imageURL, imageType: ImageTypeSKU, sortOrder: index, createdAt: sku.CreatedAt, id: sku.ID.String(),
+		})
+	}
+
+	probeCandidates := make([]ozonAttributeImageCandidate, 0, len(mainImages)+len(detailImages)+len(skuImages))
+	probeCandidates = append(probeCandidates, mainImages...)
+	probeCandidates = append(probeCandidates, detailImages...)
+	probeCandidates = append(probeCandidates, skuImages...)
+	metadata := probeOzonAttributeSuggestionImageCandidates(ctx, probeCandidates, probe)
+	valid := func(candidate ozonAttributeImageCandidate) bool {
+		meta, ok := metadata[canonicalOzonAttributeSuggestionImageKey(candidate.url)]
+		return ok && isOzonAttributeSuggestionProductImage(meta)
+	}
+	mainImages = filterOzonAttributeSuggestionImageCandidates(mainImages, valid)
+	detailImages = filterOzonAttributeSuggestionImageCandidates(detailImages, func(candidate ozonAttributeImageCandidate) bool {
+		return candidate.imageType != ImageTypeMarketing && valid(candidate)
+	})
+	skuImages = filterOzonAttributeSuggestionImageCandidates(skuImages, valid)
+	sort.SliceStable(detailImages, func(i, j int) bool {
+		leftMeta := metadata[canonicalOzonAttributeSuggestionImageKey(detailImages[i].url)]
+		rightMeta := metadata[canonicalOzonAttributeSuggestionImageKey(detailImages[j].url)]
+		leftPriority := ozonAttributeSuggestionDetailImagePriority(leftMeta)
+		rightPriority := ozonAttributeSuggestionDetailImagePriority(rightMeta)
+		if leftPriority != rightPriority {
+			return leftPriority < rightPriority
+		}
+		leftTypePriority := ozonAttributeImageTypePriority(detailImages[i].imageType)
+		rightTypePriority := ozonAttributeImageTypePriority(detailImages[j].imageType)
+		if leftTypePriority != rightTypePriority {
+			return leftTypePriority < rightTypePriority
+		}
+		return ozonAttributeImageCandidateLess(detailImages[i], detailImages[j])
+	})
+
 	out := make([]string, 0, ozonAttributeSuggestionMaxImages)
 	seen := map[string]bool{}
 	appendURL := func(imageURL string) {
@@ -859,30 +1052,147 @@ func selectOzonAttributeSuggestionImages(
 		seen[key] = true
 		out = append(out, imageURL)
 	}
-	mainStart := 0
 	if len(mainImages) > 0 {
-		appendURL(mainImages[0].url)
-		mainStart = 1
-	}
-	for _, candidate := range detailImages {
-		appendURL(candidate.url)
-	}
-	for _, candidate := range mainImages[mainStart:] {
-		appendURL(candidate.url)
+		primary := mainImages[0]
+		appendURL(primary.url)
+		// Imported catalogs commonly store the same visual as both main and
+		// detail at the same source position under different CDN URLs. Prefer a
+		// different stable position for image.2, then fall back to same-position
+		// candidates only when no alternative exists.
+		for _, candidate := range detailImages {
+			if candidate.sortOrder != primary.sortOrder {
+				appendURL(candidate.url)
+			}
+		}
+		for _, candidate := range mainImages[1:] {
+			if candidate.sortOrder != primary.sortOrder {
+				appendURL(candidate.url)
+			}
+		}
+		for _, candidate := range detailImages {
+			if candidate.sortOrder == primary.sortOrder {
+				appendURL(candidate.url)
+			}
+		}
+		for _, candidate := range mainImages[1:] {
+			if candidate.sortOrder == primary.sortOrder {
+				appendURL(candidate.url)
+			}
+		}
+	} else {
+		for _, candidate := range detailImages {
+			appendURL(candidate.url)
+		}
 	}
 	if len(out) < ozonAttributeSuggestionMaxImages {
-		orderedSKUs := append([]ProductSKU(nil), allSKUs...)
-		sort.SliceStable(orderedSKUs, func(i, j int) bool {
-			if !orderedSKUs[i].CreatedAt.Equal(orderedSKUs[j].CreatedAt) {
-				return orderedSKUs[i].CreatedAt.Before(orderedSKUs[j].CreatedAt)
-			}
-			return orderedSKUs[i].ID.String() < orderedSKUs[j].ID.String()
-		})
-		for _, sku := range orderedSKUs {
-			appendURL(firstSafeOzonAttributeSuggestionImageURL(sku.ImageURL))
+		for _, candidate := range skuImages {
+			appendURL(candidate.url)
 		}
 	}
 	return out
+}
+
+func defaultOzonAttributeSuggestionImageProbe(ctx context.Context, imageURL string) (ozonAttributeSuggestionImageMetadata, error) {
+	opts := safedownload.DefaultOptions()
+	opts.MaxBodyBytes = 6 << 20
+	opts.ConnectTimeout = 3 * time.Second
+	opts.ResponseTimeout = 6 * time.Second
+	opts.MaxImagePixels = 24_000_000
+	opts.MaxImageWidth = 6000
+	opts.MaxImageHeight = 6000
+	opts.UserAgent = "TradeMind-OzonAttributeVisionProbe/1.0"
+	result, err := safedownload.Download(ctx, imageURL, opts)
+	if err != nil {
+		return ozonAttributeSuggestionImageMetadata{}, err
+	}
+	config, _, err := image.DecodeConfig(bytes.NewReader(result.Data))
+	if err != nil {
+		return ozonAttributeSuggestionImageMetadata{}, err
+	}
+	return ozonAttributeSuggestionImageMetadata{width: config.Width, height: config.Height}, nil
+}
+
+func probeOzonAttributeSuggestionImageCandidates(
+	ctx context.Context,
+	candidates []ozonAttributeImageCandidate,
+	probe ozonAttributeSuggestionImageProbe,
+) map[string]ozonAttributeSuggestionImageMetadata {
+	if probe == nil {
+		probe = defaultOzonAttributeSuggestionImageProbe
+	}
+	unique := make([]ozonAttributeImageCandidate, 0, len(candidates))
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		key := canonicalOzonAttributeSuggestionImageKey(candidate.url)
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		unique = append(unique, candidate)
+		if len(unique) >= ozonAttributeSuggestionMaxImageProbeCandidates {
+			break
+		}
+	}
+	results := make(map[string]ozonAttributeSuggestionImageMetadata, len(unique))
+	var mu sync.Mutex
+	sem := make(chan struct{}, ozonAttributeSuggestionImageProbeConcurrency)
+	var wg sync.WaitGroup
+	for _, candidate := range unique {
+		candidate := candidate
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			meta, err := probe(ctx, candidate.url)
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			results[canonicalOzonAttributeSuggestionImageKey(candidate.url)] = meta
+			mu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return results
+}
+
+func filterOzonAttributeSuggestionImageCandidates(
+	candidates []ozonAttributeImageCandidate,
+	keep func(ozonAttributeImageCandidate) bool,
+) []ozonAttributeImageCandidate {
+	out := make([]ozonAttributeImageCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if keep(candidate) {
+			out = append(out, candidate)
+		}
+	}
+	return out
+}
+
+func isOzonAttributeSuggestionProductImage(meta ozonAttributeSuggestionImageMetadata) bool {
+	if meta.width < 256 || meta.height < 256 {
+		return false
+	}
+	shortSide, longSide := meta.width, meta.height
+	if shortSide > longSide {
+		shortSide, longSide = longSide, shortSide
+	}
+	return longSide <= shortSide*2
+}
+
+func ozonAttributeSuggestionDetailImagePriority(meta ozonAttributeSuggestionImageMetadata) int {
+	// Marketplace detail photography and product infographics are commonly
+	// portrait-oriented. Prefer that shape over square service cards, while the
+	// hard aspect-ratio gate above excludes long logistics/operations banners.
+	if meta.height*100 >= meta.width*115 {
+		return 0
+	}
+	return 1
 }
 
 func ozonAttributeImageCandidateLess(left, right ozonAttributeImageCandidate) bool {
@@ -953,7 +1263,8 @@ func canonicalOzonAttributeSuggestionImageKey(raw string) string {
 	if err != nil || parsed.Host == "" {
 		return ""
 	}
-	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host) + parsed.EscapedPath()
+	path := ozonAttributeSuggestionImageVariantSuffixPattern.ReplaceAllString(parsed.EscapedPath(), "")
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host) + path
 }
 
 func sanitizeOzonAttributeSuggestionEvidenceValue(value string) string {
@@ -985,130 +1296,6 @@ func containsOzonAttributeSuggestionSecret(value string) bool {
 		}
 	}
 	return false
-}
-
-func applyOzonAttributeAIOutput(
-	result *OzonAttributeSuggestionResult,
-	candidates []ozonAttributeSuggestionCandidate,
-	allowedSourceRefs []string,
-	output ozonAttributeAIOutput,
-) {
-	if result == nil {
-		return
-	}
-	byKey := make(map[string][]ozonAttributeAICandidate, len(output.Suggestions))
-	knownCandidates := make(map[string]bool, len(candidates))
-	for _, candidate := range candidates {
-		knownCandidates[candidate.key] = true
-	}
-	for _, item := range output.Suggestions {
-		key := strings.TrimSpace(item.AttributeKey)
-		if !knownCandidates[key] {
-			result.Warnings = append(result.Warnings, "AI 返回了当前模板之外的属性引用，已丢弃")
-			continue
-		}
-		byKey[key] = append(byKey[key], item)
-	}
-	knownSourceRefs := make(map[string]bool, len(allowedSourceRefs))
-	for _, sourceRef := range allowedSourceRefs {
-		knownSourceRefs[sourceRef] = true
-	}
-	for _, candidate := range candidates {
-		items := byKey[candidate.key]
-		name := strings.TrimSpace(candidate.attr.Name)
-		if name == "" {
-			name = candidate.attr.AttrID
-		}
-		skip := func(reason string) {
-			result.Skipped = append(result.Skipped, OzonAttributeSuggestionSkipped{AttributeID: candidate.attr.AttrID, AttributeName: name, Reason: reason})
-		}
-		if len(items) == 0 {
-			skip("AI 未返回该属性的语义建议，已留空")
-			continue
-		}
-		if len(items) > 1 {
-			skip("AI 对同一属性返回冲突建议，已留空")
-			continue
-		}
-		item := items[0]
-		if item.Confidence < 0 || item.Confidence > 1 {
-			skip("AI 可信度格式无效，已留空")
-			continue
-		}
-		sourceRefs := item.SourceRefs
-		if len(sourceRefs) == 0 {
-			sourceRefs = item.EvidenceKeys
-		}
-		sourceRefs = boundedStrings(sourceRefs, 12, 80)
-		if len(sourceRefs) == 0 {
-			skip("AI 建议缺少来源引用，已留空")
-			continue
-		}
-		validSourceRefs := true
-		for _, sourceRef := range sourceRefs {
-			if !knownSourceRefs[sourceRef] {
-				validSourceRefs = false
-				break
-			}
-		}
-		if !validSourceRefs {
-			skip("AI 建议引用了未知来源，已留空")
-			continue
-		}
-		if strings.TrimSpace(item.Reason) == "" {
-			skip("AI 建议缺少可审核的推断理由，已留空")
-			continue
-		}
-		reason := truncateRunes(sanitizeOzonAttributeSuggestionEvidenceValue(item.Reason), 240)
-		if reason == "" {
-			reason = "推断依据包含敏感内容并已脱敏，请人工核对"
-		}
-		values := make([]string, 0, len(item.Values))
-		seen := map[string]bool{}
-		for _, raw := range item.Values {
-			value := truncateRunes(strings.TrimSpace(raw), 500)
-			if value == "" || seen[value] {
-				continue
-			}
-			seen[value] = true
-			values = append(values, value)
-		}
-		if len(values) == 0 {
-			skip("AI 未返回可用值，已留空")
-			continue
-		}
-		selections, err := validatedOzonAttributeSuggestionSelections(candidate, values)
-		if err != nil {
-			skip("AI 值未通过当前模板校验：" + truncateRunes(err.Error(), 220))
-			continue
-		}
-		level := "low"
-		if item.Confidence >= ozonAttributeSuggestionHighThreshold {
-			level = "high"
-		} else if item.Confidence >= ozonAttributeSuggestionMediumThreshold {
-			level = "medium"
-		}
-		result.Suggestions = append(result.Suggestions, OzonAttributeSuggestion{
-			AttributeID: candidate.attr.AttrID, AttributeName: name, Values: selections,
-			Confidence: item.Confidence, ConfidenceLevel: level, RequiresReview: level != "high",
-			Reason: reason, SourceRefs: sourceRefs,
-		})
-	}
-	result.Warnings = boundedStrings(result.Warnings, 10, 240)
-	result.Summary = OzonAttributeSuggestionSummary{Filled: len(result.Suggestions), NotFound: len(result.Skipped)}
-	for _, suggestion := range result.Suggestions {
-		if suggestion.RequiresReview {
-			result.Summary.RequiresReview++
-		}
-	}
-	switch {
-	case len(result.Suggestions) == 0:
-		result.Status = OzonAttributeSuggestionNoMatch
-	case len(result.Skipped) > 0 || len(result.Warnings) > 0:
-		result.Status = OzonAttributeSuggestionPartial
-	default:
-		result.Status = OzonAttributeSuggestionReady
-	}
 }
 
 func validatedOzonAttributeSuggestionSelections(candidate ozonAttributeSuggestionCandidate, semanticValues []string) ([]OzonAttributeSelection, error) {
@@ -1174,6 +1361,139 @@ func (s *Service) finishOzonAttributeSuggestionAudit(
 	// sanitized above.
 	_ = s.AITasks.MarkSuccess(c.Request.Context(), taskID, output, nil, inputTokens, outputTokens, model)
 	s.writeOzonAttributeSuggestionLog(c, adminID, productID, taskID, "success", "validated_suggestions", result.Summary)
+}
+
+func finalizeOzonAttributeSuggestionResult(result *OzonAttributeSuggestionResult, eligible int) {
+	if result == nil {
+		return
+	}
+	summary := OzonAttributeSuggestionSummary{
+		Filled:   len(result.Suggestions),
+		NotFound: len(result.Skipped),
+		Eligible: eligible,
+	}
+	for _, suggestion := range result.Suggestions {
+		switch strings.ToLower(strings.TrimSpace(suggestion.ConfidenceLevel)) {
+		case "high":
+			summary.High++
+		case "medium":
+			summary.Medium++
+		default:
+			summary.Low++
+		}
+		if suggestion.RequiresReview {
+			summary.RequiresReview++
+		}
+	}
+	hasIncompleteEligible := false
+	for _, skipped := range result.Skipped {
+		switch skipped.Kind {
+		case ozonAttributeSkipExternal:
+			summary.ExternalSkipped++
+		case ozonAttributeSkipUnsupported:
+			summary.UnsupportedSkipped++
+		default:
+			summary.ValidationSkipped++
+			hasIncompleteEligible = true
+		}
+	}
+	result.Summary = summary
+	result.Warnings = boundedStrings(result.Warnings, 10, 240)
+	switch {
+	case len(result.Suggestions) == 0:
+		result.Status = OzonAttributeSuggestionNoMatch
+	case hasIncompleteEligible || len(result.Warnings) > 0:
+		result.Status = OzonAttributeSuggestionPartial
+	default:
+		result.Status = OzonAttributeSuggestionReady
+	}
+}
+
+func (s *Service) revalidateOzonAttributeSuggestionContext(
+	c *gin.Context,
+	productID uuid.UUID,
+	originalUpdatedAt time.Time,
+	tenantID int64,
+	shopID uuid.UUID,
+	categoryID string,
+	templateFingerprint string,
+) error {
+	productRow, err := s.findTenantProduct(c, productID)
+	if err != nil {
+		return err
+	}
+	if !productRow.UpdatedAt.UTC().Equal(originalUpdatedAt.UTC()) {
+		return staleOzonAttributeSuggestion("商品已在 AI 填写期间发生变化，旧响应已拒绝", nil)
+	}
+	if err := s.requirePlatformShopOperate(c, shopID, "ozon"); err != nil {
+		return err
+	}
+	if err := s.OzonCategories.EnsureAuthorizedOzonShop(c.Request.Context(), tenantID, shopID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return gorm.ErrRecordNotFound
+		}
+		return unavailableOzonAttributeSuggestion("Ozon 店铺授权状态已无法核对", err)
+	}
+	var category shop.PlatformCategory
+	if err := s.DB.WithContext(c.Request.Context()).
+		Where("platform = ? AND category_id = ?", "ozon", categoryID).
+		First(&category).Error; err != nil {
+		return err
+	}
+	if !category.IsLeaf || !strings.EqualFold(strings.TrimSpace(category.Status), "active") {
+		return staleOzonAttributeSuggestion("Ozon 叶子类目已变化，旧响应已拒绝", nil)
+	}
+	attrs, err := s.OzonCategories.ListOzonCategoryAttributes(c.Request.Context(), categoryID)
+	if err != nil {
+		return unavailableOzonAttributeSuggestion("当前 Ozon 类目属性模板暂无法复核", err)
+	}
+	if len(attrs) == 0 {
+		return staleOzonAttributeSuggestion("当前 Ozon 类目属性模板已清空，旧响应已拒绝", nil)
+	}
+	for _, attr := range attrs {
+		if attr.CacheStale || (attr.CategoryID != "" && strings.TrimSpace(attr.CategoryID) != categoryID) {
+			return staleOzonAttributeSuggestion("当前 Ozon 类目属性模板已变化，旧响应已拒绝", nil)
+		}
+	}
+	if shop.OzonCategoryAttributeSchemaHash(attrs) != templateFingerprint {
+		return staleOzonAttributeSuggestion("当前 Ozon 类目属性模板已变化，旧响应已拒绝", nil)
+	}
+	return nil
+}
+
+func (s *Service) updateOzonAttributeSuggestionAuditInput(
+	ctx context.Context,
+	tenantID int64,
+	taskID uuid.UUID,
+	original []byte,
+	pipeline *ozonAttributePipelineResult,
+	summary OzonAttributeSuggestionSummary,
+) {
+	if s == nil || s.DB == nil || pipeline == nil {
+		return
+	}
+	input := map[string]any{}
+	if json.Unmarshal(original, &input) != nil {
+		return
+	}
+	input["factCount"] = pipeline.FactCount
+	input["factRepairCount"] = pipeline.FactRepairCount
+	input["attributeBatchCount"] = pipeline.BatchCount
+	input["repairBatchCount"] = pipeline.RepairCount
+	input["aiCallCount"] = 1 + pipeline.FactRepairCount + pipeline.BatchCount + pipeline.RepairCount
+	input["tokenInput"] = pipeline.InputTokens
+	input["tokenOutput"] = pipeline.OutputTokens
+	input["filledCount"] = summary.Filled
+	input["highCount"] = summary.High
+	input["mediumCount"] = summary.Medium
+	input["lowCount"] = summary.Low
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return
+	}
+	_ = s.DB.WithContext(ctx).Model(&aitask.AITask{}).
+		Where("id = ? AND tenant_id = ?", taskID, tenantID).
+		Update("input", datatypes.JSON(encoded)).Error
 }
 
 func (s *Service) writeOzonAttributeSuggestionLog(

@@ -27,6 +27,8 @@ Collector Provider
 
 当前 AI Prompt 模板为实例级设置，不是租户业务数据；其读取和变更仅限 `tenant_id=0` 的全局设置管理员（`settings.manage`）。
 
+AI 外部请求统一经过 AIGateway 与 Provider 限流/熔断边界。AIGateway 根据 completion 规模和配置计算有限超时；底层 HTTP 客户端的总请求超时与响应头超时使用同一预算，避免长 completion 被共享的 30 秒响应头默认值提前截断。业务 service 不应再叠加更短的固定 deadline，Provider 传输失败是否重试仍由具体业务语义决定。
+
 后续可扩展：
 
 - DeepSeek / Qwen 专属错误码、多模态、Embedding、Rerank、用量统计

@@ -37,12 +37,13 @@ type Service struct {
 	AIGateway   *aigate.Gateway
 	Idempotency *idempotency.Service
 
-	Shops               DouyinShopClientFactory
-	OzonCategories      OzonCategoryRecommendationCatalog
-	OzonCategoryAI      AIChatClient
-	OzonAttributeAI     AIChatClient
-	DouyinImageUploader DouyinImageUploader
-	Readiness           func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
+	Shops                   DouyinShopClientFactory
+	OzonCategories          OzonCategoryRecommendationCatalog
+	OzonCategoryAI          AIChatClient
+	OzonAttributeAI         AIChatClient
+	ozonAttributeImageProbe ozonAttributeSuggestionImageProbe
+	DouyinImageUploader     DouyinImageUploader
+	Readiness               func(context.Context, OperationReadinessRequest) (*OperationReadinessResult, error)
 }
 
 // findTenantProduct is the module boundary for operations on product children.

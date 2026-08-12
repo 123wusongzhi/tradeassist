@@ -199,21 +199,43 @@ describe("TradeMind API contract registry", () => {
       "suggestions[].values[].dictionaryValueId",
       "suggestions[].confidence",
       "suggestions[].confidenceLevel",
+      "suggestions[].inferenceBasis",
       "suggestions[].requiresReview",
       "suggestions[].reason",
       "suggestions[].sourceRefs",
       "skipped[].attributeId",
       "skipped[].attributeName",
+      "skipped[].kind",
       "skipped[].reason",
       "summary.filled",
       "summary.requiresReview",
       "summary.notFound",
+      "summary.eligible",
+      "summary.high",
+      "summary.medium",
+      "summary.low",
+      "summary.externalSkipped",
+      "summary.unsupportedSkipped",
+      "summary.validationSkipped",
       "warnings",
     ]);
     expect(ozonAttributeSuggestions?.confidenceLevels).toEqual([
       "high",
       "medium",
       "low",
+    ]);
+    expect(ozonAttributeSuggestions?.inferenceBases).toEqual([
+      "direct_product_evidence",
+      "product_standard_inference",
+      "category_fallback_guess",
+    ]);
+    expect(ozonAttributeSuggestions?.skipKinds).toEqual([
+      "external",
+      "unsupported",
+      "dictionary_unmatched",
+      "validation_failed",
+      "model_omitted",
+      "batch_failed",
     ]);
     expect(ozonAttributeSuggestions?.tenantScoped).toBe(true);
     expect(ozonAttributeSuggestions?.storeScoped).toBe(true);

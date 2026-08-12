@@ -2,12 +2,14 @@ import type { OzonCategoryAttribute } from "@/services/ozonCategories";
 import type {
   OzonAttributeSuggestion,
   OzonAttributeSuggestionConfidenceLevel,
+  OzonAttributeSuggestionInferenceBasis,
 } from "@/services/ozonPublish";
 
 export type OzonAIAttributeMarker = {
   attributeId: string;
   attributeName: string;
   confidenceLevel: OzonAttributeSuggestionConfidenceLevel;
+  inferenceBasis?: OzonAttributeSuggestionInferenceBasis | string;
   requiresReview: boolean;
   reason?: string;
   appliedValue: string | string[];
@@ -22,9 +24,13 @@ export type OzonAIAttributeRejected = {
 export type OzonAIAttributeMergeResult = {
   attributes: Record<string, string | string[]>;
   applied: Record<string, OzonAIAttributeMarker>;
+  dictionaryOptions: Record<string, Array<{ id: string; value: string }>>;
   rejected: OzonAIAttributeRejected[];
   filled: number;
   requiresReview: number;
+  high: number;
+  medium: number;
+  low: number;
 };
 
 export type OzonAIAttributeUndoResult = {
@@ -168,6 +174,26 @@ function validateSuggestion(
     suggestion.requiresReview !== (expectedLevel !== "high")
   )
     return { issue: "建议可信度等级不一致" };
+  const basisExpectations: Record<
+    OzonAttributeSuggestionInferenceBasis,
+    { confidence: number; level: OzonAttributeSuggestionConfidenceLevel }
+  > = {
+    direct_product_evidence: { confidence: 0.9, level: "high" },
+    product_standard_inference: { confidence: 0.7, level: "medium" },
+    category_fallback_guess: { confidence: 0.3, level: "low" },
+  };
+  if (suggestion.inferenceBasis) {
+    const expectation =
+      basisExpectations[
+        suggestion.inferenceBasis as OzonAttributeSuggestionInferenceBasis
+      ];
+    if (
+      !expectation ||
+      suggestion.confidence !== expectation.confidence ||
+      suggestion.confidenceLevel !== expectation.level
+    )
+      return { issue: "建议推断依据与可信度不一致" };
+  }
   if (!Array.isArray(suggestion.values) || suggestion.values.length === 0)
     return { issue: "建议没有可用值" };
   if (!attribute.isCollection && suggestion.values.length !== 1)
@@ -197,8 +223,17 @@ function validateSuggestion(
       const option = (attribute.options || []).find(
         (item) => item.id === dictionaryValueId,
       );
-      if (!option || option.value !== value)
-        return { issue: "词典建议不属于当前模板选项" };
+      // The server already maps semantic text to one authoritative Ozon ID.
+      // Cached labels can be localized differently (for example 彩色 vs
+      // Цветной) while referring to the same ID; keep the cached UI label.
+      if (
+        !option &&
+        (attribute.options || []).some(
+          (item) =>
+            item.value.trim().toLowerCase() === value.trim().toLowerCase(),
+        )
+      )
+        return { issue: "词典建议与当前缓存中的官方选项 ID 冲突" };
       if (seen.has(dictionaryValueId)) return { issue: "建议包含重复词典值" };
       seen.add(dictionaryValueId);
       values.push(dictionaryValueId);
@@ -233,6 +268,10 @@ export function mergeOzonAIAttributeSuggestions(options: {
     suggestionCounts.set(id, (suggestionCounts.get(id) || 0) + 1);
   });
   const applied: Record<string, OzonAIAttributeMarker> = {};
+  const dictionaryOptions: Record<
+    string,
+    Array<{ id: string; value: string }>
+  > = {};
   const rejected: OzonAIAttributeRejected[] = [];
 
   (options.suggestions || []).forEach((suggestion) => {
@@ -251,10 +290,10 @@ export function mergeOzonAIAttributeSuggestions(options: {
       reject("建议属性已不在当前模板中");
       return;
     }
-    if (
-      selectedVariants.has(attributeId) ||
-      (options.hasMultipleSKUs && attribute.skuVariantEligible)
-    ) {
+    // skuVariantEligible means Ozon permits this field to vary per SKU. It is
+    // still an ordinary product-level field until the editor explicitly picks
+    // it as a variant dimension.
+    if (selectedVariants.has(attributeId)) {
       reject("SKU 变体属性不在普通商品级 AI 回填范围内");
       return;
     }
@@ -268,10 +307,26 @@ export function mergeOzonAIAttributeSuggestions(options: {
       return;
     }
     attributes[attributeId] = cloneValue(validated.value);
+    if (attribute.dictionaryId) {
+      const cachedIDs = new Set(
+        (attribute.options || []).map((option) => String(option.id).trim()),
+      );
+      const additions = (suggestion.values || [])
+        .map((selection) => ({
+          id: String(selection.dictionaryValueId || "").trim(),
+          value: String(selection.value || "").trim(),
+        }))
+        .filter(
+          (option) =>
+            option.id && option.value && !cachedIDs.has(option.id),
+        );
+      if (additions.length > 0) dictionaryOptions[attributeId] = additions;
+    }
     applied[attributeId] = {
       attributeId,
       attributeName: attribute.name || attributeName,
       confidenceLevel: suggestion.confidenceLevel,
+      inferenceBasis: suggestion.inferenceBasis,
       requiresReview: suggestion.requiresReview,
       reason: suggestion.reason,
       appliedValue: cloneValue(validated.value),
@@ -282,9 +337,14 @@ export function mergeOzonAIAttributeSuggestions(options: {
   return {
     attributes,
     applied,
+    dictionaryOptions,
     rejected,
     filled: markers.length,
     requiresReview: markers.filter((marker) => marker.requiresReview).length,
+    high: markers.filter((marker) => marker.confidenceLevel === "high").length,
+    medium: markers.filter((marker) => marker.confidenceLevel === "medium")
+      .length,
+    low: markers.filter((marker) => marker.confidenceLevel === "low").length,
   };
 }
 

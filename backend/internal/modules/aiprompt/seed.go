@@ -3,6 +3,7 @@ package aiprompt
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	"gorm.io/datatypes"
@@ -12,10 +13,11 @@ import (
 const CodeProductTitleOptimize = "product_title_optimize"
 const CodeProductDescriptionGenerate = "product_description_generate"
 const CodeOzonAttributeSuggestions = "ozon_attribute_suggestions"
+const CodeOzonAttributeFacts = "ozon_attribute_facts"
 const CodeCustomerReplyGenerate = "customer_reply_generate"
 const CodeCollectRuleGenerate = "collect_rule_generate"
 
-const OzonAttributeSuggestionPolicyVersion = "ozon_attribute_suggestions_policy_v2"
+const OzonAttributeSuggestionPolicyVersion = "ozon_attribute_suggestions_policy_v3"
 
 // EnsureDefaults creates built-in prompts when missing.
 func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
@@ -28,10 +30,13 @@ func EnsureDefaults(ctx context.Context, db *gorm.DB) error {
 	if err := ensureProductDescriptionGenerate(ctx, db); err != nil {
 		return err
 	}
+	if err := ensureOzonAttributeFacts(ctx, db); err != nil {
+		return err
+	}
 	if err := ensureOzonAttributeSuggestions(ctx, db); err != nil {
 		return err
 	}
-	if err := migrateOzonAttributeSuggestionsPolicyV2(ctx, db); err != nil {
+	if err := migrateOzonAttributeSuggestionsPolicyV3(ctx, db); err != nil {
 		return err
 	}
 	if err := ensureCustomerReplyGenerate(ctx, db); err != nil {
@@ -178,7 +183,7 @@ Reply with JSON only using the schema from the system message.`)
 	return db.WithContext(ctx).Create(row).Error
 }
 
-func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
+func builtinOzonAttributeSuggestionsV2() (string, string, datatypes.JSON) {
 	schema, _ := json.Marshal(map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -215,28 +220,134 @@ func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
 	return defaultSys, defaultUser, datatypes.JSON(schema)
 }
 
+func builtinOzonAttributeSuggestions() (string, string, datatypes.JSON) {
+	schema, _ := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"suggestions": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"attributeKey":   map[string]string{"type": "string"},
+						"values":         map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+						"confidence":     map[string]string{"type": "number"},
+						"inferenceBasis": map[string]string{"type": "string"},
+						"reason":         map[string]string{"type": "string"},
+						"sourceRefs":     map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+						"factRefs":       map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+					},
+					"required": []string{"attributeKey", "values", "confidence", "inferenceBasis", "reason", "sourceRefs"},
+				},
+			},
+		},
+		"required": []string{"suggestions"},
+	})
+	defaultSys := strings.TrimSpace(`你是 Ozon 普通商品级类目属性建议器。服务端会分批给出必须逐项决策的空白属性；必须遵守服务端附加的 policy v3 与安全规则，并严格输出单个 JSON 对象。`)
+	defaultUser := strings.TrimSpace(`请为本批每个空白 Ozon 普通商品级属性各返回一项建议，不得漏项。
+
+脱敏商品、完整类目路径、代表 SKU、图片事实表与允许来源 JSON：
+{{context}}
+
+本批允许建议的空白属性 JSON：
+{{attributes}}
+
+允许引用的来源：
+{{sourceRefs}}
+
+values 数组的每个元素都必须是 JSON 字符串；即使属性类型是 Integer、Decimal 或 Boolean，也必须分别写成如 "1"、"8.75"、"true" 的字符串，不能输出 JSON 数字、布尔值或 null。
+
+只输出 JSON：{"suggestions":[{"attributeKey":"attribute_1","values":["语义文本"],"confidence":0.7,"inferenceBasis":"product_standard_inference","reason":"简短可审核依据","sourceRefs":["product.title","common_knowledge"],"factRefs":[]}]}`)
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
+func builtinOzonAttributeFacts() (string, string, datatypes.JSON) {
+	schema, _ := json.Marshal(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"facts": map[string]any{
+				"type": "array",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name":       map[string]string{"type": "string"},
+						"value":      map[string]string{"type": "string"},
+						"evidence":   map[string]string{"type": "string"},
+						"sourceRefs": map[string]any{"type": "array", "items": map[string]string{"type": "string"}},
+					},
+					"required": []string{"name", "value", "evidence", "sourceRefs"},
+				},
+			},
+		},
+		"required": []string{"facts"},
+	})
+	defaultSys := strings.TrimSpace(`你是商品图文事实提炼器。只输出单个 JSON 对象，且只能包含 facts 数组。
+
+规则：
+- 只提炼标题、描述、可信文本属性、代表 SKU 或图片中直接可核验的商品事实；不得加入类目常识、推测、营销扩写或外部资料。
+- 每条必须包含 name、value、evidence、sourceRefs。文本 evidence 必须是对应输入中的简短原文片段；视觉事实用 image.1/image.2 并简述可见依据。
+- sourceRefs 只能使用输入白名单中的 product.*、sku.*、image.*，不得使用 category.* 或 common_knowledge。
+- 重点覆盖候选属性可能需要的材质、颜色、结构、尺寸、重量、型号、配套、用途等事实，但不存在就不要伪造。
+- 对比全部代表 SKU：同一规格在 SKU 间存在不同值时，不得把其中一个值写成适用于整件商品的事实，也不要把该差异作为商品级 fact 输出；只能提炼全部代表 SKU 明确共有的事实。
+- 不得输出凭证、Token、Cookie、店铺信息、图片 URL、私有链接或平台 ID。`)
+	defaultUser := strings.TrimSpace(`从以下脱敏商品上下文与最多两张商品图中提炼直接可核验事实。
+
+商品上下文 JSON：
+{{context}}
+
+候选属性的事实需求 JSON：
+{{attributes}}
+
+允许引用的来源：
+{{sourceRefs}}
+
+只输出 JSON：{"facts":[{"name":"颜色","value":"黑色","evidence":"黑色","sourceRefs":["product.title"]}]}`)
+	return defaultSys, defaultUser, datatypes.JSON(schema)
+}
+
 // OzonAttributeSuggestionRuntimePolicy is appended at request time so a
-// persisted pre-v2 prompt cannot silently retain the former conservative
+// persisted or custom prompt cannot silently retain a conservative or partial
 // "omit unless explicit evidence" behavior. Template/type/dictionary checks
 // remain authoritative in product service after the model returns.
 func OzonAttributeSuggestionRuntimePolicy() string {
 	return strings.TrimSpace(`[` + OzonAttributeSuggestionPolicyVersion + `]
-目标：积极使用推断能力，尽量填写当前允许处理的普通商品级空白属性；用户会在保存前最终审核。
+目标：除服务端已经排除的外部运营/物流/合规字段外，为本批每个普通商品级空白属性返回一项语义建议；用户会在保存前最终审核。
 
-输出必须是单个 JSON 对象且只能包含 suggestions 数组。每项必须且只能包含 attributeKey、values、confidence、reason、sourceRefs。
+商品级一致性：建议必须适用于整个商品，而不是只适用于主 SKU。必须比较全部代表 SKU；若颜色、尺寸、材质、型号、套餐/标配内容或其他规格在 SKU 间不同，不得把其中一个变体值写成整商品事实，也不得把它注入商品级名称、简介、标签、配套或其他普通属性。尤其禁止把仅部分 SKU 包含的底座、充电头、内存卡或赠品作为整商品“配套”。应使用全部 SKU 共有的中性表述；无法形成共同事实时只能降为 category_fallback_guess 并明确提示核对。
+context.skuVariations 是服务端根据代表 SKU 确定性计算的差异清单，优先级高于图片和模型提炼的 facts。清单中的任一单值都不得写入整商品名称、简介或主题标签，也不得声称“全部 SKU 一致”。
 
-推断政策：
-- 允许综合商品标题、描述、可信商品文本属性、完整 Ozon 类目路径/名称/商品类型、最多 3 个代表 SKU、最多 2 张商品图片以及通用商品知识主动推断。
-- 不要因为缺少直接文字证据就大面积省略。品牌、产地、尺寸重量、保修、HS 编码、认证/合规、日期和 URL 等也可合理推断；不确定时仍返回，并用较低 confidence、明确 reason 和 sourceRefs 标记。
-- 高、中、低可信建议都要返回。confidence 必须在 0 到 1 之间；直接明确可用高可信，需要语义判断用中可信，主要依赖视觉或通用知识用低可信。
-- 只有无法形成任何语义候选、无法满足 valueType/格式/数量约束，或词典属性无法从 dictionaryOptions 中选择唯一语义文本时才省略。
+商品文案边界：不得把老人机、按键功能机或 Series 30+ 设备写成智能手机；使用“移动电话/功能机”等与证据一致的中性类型。“4G 全网通”不能推导出兼容所有俄罗斯运营商或其他地区网络，除非商品原始证据明确给出该地区及运营商兼容性。不得把类目平台所在地扩写为商品网络能力。
+
+品牌与系统边界：TradeMind、Ozon、AI、模型或界面/服务名称都不是商品品牌证据。商品名称中的品牌、型号及拉丁商品标识，只有直接出现在 product.title、product.description、product.attributes、代表 SKU 或已验证 facts 时才能使用；不得为补齐名称而臆造品牌或把系统名称写入商品值。
+
+输出必须是单个 JSON 对象且只能包含 suggestions 数组。每项必须包含 attributeKey、values、confidence、inferenceBasis、reason、sourceRefs；可包含 factRefs。不得输出其他字段。suggestions 必须与输入 attributes 一一对应，不得漏项、重复或添加批次外属性。
+
+推断层级（服务端会重新判定并规范化可信度）：
+- direct_product_evidence：值直接来自商品标题、描述、可信属性、代表 SKU、图片或给定 facts；引用直接 sourceRefs，并尽量引用对应 factRefs。confidence 写 0.9。
+- product_standard_inference：商品直接证据结合该类标品常识推断；同时引用商品/类目来源和 common_knowledge。confidence 写 0.7。
+- category_fallback_guess：无法从商品本身确认，只能依据完整类目和通用知识猜测；引用 category.* 与 common_knowledge。confidence 写 0.3。
+- 不得把纯类目常识或猜测标成 direct_product_evidence。即使只能低可信猜测，也必须返回并说明待审核风险，不能因证据不足省略。
 
 安全与格式：
-- 只能引用输入中的 attributeKey；不得输出或猜测类目 ID、属性 ID、词典 ID、平台 ID。
-- values 只返回语义文本。词典属性只能从该属性 dictionaryOptions 中选择文本，绝不能返回数字 ID。
-- sourceRefs 只能从 allowedSourceRefs 中选择；基于通用知识时使用 common_knowledge，图片按 image.1 / image.2 引用。
+- 只能使用输入中的 attributeKey；不得输出或猜测类目 ID、属性 ID、词典 ID或其他平台 ID。
+- values 只返回语义文本，禁止把数字 ID 当作词典值。dictionaryOptionsTruncated=false 时，词典值必须逐字选自 dictionaryOptions；为 true 时可返回预计的官方语义文本，服务端只会接受官方只读搜索的唯一精确匹配。
+- sourceRefs 只能从 allowedSourceRefs 中选择。factRefs 只能引用 context.facts 中的 factKey。
 - 单值属性只返回一个值；多值属性不得超过 maxValueCount。Integer、Decimal、Boolean、URL、date/datetime 必须使用对应标准格式。
-- 不要输出凭证、Token、Cookie、店铺信息、图片 URL 或任何私有链接。`)
+- semanticHint 是服务端基于当前官方属性/词典语义提供的消歧说明，优先级高于机器翻译后的字面猜测；必须返回 dictionaryOptions 中对应的官方语义文本，不能返回 hint 中的解释文字。
+- 属性名称中的计量单位是硬约束。若依据使用其他单位，必须先准确换算后再返回，例如“28 天”用于“小时”字段时必须返回 672，禁止明知单位不一致仍复制 28 或按运营习惯改写单位。
+- values 必须始终是 JSON 字符串数组；Integer、Decimal、Boolean 也只能分别返回如 ["1"]、["8.75"]、["true"]，禁止返回 JSON 数字、布尔值、对象或 null。
+- 不要输出凭证、Token、Cookie、店铺信息、图片 URL、私有链接或当前用户已填值。`)
+}
+
+// OzonAttributeFactsRuntimePolicy is appended at request time so an existing
+// persisted/custom fact prompt still treats the representative SKU set as a
+// product-wide consistency boundary without a schema migration.
+func OzonAttributeFactsRuntimePolicy() string {
+	return strings.TrimSpace(`[ozon_attribute_facts_policy_v1]
+事实必须适用于整个商品。比较全部代表 SKU；同一规格在 SKU 间存在不同值时，禁止把单一 SKU 的颜色、尺寸、材质、型号、套餐/标配内容或其他变体值写成整商品事实，也不要输出该差异；仅部分 SKU 包含的底座、充电头、内存卡或赠品不得作为商品级配套事实。只能输出所有代表 SKU 的共同点。单张图片只证明该图可见内容，不能覆盖与其他 SKU 冲突的规格。图片可直接证明品牌文字、颜色、外形/结构等肉眼可见事实；SIM 数量、存储、电池、系统、频段、续航等隐藏规格不得仅凭外观图片输出，除非同时有可回指的商品文本来源。
+context.skuVariations 是服务端确定性差异清单；其中任何单值均禁止作为商品级 fact，图片也不能推翻该清单。
+
+严格保持既有 JSON 协议：只输出一个对象且顶层只能有 facts；facts 每项只能有 name、value、evidence、sourceRefs 四个字段。禁止增加 scope、applicability、status、timeout、notes 或任何其他字段，禁止 Markdown 和 JSON 之外的文字。`)
 }
 
 func legacyBuiltinOzonAttributeSuggestionsV1() (string, string) {
@@ -263,7 +374,7 @@ func legacyBuiltinOzonAttributeSuggestionsV1() (string, string) {
 	return legacySys, legacyUser
 }
 
-func migrateOzonAttributeSuggestionsPolicyV2(ctx context.Context, db *gorm.DB) error {
+func migrateOzonAttributeSuggestionsPolicyV3(ctx context.Context, db *gorm.DB) error {
 	if db == nil {
 		return nil
 	}
@@ -272,7 +383,11 @@ func migrateOzonAttributeSuggestionsPolicyV2(ctx context.Context, db *gorm.DB) e
 		return nil
 	}
 	legacySys, legacyUser := legacyBuiltinOzonAttributeSuggestionsV1()
-	if strings.TrimSpace(row.SystemPrompt) != legacySys || strings.TrimSpace(row.UserPrompt) != legacyUser {
+	v2Sys, v2User, v2Schema := builtinOzonAttributeSuggestionsV2()
+	isLegacyV1 := strings.TrimSpace(row.SystemPrompt) == legacySys && strings.TrimSpace(row.UserPrompt) == legacyUser
+	isBuiltinV2 := strings.TrimSpace(row.SystemPrompt) == v2Sys &&
+		strings.TrimSpace(row.UserPrompt) == v2User && sameJSONDocument(row.OutputSchema, v2Schema)
+	if !isLegacyV1 && !isBuiltinV2 {
 		return nil
 	}
 	sys, user, schema := builtinOzonAttributeSuggestions()
@@ -283,6 +398,32 @@ func migrateOzonAttributeSuggestionsPolicyV2(ctx context.Context, db *gorm.DB) e
 		row.MaxTokens = 4096
 	}
 	return db.WithContext(ctx).Save(&row).Error
+}
+
+func sameJSONDocument(left, right []byte) bool {
+	var leftValue any
+	var rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
+}
+
+func ensureOzonAttributeFacts(ctx context.Context, db *gorm.DB) error {
+	defaultSys, defaultUser, schema := builtinOzonAttributeFacts()
+	var count int64
+	if err := db.WithContext(ctx).Model(&AIPrompt{}).Where("code = ?", CodeOzonAttributeFacts).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+	row := &AIPrompt{
+		Code: CodeOzonAttributeFacts, Name: "Ozon 商品图文事实提炼", Scene: "product",
+		SystemPrompt: defaultSys, UserPrompt: defaultUser, OutputSchema: schema,
+		Temperature: 0.1, MaxTokens: 1400, Enabled: true,
+	}
+	return db.WithContext(ctx).Create(row).Error
 }
 
 func ensureOzonAttributeSuggestions(ctx context.Context, db *gorm.DB) error {
